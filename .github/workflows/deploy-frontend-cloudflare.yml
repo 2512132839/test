@@ -40,33 +40,55 @@ jobs:
             echo "is_deploy_button=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set environment variables
-        id: set-env
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_APP_ENV: production
+          VITE_ENABLE_DEVTOOLS: false
+
+      - name: Check if Pages project exists
+        id: check-project
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # 检查是否提供了CLOUDFLARE_BACKEND_URL
-          if [ -n "${{ secrets.CLOUDFLARE_BACKEND_URL }}" ]; then
-            echo "Using provided CLOUDFLARE_BACKEND_URL for frontend build"
-            echo "backend_url=${{ secrets.CLOUDFLARE_BACKEND_URL }}" >> $GITHUB_OUTPUT
-            echo "has_backend_url=true" >> $GITHUB_OUTPUT
+          echo "检查 Cloudflare Pages 项目是否存在..."
+          PROJECT_CHECK=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" | jq -r '.result[] | select(.name=="cloudpaste-frontend") | .name')
+
+          if [ -n "$PROJECT_CHECK" ]; then
+            echo "✅ 找到现有Pages项目: cloudpaste-frontend"
+            echo "project_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "No CLOUDFLARE_BACKEND_URL provided, the frontend will use relative paths or need manual configuration"
-            echo "has_backend_url=false" >> $GITHUB_OUTPUT
+            echo "⚠️ 未找到Pages项目: cloudpaste-frontend"
+            echo "project_exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build frontend with backend URL
-        if: steps.set-env.outputs.has_backend_url == 'true'
-        run: npm run build
+      - name: Create Pages project if not exists
+        if: steps.check-project.outputs.project_exists == 'false'
         env:
-          VITE_BACKEND_URL: ${{ steps.set-env.outputs.backend_url }}
-          VITE_APP_ENV: production
-          VITE_ENABLE_DEVTOOLS: false
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "创建 Cloudflare Pages 项目: cloudpaste-frontend..."
+          cat << EOF > pages-config.json
+          {
+            "name": "cloudpaste-frontend",
+            "production_branch": "production"
+          }
+          EOF
 
-      - name: Build frontend without backend URL
-        if: steps.set-env.outputs.has_backend_url == 'false'
-        run: npm run build
-        env:
-          VITE_APP_ENV: production
-          VITE_ENABLE_DEVTOOLS: false
+          CREATE_RESULT=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @pages-config.json)
+
+          SUCCESS=$(echo "$CREATE_RESULT" | jq -r '.success')
+          if [ "$SUCCESS" != "true" ]; then
+            echo "❌ 创建Pages项目失败，请手动创建项目后再次运行"
+            exit 1
+          fi
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -74,7 +96,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: "./frontend"
-          command: pages deploy ./dist --project-name=cloudpaste-frontend --production
+          command: "pages deploy ./dist --project-name=cloudpaste-frontend --branch production"
 
       - name: Display Success Information
         if: steps.check-deploy-button.outputs.is_deploy_button == 'true' && success()
@@ -82,14 +104,11 @@ jobs:
           echo "===================================================="
           echo "🎉 CloudPaste 前端已成功部署到 Cloudflare Pages!"
           echo "===================================================="
-          if [ "${{ steps.set-env.outputs.has_backend_url }}" == "true" ]; then
-            echo "前端已配置连接到后端: ${{ steps.set-env.outputs.backend_url }}"
-          else
-            echo "⚠️ 注意: 未提供后端URL，您需要在 Cloudflare Pages 控制面板中手动设置环境变量"
-            echo "请在 Cloudflare Pages 项目设置中添加以下环境变量:"
-            echo "- 名称: VITE_BACKEND_URL"
-            echo "- 值: 您的后端Worker URL (例如 https://cloudpaste-backend.your-username.workers.dev)"
-          fi
+          echo ""
+          echo "注意: 您需要在 Cloudflare Pages 控制面板中手动设置环境变量:"
+          echo "- 登录 https://dash.cloudflare.com/"
+          echo "- 进入 Pages > cloudpaste-frontend > Settings > Environment variables"
+          echo "- 添加 VITE_BACKEND_URL = 您的后端Worker URL"
           echo ""
           echo "后续步骤："
           echo "1. 访问您的 Cloudflare Pages URL"
@@ -98,11 +117,21 @@ jobs:
           echo "4. 在管理员面板中配置您的S3兼容存储"
           echo "===================================================="
 
+      - name: Display Troubleshooting Info
+        if: failure()
+        run: |
+          echo "===================================================="
+          echo "❌ 部署失败，可能的解决方案:"
+          echo "1. 确保Cloudflare账户存在Pages项目"
+          echo "2. 验证API Token权限 (Pages:Edit, Account:Read)"
+          echo "3. 检查GitHub Secrets (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID)"
+          echo "===================================================="
+
       - name: Notify deployment status
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Frontend deployment to Cloudflare Pages completed successfully!"
+            echo "✅ 前端部署成功!"
           else
-            echo "❌ Frontend deployment to Cloudflare Pages failed."
+            echo "❌ 前端部署失败!"
           fi
