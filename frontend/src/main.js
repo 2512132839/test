@@ -12,6 +12,26 @@ app.config.errorHandler = (err, vm, info) => {
   console.error(`错误: ${err}`);
   console.error(`信息: ${info}`);
 
+  // 生产环境下可以考虑将错误发送到后端记录
+  if (import.meta.env.PROD) {
+    try {
+      // 发送错误到控制台或后端API（如果有）
+      console.warn("[生产环境错误]", {
+        message: err.message,
+        stack: err.stack,
+        info,
+        url: window.location.href,
+        time: new Date().toISOString(),
+      });
+
+      // 如果有专门的错误上报API，可以在这里调用
+      // api.reportError({ error: err.message, path: window.location.pathname });
+    } catch (e) {
+      // 避免上报过程中出错
+      console.error("错误上报失败:", e);
+    }
+  }
+
   // i18n特定错误处理
   if (err && err.message && (err.message.includes("i18n") || err.message.includes("vue-i18n") || err.message.includes("useI18n") || err.message.includes("translation"))) {
     console.warn("检测到i18n相关错误:", err.message);
