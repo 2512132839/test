@@ -503,11 +503,17 @@ jobs:
 
 ## 一键部署
 
-### 使用 Deploy Button 部署后端
+### 后端部署
 
-点击下面的按钮，可以一键将 CloudPaste 后端部署到您的 Cloudflare Workers 环境：
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/2512132839/test&subdirectory=backend)
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ling-drag0n/CloudPaste)
+### Pages 前端一键部署
+
+[![Deploy to Cloudflare Pages](https://deploy.pages.dev/button)](https://deploy.pages.dev/?url=https://github.com/2512132839/test&project=cloudpaste-frontend&branch=main&directory=frontend)
+
+## vercel 前端一键部署
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F2512132839%2Ftest&project-name=cloudpaste-frontend&root-directory=frontend)
 
 #### 一键部署步骤说明
 
