@@ -45,7 +45,7 @@ onMounted(() => {
   } else {
     // 在生产环境中，只有在明确的条件下才显示：
     // 1. 存在管理员token
-    // 2. URL中有特定的参数 (showEnvSwitcher)
+    // 2. URL中有特定的参数 (showEnvSwitcher) 也就是“https://您的域名.com?showEnvSwitcher”
     const hasAdminToken = !!localStorage.getItem("admin_token");
     const urlParams = new URLSearchParams(window.location.search);
     const hasEnvParam = urlParams.has("showEnvSwitcher");

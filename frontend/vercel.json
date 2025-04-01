@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "buildEnv": {
+  "env": {
     "VITE_APP_ENV": "production"
   },
   "public": false
