@@ -1,0 +1,53 @@
+name: Deploy Frontend to Cloudflare Pages
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "frontend/**"
+      - "!frontend/vercel.json"
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend-cloudflare:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_BACKEND_URL: ${{ secrets.CLOUDFLARE_BACKEND_URL }}
+          VITE_APP_ENV: production
+          VITE_ENABLE_DEVTOOLS: false
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./frontend/dist --project-name=cloudpaste-frontend --production
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Frontend deployment to Cloudflare Pages completed successfully!"
+          else
+            echo "❌ Frontend deployment to Cloudflare Pages failed."
+          fi

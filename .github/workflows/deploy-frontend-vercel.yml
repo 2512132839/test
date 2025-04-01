@@ -1,0 +1,57 @@
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "frontend/**"
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend-vercel:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_BACKEND_URL: ${{ secrets.VERCEL_BACKEND_URL }}
+          VITE_APP_ENV: production
+          VITE_ENABLE_DEVTOOLS: false
+
+      - name: Deploy to Vercel
+        run: |
+          vercel deploy ./dist --token=${{ secrets.VERCEL_TOKEN }} --prod --yes \
+            --scope=${{ secrets.VERCEL_ORG_ID }} \
+            --name=cloudpaste
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Frontend deployment to Vercel completed successfully!"
+          else
+            echo "❌ Frontend deployment to Vercel failed."
+          fi
