@@ -1,21 +1,20 @@
-name: Deploy Frontend to Cloudflare Pages
+name: Deploy Backend to Cloudflare Workers
 
 on:
   push:
     branches: [main, master]
     paths:
-      - "frontend/**"
-      - "!frontend/vercel.json"
+      - "backend/**"
   workflow_dispatch:
   repository_dispatch:
     types: [deploy-button]
 
 jobs:
-  deploy-frontend-cloudflare:
+  deploy-backend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./frontend
+        working-directory: ./backend
 
     steps:
       - name: Checkout repository
@@ -26,10 +25,13 @@ jobs:
         with:
           node-version: "18"
           cache: "npm"
-          cache-dependency-path: "./frontend/package-lock.json"
+          cache-dependency-path: "./backend/package-lock.json"
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Disable wrangler telemetry
+        run: npx wrangler telemetry disable
 
       - name: Check if deploy button trigger
         id: check-deploy-button
@@ -40,69 +42,115 @@ jobs:
             echo "is_deploy_button=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set environment variables
-        id: set-env
+      - name: Create D1 Database
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # 检查是否提供了CLOUDFLARE_BACKEND_URL
-          if [ -n "${{ secrets.CLOUDFLARE_BACKEND_URL }}" ]; then
-            echo "Using provided CLOUDFLARE_BACKEND_URL for frontend build"
-            echo "backend_url=${{ secrets.CLOUDFLARE_BACKEND_URL }}" >> $GITHUB_OUTPUT
-            echo "has_backend_url=true" >> $GITHUB_OUTPUT
+          echo "Creating D1 Database for CloudPaste..."
+          # 尝试创建数据库，如果已存在则获取现有数据库信息
+          echo "Checking for existing D1 database: cloudpaste-db"
+          DATABASE_INFO=$(npx wrangler d1 list --json 2>/dev/null || echo "[]")
+          EXISTING_DB=$(echo "$DATABASE_INFO" | jq -r '.[] | select(.name=="cloudpaste-db") | .uuid')
+
+          if [ -n "$EXISTING_DB" ]; then
+            echo "D1 database cloudpaste-db already exists with ID: $EXISTING_DB"
+            DATABASE_ID=$EXISTING_DB
           else
-            echo "No CLOUDFLARE_BACKEND_URL provided, the frontend will use relative paths or need manual configuration"
-            echo "has_backend_url=false" >> $GITHUB_OUTPUT
+            echo "Creating new D1 database: cloudpaste-db"
+            CREATE_OUTPUT=$(npx wrangler d1 create cloudpaste-db 2>&1)
+            echo "Create output: $CREATE_OUTPUT"
+          
+            if [[ "$CREATE_OUTPUT" == *"Created D1 database"* ]]; then
+              DATABASE_ID=$(echo "$CREATE_OUTPUT" | grep -oP "Created D1 database '\K[^']+")
+              echo "Successfully created new D1 database with ID: $DATABASE_ID"
+            else
+              echo "Failed to create D1 database. Output: $CREATE_OUTPUT"
+              exit 1
+            fi
           fi
 
-      - name: Build frontend with backend URL
-        if: steps.set-env.outputs.has_backend_url == 'true'
-        run: npm run build
-        env:
-          VITE_BACKEND_URL: ${{ steps.set-env.outputs.backend_url }}
-          VITE_APP_ENV: production
-          VITE_ENABLE_DEVTOOLS: false
+          if [ -z "$DATABASE_ID" ]; then
+            echo "Failed to get database ID. Check your Cloudflare credentials."
+            exit 1
+          fi
 
-      - name: Build frontend without backend URL
-        if: steps.set-env.outputs.has_backend_url == 'false'
-        run: npm run build
-        env:
-          VITE_APP_ENV: production
-          VITE_ENABLE_DEVTOOLS: false
+          # 更新wrangler.toml文件中的数据库ID
+          echo "Updating wrangler.toml with database ID: $DATABASE_ID"
+          sed -i -E "s/(database_id = \")[^\"]+(\"\s*$)/\1$DATABASE_ID\2/" wrangler.toml
 
-      - name: Deploy to Cloudflare Pages
+          # 将数据库ID保存为环境变量，供后续步骤使用
+          echo "database_id=$DATABASE_ID" >> $GITHUB_ENV
+
+      - name: Initialize D1 Database with schema
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "Initializing D1 database with schema.sql..."
+          npx wrangler d1 execute cloudpaste-db --file=./schema.sql
+          if [ $? -ne 0 ]; then
+            echo "Warning: There was an issue applying the schema. This might be expected if tables already exist."
+            echo "Continuing with deployment..."
+          else
+            echo "Schema applied successfully"
+          fi
+
+      - name: Set ENCRYPTION_SECRET environment variable
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "Setting Worker environment variables..."
+          # 如果GitHub Secrets中有自定义的ENCRYPTION_SECRET，则使用它
+          # 否则生成一个随机密钥
+          if [ "${{ secrets.ENCRYPTION_SECRET }}" != "" ]; then
+            ENCRYPTION_VALUE="${{ secrets.ENCRYPTION_SECRET }}"
+            echo "Using ENCRYPTION_SECRET from GitHub Secrets"
+          else
+            ENCRYPTION_VALUE=$(openssl rand -base64 32)
+            echo "Generated random ENCRYPTION_SECRET"
+          fi
+
+          # 使用wrangler secret命令设置环境变量
+          echo "Setting ENCRYPTION_SECRET as Cloudflare Worker secret..."
+          echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET
+
+          # 更新wrangler.toml的vars部分
+          sed -i -E 's/(ENCRYPTION_SECRET = ")[^"]+(")/\1SECRET_REPLACED_IN_DEPLOYMENT\2/' wrangler.toml
+
+          echo "Environment variable ENCRYPTION_SECRET has been set successfully"
+
+      - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: "./frontend"
-          command: pages deploy ./dist --project-name=cloudpaste-frontend --production
+          workingDirectory: "./backend"
+          command: deploy
 
       - name: Display Success Information
         if: steps.check-deploy-button.outputs.is_deploy_button == 'true' && success()
         run: |
           echo "===================================================="
-          echo "🎉 CloudPaste 前端已成功部署到 Cloudflare Pages!"
+          echo "🎉 CloudPaste 后端已成功部署到您的 Cloudflare Workers!"
           echo "===================================================="
-          if [ "${{ steps.set-env.outputs.has_backend_url }}" == "true" ]; then
-            echo "前端已配置连接到后端: ${{ steps.set-env.outputs.backend_url }}"
-          else
-            echo "⚠️ 注意: 未提供后端URL，您需要在 Cloudflare Pages 控制面板中手动设置环境变量"
-            echo "请在 Cloudflare Pages 项目设置中添加以下环境变量:"
-            echo "- 名称: VITE_BACKEND_URL"
-            echo "- 值: 您的后端Worker URL (例如 https://cloudpaste-backend.your-username.workers.dev)"
-          fi
+          echo "D1数据库已自动创建并绑定，数据库ID: ${{ env.database_id }}"
+          echo "ENCRYPTION_SECRET环境变量已自动设置"
           echo ""
           echo "后续步骤："
-          echo "1. 访问您的 Cloudflare Pages URL"
-          echo "2. 使用默认管理员账户登录 (admin/admin123)"
-          echo "3. 立即修改默认管理员密码"
-          echo "4. 在管理员面板中配置您的S3兼容存储"
+          echo "1. 部署前端应用"
+          echo "2. 访问您的Worker URL进行初始化"
+          echo "3. 使用默认管理员账户登录 (admin/admin123)"
+          echo "4. 立即修改默认管理员密码"
+          echo "5. 在管理员面板中配置您的R2或其他S3兼容存储"
           echo "===================================================="
 
       - name: Notify deployment status
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Frontend deployment to Cloudflare Pages completed successfully!"
+            echo "✅ Backend deployment to Cloudflare Workers completed successfully!"
           else
-            echo "❌ Frontend deployment to Cloudflare Pages failed."
+            echo "❌ Backend deployment to Cloudflare Workers failed."
           fi
