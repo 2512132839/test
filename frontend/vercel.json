@@ -6,13 +6,8 @@
     "VITE_APP_ENV": "production"
   },
   "public": false,
-  "rewrites": [
-    { "source": "/paste/:slug", "destination": "/index.html" },
-    { "source": "/file/:slug", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/index.html" },
-    { "source": "/upload", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
+  "cleanUrls": true,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/assets/(.*)",
@@ -58,11 +53,5 @@
         }
       ]
     }
-  ],
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/favicon.svg", "dest": "/favicon.svg" },
-    { "src": "/apple-touch-icon.png", "dest": "/apple-touch-icon.png" },
-    { "src": "/manifest.json", "dest": "/manifest.json" }
   ]
 }
