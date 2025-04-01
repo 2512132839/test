@@ -175,6 +175,7 @@ export async function completeFileUpload(data) {
  * @returns {Promise<Object>} 上传响应
  */
 export async function directUploadFile(file, options, onProgress, onXhrReady, onFileIdReady) {
+  let fileId = null;
   try {
     // 获取更准确的MIME类型
     const accurateMimeType = getAccurateMimeType(file);
@@ -217,9 +218,12 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
 
     const { upload_url, file_id, storage_path, s3_url, slug, provider_type } = presignedData.data;
 
+    // 保存文件ID，用于错误处理时删除记录
+    fileId = file_id;
+
     // 获取到文件ID后，调用回调函数
-    if (typeof onFileIdReady === "function" && file_id) {
-      onFileIdReady(file_id);
+    if (typeof onFileIdReady === "function" && fileId) {
+      onFileIdReady(fileId);
     }
 
     // 步骤2: 使用预签名URL直接上传文件到S3
@@ -288,7 +292,7 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
 
     // 步骤3: 通知后端上传完成并更新文件信息
     const completeData = await completeFileUpload({
-      file_id,
+      file_id: fileId,
       s3_config_id: options.s3_config_id,
       storage_path,
       s3_url,
@@ -305,7 +309,7 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
 
     // 记录日志，用于调试
     console.log("文件上传完成，提交的元数据:", {
-      file_id,
+      file_id: fileId,
       size: file.size.toString(),
       etag: uploadResult.etag,
     });
@@ -313,6 +317,28 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
     return completeData;
   } catch (error) {
     console.error("直接上传文件到S3失败:", error);
+
+    // 如果已经创建了文件记录，但上传失败，则删除文件记录
+    if (fileId) {
+      console.log("上传失败，正在删除文件记录:", fileId);
+      try {
+        // 根据用户身份选择合适的删除API
+        // 这里我们需要判断用户是管理员还是普通用户，但在当前函数中我们没有这个信息
+        // 因此我们尝试两种删除方法，如果一个失败就尝试另一个
+        try {
+          await deleteFile(fileId);
+          console.log("已成功删除上传失败的文件记录（管理员API）");
+        } catch (deleteError) {
+          // 如果管理员API失败，尝试用户API
+          await deleteUserFile(fileId);
+          console.log("已成功删除上传失败的文件记录（用户API）");
+        }
+      } catch (deleteError) {
+        console.error("删除上传失败的文件记录错误:", deleteError);
+        // 即使删除失败，我们仍然继续抛出原始错误
+      }
+    }
+
     throw error;
   }
 }

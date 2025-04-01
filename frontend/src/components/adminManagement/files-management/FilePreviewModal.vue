@@ -189,7 +189,20 @@ const formatDateTime = (dateString) => {
 const getPermanentDownloadUrl = computed(() => {
   if (!props.file.slug) return "";
 
-  // 基础URL
+  // 检查文件是否有urls对象和代理URL
+  if (props.file.urls && props.file.urls.proxyDownloadUrl) {
+    // 使用后端返回的代理URL，始终采用worker代理，不受use_proxy影响
+    let url = props.file.urls.proxyDownloadUrl;
+
+    // 如果文件有密码保护，则获取明文密码并附加到URL
+    if (props.file.has_password && props.file.plain_password && !url.includes("password=")) {
+      url += url.includes("?") ? `&password=${encodeURIComponent(props.file.plain_password)}` : `?password=${encodeURIComponent(props.file.plain_password)}`;
+    }
+
+    return url;
+  }
+
+  // 如果没有urls对象，则回退到前端构建URL
   let url = `${baseUrl.value}/api/file-download/${props.file.slug}`;
 
   // 如果文件有密码保护，则获取明文密码并附加到URL
@@ -206,7 +219,20 @@ const getPermanentDownloadUrl = computed(() => {
 const getPermanentViewUrl = computed(() => {
   if (!props.file.slug) return "";
 
-  // 基础URL
+  // 检查文件是否有urls对象和代理URL
+  if (props.file.urls && props.file.urls.proxyPreviewUrl) {
+    // 使用后端返回的代理URL，始终采用worker代理，不受use_proxy影响
+    let url = props.file.urls.proxyPreviewUrl;
+
+    // 如果文件有密码保护，则获取明文密码并附加到URL
+    if (props.file.has_password && props.file.plain_password && !url.includes("password=")) {
+      url += url.includes("?") ? `&password=${encodeURIComponent(props.file.plain_password)}` : `?password=${encodeURIComponent(props.file.plain_password)}`;
+    }
+
+    return url;
+  }
+
+  // 如果没有urls对象，则回退到前端构建URL
   let url = `${baseUrl.value}/api/file-view/${props.file.slug}`;
 
   // 如果文件有密码保护，则获取明文密码并附加到URL

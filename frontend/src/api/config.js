@@ -6,21 +6,21 @@
 // 默认的开发环境API基础URL
 const DEFAULT_DEV_API_URL = "http://localhost:8787";
 
-// 首先尝试从localStorage读取环境变量，然后是环境变量，最后是默认值
+// 优先从localStorage读取环境变量，然后是环境变量，最后是默认值
 // 这允许通过UI动态切换API环境而不需要重启开发服务器
 function getApiBaseUrl() {
-  // 优先使用环境变量
-  const envUrl = import.meta.env.VITE_BACKEND_URL;
-  if (envUrl) {
-    return envUrl;
-  }
-
-  // 其次检查localStorage（仅在开发环境中）
-  if (import.meta.env.DEV && typeof window !== "undefined" && window.localStorage) {
+  // 首先检查localStorage（开发环境和生产环境都检查）
+  if (typeof window !== "undefined" && window.localStorage) {
     const storedUrl = localStorage.getItem("vite-api-base-url");
     if (storedUrl) {
       return storedUrl;
     }
+  }
+
+  // 其次使用环境变量
+  const envUrl = import.meta.env.VITE_BACKEND_URL;
+  if (envUrl) {
+    return envUrl;
   }
 
   return DEFAULT_DEV_API_URL;

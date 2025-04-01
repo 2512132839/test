@@ -729,36 +729,63 @@ const copyPermanentLink = async (file) => {
   }
 
   try {
-    const baseUrl = window.location.origin;
-    // 基础URL
-    let permanentDownloadUrl = `${baseUrl}/api/file-download/${file.slug}`;
+    let permanentDownloadUrl;
+    let fileWithUrls = file;
 
-    // 如果文件有密码保护，自动附加明文密码参数
-    if (file.has_password && file.plain_password) {
-      permanentDownloadUrl += `?password=${encodeURIComponent(file.plain_password)}`;
+    // 如果文件对象中没有urls属性或者proxyDownloadUrl，先获取完整的文件详情
+    if (!file.urls || !file.urls.proxyDownloadUrl) {
+      try {
+        // 导入API函数
+        const { getFile, getUserFile } = await import("../../../api/fileService");
+
+        // 根据用户角色选择合适的API函数
+        const isAdmin = () => {
+          const role = localStorage.getItem("role");
+          return role === "admin";
+        };
+
+        // 获取文件详情
+        const response = isAdmin() ? await getFile(file.id) : await getUserFile(file.id);
+
+        if (response.success && response.data) {
+          fileWithUrls = response.data;
+        } else {
+          throw new Error(response.message || "获取文件详情失败");
+        }
+      } catch (error) {
+        console.error("获取文件详情失败:", error);
+        alert("无法获取文件直链，请确认您已登录并刷新页面后重试");
+        return;
+      }
     }
 
-    await navigator.clipboard.writeText(permanentDownloadUrl);
+    // 使用后端返回的代理URL
+    if (fileWithUrls.urls && fileWithUrls.urls.proxyDownloadUrl) {
+      // 使用后端返回的完整代理URL
+      permanentDownloadUrl = fileWithUrls.urls.proxyDownloadUrl;
 
-    // 为特定文件设置复制成功状态
-    copiedPermanentFiles[file.id] = true;
+      // 如果文件有密码保护且URL中没有密码参数，添加密码参数
+      if (fileWithUrls.has_password && fileWithUrls.plain_password && !permanentDownloadUrl.includes("password=")) {
+        permanentDownloadUrl += permanentDownloadUrl.includes("?")
+          ? `&password=${encodeURIComponent(fileWithUrls.plain_password)}`
+          : `?password=${encodeURIComponent(fileWithUrls.plain_password)}`;
+      }
 
-    // 3秒后清除状态
-    setTimeout(() => {
-      copiedPermanentFiles[file.id] = false;
-    }, 2000);
+      await navigator.clipboard.writeText(permanentDownloadUrl);
+
+      // 为特定文件设置复制成功状态
+      copiedPermanentFiles[file.id] = true;
+
+      // 3秒后清除状态
+      setTimeout(() => {
+        copiedPermanentFiles[file.id] = false;
+      }, 2000);
+    } else {
+      throw new Error("无法获取文件代理链接");
+    }
   } catch (err) {
     console.error("复制永久下载链接失败:", err);
-
-    // 在提示中也包含完整的带密码的链接
-    const baseUrl = window.location.origin;
-    let permanentDownloadUrl = `${baseUrl}/api/file-download/${file.slug}`;
-
-    if (file.has_password && file.plain_password) {
-      permanentDownloadUrl += `?password=${encodeURIComponent(file.plain_password)}`;
-    }
-
-    alert(`复制永久下载链接失败，请手动复制: ${permanentDownloadUrl}`);
+    alert(`复制永久下载链接失败: ${err.message || "未知错误"}`);
   }
 };
 </script>

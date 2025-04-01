@@ -34,6 +34,24 @@ const fileSlug = ref(null);
 // 开发环境判断
 const isDev = import.meta.env.DEV;
 
+// 环境切换器显示控制
+const showEnvSwitcher = ref(false);
+
+// 在mounted钩子中检查是否显示环境切换器
+onMounted(() => {
+  // 在开发环境中始终显示
+  if (isDev) {
+    showEnvSwitcher.value = true;
+  } else {
+    // 在生产环境中，检查是否有管理员token或特殊查询参数
+    const hasAdminToken = !!localStorage.getItem("admin_token");
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasEnvParam = urlParams.has("showEnvSwitcher");
+
+    showEnvSwitcher.value = hasAdminToken || hasEnvParam;
+  }
+});
+
 // 添加移动端菜单展开状态
 const isMobileMenuOpen = ref(false);
 
@@ -442,8 +460,8 @@ updateTheme();
       </div>
     </footer>
 
-    <!-- 添加环境切换器组件 (仅在开发环境显示) -->
-    <EnvSwitcher v-if="isDev" />
+    <!-- 添加环境切换器组件 (在开发环境或管理员登录状态下显示) -->
+    <EnvSwitcher v-if="showEnvSwitcher" />
   </div>
 </template>
 
