@@ -47,39 +47,33 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "Creating D1 Database for CloudPaste..."
-          # 尝试创建数据库，如果已存在则获取现有数据库信息
-          echo "Checking for existing D1 database: cloudpaste-db"
-          DATABASE_INFO=$(npx wrangler d1 list --json 2>/dev/null || echo "[]")
-          EXISTING_DB=$(echo "$DATABASE_INFO" | jq -r '.[] | select(.name=="cloudpaste-db") | .uuid')
+          echo "检查并创建D1数据库..."
+          DATABASE_LIST=$(npx wrangler d1 list --json 2>/dev/null || echo "[]")
+          EXISTING_DB=$(echo "$DATABASE_LIST" | jq -r '.[] | select(.name=="cloudpaste-db") | .uuid')
 
           if [ -n "$EXISTING_DB" ]; then
-            echo "D1 database cloudpaste-db already exists with ID: $EXISTING_DB"
+            echo "✅ 找到D1数据库: $EXISTING_DB"
             DATABASE_ID=$EXISTING_DB
           else
-            echo "Creating new D1 database: cloudpaste-db"
             CREATE_OUTPUT=$(npx wrangler d1 create cloudpaste-db 2>&1)
-            echo "Create output: $CREATE_OUTPUT"
           
-            if [[ "$CREATE_OUTPUT" == *"Created D1 database"* ]]; then
-              DATABASE_ID=$(echo "$CREATE_OUTPUT" | grep -oP "Created D1 database '\K[^']+")
-              echo "Successfully created new D1 database with ID: $DATABASE_ID"
+            if echo "$CREATE_OUTPUT" | grep -q "Successfully created DB"; then
+              DATABASE_ID=$(echo "$CREATE_OUTPUT" | grep -oP "database_id = \"\K[^\"]+")
+              if [ -z "$DATABASE_ID" ]; then
+                DATABASE_ID=$(echo "$CREATE_OUTPUT" | grep -oP "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
+              fi
             else
-              echo "Failed to create D1 database. Output: $CREATE_OUTPUT"
-              exit 1
+              LIST_OUTPUT=$(npx wrangler d1 list --json 2>/dev/null || echo "[]")
+              DATABASE_ID=$(echo "$LIST_OUTPUT" | jq -r '.[] | select(.name=="cloudpaste-db") | .uuid')
+          
+              if [ -z "$DATABASE_ID" ]; then
+                echo "❌ 无法创建或找到D1数据库"
+                exit 1
+              fi
             fi
           fi
 
-          if [ -z "$DATABASE_ID" ]; then
-            echo "Failed to get database ID. Check your Cloudflare credentials."
-            exit 1
-          fi
-
-          # 更新wrangler.toml文件中的数据库ID
-          echo "Updating wrangler.toml with database ID: $DATABASE_ID"
           sed -i -E "s/(database_id = \")[^\"]+(\"\s*$)/\1$DATABASE_ID\2/" wrangler.toml
-
-          # 将数据库ID保存为环境变量，供后续步骤使用
           echo "database_id=$DATABASE_ID" >> $GITHUB_ENV
 
       - name: Initialize D1 Database with schema
@@ -87,39 +81,32 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "Initializing D1 database with schema.sql..."
-          npx wrangler d1 execute cloudpaste-db --file=./schema.sql
-          if [ $? -ne 0 ]; then
-            echo "Warning: There was an issue applying the schema. This might be expected if tables already exist."
-            echo "Continuing with deployment..."
-          else
-            echo "Schema applied successfully"
-          fi
+          npx wrangler d1 execute cloudpaste-db --file=./schema.sql || echo "表可能已存在，继续部署"
 
       - name: Set ENCRYPTION_SECRET environment variable
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "Setting Worker environment variables..."
-          # 如果GitHub Secrets中有自定义的ENCRYPTION_SECRET，则使用它
-          # 否则生成一个随机密钥
-          if [ "${{ secrets.ENCRYPTION_SECRET }}" != "" ]; then
+          if [[ -n "${{ secrets.ENCRYPTION_SECRET }}" ]]; then
             ENCRYPTION_VALUE="${{ secrets.ENCRYPTION_SECRET }}"
-            echo "Using ENCRYPTION_SECRET from GitHub Secrets"
           else
             ENCRYPTION_VALUE=$(openssl rand -base64 32)
-            echo "Generated random ENCRYPTION_SECRET"
           fi
 
-          # 使用wrangler secret命令设置环境变量
-          echo "Setting ENCRYPTION_SECRET as Cloudflare Worker secret..."
-          echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET
+          SECRET_EXISTS=$(npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET" && echo "yes" || echo "no")
 
-          # 更新wrangler.toml的vars部分
-          sed -i -E 's/(ENCRYPTION_SECRET = ")[^"]+(")/\1SECRET_REPLACED_IN_DEPLOYMENT\2/' wrangler.toml
-
-          echo "Environment variable ENCRYPTION_SECRET has been set successfully"
+          if [ "$SECRET_EXISTS" = "no" ]; then
+            set +e
+            echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET
+            SECRET_RESULT=$?
+            set -e
+          
+            if [ $SECRET_RESULT -ne 0 ] && ! npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET"; then
+              echo "❌ 设置机密失败"
+              exit 1
+            fi
+          fi
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -133,25 +120,20 @@ jobs:
         if: steps.check-deploy-button.outputs.is_deploy_button == 'true' && success()
         run: |
           echo "===================================================="
-          echo "🎉 CloudPaste 后端已成功部署到您的 Cloudflare Workers!"
+          echo "🎉 CloudPaste 后端已成功部署！"
           echo "===================================================="
-          echo "D1数据库已自动创建并绑定，数据库ID: ${{ env.database_id }}"
-          echo "ENCRYPTION_SECRET环境变量已自动设置"
-          echo ""
           echo "后续步骤："
           echo "1. 部署前端应用"
           echo "2. 访问您的Worker URL进行初始化"
-          echo "3. 使用默认管理员账户登录 (admin/admin123)"
-          echo "4. 立即修改默认管理员密码"
-          echo "5. 在管理员面板中配置您的R2或其他S3兼容存储"
+          echo "3. 登录默认账户 (admin/admin123) 并立即修改密码"
+          echo "4. 配置S3兼容存储"
           echo "===================================================="
 
       - name: Notify deployment status
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Backend deployment to Cloudflare Workers completed successfully!"
+            echo "✅ 部署成功！"
           else
-            echo "❌ Backend deployment to Cloudflare Workers failed."
+            echo "❌ 部署失败！"
           fi
-         echo "===================================================="

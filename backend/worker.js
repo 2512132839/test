@@ -1004,7 +1004,7 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       // 生成预签名URL，有效期1小时
       const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, 3600, forceDownload);
 
-      // 重定向到预签名URL
+      // 准备文件名和内容类型
       const filename = result.file.filename;
       const contentType = result.file.mimetype || "application/octet-stream";
 
@@ -1387,13 +1387,28 @@ function getPublicFileInfo(file, requiresPassword, urls = null) {
  * @param {D1Database} db - D1数据库实例
  * @param {Object} file - 文件对象
  * @param {string} encryptionSecret - 加密密钥
+ * @param {Request} [request] - 原始请求对象，用于获取当前域名
  * @returns {Promise<Object>} 包含预览链接和下载链接的对象
  */
-async function generateFileDownloadUrl(db, file, encryptionSecret) {
+async function generateFileDownloadUrl(db, file, encryptionSecret, request = null) {
   let previewUrl = file.s3_url; // 默认使用原始URL作为回退
   let downloadUrl = file.s3_url; // 默认使用原始URL作为回退
-  let proxyPreviewUrl = `/api/file-view/${file.slug}`; // Worker代理预览URL
-  let proxyDownloadUrl = `/api/file-download/${file.slug}`; // Worker代理下载URL
+
+  // 获取当前域名作为基础URL
+  let baseUrl = "";
+  if (request) {
+    try {
+      const url = new URL(request.url);
+      baseUrl = url.origin; // 包含协议和域名，如 https://example.com
+    } catch (error) {
+      console.error("解析请求URL出错:", error);
+      // 如果解析失败，baseUrl保持为空字符串
+    }
+  }
+
+  // 构建代理URL，确保使用完整的绝对URL
+  let proxyPreviewUrl = baseUrl ? `${baseUrl}/api/file-view/${file.slug}` : `/api/file-view/${file.slug}`;
+  let proxyDownloadUrl = baseUrl ? `${baseUrl}/api/file-download/${file.slug}` : `/api/file-download/${file.slug}`;
 
   if (file.s3_config_id && file.storage_path) {
     const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
@@ -2913,7 +2928,7 @@ app.get("/api/public/files/:slug", async (c) => {
       }
 
       // 生成文件下载URL
-      const urlsObj = await generateFileDownloadUrl(db, result.file, encryptionSecret);
+      const urlsObj = await generateFileDownloadUrl(db, result.file, encryptionSecret, c.req.raw);
 
       // 构建公开信息
       const publicInfo = getPublicFileInfo(result.file, requiresPassword, urlsObj);
@@ -2992,7 +3007,7 @@ app.post("/api/public/files/:slug/verify", async (c) => {
     }
 
     // 生成文件下载URL
-    const urlsObj = await generateFileDownloadUrl(db, result.file, encryptionSecret);
+    const urlsObj = await generateFileDownloadUrl(db, result.file, encryptionSecret, c.req.raw);
 
     // 使用getPublicFileInfo函数构建完整的响应，包括代理链接
     const publicInfo = getPublicFileInfo(result.file, false, urlsObj);
@@ -3135,9 +3150,10 @@ app.get("/api/user/files/:id", apiKeyFileMiddleware, async (c) => {
   const db = c.env.DB;
   const apiKeyId = c.get("apiKeyId");
   const { id } = c.req.param();
+  const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
   try {
-    // 查询API密钥用户的特定文件
+    // 查询文件详情
     const file = await db
       .prepare(
         `
@@ -3161,38 +3177,38 @@ app.get("/api/user/files/:id", apiKeyFileMiddleware, async (c) => {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权访问"), ApiStatus.NOT_FOUND);
     }
 
-    // 确保has_password是布尔类型
-    file.has_password = !!file.has_password;
+    // 检查用户是否有权限查看该文件
+    if (file.created_by !== `apikey:${apiKeyId}`) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限查看此文件"), ApiStatus.FORBIDDEN);
+    }
+
+    // 生成文件下载URL
+    const urlsObj = await generateFileDownloadUrl(db, file, encryptionSecret, c.req.raw);
+
+    // 构建响应
+    const result = {
+      ...file,
+      urls: urlsObj,
+    };
 
     // 如果文件有密码保护，获取明文密码
     if (file.has_password) {
       const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(file.id).first();
 
       if (passwordEntry && passwordEntry.plain_password) {
-        file.plain_password = passwordEntry.plain_password;
-      }
-    }
-
-    // 如果文件由API密钥创建，获取密钥名称
-    let result = { ...file };
-    if (file.created_by && file.created_by.startsWith("apikey:")) {
-      const keyId = file.created_by.substring(7);
-      const keyInfo = await db.prepare(`SELECT id, name FROM ${DbTables.API_KEYS} WHERE id = ?`).bind(keyId).first();
-
-      if (keyInfo) {
-        result.key_name = keyInfo.name;
+        result.plain_password = passwordEntry.plain_password;
       }
     }
 
     return c.json({
       code: ApiStatus.SUCCESS,
-      message: "获取文件详情成功",
+      message: "获取文件成功",
       data: result,
       success: true,
     });
   } catch (error) {
-    console.error("获取API密钥用户文件详情错误:", error);
-    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件详情失败"), ApiStatus.INTERNAL_ERROR);
+    console.error("获取文件错误:", error);
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 
@@ -3524,17 +3540,19 @@ app.get("/api/admin/files", authMiddleware, async (c) => {
 app.get("/api/admin/files/:id", authMiddleware, async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
+  const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
   try {
-    // 管理员可以查看任何文件
+    // 查询文件详情
     const file = await db
       .prepare(
         `
         SELECT 
           f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
-          f.mimetype, f.size, f.remark, f.created_at, f.views,
-          f.max_views, f.expires_at, f.etag, f.password IS NOT NULL as has_password,
-          f.created_by, f.use_proxy,
+          f.mimetype, f.size, f.remark, f.created_at, f.updated_at,
+          f.views, f.max_views, f.expires_at, f.use_proxy,
+          f.etag, f.password IS NOT NULL as has_password,
+          f.created_by,
           s.name as s3_config_name,
           s.provider_type as s3_provider_type,
           s.id as s3_config_id
@@ -3550,38 +3568,33 @@ app.get("/api/admin/files/:id", authMiddleware, async (c) => {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
     }
 
-    // 确保has_password是布尔类型
-    file.has_password = !!file.has_password;
+    // 生成文件下载URL
+    const urlsObj = await generateFileDownloadUrl(db, file, encryptionSecret, c.req.raw);
 
-    // 如果文件有密码保护，获取明文密码（仅管理员可见）
+    // 构建响应
+    const result = {
+      ...file,
+      urls: urlsObj,
+    };
+
+    // 如果文件有密码保护，获取明文密码
     if (file.has_password) {
       const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(file.id).first();
 
       if (passwordEntry && passwordEntry.plain_password) {
-        file.plain_password = passwordEntry.plain_password;
-      }
-    }
-
-    // 如果文件由API密钥创建，获取密钥名称
-    let result = { ...file };
-    if (file.created_by && file.created_by.startsWith("apikey:")) {
-      const keyId = file.created_by.substring(7);
-      const keyInfo = await db.prepare(`SELECT id, name FROM ${DbTables.API_KEYS} WHERE id = ?`).bind(keyId).first();
-
-      if (keyInfo) {
-        result.key_name = keyInfo.name;
+        result.plain_password = passwordEntry.plain_password;
       }
     }
 
     return c.json({
       code: ApiStatus.SUCCESS,
-      message: "获取文件详情成功",
+      message: "获取文件成功",
       data: result,
-      success: true, // 添加兼容字段
+      success: true,
     });
   } catch (error) {
-    console.error("获取文件详情错误:", error);
-    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件详情失败"), ApiStatus.INTERNAL_ERROR);
+    console.error("获取文件错误:", error);
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 
