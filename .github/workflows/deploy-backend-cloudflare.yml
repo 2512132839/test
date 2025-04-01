@@ -1,20 +1,21 @@
-name: Deploy Backend to Cloudflare Workers
+name: Deploy Frontend to Cloudflare Pages
 
 on:
   push:
     branches: [main, master]
     paths:
-      - "backend/**"
+      - "frontend/**"
+      - "!frontend/vercel.json"
   workflow_dispatch:
   repository_dispatch:
     types: [deploy-button]
 
 jobs:
-  deploy-backend:
+  deploy-frontend-cloudflare:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./backend
+        working-directory: ./frontend
 
     steps:
       - name: Checkout repository
@@ -24,12 +25,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: 'npm'
-          cache-dependency-path: "./backend/package-lock.json"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
 
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Check if deploy button trigger
         id: check-deploy-button
         run: |
@@ -39,36 +40,69 @@ jobs:
             echo "is_deploy_button=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create D1 Database
-        if: steps.check-deploy-button.outputs.is_deploy_button == 'true'
+      - name: Set environment variables
+        id: set-env
         run: |
-          echo "Creating D1 Database for deploy button deployment..."
-          # 根据实际情况可能需要额外的步骤来创建数据库
-          npx wrangler d1 create cloudpaste-db || echo "Database may already exist"
-          
-      - name: Deploy to Cloudflare Workers
+          # 检查是否提供了CLOUDFLARE_BACKEND_URL
+          if [ -n "${{ secrets.CLOUDFLARE_BACKEND_URL }}" ]; then
+            echo "Using provided CLOUDFLARE_BACKEND_URL for frontend build"
+            echo "backend_url=${{ secrets.CLOUDFLARE_BACKEND_URL }}" >> $GITHUB_OUTPUT
+            echo "has_backend_url=true" >> $GITHUB_OUTPUT
+          else
+            echo "No CLOUDFLARE_BACKEND_URL provided, the frontend will use relative paths or need manual configuration"
+            echo "has_backend_url=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build frontend with backend URL
+        if: steps.set-env.outputs.has_backend_url == 'true'
+        run: npm run build
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy
+          VITE_BACKEND_URL: ${{ steps.set-env.outputs.backend_url }}
+          VITE_APP_ENV: production
+          VITE_ENABLE_DEVTOOLS: false
+
+      - name: Build frontend without backend URL
+        if: steps.set-env.outputs.has_backend_url == 'false'
+        run: npm run build
+        env:
+          VITE_APP_ENV: production
+          VITE_ENABLE_DEVTOOLS: false
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: "./frontend"
+          command: pages deploy ./dist --project-name=cloudpaste-frontend --production
 
       - name: Display Success Information
         if: steps.check-deploy-button.outputs.is_deploy_button == 'true' && success()
         run: |
           echo "===================================================="
-          echo "🎉 CloudPaste 后端已成功部署到您的 Cloudflare Workers!"
+          echo "🎉 CloudPaste 前端已成功部署到 Cloudflare Pages!"
           echo "===================================================="
-          echo "下一步："
-          echo "1. 请确保更新 wrangler.toml 中的 D1 数据库 ID"
-          echo "2. 配置您的 R2 或其他 S3 兼容存储"
-          echo "3. 部署前端应用"
+          if [ "${{ steps.set-env.outputs.has_backend_url }}" == "true" ]; then
+            echo "前端已配置连接到后端: ${{ steps.set-env.outputs.backend_url }}"
+          else
+            echo "⚠️ 注意: 未提供后端URL，您需要在 Cloudflare Pages 控制面板中手动设置环境变量"
+            echo "请在 Cloudflare Pages 项目设置中添加以下环境变量:"
+            echo "- 名称: VITE_BACKEND_URL"
+            echo "- 值: 您的后端Worker URL (例如 https://cloudpaste-backend.your-username.workers.dev)"
+          fi
+          echo ""
+          echo "后续步骤："
+          echo "1. 访问您的 Cloudflare Pages URL"
+          echo "2. 使用默认管理员账户登录 (admin/admin123)"
+          echo "3. 立即修改默认管理员密码"
+          echo "4. 在管理员面板中配置您的S3兼容存储"
           echo "===================================================="
 
       - name: Notify deployment status
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Backend deployment to Cloudflare Workers completed successfully!"
+            echo "✅ Frontend deployment to Cloudflare Pages completed successfully!"
           else
-            echo "❌ Backend deployment to Cloudflare Workers failed."
+            echo "❌ Frontend deployment to Cloudflare Pages failed."
           fi
