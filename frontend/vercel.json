@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "buildEnv": {
+    "VITE_APP_ENV": "production"
+  },
+  "public": false
+}

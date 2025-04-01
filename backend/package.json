@@ -1,0 +1,28 @@
+{
+  "name": "cloudpaste-api",
+  "version": "1.0.0",
+  "description": "CloudPaste API基于Cloudflare Workers和D1数据库",
+  "main": "worker.js",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler publish"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "d1",
+    "api",
+    "paste"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.775.0",
+    "@aws-sdk/lib-storage": "^3.775.0",
+    "@aws-sdk/s3-request-presigner": "^3.775.0",
+    "hono": "^3.2.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

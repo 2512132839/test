@@ -1,0 +1,21 @@
+{
+  "name": "CloudPaste",
+  "short_name": "CloudPaste",
+  "description": "安全分享您的内容，支持 Markdown 编辑和文件上传",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
