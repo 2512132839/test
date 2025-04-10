@@ -101,7 +101,7 @@ export function deleteUserPastes(ids) {
  */
 export function getRawPasteUrl(slug, password = null) {
   // 使用API_BASE_URL常量，不使用API_PREFIX前缀
-  const baseUrl = `${API_BASE_URL}/raw/${slug}`;
+  const baseUrl = `${API_BASE_URL}/api/raw/${slug}`;
 
   // 如果提供了密码，添加到URL参数中
   if (password) {

@@ -44,6 +44,12 @@ export default {
         return await handleFileDownload(slug, env, request, false); // 预览
       }
 
+      // 处理原始文本内容请求 /api/raw/:slug
+      if (pathParts.length >= 4 && pathParts[1] === "api" && pathParts[2] === "raw") {
+        // 将请求转发到API应用，它会路由到userPasteRoutes中的/api/raw/:slug处理器
+        return app.fetch(request, bindings, ctx);
+      }
+
       // 处理其他API请求
       return app.fetch(request, bindings, ctx);
     } catch (error) {
@@ -51,17 +57,17 @@ export default {
 
       // 兼容前端期望的错误格式
       return new Response(
-        JSON.stringify({
-          code: ApiStatus.INTERNAL_ERROR,
-          message: "服务器内部错误",
-          error: error.message,
-          success: false,
-          data: null,
-        }),
-        {
-          status: ApiStatus.INTERNAL_ERROR,
-          headers: { "Content-Type": "application/json" },
-        }
+          JSON.stringify({
+            code: ApiStatus.INTERNAL_ERROR,
+            message: "服务器内部错误",
+            error: error.message,
+            success: false,
+            data: null,
+          }),
+          {
+            status: ApiStatus.INTERNAL_ERROR,
+            headers: { "Content-Type": "application/json" },
+          }
       );
     }
   },
