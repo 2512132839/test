@@ -1,0 +1,27 @@
+name = "cloudpaste-backend"
+main = "cloudflare-entry.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# 环境变量
+[vars]
+# 用于加密敏感配置的密钥
+# ENCRYPTION_SECRET = "lzl123456789987654321"
+
+# 绑定D1数据库
+# 需要替换为实际的数据库ID
+[[d1_databases]]
+binding = "DB"
+database_name = "cloudpaste-db"
+database_id = "xxxxxxxxxxxxxxxxx"
+
+# 本地开发时使用
+[env.dev]
+# 开发环境变量
+[env.dev.vars]
+ENCRYPTION_SECRET = "dev-encryption-secret-key"
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "cloudpaste-db-dev"
+database_id = "xxxxxxxxxxxxxxxxx" 

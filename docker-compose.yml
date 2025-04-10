@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        - VITE_BACKEND_URL= #保持为空，通过nginx反向代理控制即可
+    ports:
+      - "80:80"
+    depends_on:
+      - backend  # 依赖backend服务,后端服务启动后，前端服务才能启动
+    networks:
+      - cloudpaste-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - RUNTIME_ENV=docker
+      - PORT=8787
+      - ENCRYPTION_SECRET=xxxxxxx  #自定义密钥认证
+    volumes:
+      - ./sql_data:/data
+    ports:
+      - "8787:8787"
+    networks:
+      - cloudpaste-network
+    restart: unless-stopped
+
+networks:
+  cloudpaste-network:
+    driver: bridge

@@ -1,0 +1,22 @@
+{
+  "name": "CloudPaste",
+  "short_name": "CloudPaste",
+  "description": "安全分享您的内容，支持 Markdown 编辑和文件上传",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "cloudpaste.svg",
+      "sizes": "32x32",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    } 
+  ]
+}
