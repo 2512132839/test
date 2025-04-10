@@ -28,7 +28,14 @@ jobs:
           cache-dependency-path: "./backend/package-lock.json"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          echo "安装依赖（不包含可选依赖）..."
+          if npm ci --no-optional; then
+            echo "✅ npm ci 成功"
+          else
+            echo "⚠️ npm ci 失败，将使用npm install更新lock文件"
+            npm install --no-optional
+          fi
 
       - name: Disable wrangler telemetry
         run: npx wrangler telemetry disable
