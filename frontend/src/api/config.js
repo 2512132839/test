@@ -12,8 +12,8 @@ function getApiBaseUrl() {
   // 首先检查运行时配置 (window.appConfig)
   if (typeof window !== "undefined" && window.appConfig && window.appConfig.backendUrl) {
     const runtimeUrl = window.appConfig.backendUrl;
-    // 忽略占位符值
-    if (runtimeUrl !== "__BACKEND_URL__") {
+    // 忽略占位符值 - 使用字符串拼接避免Vite替换
+    if (runtimeUrl !== "__" + "BACKEND_URL__") {
       return runtimeUrl;
     }
   }

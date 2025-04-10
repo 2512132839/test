@@ -45,8 +45,6 @@ jobs:
         env:
           VITE_APP_ENV: production
           VITE_ENABLE_DEVTOOLS: false
-          VITE_BACKEND_URL: "__BACKEND_URL__"
-          __BACKEND_URL__: "__BACKEND_URL__"
 
       - name: Copy Cloudflare Functions
         run: |
