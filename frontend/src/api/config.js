@@ -17,9 +17,8 @@ function getApiBaseUrl() {
   // 首先检查运行时配置 (window.appConfig) - 所有环境通用
   if (typeof window !== "undefined" && window.appConfig && window.appConfig.backendUrl) {
     const runtimeUrl = window.appConfig.backendUrl;
-    // Docker环境使用%%BACKEND_URL%%占位符，非Docker环境使用__BACKEND_URL__占位符
-    const placeholder = isDockerEnvironment() ? "%%BACKEND_URL%%" : "__" + "BACKEND_URL__";
-    if (runtimeUrl !== placeholder) {
+    // 统一使用__BACKEND_URL__作为占位符，避免不同环境处理逻辑不一致
+    if (runtimeUrl !== "__BACKEND_URL__") {
       return runtimeUrl;
     }
   }
