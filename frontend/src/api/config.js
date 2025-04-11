@@ -19,6 +19,7 @@ function getApiBaseUrl() {
     const runtimeUrl = window.appConfig.backendUrl;
     // 统一使用__BACKEND_URL__作为占位符，避免不同环境处理逻辑不一致
     if (runtimeUrl !== "__" + "BACKEND_URL__") {
+      console.log("使用运行时配置的后端URL:", runtimeUrl);
       return runtimeUrl;
     }
   }
@@ -27,6 +28,7 @@ function getApiBaseUrl() {
   if (!isDockerEnvironment() && typeof window !== "undefined" && window.localStorage) {
     const storedUrl = localStorage.getItem("vite-api-base-url");
     if (storedUrl) {
+      console.log("非Docker环境：使用localStorage中的后端URL:", storedUrl);
       return storedUrl;
     }
   }

@@ -12,15 +12,12 @@ RUN npm ci --cache /tmp/npm-cache
 # 复制前端源代码
 COPY frontend/ ./
 
-# 设置API地址环境变量
-ARG VITE_BACKEND_URL=http://backend:8787
+# 设置API地址环境变量 - 使用通用占位符，实际值将在运行时由entrypoint.sh设置
+ARG VITE_BACKEND_URL=http://localhost:8787
 ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
 
 # 添加Docker构建环境标识
 ENV VITE_IS_DOCKER=true
-
-# 使用Docker专用的config.js替换原有文件
-RUN cp -f ./src/api/docker-config.js ./src/api/config.js
 
 # 构建应用
 RUN npm run build
@@ -34,12 +31,13 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # 复制Nginx配置
 COPY docker/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-# 健康检查配置
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q --no-cache --spider http://localhost/health || exit 1
+# 复制启动脚本
+COPY docker/frontend/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 
 # 暴露端口
 EXPOSE 80
 
-# 启动Nginx
-CMD ["nginx", "-g", "daemon off;"] 
+# 使用启动脚本
+CMD ["/entrypoint.sh"] 
