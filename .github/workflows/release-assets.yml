@@ -1,0 +1,77 @@
+name: build and release-assets
+
+on:
+  release:
+    types: [published] # 当发行版发布时触发
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      # 构建前端应用
+      - name: 安装前端依赖
+        run: |
+          cd frontend
+          npm ci
+
+      - name: 构建前端
+        run: |
+          cd frontend
+          npm run build
+
+      # 打包前端为ZIP
+      - name: 打包前端
+        run: |
+          cd frontend
+          zip -r ../cloudpaste-frontend-${{ github.event.release.tag_name }}.zip dist
+
+      # 准备后端包（不含node_modules）
+      - name: 打包后端
+        run: |
+          zip -r cloudpaste-backend-${{ github.event.release.tag_name }}.zip backend \
+            -x "backend/node_modules/*" \
+            -x "backend/.wrangler/*" \
+            -x "backend/.git*"
+
+      # 创建简化的完整部署包
+      - name: 创建部署包
+        run: |
+          mkdir -p deploy-package
+          # 复制前端构建结果
+          cp -r frontend/dist deploy-package/frontend
+
+          # 复制后端代码（不含node_modules）
+          mkdir -p deploy-package/backend
+          cp backend/*.js deploy-package/backend/
+          cp backend/package.json deploy-package/backend/
+          cp backend/package-lock.json deploy-package/backend/
+          cp backend/schema.sql deploy-package/backend/
+          cp -r backend/src deploy-package/backend/
+
+          # 复制Docker相关文件
+          cp -r docker deploy-package/
+          cp docker-compose.yml deploy-package/
+          cp DOCKER-USAGE.md deploy-package/
+
+          # 打包部署包
+          zip -r cloudpaste-deploy-${{ github.event.release.tag_name }}.zip deploy-package
+
+      # 上传资源到发行版
+      - name: 上传构建资源
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            cloudpaste-frontend-${{ github.event.release.tag_name }}.zip
+            cloudpaste-backend-${{ github.event.release.tag_name }}.zip
+            cloudpaste-deploy-${{ github.event.release.tag_name }}.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
