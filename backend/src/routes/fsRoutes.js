@@ -19,10 +19,20 @@ const fsRoutes = new Hono();
  * @param {HonoContext} c - Hono上下文
  */
 function setCorsHeaders(c) {
-  c.header("Access-Control-Allow-Origin", "*");
+  // 获取请求的origin并返回相同的值作为Access-Control-Allow-Origin
+  // 这是为了支持credentials的情况下正确处理CORS
+  const origin = c.req.header("Origin");
+  c.header("Access-Control-Allow-Origin", origin || "*");
+
   c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With");
-  c.header("Access-Control-Expose-Headers", "ETag, Content-Length");
+  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition");
   c.header("Access-Control-Allow-Credentials", "true");
+  c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+
+  // 对于预览和下载请求，添加一个更长的缓存时间
+  if (c.req.path.includes("/preview") || c.req.path.includes("/download")) {
+    c.header("Access-Control-Max-Age", "3600"); // 1小时
+  }
 }
 
 // 管理员文件系统访问
@@ -137,6 +147,9 @@ fsRoutes.get("/api/admin/fs/download", async (c) => {
   const path = c.req.query("path");
   const adminId = c.get("adminId");
 
+  // 设置CORS头部
+  setCorsHeaders(c);
+
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
   }
@@ -144,6 +157,8 @@ fsRoutes.get("/api/admin/fs/download", async (c) => {
   try {
     return await downloadFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
   } catch (error) {
+    // 确保即使发生错误，也添加CORS头部
+    setCorsHeaders(c);
     console.error("下载文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
@@ -158,6 +173,9 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
   const path = c.req.query("path");
   const adminId = c.get("adminId");
 
+  // 设置CORS头部
+  setCorsHeaders(c);
+
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
   }
@@ -165,6 +183,8 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
   try {
     return await previewFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
   } catch (error) {
+    // 确保即使发生错误，也添加CORS头部
+    setCorsHeaders(c);
     console.error("预览文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
@@ -179,6 +199,9 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
   const path = c.req.query("path");
   const apiKeyId = c.get("apiKeyId");
 
+  // 设置CORS头部
+  setCorsHeaders(c);
+
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
   }
@@ -186,6 +209,8 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
   try {
     return await downloadFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
   } catch (error) {
+    // 确保即使发生错误，也添加CORS头部
+    setCorsHeaders(c);
     console.error("下载文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
@@ -200,6 +225,9 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
   const path = c.req.query("path");
   const apiKeyId = c.get("apiKeyId");
 
+  // 设置CORS头部
+  setCorsHeaders(c);
+
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
   }
@@ -207,6 +235,8 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
   try {
     return await previewFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
   } catch (error) {
+    // 确保即使发生错误，也添加CORS头部
+    setCorsHeaders(c);
     console.error("预览文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
@@ -556,22 +586,22 @@ fsRoutes.post("/api/admin/fs/multipart/part", authMiddleware, async (c) => {
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
 
     return c.json(
-      {
-        success: false,
-        message: error.message || "上传分片失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "上传分片失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -617,22 +647,22 @@ fsRoutes.post("/api/user/fs/multipart/part", apiKeyFileMiddleware, async (c) => 
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
 
     return c.json(
-      {
-        success: false,
-        message: error.message || "上传分片失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "上传分片失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });

@@ -10,9 +10,12 @@
  */
 export async function downloadFileWithAuth(url, filename) {
   try {
+    console.log("请求下载URL:", url);
     // 使用fetch请求URL，添加认证头
     const response = await fetch(url, {
       headers: getAuthHeaders(),
+      mode: "cors", // 明确设置跨域模式
+      credentials: "include", // 包含凭证（cookies等）
     });
 
     // 检查响应状态
@@ -73,9 +76,12 @@ export function getAuthHeaders() {
  */
 export async function createAuthenticatedPreviewUrl(url) {
   try {
+    console.log("请求预览URL:", url);
     // 使用fetch请求URL，添加认证头
     const response = await fetch(url, {
       headers: getAuthHeaders(),
+      mode: "cors", // 明确设置跨域模式
+      credentials: "include", // 包含凭证（cookies等）
     });
 
     // 检查响应状态

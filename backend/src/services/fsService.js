@@ -11,7 +11,6 @@ import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, Del
 import { initializeMultipartUpload } from "./multipartUploadService.js";
 import { S3ProviderTypes } from "../constants/index.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
-import { getMimeType } from "../utils/fileUtils.js";
 
 /**
  * 规范化路径格式
@@ -471,7 +470,7 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
  * @param {string} userId - 用户ID
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
- * @returns {Promise<Response>} 文件内容响应，用于下载
+ * @returns {Promise<Response>} 文件内容响应
  */
 export async function downloadFile(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
@@ -513,13 +512,11 @@ export async function downloadFile(db, path, userId, userType, encryptionSecret)
 
           // 文件名处理
           const fileName = path.split("/").filter(Boolean).pop() || "file";
-          // 从文件名确定MIME类型
-          const detectedMimeType = getMimeType(fileName);
           const contentDisposition = `attachment; filename="${encodeURIComponent(fileName)}"`;
 
-          // 构建响应头 - 优先使用S3返回的Content-Type，如果没有则使用基于文件名检测的类型
+          // 构建响应头
           const headers = {
-            "Content-Type": getResponse.ContentType || detectedMimeType || "application/octet-stream",
+            "Content-Type": getResponse.ContentType || "application/octet-stream",
             "Content-Disposition": contentDisposition,
             "Content-Length": String(getResponse.ContentLength || 0),
             "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
@@ -592,14 +589,12 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
 
           // 文件名处理
           const fileName = path.split("/").filter(Boolean).pop() || "file";
-          // 从文件名确定MIME类型
-          const detectedMimeType = getMimeType(fileName);
           // 设置为inline用于预览而不是下载
           const contentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
 
-          // 构建响应头 - 优先使用S3返回的Content-Type，如果没有则使用基于文件名检测的类型
+          // 构建响应头
           const headers = {
-            "Content-Type": getResponse.ContentType || detectedMimeType || "application/octet-stream",
+            "Content-Type": getResponse.ContentType || "application/octet-stream",
             "Content-Disposition": contentDisposition,
             "Content-Length": String(getResponse.ContentLength || 0),
             "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),

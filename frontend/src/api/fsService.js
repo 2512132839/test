@@ -1,4 +1,5 @@
 import { get, post, put, del } from "./client";
+import { API_BASE_URL } from "./config";
 
 /**
  * 管理员API - 获取目录列表
@@ -24,7 +25,7 @@ export async function getAdminFileInfo(path) {
  * @returns {string} 文件下载URL
  */
 export function getAdminFileDownloadUrl(path) {
-  return `/api/admin/fs/download?path=${encodeURIComponent(path)}`;
+  return `${API_BASE_URL}/api/admin/fs/download?path=${encodeURIComponent(path)}`;
 }
 
 /**
@@ -33,7 +34,7 @@ export function getAdminFileDownloadUrl(path) {
  * @returns {string} 文件预览URL
  */
 export function getAdminFilePreviewUrl(path) {
-  return `/api/admin/fs/preview?path=${encodeURIComponent(path)}`;
+  return `${API_BASE_URL}/api/admin/fs/preview?path=${encodeURIComponent(path)}`;
 }
 
 /**
@@ -111,7 +112,7 @@ export async function getUserFileInfo(path) {
  * @returns {string} 文件下载URL
  */
 export function getUserFileDownloadUrl(path) {
-  return `/api/user/fs/download?path=${encodeURIComponent(path)}`;
+  return `${API_BASE_URL}/api/user/fs/download?path=${encodeURIComponent(path)}`;
 }
 
 /**
@@ -120,7 +121,7 @@ export function getUserFileDownloadUrl(path) {
  * @returns {string} 文件预览URL
  */
 export function getUserFilePreviewUrl(path) {
-  return `/api/user/fs/preview?path=${encodeURIComponent(path)}`;
+  return `${API_BASE_URL}/api/user/fs/preview?path=${encodeURIComponent(path)}`;
 }
 
 /**
@@ -181,7 +182,7 @@ export async function renameUserItem(oldPath, newPath) {
  */
 export function getFsApiByUserType(isAdmin) {
   return isAdmin
-    ? {
+      ? {
         getDirectoryList: getAdminDirectoryList,
         getFileInfo: getAdminFileInfo,
         getFileDownloadUrl: getAdminFileDownloadUrl,
@@ -192,7 +193,7 @@ export function getFsApiByUserType(isAdmin) {
         batchDeleteItems: batchDeleteAdminItems,
         renameItem: renameAdminItem,
       }
-    : {
+      : {
         getDirectoryList: getUserDirectoryList,
         getFileInfo: getUserFileInfo,
         getFileDownloadUrl: getUserFileDownloadUrl,
@@ -229,7 +230,7 @@ export async function initAdminMultipartUpload(path, contentType, fileSize, file
  */
 export async function uploadAdminPart(path, uploadId, partNumber, partData, isLastPart = false, key) {
   const url = `/admin/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -284,7 +285,7 @@ export async function initUserMultipartUpload(path, contentType, fileSize, filen
  */
 export async function uploadUserPart(path, uploadId, partNumber, partData, isLastPart = false, key) {
   const url = `/user/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
