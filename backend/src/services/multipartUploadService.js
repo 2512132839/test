@@ -147,7 +147,7 @@ export async function initializeMultipartUpload(db, path, contentType, fileSize,
           path: path,
           storage_type: mount.storage_type,
           // 建议的分片大小 (从5MB减小到3MB，以减少Worker CPU使用量)
-          recommendedPartSize: 3 * 1024 * 1024,
+          recommendedPartSize: 15 * 1024 * 1024,
         };
       },
       "初始化分片上传",

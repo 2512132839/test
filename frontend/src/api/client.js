@@ -299,14 +299,6 @@ export async function post(endpoint, data, options = {}) {
 
         // 监听请求完成
         xhr.onload = function () {
-          // 检查 CORS 头部是否正确
-          const corsHeader = xhr.getResponseHeader("Access-Control-Allow-Origin");
-          if (!corsHeader) {
-            console.warn(`⚠️ CORS警告: 响应缺少 Access-Control-Allow-Origin 头部, URL: ${url}`);
-          } else {
-            console.log(`✅ CORS头部正常: ${corsHeader}`);
-          }
-
           if (xhr.status >= 200 && xhr.status < 300) {
             let responseData;
 
