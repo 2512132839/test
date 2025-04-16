@@ -20,6 +20,7 @@ const userPermissions = ref({
   isAdmin: false, // 是否是管理员
   text: false, // 文本操作权限
   file: false, // 文件操作权限
+  mount: false, // 挂载点操作权限
 });
 // 用于区分登录类型
 const loginType = ref("none"); // 'none', 'admin', 'apikey'
@@ -83,6 +84,7 @@ const checkLoginStatus = async () => {
         isAdmin: true,
         text: true,
         file: true,
+        mount: true, // 管理员拥有所有权限
       };
       return;
     } catch (error) {
@@ -109,6 +111,7 @@ const checkLoginStatus = async () => {
           isAdmin: false,
           text: permissions.text || false,
           file: permissions.file || false,
+          mount: permissions.mount || false, // 添加mount权限支持
         };
         return;
       } catch (e) {
@@ -129,6 +132,7 @@ const checkLoginStatus = async () => {
     isAdmin: false,
     text: false,
     file: false,
+    mount: false,
   };
   localStorage.removeItem("admin_token");
   localStorage.removeItem("api_key");
@@ -181,6 +185,7 @@ const validateApiKey = async (apiKey) => {
         isAdmin: false,
         text: permissions.text || false,
         file: permissions.file || false,
+        mount: permissions.mount || false, // 添加mount权限支持
       };
 
       // 缓存权限信息
@@ -213,6 +218,7 @@ const validateApiKey = async (apiKey) => {
       isAdmin: false,
       text: false,
       file: false,
+      mount: false,
     };
     localStorage.removeItem("api_key");
     localStorage.removeItem("api_key_permissions");
@@ -238,6 +244,7 @@ const handleLoginSuccess = (result) => {
       isAdmin: true,
       text: true,
       file: true,
+      mount: true, // 管理员拥有所有权限
     };
   }
   // 处理API密钥授权结果
@@ -250,6 +257,7 @@ const handleLoginSuccess = (result) => {
         isAdmin: false,
         text: result.permissions.text || false,
         file: result.permissions.file || false,
+        mount: result.permissions.mount || false, // 添加mount权限支持
       };
       localStorage.setItem("api_key_permissions", JSON.stringify(result.permissions));
     }
@@ -269,6 +277,7 @@ const handleLogout = () => {
     isAdmin: false,
     text: false,
     file: false,
+    mount: false,
   };
   localStorage.removeItem("admin_token");
   localStorage.removeItem("api_key");

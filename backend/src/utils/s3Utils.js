@@ -45,6 +45,9 @@ export async function createS3Client(config, encryptionSecret) {
       clientConfig.customUserAgent = "CloudPaste/1.0";
       clientConfig.requestTimeout = 60000;
       maxRetries = 4;
+      // 禁用 B2 不支持的校验和功能
+      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
 
     case S3ProviderTypes.R2:
@@ -52,8 +55,8 @@ export async function createS3Client(config, encryptionSecret) {
       clientConfig.requestTimeout = 30000;
       break;
 
-    case S3ProviderTypes.BITIFUL:
-      // 缤纷云S3配置
+    case S3ProviderTypes.AWS:
+      // AWS配置
       clientConfig.signatureVersion = "v4";
       clientConfig.requestTimeout = 30000;
       maxRetries = 3;

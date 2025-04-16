@@ -106,15 +106,17 @@ export function getAllApiKeys() {
  * @param {string} [expiresAt] - 过期时间，ISO格式字符串
  * @param {boolean} [textPermission=false] - 文本操作权限
  * @param {boolean} [filePermission=false] - 文件操作权限
+ * @param {boolean} [mountPermission=false] - 挂载点操作权限
  * @param {string} [customKey] - 自定义密钥（可选，仅限字母、数字、横杠和下划线）
  * @returns {Promise<Object>} 新创建的API密钥信息
  */
-export function createApiKey(name, expiresAt, textPermission = false, filePermission = false, customKey = null) {
+export function createApiKey(name, expiresAt, textPermission = false, filePermission = false, mountPermission = false, customKey = null) {
   return post("/admin/api-keys", {
     name,
     expires_at: expiresAt,
     text_permission: textPermission,
     file_permission: filePermission,
+    mount_permission: mountPermission,
     custom_key: customKey,
   });
 }
@@ -135,6 +137,7 @@ export function deleteApiKey(keyId) {
  * @param {string} [updateData.name] - 新的密钥名称
  * @param {boolean} [updateData.text_permission] - 文本操作权限
  * @param {boolean} [updateData.file_permission] - 文件操作权限
+ * @param {boolean} [updateData.mount_permission] - 挂载点操作权限
  * @param {string} [updateData.expires_at] - 新的过期时间，ISO格式字符串
  * @returns {Promise<Object>} 更新结果
  */

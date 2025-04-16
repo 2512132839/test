@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { login, logout, changePassword, testAdminToken } from "../services/adminService.js";
 import { ApiStatus } from "../constants/index.js";
+import { directoryCacheManager } from "../utils/DirectoryCache.js";
 
 const adminRoutes = new Hono();
 
@@ -80,6 +81,29 @@ adminRoutes.get("/api/test/admin-token", async (c) => {
     message: "令牌有效",
     success: true,
   });
+});
+
+// 获取目录缓存统计信息
+adminRoutes.get("/api/admin/cache/stats", async (c) => {
+  try {
+    const stats = directoryCacheManager.getStats();
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "获取缓存统计成功",
+      data: stats,
+      success: true,
+    });
+  } catch (error) {
+    console.error("获取缓存统计错误:", error);
+    return c.json(
+      {
+        code: ApiStatus.INTERNAL_ERROR,
+        message: error.message || "获取缓存统计失败",
+        success: false,
+      },
+      ApiStatus.INTERNAL_ERROR
+    );
+  }
 });
 
 export default adminRoutes;

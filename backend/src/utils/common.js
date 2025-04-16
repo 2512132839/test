@@ -92,6 +92,14 @@ export function processWeeklyData(data) {
 }
 
 /**
+ * 生成通用UUID
+ * @returns {string} 生成的UUID，符合RFC4122 v4标准
+ */
+export function generateUUID() {
+  return crypto.randomUUID();
+}
+
+/**
  * 生成唯一文件ID
  * @returns {string} 生成的文件ID
  */

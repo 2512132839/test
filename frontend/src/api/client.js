@@ -61,10 +61,14 @@ export async function fetchApi(endpoint, options = {}) {
 
   console.log(`🚀 API请求: ${debugInfo.method} ${debugInfo.url}`, debugInfo);
 
+  // 检查请求体是否为FormData类型
+  const isFormData = options.body instanceof FormData;
+
   // 默认请求选项
   const defaultOptions = {
     headers: {
-      "Content-Type": "application/json",
+      // 如果是FormData，不设置默认的Content-Type，让浏览器自动处理
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
     },
     // 不再使用credentials: 'include'，因为我们使用Bearer token认证
   };
@@ -79,8 +83,8 @@ export async function fetchApi(endpoint, options = {}) {
     }),
   };
 
-  // 如果请求体是对象类型，则自动序列化为JSON
-  if (requestOptions.body && typeof requestOptions.body === "object") {
+  // 如果请求体是对象类型但不是FormData，则自动序列化为JSON
+  if (requestOptions.body && typeof requestOptions.body === "object" && !isFormData) {
     requestOptions.body = JSON.stringify(requestOptions.body);
   }
 
@@ -230,10 +234,71 @@ export function get(endpoint, options = {}) {
 }
 
 /**
- * POST请求方法
+ * 发送POST请求
+ * @param {string} endpoint - API端点
+ * @param {Object|ArrayBuffer|Blob} data - 请求数据
+ * @param {Object} options - 可选配置
+ * @returns {Promise<Object>} 响应数据
  */
-export function post(endpoint, data, options = {}) {
-  return fetchApi(endpoint, { ...options, method: "POST", body: data });
+export async function post(endpoint, data, options = {}) {
+  try {
+    const url = getFullApiUrl(endpoint);
+    const headers = {
+      ...addAuthToken({}),
+      ...options.headers,
+    };
+
+    // 检查是否需要发送原始二进制数据（用于分片上传）
+    if (options.rawBody && (data instanceof ArrayBuffer || data instanceof Blob)) {
+      // 提取分片信息（如果存在）
+      let partInfo = "";
+      const partNumberMatch = endpoint.match(/partNumber=(\d+)/);
+      const isLastPartMatch = endpoint.match(/isLastPart=(true|false)/);
+
+      if (partNumberMatch) {
+        const partNumber = partNumberMatch[1];
+        const isLastPart = isLastPartMatch ? isLastPartMatch[1] === "true" : false;
+        partInfo = `，分片: ${partNumber}${isLastPart ? " (最后分片)" : ""}`;
+      }
+
+      console.log(`发送二进制数据到${partInfo}，大小: ${data instanceof Blob ? data.size : data.byteLength} 字节`);
+
+      return await fetch(url, {
+        method: "POST",
+        headers,
+        body: data,
+      }).then(async (response) => {
+        // 解析响应
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP错误 ${response.status}: ${errorText}`);
+        }
+
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          return await response.json();
+        } else {
+          return await response.text();
+        }
+      });
+    }
+
+    // 常规JSON数据或FormData
+    if (!headers["Content-Type"] && !(data instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    // 使用封装的fetchApi处理请求
+    return await fetchApi(endpoint, {
+      ...options,
+      method: "POST",
+      headers,
+      body: data,
+    });
+  } catch (error) {
+    console.error(`POST ${endpoint} 请求错误:`, error);
+    throw error;
+  }
 }
 
 /**

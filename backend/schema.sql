@@ -59,6 +59,7 @@ CREATE TABLE api_keys (
   key TEXT UNIQUE NOT NULL,
   text_permission BOOLEAN DEFAULT 0,
   file_permission BOOLEAN DEFAULT 0,
+  mount_permission BOOLEAN DEFAULT 0,
   last_used DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME NOT NULL -- 默认一天后过期
@@ -122,7 +123,7 @@ CREATE TABLE file_passwords (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
-);  
+);
 
 -- 创建paste_passwords表 - 存储文本密码
 CREATE TABLE paste_passwords (
@@ -141,7 +142,31 @@ CREATE TABLE system_settings (
   description TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);  
+);
+
+-- 创建storage_mounts表 - 存储挂载配置
+CREATE TABLE storage_mounts (
+  id TEXT PRIMARY KEY,                  -- 唯一标识
+  name TEXT NOT NULL,                   -- 挂载点名称
+  storage_type TEXT NOT NULL,           -- 存储类型(S3, WebDAV等)
+  storage_config_id TEXT,               -- 关联的存储配置ID (对S3类型，关联s3_configs表)
+  mount_path TEXT NOT NULL,             -- 挂载路径，如 /photos
+  remark TEXT,                          -- 备注说明
+  is_active BOOLEAN DEFAULT 1,          -- 是否启用
+  created_by TEXT NOT NULL,             -- 创建者标识
+  sort_order INTEGER DEFAULT 0,         -- 显示排序顺序
+  cache_ttl INTEGER DEFAULT 300,        -- 缓存时间(秒)，提高性能
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_used DATETIME                    -- 最后使用时间
+);
+
+-- 创建索引
+CREATE INDEX idx_storage_mounts_mount_path ON storage_mounts(mount_path);
+CREATE INDEX idx_storage_mounts_storage_config_id ON storage_mounts(storage_config_id);
+CREATE INDEX idx_storage_mounts_created_by ON storage_mounts(created_by);
+CREATE INDEX idx_storage_mounts_is_active ON storage_mounts(is_active);
+CREATE INDEX idx_storage_mounts_sort_order ON storage_mounts(sort_order);
 
 -- 创建初始管理员账户
 -- 默认账户: admin/admin123

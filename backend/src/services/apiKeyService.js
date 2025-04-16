@@ -44,6 +44,7 @@ export async function getAllApiKeys(db) {
       SUBSTR(key, 1, 6) || '...' AS key_masked,
       text_permission, 
       file_permission, 
+      mount_permission,
       created_at, 
       expires_at,
       last_used
@@ -87,7 +88,10 @@ export async function createApiKey(db, keyData) {
   const now = new Date();
   let expiresAt;
 
-  if (keyData.expires_at) {
+  if (keyData.expires_at === null || keyData.expires_at === "never") {
+    // 永不过期 - 使用远未来日期（9999-12-31）
+    expiresAt = new Date("9999-12-31T23:59:59Z");
+  } else if (keyData.expires_at) {
     expiresAt = new Date(keyData.expires_at);
   } else {
     expiresAt = new Date();
@@ -102,16 +106,17 @@ export async function createApiKey(db, keyData) {
   // 对text_permission和file_permission提供默认值
   const textPermission = keyData.text_permission === true ? 1 : 0;
   const filePermission = keyData.file_permission === true ? 1 : 0;
+  const mountPermission = keyData.mount_permission === true ? 1 : 0;
 
   // 插入到数据库
   await db
     .prepare(
       `
-    INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, mount_permission, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `
     )
-    .bind(id, keyData.name.trim(), key, textPermission, filePermission, expiresAt.toISOString())
+    .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, expiresAt.toISOString())
     .run();
 
   // 准备响应数据
@@ -122,6 +127,7 @@ export async function createApiKey(db, keyData) {
     key_masked: key.substring(0, 6) + "...", // 前端期望的密钥掩码
     text_permission: textPermission === 1,
     file_permission: filePermission === 1,
+    mount_permission: mountPermission === 1,
     created_at: now.toISOString(),
     expires_at: expiresAt.toISOString(),
   };
@@ -158,7 +164,10 @@ export async function updateApiKey(db, id, updateData) {
 
   // 处理过期时间
   let expiresAt = null;
-  if (updateData.expires_at) {
+  if (updateData.expires_at === null || updateData.expires_at === "never") {
+    // 永不过期 - 使用远未来日期（9999-12-31）
+    expiresAt = new Date("9999-12-31T23:59:59Z");
+  } else if (updateData.expires_at) {
     expiresAt = new Date(updateData.expires_at);
 
     // 确保日期是有效的
@@ -185,6 +194,11 @@ export async function updateApiKey(db, id, updateData) {
   if (updateData.file_permission !== undefined) {
     updates.push("file_permission = ?");
     params.push(updateData.file_permission ? 1 : 0);
+  }
+
+  if (updateData.mount_permission !== undefined) {
+    updates.push("mount_permission = ?");
+    params.push(updateData.mount_permission ? 1 : 0);
   }
 
   if (expiresAt !== null) {
@@ -236,7 +250,7 @@ export async function getApiKeyByKey(db, key) {
 
   const result = await db
     .prepare(
-      `SELECT id, name, key, text_permission, file_permission, expires_at, last_used
+      `SELECT id, name, key, text_permission, file_permission, mount_permission, expires_at, last_used
        FROM ${DbTables.API_KEYS}
        WHERE key = ?`
     )

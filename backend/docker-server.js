@@ -9,6 +9,7 @@ import { open } from "sqlite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import methodOverride from "method-override";
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -137,7 +138,7 @@ let isDbInitialized = false;
 // CORS配置
 const corsOptions = {
   origin: "*", // 允许的域名，如果未设置则允许所有
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS,PROPFIND,PROPPATCH,MKCOL,COPY,MOVE,LOCK,UNLOCK", // 添加WebDAV方法
   credentials: true,
   optionsSuccessStatus: 204,
   maxAge: 86400, // 缓存预检请求结果24小时
@@ -145,7 +146,32 @@ const corsOptions = {
 
 // 中间件配置
 server.use(cors(corsOptions));
+
+// 添加method-override中间件支持WebDAV方法
+server.use(methodOverride("X-HTTP-Method-Override"));
+server.use(methodOverride("X-HTTP-Method"));
+server.use(methodOverride("X-Method-Override"));
+
+// 添加原始请求体处理中间件
+server.use(
+    express.raw({
+      type: ["application/xml", "text/xml", "application/octet-stream"],
+      limit: "500mb", // 设置合理的大小限制
+    })
+);
+
+// 处理JSON请求体
 server.use(express.json());
+
+// 添加自定义中间件以支持WebDAV方法
+server.use((req, res, next) => {
+  // 记录WebDAV请求以便调试
+  if (["PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"].includes(req.method)) {
+    console.log(`WebDAV请求被Express接收: ${req.method} ${req.path}`);
+  }
+
+  next();
+});
 
 // 数据库初始化中间件
 server.use(async (req, res, next) => {
@@ -201,6 +227,11 @@ server.get("/api/file-view/:slug", async (req, res) => {
 // 通配符路由 - 处理所有其他API请求
 server.use("*", async (req, res) => {
   try {
+    // 记录WebDAV请求路径以进行调试
+    if (req.path.startsWith("/dav")) {
+      console.log(`WebDAV请求被路由: ${req.method} ${req.path}`);
+    }
+
     const response = await app.fetch(createAdaptedRequest(req), req.env, {});
     await convertWorkerResponseToExpress(response, res);
   } catch (error) {
@@ -216,16 +247,45 @@ server.use("*", async (req, res) => {
  */
 function createAdaptedRequest(expressReq) {
   const url = new URL(expressReq.originalUrl, `http://${expressReq.headers.host || "localhost"}`);
+
+  // 获取请求体内容
+  let body = undefined;
+  if (["POST", "PUT", "PATCH", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE"].includes(expressReq.method)) {
+    // 检查请求体的类型和内容
+    const contentType = expressReq.headers["content-type"] || "";
+
+    // 如果是JSON请求且已经被解析
+    if (contentType.includes("application/json") && expressReq.body && typeof expressReq.body === "object") {
+      body = JSON.stringify(expressReq.body);
+    }
+    // 如果是XML或二进制数据，使用Buffer
+    else if (
+        (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
+        Buffer.isBuffer(expressReq.body)
+    ) {
+      body = expressReq.body;
+    }
+    // 如果是其他类型的请求体，如果有原始数据就使用
+    else if (expressReq.body) {
+      body = expressReq.body;
+    }
+  }
+
+  // 检查并记录请求体信息，用于调试
+  if (expressReq.path.startsWith("/dav") && body) {
+    console.log(`WebDAV请求体类型: ${typeof body}, 长度: ${body.length || "unknown"}`);
+  }
+
   return new Request(url, {
     method: expressReq.method,
     headers: expressReq.headers,
-    body: ["POST", "PUT", "PATCH"].includes(expressReq.method) && expressReq.body ? JSON.stringify(expressReq.body) : undefined,
+    body: body,
   });
 }
 
 /**
  * 工具函数：将Worker Response转换为Express响应
- * 处理不同类型的响应（JSON、二进制等）
+ * 处理不同类型的响应（JSON、二进制、XML等）
  */
 async function convertWorkerResponseToExpress(workerResponse, expressRes) {
   expressRes.status(workerResponse.status);
@@ -235,11 +295,23 @@ async function convertWorkerResponseToExpress(workerResponse, expressRes) {
   });
 
   if (workerResponse.body) {
-    const contentType = workerResponse.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
+    const contentType = workerResponse.headers.get("content-type") || "";
+
+    // 处理不同类型的响应
+    if (contentType.includes("application/json")) {
+      // JSON响应
       const jsonData = await workerResponse.json();
       expressRes.json(jsonData);
+    } else if (contentType.includes("application/xml") || contentType.includes("text/xml")) {
+      // XML响应，常见于WebDAV请求
+      const text = await workerResponse.text();
+      expressRes.type(contentType).send(text);
+    } else if (contentType.includes("text/")) {
+      // 文本响应
+      const text = await workerResponse.text();
+      expressRes.type(contentType).send(text);
     } else {
+      // 二进制响应
       const buffer = await workerResponse.arrayBuffer();
       expressRes.send(Buffer.from(buffer));
     }

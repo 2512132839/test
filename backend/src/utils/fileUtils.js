@@ -5,25 +5,27 @@
 /**
  * 获取文件的MIME类型
  * @param {string} filename - 文件名
- * @returns {string} 文件的MIME类型
+ * @returns {string} MIME类型
  */
 export function getMimeType(filename) {
-  const extension = filename.split(".").pop().toLowerCase();
-  const mimeTypes = {
-    // 图片格式
+  if (!filename) return "application/octet-stream";
+
+  const ext = filename.split(".").pop().toLowerCase();
+
+  const mimeMap = {
+    // 图片
     jpg: "image/jpeg",
     jpeg: "image/jpeg",
     png: "image/png",
     gif: "image/gif",
     webp: "image/webp",
     svg: "image/svg+xml",
-    tiff: "image/tiff",
-    tif: "image/tiff",
     ico: "image/x-icon",
     bmp: "image/bmp",
-    heic: "image/heic",
+    tiff: "image/tiff",
+    tif: "image/tiff",
 
-    // 文档格式
+    // 文档
     pdf: "application/pdf",
     doc: "application/msword",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -31,68 +33,73 @@ export function getMimeType(filename) {
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ppt: "application/vnd.ms-powerpoint",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    odt: "application/vnd.oasis.opendocument.text",
+    ods: "application/vnd.oasis.opendocument.spreadsheet",
+    odp: "application/vnd.oasis.opendocument.presentation",
+    rtf: "application/rtf",
 
-    // Markdown文件
-    md: "text/markdown",
-    markdown: "text/markdown",
-    mdown: "text/markdown",
-    mkd: "text/markdown",
-    mdwn: "text/markdown",
-    mdtxt: "text/markdown",
-    mdtext: "text/markdown",
-    rmd: "text/markdown",
-
-    // 音频格式
-    mp3: "audio/mpeg",
-    wav: "audio/wav",
-    ogg: "audio/ogg",
-    m4a: "audio/mp4",
-    flac: "audio/flac",
-    aac: "audio/aac",
-
-    // 视频格式
-    mp4: "video/mp4",
-    avi: "video/x-msvideo",
-    mov: "video/quicktime",
-    wmv: "video/x-ms-wmv",
-    mkv: "video/x-matroska",
-    webm: "video/webm",
-    "3gp": "video/3gpp",
-
-    // 压缩文件
-    zip: "application/zip",
-    rar: "application/x-rar-compressed",
-    "7z": "application/x-7z-compressed",
-    tar: "application/x-tar",
-    gz: "application/gzip",
-
-    // 代码和文本文件
+    // 文本
+    txt: "text/plain",
     html: "text/html",
     htm: "text/html",
     css: "text/css",
-    js: "application/javascript",
+    csv: "text/csv",
+    js: "text/javascript",
+    jsx: "text/javascript",
+    ts: "text/typescript",
+    tsx: "text/typescript",
     json: "application/json",
     xml: "application/xml",
-    txt: "text/plain",
-    rtf: "application/rtf",
-    csv: "text/csv",
+    md: "text/markdown",
+    markdown: "text/markdown",
 
-    // 其他常见格式
-    iso: "application/x-iso9660-image",
-    db: "application/x-sqlite3",
-    sqlite: "application/x-sqlite3",
-    sqlite3: "application/x-sqlite3",
-    epub: "application/epub+zip",
-    apk: "application/vnd.android.package-archive",
+    // 音频
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    flac: "audio/flac",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+
+    // 视频
+    mp4: "video/mp4",
+    webm: "video/webm",
+    avi: "video/x-msvideo",
+    mov: "video/quicktime",
+    wmv: "video/x-ms-wmv",
+    flv: "video/x-flv",
+    mkv: "video/x-matroska",
+
+    // 压缩
+    zip: "application/zip",
+    rar: "application/vnd.rar",
+    tar: "application/x-tar",
+    gz: "application/gzip",
+    "7z": "application/x-7z-compressed",
+
+    // 可执行文件
     exe: "application/x-msdownload",
     dll: "application/x-msdownload",
-    psd: "image/vnd.adobe.photoshop",
-    ai: "application/postscript",
-    eot: "application/vnd.ms-fontobject",
+    apk: "application/vnd.android.package-archive",
+    dmg: "application/x-apple-diskimage",
+
+    // 字体
     ttf: "font/ttf",
+    otf: "font/otf",
     woff: "font/woff",
     woff2: "font/woff2",
+    eot: "application/vnd.ms-fontobject",
+
+    // 3D模型
+    obj: "model/obj",
+    stl: "model/stl",
+    gltf: "model/gltf+json",
+    glb: "model/gltf-binary",
+
+    // 其他
+    bin: "application/octet-stream",
+    dat: "application/octet-stream",
   };
 
-  return mimeTypes[extension] || "application/octet-stream";
+  return mimeMap[ext] || "application/octet-stream";
 }

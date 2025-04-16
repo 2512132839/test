@@ -89,6 +89,7 @@ export async function initDatabase(db) {
         key TEXT UNIQUE NOT NULL,
         text_permission BOOLEAN DEFAULT 0,
         file_permission BOOLEAN DEFAULT 0,
+        mount_permission BOOLEAN DEFAULT 0,
         last_used DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME
@@ -190,6 +191,36 @@ export async function initDatabase(db) {
     )
     .run();
 
+  // 创建storage_mounts表 - 存储挂载配置
+  await db
+    .prepare(
+      `
+      CREATE TABLE IF NOT EXISTS ${DbTables.STORAGE_MOUNTS} (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        storage_type TEXT NOT NULL,
+        storage_config_id TEXT,
+        mount_path TEXT NOT NULL,
+        remark TEXT,
+        is_active BOOLEAN DEFAULT 1,
+        created_by TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        cache_ttl INTEGER DEFAULT 300,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used DATETIME
+      )
+    `
+    )
+    .run();
+
+  // 创建storage_mounts表索引
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_storage_mounts_mount_path ON ${DbTables.STORAGE_MOUNTS}(mount_path)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_storage_mounts_storage_config_id ON ${DbTables.STORAGE_MOUNTS}(storage_config_id)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_storage_mounts_created_by ON ${DbTables.STORAGE_MOUNTS}(created_by)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_storage_mounts_is_active ON ${DbTables.STORAGE_MOUNTS}(is_active)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_storage_mounts_sort_order ON ${DbTables.STORAGE_MOUNTS}(sort_order)`).run();
+
   // 检查是否已存在最大上传限制设置
   const maxUploadSize = await db
     .prepare(
@@ -268,6 +299,41 @@ async function migrateDatabase(db, currentVersion, targetVersion) {
       // case 3:
       //   await db.prepare(`ALTER TABLE ...`).run();
       //   break;
+
+      case 4:
+        // 版本4：为API_KEYS表添加挂载权限字段
+        try {
+          console.log(`为${DbTables.API_KEYS}表添加mount_permission字段...`);
+
+          // 检查字段是否已存在
+          const columnInfo = await db.prepare(`PRAGMA table_info(${DbTables.API_KEYS})`).all();
+
+          const mountPermissionExists = columnInfo.results.some((column) => column.name === "mount_permission");
+
+          if (!mountPermissionExists) {
+            // 如果字段不存在，添加它
+            try {
+              await db
+                .prepare(
+                  `ALTER TABLE ${DbTables.API_KEYS}
+                   ADD COLUMN mount_permission BOOLEAN DEFAULT 0`
+                )
+                .run();
+              console.log(`成功添加mount_permission字段到${DbTables.API_KEYS}表`);
+            } catch (alterError) {
+              console.error(`无法添加mount_permission字段到${DbTables.API_KEYS}表:`, alterError);
+              console.log(`将继续执行迁移过程，但请手动检查${DbTables.API_KEYS}表结构`);
+              // 不抛出错误，允许迁移继续进行
+            }
+          } else {
+            console.log(`${DbTables.API_KEYS}表已存在mount_permission字段，跳过添加`);
+          }
+        } catch (error) {
+          console.error(`为${DbTables.API_KEYS}表检查mount_permission字段时出错:`, error);
+          console.log(`将继续执行迁移过程，但请手动检查${DbTables.API_KEYS}表结构`);
+          // 不抛出错误，允许迁移继续进行
+        }
+        break;
     }
 
     // 记录迁移历史
@@ -355,6 +421,12 @@ export async function checkAndInitDatabase(db) {
       needsTablesCreation = true;
     }
 
+    // 检查storage_mounts表
+    if (!tableSet.has(DbTables.STORAGE_MOUNTS)) {
+      console.log(`${DbTables.STORAGE_MOUNTS}表不存在，需要创建`);
+      needsTablesCreation = true;
+    }
+
     // 如果有表不存在，执行表初始化
     if (needsTablesCreation) {
       console.log("检测到缺少表，执行表创建...");
@@ -370,7 +442,7 @@ export async function checkAndInitDatabase(db) {
     }
 
     // 如果要添加新表或修改现有表，请递增目标版本，修改后启动时自动更新数据库
-    const targetVersion = 3; // 目标schema版本,每次修改表结构时递增
+    const targetVersion = 4; // 目标schema版本,每次修改表结构时递增
 
     if (currentVersion < targetVersion) {
       console.log(`需要更新数据库结构，当前版本:${currentVersion}，目标版本:${targetVersion}`);

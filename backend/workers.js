@@ -32,6 +32,11 @@ export default {
       const url = new URL(request.url);
       const pathParts = url.pathname.split("/");
 
+      // 添加WebDAV请求处理的调试日志
+      if (pathParts.length >= 2 && pathParts[1] === "dav") {
+        console.log(`WebDAV请求在Workers环境中: ${request.method} ${url.pathname}`);
+      }
+
       // 处理API路径下的文件下载请求 /api/file-download/:slug
       if (pathParts.length >= 4 && pathParts[1] === "api" && pathParts[2] === "file-download") {
         const slug = pathParts[3];

@@ -21,6 +21,7 @@ apiKeyRoutes.get("/api/test/api-key", apiKeyMiddleware, async (c) => {
       permissions: {
         text: apiKeyInfo.textPermission,
         file: apiKeyInfo.filePermission,
+        mount: apiKeyInfo.mountPermission,
       },
       key_info: {
         id: apiKeyId || apiKeyInfo.id,

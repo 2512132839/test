@@ -8,6 +8,10 @@ import adminPasteRoutes from "./routes/adminPasteRoutes.js";
 import userPasteRoutes from "./routes/userPasteRoutes.js";
 import s3ConfigRoutes from "./routes/s3ConfigRoutes.js";
 import systemRoutes from "./routes/systemRoutes.js";
+import adminStorageMountRoutes from "./routes/adminStorageMountRoutes.js";
+import userStorageMountRoutes from "./routes/userStorageMountRoutes.js";
+import webdavRoutes from "./routes/webdavRoutes.js";
+import fsRoutes from "./routes/fsRoutes.js";
 import { DbTables, ApiStatus } from "./constants/index.js";
 import { createErrorResponse } from "./utils/common.js";
 import { registerAdminFilesRoutes } from "./routes/adminFilesRoutes.js";
@@ -26,9 +30,25 @@ app.use(
   "*",
   cors({
     origin: "*", // 允许所有来源，生产环境中可以设置为特定的域名
-    allowHeaders: ["Content-Type", "Authorization", "X-API-KEY"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-API-KEY",
+      "Depth",
+      "Destination",
+      "Overwrite",
+      "If-Match",
+      "If-None-Match",
+      "If-Modified-Since",
+      "If-Unmodified-Since",
+      "Lock-Token",
+      "Content-Length", // 添加Content-Length头
+      "X-Requested-With", // 添加X-Requested-With头，支持AJAX请求
+    ],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "HEAD"],
+    exposeHeaders: ["ETag", "Content-Length", "Content-Disposition"], // 暴露更多响应头
     maxAge: 86400,
+    credentials: true, // 允许携带凭证
   })
 );
 
@@ -43,6 +63,10 @@ app.route("/", adminPasteRoutes);
 app.route("/", userPasteRoutes);
 app.route("/", s3ConfigRoutes);
 app.route("/", systemRoutes);
+app.route("/", adminStorageMountRoutes);
+app.route("/", userStorageMountRoutes);
+app.route("/", webdavRoutes);
+app.route("/", fsRoutes);
 
 // 注册文件相关路由
 registerAdminFilesRoutes(app);

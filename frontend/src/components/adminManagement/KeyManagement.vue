@@ -27,6 +27,7 @@ const newKeyExpiration = ref("1d"); // 默认1天
 const newKeyCustomExpiration = ref("");
 const newKeyTextPermission = ref(false); // 文本权限
 const newKeyFilePermission = ref(false); // 文件权限
+const newKeyMountPermission = ref(false); // 挂载点权限
 const error = ref(null);
 const successMessage = ref(null);
 const newlyCreatedKey = ref(null);
@@ -39,6 +40,7 @@ const editingKey = ref(null); // 当前正在编辑的密钥
 const editKeyName = ref("");
 const editKeyTextPermission = ref(false);
 const editKeyFilePermission = ref(false);
+const editKeyMountPermission = ref(false);
 const editKeyExpiration = ref("custom");
 const editKeyCustomExpiration = ref("");
 
@@ -229,7 +231,7 @@ const handleCreateKey = async () => {
     // 根据用户选择决定是否使用自定义密钥
     const customKey = useCustomKey.value ? newKeyCustomKey.value : null;
 
-    const result = await createApiKey(newKeyName.value, expiresAt, newKeyTextPermission.value, newKeyFilePermission.value, customKey);
+    const result = await createApiKey(newKeyName.value, expiresAt, newKeyTextPermission.value, newKeyFilePermission.value, newKeyMountPermission.value, customKey);
 
     if (result.success && result.data) {
       // 保存新创建的密钥（仅显示一次）
@@ -244,6 +246,7 @@ const handleCreateKey = async () => {
         key_masked: displayKey, // 只显示前6位
         text_permission: result.data.text_permission,
         file_permission: result.data.file_permission,
+        mount_permission: result.data.mount_permission,
         created_at: result.data.created_at,
         expires_at: result.data.expires_at,
         last_used: null,
@@ -257,6 +260,7 @@ const handleCreateKey = async () => {
       newKeyCustomExpiration.value = "";
       newKeyTextPermission.value = false;
       newKeyFilePermission.value = false;
+      newKeyMountPermission.value = false;
 
       // 关闭模态框
       showCreateModal.value = false;
@@ -329,6 +333,11 @@ const copyKeyToClipboard = async (key) => {
 const formatDate = (dateString) => {
   if (!dateString) return t("admin.keyManagement.neverExpires");
 
+  // 检查是否是远未来日期（表示永不过期）
+  if (dateString.startsWith("9999-")) {
+    return t("admin.keyManagement.neverExpires");
+  }
+
   const date = new Date(dateString);
   return date.toLocaleString("zh-CN", {
     year: "numeric",
@@ -345,6 +354,7 @@ const openEditModal = (key) => {
   editKeyName.value = key.name;
   editKeyTextPermission.value = key.text_permission === 1 || key.text_permission === true;
   editKeyFilePermission.value = key.file_permission === 1 || key.file_permission === true;
+  editKeyMountPermission.value = key.mount_permission === 1 || key.mount_permission === true;
 
   // 设置过期时间
   const expiresAt = key.expires_at ? new Date(key.expires_at) : null;
@@ -400,6 +410,7 @@ const handleUpdateKey = async () => {
       name: editKeyName.value,
       text_permission: editKeyTextPermission.value,
       file_permission: editKeyFilePermission.value,
+      mount_permission: editKeyMountPermission.value,
     };
 
     if (expiresAt) {
@@ -417,6 +428,7 @@ const handleUpdateKey = async () => {
           name: editKeyName.value,
           text_permission: editKeyTextPermission.value,
           file_permission: editKeyFilePermission.value,
+          mount_permission: editKeyMountPermission.value,
           expires_at: expiresAt,
         };
       }
@@ -630,13 +642,20 @@ onBeforeUnmount(() => {
                   <td class="py-3 px-4">
                     <div class="flex space-x-2">
                       <span v-if="key.text_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800'">
-                        {{ $t("admin.keyManagement.textPermission") }}
+                        {{ $t("admin.keyManagement.textPermissionFull") }}
                       </span>
                       <span v-if="key.file_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800'">
-                        {{ $t("admin.keyManagement.filePermission") }}
+                        {{ $t("admin.keyManagement.filePermissionFull") }}
                       </span>
                       <span
-                        v-if="!key.text_permission && !key.file_permission"
+                        v-if="key.mount_permission"
+                        class="px-2 py-0.5 text-xs rounded"
+                        :class="darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800'"
+                      >
+                        {{ $t("admin.keyManagement.mountPermissionFull") }}
+                      </span>
+                      <span
+                        v-if="!key.text_permission && !key.file_permission && !key.mount_permission"
                         class="px-2 py-0.5 text-xs rounded"
                         :class="darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'"
                       >
@@ -735,8 +754,11 @@ onBeforeUnmount(() => {
                     <span v-if="key.file_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800'">
                       {{ $t("admin.keyManagement.filePermissionFull") }}
                     </span>
+                    <span v-if="key.mount_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800'">
+                      {{ $t("admin.keyManagement.mountPermissionFull") }}
+                    </span>
                     <span
-                      v-if="!key.text_permission && !key.file_permission"
+                      v-if="!key.text_permission && !key.file_permission && !key.mount_permission"
                       class="px-2 py-0.5 text-xs rounded"
                       :class="darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'"
                     >
@@ -927,6 +949,20 @@ onBeforeUnmount(() => {
                   {{ $t("admin.keyManagement.createModal.permissions.file") }}
                 </label>
               </div>
+
+              <!-- 挂载点权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  id="mount-permission"
+                  v-model="newKeyMountPermission"
+                  type="checkbox"
+                  class="h-5 w-5 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label for="mount-permission" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.createModal.permissions.mount") }}
+                </label>
+              </div>
             </div>
 
             <!-- 提示信息 -->
@@ -1078,6 +1114,20 @@ onBeforeUnmount(() => {
                 />
                 <label for="edit-file-permission" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
                   {{ $t("admin.keyManagement.createModal.permissions.file") }}
+                </label>
+              </div>
+
+              <!-- 挂载点权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  id="edit-mount-permission"
+                  v-model="editKeyMountPermission"
+                  type="checkbox"
+                  class="h-5 w-5 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label for="edit-mount-permission" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.createModal.permissions.mount") }}
                 </label>
               </div>
             </div>

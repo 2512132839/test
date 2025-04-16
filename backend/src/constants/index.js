@@ -13,6 +13,7 @@ export const DbTables = {
   FILE_PASSWORDS: "file_passwords", // 文件明文密码表
   SYSTEM_SETTINGS: "system_settings", // 系统设置表
   PASTE_PASSWORDS: "paste_passwords", // 文本密码表
+  STORAGE_MOUNTS: "storage_mounts", // 存储挂载表
 };
 
 // 默认的最大上传大小（MB）

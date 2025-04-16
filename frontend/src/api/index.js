@@ -13,6 +13,8 @@ import * as pasteService from "./pasteService";
 import * as adminService from "./adminService";
 import * as fileService from "./fileService";
 import * as testService from "./testService";
+import * as mountService from "./mountService";
+import * as fsService from "./fsService";
 
 // 统一服务导出
 export const api = {
@@ -20,6 +22,8 @@ export const api = {
   admin: adminService,
   file: fileService,
   test: testService,
+  mount: mountService,
+  fs: fsService,
   user: {
     // 添加API密钥用户的文本服务
     paste: {
@@ -29,6 +33,25 @@ export const api = {
       updatePaste: pasteService.updateUserPaste,
       deletePaste: pasteService.deleteUserPaste,
       deletePastes: pasteService.deleteUserPastes,
+    },
+    // 添加API密钥用户的挂载服务
+    mount: {
+      getMounts: mountService.getUserMountsList,
+      getMountById: mountService.getUserMountById,
+      createMount: mountService.createUserMount,
+      updateMount: mountService.updateUserMount,
+      deleteMount: mountService.deleteUserMount,
+    },
+    // 添加API密钥用户的文件系统服务
+    fs: {
+      getDirectoryList: fsService.getUserDirectoryList,
+      getFileInfo: fsService.getUserFileInfo,
+      getFileDownloadUrl: fsService.getUserFileDownloadUrl,
+      createDirectory: fsService.createUserDirectory,
+      uploadFile: fsService.uploadUserFile,
+      deleteItem: fsService.deleteUserItem,
+      batchDeleteItems: fsService.batchDeleteUserItems,
+      renameItem: fsService.renameUserItem,
     },
   },
 };
