@@ -357,7 +357,9 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress = n
     console.log(`分片上传初始化成功，uploadId: ${initResponse.data.uploadId}`);
     uploadId = initResponse.data.uploadId;
     s3Key = initResponse.data.key; // 保存S3对象键值，用于后续请求
-    const recommendedPartSize = initResponse.data.recommendedPartSize || 5 * 1024 * 1024; // 默认5MB
+
+    // 使用服务器推荐的分片大小，如果太大则使用较小值以避免Worker超时
+    let recommendedPartSize = initResponse.data.recommendedPartSize || 5 * 1024 * 1024; // 默认5MB
 
     // 步骤2: 计算分片数
     const parts = [];
@@ -387,10 +389,28 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress = n
 
       try {
         // 上传分片
-        const partResponse = await uploadPart(path, uploadId, partNumber, partData, isLastPart, s3Key, {
-          onXhrCreated: onXhrCreated,
-          timeout: 300000,
-        });
+        const maxRetries = 3; // 最大重试次数
+        let retryCount = 0;
+        let partResponse;
+
+        while (retryCount <= maxRetries) {
+          try {
+            partResponse = await uploadPart(path, uploadId, partNumber, partData, isLastPart, s3Key, {
+              onXhrCreated: onXhrCreated,
+              timeout: 300000, // 5分钟超时
+            });
+
+            // 如果成功就跳出循环
+            break;
+          } catch (err) {
+            retryCount++;
+            // 如果已经尝试了最大次数，抛出错误
+            if (retryCount > maxRetries) {
+              console.error(`上传分片 ${partNumber} 失败，已重试 ${maxRetries} 次:`, err);
+              throw err;
+            }
+          }
+        }
 
         if (!partResponse.success) {
           console.error(`上传分片 ${partNumber} 失败:`, partResponse);
@@ -427,7 +447,25 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress = n
 
     // 步骤4: 完成分片上传
     console.log(`所有分片上传完成，准备完成分片上传过程`);
-    const completeResponse = await completeUpload(path, uploadId, parts, s3Key);
+
+    // 添加完成上传的重试机制
+    let completeResponse;
+    const maxCompletionRetries = 3;
+    let completionRetryCount = 0;
+
+    while (completionRetryCount <= maxCompletionRetries) {
+      try {
+        completeResponse = await completeUpload(path, uploadId, parts, s3Key);
+        break; // 成功则跳出循环
+      } catch (err) {
+        completionRetryCount++;
+        // 如果已经尝试了最大次数，抛出错误
+        if (completionRetryCount > maxCompletionRetries) {
+          console.error(`完成分片上传失败，已重试 ${maxCompletionRetries} 次:`, err);
+          throw err;
+        }
+      }
+    }
 
     if (!completeResponse.success) {
       console.error(`完成分片上传失败:`, completeResponse);

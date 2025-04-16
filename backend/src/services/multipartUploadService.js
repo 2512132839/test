@@ -109,49 +109,49 @@ async function handleMultipartError(fn, operationName, defaultErrorMessage) {
  */
 export async function initializeMultipartUpload(db, path, contentType, fileSize, userId, userType, encryptionSecret, filename) {
   return handleMultipartError(
-    async () => {
-      // 获取S3资源
-      const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
+      async () => {
+        // 获取S3资源
+        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
 
-      // 规范化文件路径
-      const s3SubPath = normalizeFilePath(subPath, s3Config, path, filename);
+        // 规范化文件路径
+        const s3SubPath = normalizeFilePath(subPath, s3Config, path, filename);
 
-      // 检查父目录是否存在
-      if (s3SubPath.includes("/")) {
-        const parentPath = s3SubPath.substring(0, s3SubPath.lastIndexOf("/") + 1);
-        const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
+        // 检查父目录是否存在
+        if (s3SubPath.includes("/")) {
+          const parentPath = s3SubPath.substring(0, s3SubPath.lastIndexOf("/") + 1);
+          const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
 
-        if (!parentExists) {
-          throw new HTTPException(ApiStatus.CONFLICT, { message: "父目录不存在" });
+          if (!parentExists) {
+            throw new HTTPException(ApiStatus.CONFLICT, { message: "父目录不存在" });
+          }
         }
-      }
 
-      // 创建分片上传
-      const createCommand = new CreateMultipartUploadCommand({
-        Bucket: s3Config.bucket_name,
-        Key: s3SubPath,
-        ContentType: contentType || "application/octet-stream",
-      });
+        // 创建分片上传
+        const createCommand = new CreateMultipartUploadCommand({
+          Bucket: s3Config.bucket_name,
+          Key: s3SubPath,
+          ContentType: contentType || "application/octet-stream",
+        });
 
-      const createResponse = await s3Client.send(createCommand);
+        const createResponse = await s3Client.send(createCommand);
 
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
 
-      // 返回必要的信息用于后续上传
-      return {
-        uploadId: createResponse.UploadId,
-        bucket: s3Config.bucket_name,
-        key: s3SubPath,
-        mount_id: mount.id,
-        path: path,
-        storage_type: mount.storage_type,
-        // 建议的分片大小 (5MB，符合S3最小分片要求)
-        recommendedPartSize: 5 * 1024 * 1024,
-      };
-    },
-    "初始化分片上传",
-    "初始化分片上传失败"
+        // 返回必要的信息用于后续上传
+        return {
+          uploadId: createResponse.UploadId,
+          bucket: s3Config.bucket_name,
+          key: s3SubPath,
+          mount_id: mount.id,
+          path: path,
+          storage_type: mount.storage_type,
+          // 建议的分片大小 (从5MB减小到3MB，以减少Worker CPU使用量)
+          recommendedPartSize: 3 * 1024 * 1024,
+        };
+      },
+      "初始化分片上传",
+      "初始化分片上传失败"
   );
 }
 
@@ -170,35 +170,35 @@ export async function initializeMultipartUpload(db, path, contentType, fileSize,
  */
 export async function uploadPart(db, path, uploadId, partNumber, partData, userId, userType, encryptionSecret, s3Key) {
   return handleMultipartError(
-    async () => {
-      // 获取S3资源
-      const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
+      async () => {
+        // 获取S3资源
+        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
 
-      // 规范化文件路径 - 如果提供了s3Key，直接使用，否则重新计算
-      const s3SubPath = s3Key || normalizeFilePath(subPath, s3Config, path);
+        // 规范化文件路径 - 如果提供了s3Key，直接使用，否则重新计算
+        const s3SubPath = s3Key || normalizeFilePath(subPath, s3Config, path);
 
-      // 上传分片
-      const uploadCommand = new UploadPartCommand({
-        Bucket: s3Config.bucket_name,
-        Key: s3SubPath,
-        UploadId: uploadId,
-        PartNumber: partNumber,
-        Body: partData,
-      });
+        // 上传分片
+        const uploadCommand = new UploadPartCommand({
+          Bucket: s3Config.bucket_name,
+          Key: s3SubPath,
+          UploadId: uploadId,
+          PartNumber: partNumber,
+          Body: partData,
+        });
 
-      const uploadResponse = await s3Client.send(uploadCommand);
+        const uploadResponse = await s3Client.send(uploadCommand);
 
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
 
-      // 返回必要的信息用于后续完成上传
-      return {
-        partNumber: partNumber,
-        etag: uploadResponse.ETag,
-      };
-    },
-    "上传分片",
-    "上传分片失败"
+        // 返回必要的信息用于后续完成上传
+        return {
+          partNumber: partNumber,
+          etag: uploadResponse.ETag,
+        };
+      },
+      "上传分片",
+      "上传分片失败"
   );
 }
 
@@ -216,43 +216,43 @@ export async function uploadPart(db, path, uploadId, partNumber, partData, userI
  */
 export async function completeMultipartUpload(db, path, uploadId, parts, userId, userType, encryptionSecret, s3Key) {
   return handleMultipartError(
-    async () => {
-      // 获取S3资源
-      const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
+      async () => {
+        // 获取S3资源
+        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
 
-      // 规范化文件路径 - 如果提供了s3Key，直接使用，否则重新计算
-      const s3SubPath = s3Key || normalizeFilePath(subPath, s3Config, path);
+        // 规范化文件路径 - 如果提供了s3Key，直接使用，否则重新计算
+        const s3SubPath = s3Key || normalizeFilePath(subPath, s3Config, path);
 
-      // 确保parts按照partNumber排序
-      const sortedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
+        // 确保parts按照partNumber排序
+        const sortedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
 
-      // 完成分片上传
-      const completeCommand = new CompleteMultipartUploadCommand({
-        Bucket: s3Config.bucket_name,
-        Key: s3SubPath,
-        UploadId: uploadId,
-        MultipartUpload: {
-          Parts: sortedParts.map((part) => ({
-            PartNumber: part.partNumber,
-            ETag: part.etag,
-          })),
-        },
-      });
+        // 完成分片上传
+        const completeCommand = new CompleteMultipartUploadCommand({
+          Bucket: s3Config.bucket_name,
+          Key: s3SubPath,
+          UploadId: uploadId,
+          MultipartUpload: {
+            Parts: sortedParts.map((part) => ({
+              PartNumber: part.partNumber,
+              ETag: part.etag,
+            })),
+          },
+        });
 
-      const completeResponse = await s3Client.send(completeCommand);
+        const completeResponse = await s3Client.send(completeCommand);
 
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
 
-      return {
-        success: true,
-        path: path,
-        etag: completeResponse.ETag,
-        location: completeResponse.Location,
-      };
-    },
-    "完成分片上传",
-    "完成分片上传失败"
+        return {
+          success: true,
+          path: path,
+          etag: completeResponse.ETag,
+          location: completeResponse.Location,
+        };
+      },
+      "完成分片上传",
+      "完成分片上传失败"
   );
 }
 

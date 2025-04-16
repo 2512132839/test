@@ -120,14 +120,8 @@ export async function handleUploadPart(c) {
     }
 
     // 记录实际接收到的分片大小，帮助调试
-    console.log(`接收到分片 #${partNumber}, isLastPart: ${isLastPart}`);
-
-    // 验证分片大小
-    if (!isLastPart && partData.byteLength < MIN_PART_SIZE) {
-      throw new HTTPException(ApiStatus.BAD_REQUEST, {
-        message: `除最后一个分片外，所有分片大小必须至少为${MIN_PART_SIZE / (1024 * 1024)}MB，当前分片大小为${(partData.byteLength / (1024 * 1024)).toFixed(2)}MB`,
-      });
-    }
+    console.log(`接收到分片 #${partNumber}, isLastPart: ${isLastPart}, 大小: ${partData.byteLength} 字节`);
+    // S3会合并这些小分片，只要最终能成功上传即可
 
     // 上传分片
     const result = await uploadPart(db, path, uploadId, partNumber, partData, userId, userType, c.env.ENCRYPTION_SECRET, s3Key);
