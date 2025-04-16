@@ -11,6 +11,7 @@ import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, Del
 import { initializeMultipartUpload } from "./multipartUploadService.js";
 import { S3ProviderTypes } from "../constants/index.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
+import { getMimeType } from "../utils/fileUtils.js";
 
 /**
  * 规范化路径格式
@@ -470,7 +471,7 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
  * @param {string} userId - 用户ID
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
- * @returns {Promise<Response>} 文件内容响应
+ * @returns {Promise<Response>} 文件内容响应，用于下载
  */
 export async function downloadFile(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
@@ -507,67 +508,26 @@ export async function downloadFile(db, path, userId, userType, encryptionSecret)
             Key: s3SubPath,
           };
 
-          console.log(`正在从S3获取文件: Bucket=${s3Config.bucket_name}, Key=${s3SubPath}`);
           const getCommand = new GetObjectCommand(getParams);
           const getResponse = await s3Client.send(getCommand);
 
           // 文件名处理
           const fileName = path.split("/").filter(Boolean).pop() || "file";
+          // 从文件名确定MIME类型
+          const detectedMimeType = getMimeType(fileName);
           const contentDisposition = `attachment; filename="${encodeURIComponent(fileName)}"`;
 
-          // 获取内容类型，确保其正确
-          const contentType = getResponse.ContentType || "application/octet-stream";
-          console.log(`下载文件内容类型: ${contentType}`);
-
-          // 构建响应头
+          // 构建响应头 - 优先使用S3返回的Content-Type，如果没有则使用基于文件名检测的类型
           const headers = {
-            "Content-Type": contentType,
+            "Content-Type": getResponse.ContentType || detectedMimeType || "application/octet-stream",
             "Content-Disposition": contentDisposition,
             "Content-Length": String(getResponse.ContentLength || 0),
             "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
             "Cache-Control": "private, max-age=0",
-            // 添加CORS头以确保在所有环境下都能正常工作
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Content-Length, Authorization",
           };
 
-          // 在Workers环境中，我们需要特殊处理流
-          let responseBody;
-
-          // 使用Uint8Array处理二进制数据，确保正确处理
-          try {
-            // 从S3响应流中读取数据
-            const chunks = [];
-            const reader = getResponse.Body.getReader();
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              chunks.push(value);
-            }
-
-            // 合并所有块成一个Uint8Array
-            const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-            responseBody = new Uint8Array(totalLength);
-
-            let offset = 0;
-            for (const chunk of chunks) {
-              responseBody.set(chunk, offset);
-              offset += chunk.length;
-            }
-
-            console.log(`成功读取文件数据，总大小: ${totalLength} 字节`);
-          } catch (streamError) {
-            console.error("读取S3响应流时出错:", streamError);
-
-            // 如果流处理失败，尝试使用原始响应体
-            console.log("回退到原始响应体");
-            responseBody = getResponse.Body;
-          }
-
           // 返回文件内容
-          return new Response(responseBody, {
+          return new Response(getResponse.Body, {
             status: 200,
             headers: headers,
           });
@@ -575,7 +535,6 @@ export async function downloadFile(db, path, userId, userType, encryptionSecret)
           if (error.$metadata && error.$metadata.httpStatusCode === 404) {
             throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
           }
-          console.error("下载文件时出错:", error);
           throw error;
         }
       },
@@ -628,68 +587,27 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
             Key: s3SubPath,
           };
 
-          console.log(`正在从S3获取文件预览: Bucket=${s3Config.bucket_name}, Key=${s3SubPath}`);
           const getCommand = new GetObjectCommand(getParams);
           const getResponse = await s3Client.send(getCommand);
 
           // 文件名处理
           const fileName = path.split("/").filter(Boolean).pop() || "file";
+          // 从文件名确定MIME类型
+          const detectedMimeType = getMimeType(fileName);
           // 设置为inline用于预览而不是下载
           const contentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
 
-          // 获取内容类型，确保其正确
-          const contentType = getResponse.ContentType || "application/octet-stream";
-          console.log(`预览文件内容类型: ${contentType}`);
-
-          // 构建响应头
+          // 构建响应头 - 优先使用S3返回的Content-Type，如果没有则使用基于文件名检测的类型
           const headers = {
-            "Content-Type": contentType,
+            "Content-Type": getResponse.ContentType || detectedMimeType || "application/octet-stream",
             "Content-Disposition": contentDisposition,
             "Content-Length": String(getResponse.ContentLength || 0),
             "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
             "Cache-Control": "private, max-age=0",
-            // 添加CORS头以确保在所有环境下都能正常工作
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Content-Length, Authorization",
           };
 
-          // 在Workers环境中，我们需要特殊处理流
-          let responseBody;
-
-          // 使用Uint8Array处理二进制数据，确保正确处理
-          try {
-            // 从S3响应流中读取数据
-            const chunks = [];
-            const reader = getResponse.Body.getReader();
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              chunks.push(value);
-            }
-
-            // 合并所有块成一个Uint8Array
-            const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-            responseBody = new Uint8Array(totalLength);
-
-            let offset = 0;
-            for (const chunk of chunks) {
-              responseBody.set(chunk, offset);
-              offset += chunk.length;
-            }
-
-            console.log(`成功读取预览文件数据，总大小: ${totalLength} 字节`);
-          } catch (streamError) {
-            console.error("读取S3预览响应流时出错:", streamError);
-
-            // 如果流处理失败，尝试使用原始响应体
-            console.log("回退到原始响应体");
-            responseBody = getResponse.Body;
-          }
-
           // 返回文件内容
-          return new Response(responseBody, {
+          return new Response(getResponse.Body, {
             status: 200,
             headers: headers,
           });
@@ -697,7 +615,6 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
           if (error.$metadata && error.$metadata.httpStatusCode === 404) {
             throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
           }
-          console.error("预览文件时出错:", error);
           throw error;
         }
       },
