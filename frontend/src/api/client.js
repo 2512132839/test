@@ -261,25 +261,120 @@ export async function post(endpoint, data, options = {}) {
         partInfo = `，分片: ${partNumber}${isLastPart ? " (最后分片)" : ""}`;
       }
 
-      console.log(`发送二进制数据到${partInfo}，大小: ${data instanceof Blob ? data.size : data.byteLength} 字节`);
+      console.log(`发送二进制数据到 ${url}${partInfo}，大小: ${data instanceof Blob ? data.size : data.byteLength} 字节`);
 
-      return await fetch(url, {
-        method: "POST",
-        headers,
-        body: data,
-      }).then(async (response) => {
-        // 解析响应
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP错误 ${response.status}: ${errorText}`);
+      // 添加对 XHR 对象的处理，以支持取消功能
+      const xhr = new XMLHttpRequest();
+
+      // 如果提供了 XHR 创建回调，调用它以支持取消操作
+      if (options.onXhrCreated && typeof options.onXhrCreated === "function") {
+        options.onXhrCreated(xhr);
+      }
+
+      // 返回一个基于 XHR 的 Promise
+      return new Promise((resolve, reject) => {
+        xhr.open("POST", url, true);
+
+        // 设置请求头
+        Object.keys(headers).forEach((key) => {
+          xhr.setRequestHeader(key, headers[key]);
+        });
+
+        // 设置超时
+        if (options.timeout) {
+          xhr.timeout = options.timeout;
         }
 
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          return await response.json();
-        } else {
-          return await response.text();
+        // 设置响应类型为 JSON
+        xhr.responseType = "json";
+
+        // 监听上传进度
+        if (options.onUploadProgress && typeof options.onUploadProgress === "function") {
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              options.onUploadProgress(Math.round((event.loaded / event.total) * 100));
+            }
+          };
         }
+
+        // 监听请求完成
+        xhr.onload = function () {
+          // 检查 CORS 头部是否正确
+          const corsHeader = xhr.getResponseHeader("Access-Control-Allow-Origin");
+          if (!corsHeader) {
+            console.warn(`⚠️ CORS警告: 响应缺少 Access-Control-Allow-Origin 头部, URL: ${url}`);
+          } else {
+            console.log(`✅ CORS头部正常: ${corsHeader}`);
+          }
+
+          if (xhr.status >= 200 && xhr.status < 300) {
+            let responseData;
+
+            // 尝试解析响应
+            try {
+              if (xhr.response) {
+                responseData = xhr.response;
+              } else if (xhr.responseType === "" || xhr.responseType === "text") {
+                // 如果响应类型为文本，尝试解析为 JSON
+                try {
+                  responseData = JSON.parse(xhr.responseText);
+                } catch (e) {
+                  responseData = xhr.responseText;
+                }
+              } else {
+                responseData = xhr.response;
+              }
+
+              console.log(`✅ 二进制上传请求成功 ${url}${partInfo}`);
+              resolve(responseData);
+            } catch (e) {
+              console.error(`解析响应错误: ${e.message}`);
+              reject(new Error(`解析响应错误: ${e.message}`));
+            }
+          } else {
+            let errorMsg;
+            try {
+              if (xhr.responseType === "" || xhr.responseType === "text") {
+                try {
+                  const errorObj = JSON.parse(xhr.responseText);
+                  errorMsg = errorObj.message || `HTTP错误 ${xhr.status}`;
+                } catch (e) {
+                  errorMsg = xhr.responseText || `HTTP错误 ${xhr.status}`;
+                }
+              } else if (xhr.response && xhr.response.message) {
+                errorMsg = xhr.response.message;
+              } else {
+                errorMsg = `HTTP错误 ${xhr.status}`;
+              }
+            } catch (e) {
+              errorMsg = `HTTP错误 ${xhr.status}`;
+            }
+
+            console.error(`❌ 二进制上传请求失败 ${url}${partInfo}: ${errorMsg}`);
+            reject(new Error(errorMsg));
+          }
+        };
+
+        // 监听网络错误
+        xhr.onerror = function () {
+          console.error(`❌ 网络错误: ${url}${partInfo}`);
+          reject(new Error("网络错误，请检查连接"));
+        };
+
+        // 监听超时
+        xhr.ontimeout = function () {
+          console.error(`❌ 请求超时: ${url}${partInfo}`);
+          reject(new Error("请求超时，服务器响应时间过长"));
+        };
+
+        // 监听中止
+        xhr.onabort = function () {
+          console.log(`⏹️ 请求已被中止: ${url}${partInfo}`);
+          reject(new Error("请求已被用户取消"));
+        };
+
+        // 发送请求
+        xhr.send(data);
       });
     }
 

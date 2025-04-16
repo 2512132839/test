@@ -305,9 +305,6 @@ fsRoutes.post("/api/admin/fs/upload", async (c) => {
   const adminId = c.get("adminId");
 
   try {
-    // 设置CORS头部
-    setCorsHeaders(c);
-
     const formData = await c.req.formData();
     const file = formData.get("file");
     const path = formData.get("path");
@@ -337,9 +334,6 @@ fsRoutes.post("/api/admin/fs/upload", async (c) => {
       success: true,
     });
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
-    setCorsHeaders(c);
-
     console.error("上传文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
@@ -354,9 +348,6 @@ fsRoutes.post("/api/user/fs/upload", async (c) => {
   const apiKeyId = c.get("apiKeyId");
 
   try {
-    // 设置CORS头部
-    setCorsHeaders(c);
-
     const formData = await c.req.formData();
     const file = formData.get("file");
     const path = formData.get("path");
@@ -386,9 +377,6 @@ fsRoutes.post("/api/user/fs/upload", async (c) => {
       success: true,
     });
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
-    setCorsHeaders(c);
-
     console.error("上传文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
@@ -582,16 +570,10 @@ fsRoutes.options("/api/admin/fs/multipart/part", (c) => {
 // 初始化分片上传 - 管理员版本
 fsRoutes.post("/api/admin/fs/multipart/init", authMiddleware, async (c) => {
   try {
-    // 设置CORS头部
     setCorsHeaders(c);
-
-    // 调用实际的处理函数
     return await handleInitMultipartUpload(c);
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-
-    // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
           {
@@ -602,7 +584,6 @@ fsRoutes.post("/api/admin/fs/multipart/init", authMiddleware, async (c) => {
           error.status
       );
     }
-
     return c.json(
         {
           success: false,
@@ -653,16 +634,10 @@ fsRoutes.post("/api/admin/fs/multipart/part", authMiddleware, async (c) => {
 // 完成分片上传 - 管理员版本
 fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
   try {
-    // 设置CORS头部
     setCorsHeaders(c);
-
-    // 调用实际的处理函数
     return await handleCompleteMultipartUpload(c);
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-
-    // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
           {
@@ -673,7 +648,6 @@ fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
           error.status
       );
     }
-
     return c.json(
         {
           success: false,
@@ -688,16 +662,10 @@ fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
 // 中止分片上传 - 管理员版本
 fsRoutes.post("/api/admin/fs/multipart/abort", authMiddleware, async (c) => {
   try {
-    // 设置CORS头部
     setCorsHeaders(c);
-
-    // 调用实际的处理函数
     return await handleAbortMultipartUpload(c);
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-
-    // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
           {
@@ -708,7 +676,6 @@ fsRoutes.post("/api/admin/fs/multipart/abort", authMiddleware, async (c) => {
           error.status
       );
     }
-
     return c.json(
         {
           success: false,
@@ -739,16 +706,10 @@ fsRoutes.options("/api/user/fs/multipart/part", (c) => {
 // 初始化分片上传 - API密钥用户版本
 fsRoutes.post("/api/user/fs/multipart/init", apiKeyFileMiddleware, async (c) => {
   try {
-    // 设置CORS头部
     setCorsHeaders(c);
-
-    // 调用实际的处理函数
     return await handleInitMultipartUpload(c);
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-
-    // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
           {
@@ -759,7 +720,6 @@ fsRoutes.post("/api/user/fs/multipart/init", apiKeyFileMiddleware, async (c) => 
           error.status
       );
     }
-
     return c.json(
         {
           success: false,
@@ -810,16 +770,10 @@ fsRoutes.post("/api/user/fs/multipart/part", apiKeyFileMiddleware, async (c) => 
 // 完成分片上传 - API密钥用户版本
 fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c) => {
   try {
-    // 设置CORS头部
     setCorsHeaders(c);
-
-    // 调用实际的处理函数
     return await handleCompleteMultipartUpload(c);
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-
-    // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
           {
@@ -830,7 +784,6 @@ fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c)
           error.status
       );
     }
-
     return c.json(
         {
           success: false,
@@ -845,16 +798,10 @@ fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c)
 // 中止分片上传 - API密钥用户版本
 fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) => {
   try {
-    // 设置CORS头部
     setCorsHeaders(c);
-
-    // 调用实际的处理函数
     return await handleAbortMultipartUpload(c);
   } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-
-    // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
           {
@@ -865,7 +812,6 @@ fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) =>
           error.status
       );
     }
-
     return c.json(
         {
           success: false,

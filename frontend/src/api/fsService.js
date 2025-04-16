@@ -226,15 +226,18 @@ export async function initAdminMultipartUpload(path, contentType, fileSize, file
  * @param {Blob|ArrayBuffer} partData 分片数据
  * @param {boolean} isLastPart 是否为最后一个分片
  * @param {string} key S3对象键值，确保与初始化阶段一致
+ * @param {Function} onXhrCreated 创建XHR对象后的回调，用于保存引用以便取消请求
  * @returns {Promise<Object>} 上传分片结果响应对象
  */
-export async function uploadAdminPart(path, uploadId, partNumber, partData, isLastPart = false, key) {
+export async function uploadAdminPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/admin/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
       key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
     rawBody: true,
+    onXhrCreated,
+    timeout,
   });
 }
 
@@ -281,15 +284,18 @@ export async function initUserMultipartUpload(path, contentType, fileSize, filen
  * @param {Blob|ArrayBuffer} partData 分片数据
  * @param {boolean} isLastPart 是否为最后一个分片
  * @param {string} key S3对象键值，确保与初始化阶段一致
+ * @param {Function} onXhrCreated 创建XHR对象后的回调，用于保存引用以便取消请求
  * @returns {Promise<Object>} 上传分片结果响应对象
  */
-export async function uploadUserPart(path, uploadId, partNumber, partData, isLastPart = false, key) {
+export async function uploadUserPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/user/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
       key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
     rawBody: true,
+    onXhrCreated,
+    timeout,
   });
 }
 
@@ -323,9 +329,12 @@ export async function abortUserMultipartUpload(path, uploadId, key) {
  * @param {boolean} isAdmin 是否为管理员
  * @param {Function} onProgress 进度回调函数，参数为上传百分比
  * @param {Function} onCancel 取消检查函数，返回true时中止上传
+ * @param {Function} onXhrCreated 创建XHR对象后的回调，用于保存引用以便取消请求
  * @returns {Promise<Object>} 上传结果
  */
-export async function performMultipartUpload(file, path, isAdmin, onProgress = null, onCancel = null) {
+export async function performMultipartUpload(file, path, isAdmin, onProgress = null, onCancel = null, onXhrCreated = null) {
+  console.log(`开始分片上传流程，文件: ${file.name}, 大小: ${file.size} 字节, 路径: ${path}`);
+
   // 选择合适的API函数
   const initUpload = isAdmin ? initAdminMultipartUpload : initUserMultipartUpload;
   const uploadPart = isAdmin ? uploadAdminPart : uploadUserPart;
@@ -337,11 +346,15 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress = n
 
   try {
     // 步骤1: 初始化分片上传
+    console.log(`初始化分片上传，文件: ${file.name}, 类型: ${file.type || "application/octet-stream"}`);
     const initResponse = await initUpload(path, file.type || "application/octet-stream", file.size, file.name);
+
     if (!initResponse.success) {
+      console.error(`初始化分片上传失败:`, initResponse);
       throw new Error(initResponse.message || "初始化分片上传失败");
     }
 
+    console.log(`分片上传初始化成功，uploadId: ${initResponse.data.uploadId}`);
     uploadId = initResponse.data.uploadId;
     s3Key = initResponse.data.key; // 保存S3对象键值，用于后续请求
     const recommendedPartSize = initResponse.data.recommendedPartSize || 5 * 1024 * 1024; // 默认5MB
@@ -351,10 +364,13 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress = n
     const totalParts = Math.ceil(file.size / recommendedPartSize);
     let uploadedBytes = 0;
 
+    console.log(`文件将被分成 ${totalParts} 个分片，每个分片大小约 ${recommendedPartSize / (1024 * 1024)} MB`);
+
     // 步骤3: 上传每个分片
     for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
       // 检查是否应该取消上传
       if (onCancel && onCancel()) {
+        console.log(`上传被用户取消，中止上传过程`);
         await abortUpload(path, uploadId, s3Key);
         throw new Error("上传已取消");
       }
@@ -363,45 +379,75 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress = n
       const start = (partNumber - 1) * recommendedPartSize;
       const end = Math.min(partNumber * recommendedPartSize, file.size);
       const isLastPart = partNumber === totalParts;
+      const partSize = end - start;
 
       // 创建分片数据
       const partData = file.slice(start, end);
+      console.log(`上传分片 ${partNumber}/${totalParts}, 范围: ${start}-${end}, 大小: ${partSize} 字节${isLastPart ? " (最后一个分片)" : ""}`);
 
-      // 上传分片
-      const partResponse = await uploadPart(path, uploadId, partNumber, partData, isLastPart, s3Key);
-      if (!partResponse.success) {
-        throw new Error(`上传第${partNumber}个分片失败: ${partResponse.message}`);
-      }
+      try {
+        // 上传分片
+        const partResponse = await uploadPart(path, uploadId, partNumber, partData, isLastPart, s3Key, {
+          onXhrCreated: onXhrCreated,
+          timeout: 300000,
+        });
 
-      // 记录分片信息
-      parts.push({
-        partNumber: partNumber,
-        etag: partResponse.data.etag,
-      });
+        if (!partResponse.success) {
+          console.error(`上传分片 ${partNumber} 失败:`, partResponse);
+          throw new Error(`上传第${partNumber}个分片失败: ${partResponse.message}`);
+        }
 
-      // 更新上传进度
-      uploadedBytes += end - start;
-      if (onProgress) {
-        onProgress(Math.round((uploadedBytes / file.size) * 100));
+        console.log(`分片 ${partNumber} 上传成功，ETag: ${partResponse.data.etag}`);
+
+        // 记录分片信息
+        parts.push({
+          partNumber: partNumber,
+          etag: partResponse.data.etag,
+        });
+
+        // 更新上传进度
+        uploadedBytes += partSize;
+        if (onProgress) {
+          const percentage = Math.round((uploadedBytes / file.size) * 100);
+          console.log(`上传进度: ${percentage}%`);
+          onProgress(percentage);
+        }
+      } catch (partError) {
+        console.error(`上传分片 ${partNumber} 时发生错误:`, partError);
+        // 尝试中止上传，避免残留未完成的上传
+        try {
+          await abortUpload(path, uploadId, s3Key);
+          console.log(`已中止上传: ${uploadId}`);
+        } catch (abortError) {
+          console.error(`中止上传失败: ${abortError.message}`);
+        }
+        throw partError; // 重新抛出错误供上层处理
       }
     }
 
     // 步骤4: 完成分片上传
+    console.log(`所有分片上传完成，准备完成分片上传过程`);
     const completeResponse = await completeUpload(path, uploadId, parts, s3Key);
+
     if (!completeResponse.success) {
+      console.error(`完成分片上传失败:`, completeResponse);
       throw new Error(completeResponse.message || "完成分片上传失败");
     }
+
+    console.log(`分片上传过程完成，文件: ${file.name}`);
 
     // 返回上传结果
     return completeResponse;
   } catch (error) {
+    console.error(`分片上传过程中发生错误:`, error);
+
     // 如果有uploadId且失败，尝试中止上传
     if (uploadId) {
       try {
         await abortUpload(path, uploadId, s3Key);
         console.log(`已中止上传: ${uploadId}`);
       } catch (abortError) {
-        console.error("中止上传失败:", abortError);
+        console.error(`中止上传失败: ${abortError.message}`);
       }
     }
 
