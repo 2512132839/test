@@ -135,13 +135,29 @@ console.log(`数据库文件路径: ${dbPath}`);
 const sqliteAdapter = createSQLiteAdapter(dbPath);
 let isDbInitialized = false;
 
+// WebDAV支持的HTTP方法
+const WEBDAV_METHODS = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"];
+
+// 明确告知Express处理这些方法
+WEBDAV_METHODS.forEach((method) => {
+  server[method.toLowerCase()] = function (path, ...handlers) {
+    return server.route(path).all(function (req, res, next) {
+      if (req.method === method) {
+        return next();
+      }
+      next("route");
+    }, ...handlers);
+  };
+});
+
 // CORS配置
 const corsOptions = {
   origin: "*", // 允许的域名，如果未设置则允许所有
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS,PROPFIND,PROPPATCH,MKCOL,COPY,MOVE,LOCK,UNLOCK", // 添加WebDAV方法
+  methods: WEBDAV_METHODS.join(","), // 使用上面定义的WebDAV方法
   credentials: true,
   optionsSuccessStatus: 204,
   maxAge: 86400, // 缓存预检请求结果24小时
+  exposedHeaders: ["ETag", "Content-Type", "Content-Length", "Last-Modified"],
 };
 
 // 中间件配置
@@ -152,6 +168,23 @@ server.use(methodOverride("X-HTTP-Method-Override"));
 server.use(methodOverride("X-HTTP-Method"));
 server.use(methodOverride("X-Method-Override"));
 
+// 禁用WebDAV模块 (如果有的话)
+server.disable("x-powered-by");
+
+// 确保所有WebDAV方法都被允许
+server.use((req, res, next) => {
+  if (req.path.startsWith("/dav")) {
+    res.setHeader("Access-Control-Allow-Methods", WEBDAV_METHODS.join(","));
+    res.setHeader("Allow", WEBDAV_METHODS.join(","));
+
+    // 对于OPTIONS请求，直接响应以支持预检请求
+    if (req.method === "OPTIONS") {
+      return res.status(204).end();
+    }
+  }
+  next();
+});
+
 // 添加原始请求体处理中间件
 server.use(
     express.raw({
@@ -161,13 +194,43 @@ server.use(
 );
 
 // 处理JSON请求体
-server.use(express.json());
+server.use(
+    express.json({
+      type: ["application/json"],
+      limit: "1gb",
+    })
+);
 
 // 添加自定义中间件以支持WebDAV方法
 server.use((req, res, next) => {
   // 记录WebDAV请求以便调试
-  if (["PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"].includes(req.method)) {
+  if (["PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "DELETE", "PUT"].includes(req.method)) {
     console.log(`WebDAV请求被Express接收: ${req.method} ${req.path}`);
+  }
+
+  next();
+});
+
+// 添加专门的WebDAV处理中间件
+server.use("/dav", (req, res, next) => {
+  // 明确设置允许的方法
+  res.setHeader("Allow", WEBDAV_METHODS.join(","));
+
+  // 记录详细的WebDAV请求信息
+  console.log(`WebDAV专用中间件捕获请求: ${req.method} ${req.path}`);
+
+  // WebDAV的OPTIONS请求特殊处理
+  if (req.method === "OPTIONS") {
+    console.log("处理WebDAV OPTIONS请求");
+    res.setHeader("Allow", WEBDAV_METHODS.join(","));
+    res.setHeader("DAV", "1,2");
+    res.setHeader("MS-Author-Via", "DAV");
+    return res.status(200).end();
+  }
+
+  // 针对DELETE方法的特殊处理
+  if (req.method === "DELETE") {
+    console.log(`处理WebDAV DELETE请求: ${req.path}`);
   }
 
   next();
@@ -227,9 +290,14 @@ server.get("/api/file-view/:slug", async (req, res) => {
 // 通配符路由 - 处理所有其他API请求
 server.use("*", async (req, res) => {
   try {
-    // 记录WebDAV请求路径以进行调试
+    // 特殊处理WebDAV请求
     if (req.path.startsWith("/dav")) {
-      console.log(`WebDAV请求被路由: ${req.method} ${req.path}`);
+      console.log(`WebDAV请求被路由: ${req.method} ${req.path}, Headers: ${JSON.stringify(Object.keys(req.headers))}`);
+
+      // 针对DELETE方法的特殊处理
+      if (req.method === "DELETE") {
+        console.log(`WebDAV DELETE请求: ${req.path}`);
+      }
     }
 
     const response = await app.fetch(createAdaptedRequest(req), req.env, {});
@@ -250,7 +318,7 @@ function createAdaptedRequest(expressReq) {
 
   // 获取请求体内容
   let body = undefined;
-  if (["POST", "PUT", "PATCH", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE"].includes(expressReq.method)) {
+  if (["POST", "PUT", "PATCH", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "DELETE"].includes(expressReq.method)) {
     // 检查请求体的类型和内容
     const contentType = expressReq.headers["content-type"] || "";
 
@@ -272,15 +340,24 @@ function createAdaptedRequest(expressReq) {
   }
 
   // 检查并记录请求体信息，用于调试
-  if (expressReq.path.startsWith("/dav") && body) {
-    console.log(`WebDAV请求体类型: ${typeof body}, 长度: ${body.length || "unknown"}`);
+  if (expressReq.path.startsWith("/dav")) {
+    console.log(
+        `WebDAV请求体: 方法=${expressReq.method}, 路径=${expressReq.path}, 内容类型=${expressReq.headers["content-type"] || "无"}, 请求体类型=${body ? typeof body : "无"}`
+    );
   }
 
-  return new Request(url, {
+  // 处理特殊情况：DELETE方法通常没有请求体，但需要确保方法传递正确
+  const requestInit = {
     method: expressReq.method,
     headers: expressReq.headers,
-    body: body,
-  });
+  };
+
+  // 只有在有请求体时才添加body参数
+  if (body !== undefined) {
+    requestInit.body = body;
+  }
+
+  return new Request(url, requestInit);
 }
 
 /**
@@ -323,4 +400,42 @@ async function convertWorkerResponseToExpress(workerResponse, expressRes) {
 // 启动服务器
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`CloudPaste后端服务运行在 http://0.0.0.0:${PORT}`);
+
+  // Web.config文件支持WebDAV方法
+  try {
+    const webConfigPath = path.join(__dirname, "Web.config");
+    const webConfigContent = `<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.webServer>
+    <modules>
+      <remove name="WebDAVModule" />
+    </modules>
+    <handlers>
+      <remove name="WebDAV" />
+    </handlers>
+    <validation validateIntegratedModeConfiguration="false" />
+    <security>
+      <requestFiltering>
+        <verbs>
+          <add verb="OPTIONS" allowed="true" />
+          <add verb="PROPFIND" allowed="true" />
+          <add verb="PROPPATCH" allowed="true" />
+          <add verb="MKCOL" allowed="true" />
+          <add verb="COPY" allowed="true" />
+          <add verb="MOVE" allowed="true" />
+          <add verb="DELETE" allowed="true" />
+          <add verb="PUT" allowed="true" />
+          <add verb="LOCK" allowed="true" />
+          <add verb="UNLOCK" allowed="true" />
+        </verbs>
+      </requestFiltering>
+    </security>
+  </system.webServer>
+</configuration>`;
+
+    fs.writeFileSync(webConfigPath, webConfigContent);
+    console.log(`已创建Web.config文件以支持WebDAV方法: ${webConfigPath}`);
+  } catch (error) {
+    console.warn("创建Web.config文件失败:", error.message);
+  }
 });
