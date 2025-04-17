@@ -5,6 +5,7 @@
 import { findMountPointByPath, normalizeS3SubPath, updateMountLastUsed, checkDirectoryExists } from "../utils/webdavUtils.js";
 import { createS3Client } from "../../utils/s3Utils.js";
 import { PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getMimeType } from "../../utils/fileUtils.js";
 import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload } from "../../services/multipartUploadService.js";
 import { clearCacheAfterWebDAVOperation } from "../utils/cacheUtils.js";
@@ -336,6 +337,43 @@ export async function handlePut(c, path, userId, userType, db) {
     // 为可能导致问题的客户端降低分片上传阈值
     const effectiveThreshold = clientInfo.isPotentiallyProblematicClient ? WINDOWS_CLIENT_MULTIPART_THRESHOLD : MULTIPART_THRESHOLD;
 
+    // 添加代理上传逻辑 - 使用预签名URL和代理模式避免Worker的CPU限制
+    // 设定使用代理模式的文件大小阈值(2MB)，超过此大小的文件将使用代理模式
+    const PROXY_THRESHOLD = 2 * 1024 * 1024; // 2 MB
+
+    // 非空文件且大于代理阈值时使用代理模式
+    if (!emptyBodyCheck && declaredContentLength > PROXY_THRESHOLD) {
+      console.log(`WebDAV PUT - 文件大小(${declaredContentLength}字节)超过代理阈值(${PROXY_THRESHOLD}字节)，使用代理模式上传`);
+
+      try {
+        // 创建S3的PUT对象命令
+        const putCommand = new PutObjectCommand({
+          Bucket: s3Config.bucket_name,
+          Key: s3SubPath,
+          ContentType: contentType,
+        });
+
+        // 生成预签名URL（1小时有效）
+        const presignedUrl = await getSignedUrl(s3Client, putCommand, {
+          expiresIn: 3600,
+        });
+
+        // 使用代理上传
+        const proxyResponse = await proxyUploadToS3(c, presignedUrl, contentType);
+
+        // 如果代理上传成功，更新挂载点的最后使用时间并清理缓存
+        if (proxyResponse.status === 201) {
+          await updateMountLastUsed(db, mount.id);
+          await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
+        }
+
+        return proxyResponse;
+      } catch (error) {
+        console.error(`WebDAV PUT - 代理上传模式失败，回退到标准上传:`, error);
+        // 如果代理模式失败，我们会继续执行后面的代码，回退到标准上传
+      }
+    }
+
     // 处理空文件的情况
     if (emptyBodyCheck) {
       console.log(`WebDAV PUT - 检测到0字节文件，使用普通上传`);
@@ -449,6 +487,53 @@ export async function handlePut(c, path, userId, userType, db) {
 
     // 对外部仅返回通用错误信息和错误ID，不暴露具体错误
     return new Response(`内部服务器错误 (错误ID: ${errorId})`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+}
+
+/**
+ * 使用代理模式通过预签名URL上传文件到S3
+ * 这种方法避免了在Worker中进行大量的内存操作，防止触发CPU限制
+ * @param {Object} c - Hono上下文
+ * @param {string} presignedUrl - S3预签名URL
+ * @param {string} contentType - 内容类型
+ * @returns {Promise<Response>} 响应对象
+ */
+async function proxyUploadToS3(c, presignedUrl, contentType) {
+  console.log(`WebDAV PUT - 使用代理模式上传到S3，预签名URL: ${presignedUrl.split("?")[0]}`);
+
+  try {
+    // 直接使用fetch代理上传，避免在Worker中缓冲整个文件
+    const response = await fetch(presignedUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": contentType || "application/octet-stream",
+      },
+      body: c.req.body, // 直接使用请求体流，不缓冲
+    });
+
+    if (response.ok) {
+      console.log(`WebDAV PUT - 代理上传成功，状态码: ${response.status}`);
+      return new Response(null, {
+        status: 201, // Created
+        headers: {
+          "Content-Type": "text/plain",
+          "Content-Length": "0",
+        },
+      });
+    } else {
+      const errorText = await response.text();
+      console.error(`WebDAV PUT - 代理上传失败，状态码: ${response.status}, 错误: ${errorText}`);
+      return new Response(`上传失败: 存储服务返回了错误 (${response.status})`, {
+        status: 502, // Bad Gateway
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+  } catch (error) {
+    console.error(`WebDAV PUT - 代理上传过程中出错:`, error);
+    return new Response(`上传失败: 代理处理过程中出错`, {
       status: 500,
       headers: { "Content-Type": "text/plain" },
     });
