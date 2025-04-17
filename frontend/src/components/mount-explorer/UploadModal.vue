@@ -91,6 +91,45 @@
               清除全部
             </button>
           </div>
+
+          <!-- 上传模式切换开关 -->
+          <div class="upload-mode-toggle mb-3">
+            <div class="flex items-center">
+              <span class="text-sm mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">上传模式:</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="useStreamUpload" class="sr-only peer" :disabled="isUploading" />
+                <div
+                    class="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"
+                    :class="[
+                    darkMode
+                      ? 'bg-gray-700 peer-checked:bg-blue-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500'
+                      : 'bg-gray-200 peer-checked:bg-blue-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300',
+                    isUploading ? 'opacity-50 cursor-not-allowed' : '',
+                  ]"
+                ></div>
+                <span
+                    class="ml-3 text-sm font-medium"
+                    :class="[darkMode ? (useStreamUpload ? 'text-blue-300' : 'text-gray-300') : useStreamUpload ? 'text-blue-600' : 'text-gray-700']"
+                >
+                  {{ useStreamUpload ? "流式分片上传" : "普通分片上传" }}
+                </span>
+              </label>
+              <div class="ml-2">
+                <button
+                    type="button"
+                    class="text-xs rounded-full h-5 w-5 flex items-center justify-center"
+                    :class="darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
+                    title="上传模式说明"
+                    @click="showUploadModeInfo"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="files-list max-h-60 overflow-y-auto">
             <div
                 v-for="(file, index) in selectedFiles"
@@ -144,6 +183,23 @@
                                       ? "上传失败"
                                       : ""
                     }}
+                  </span>
+
+                  <!-- 添加上传模式标签 - 当文件大于5MB且正在上传或已上传完成 -->
+                  <span
+                      v-if="selectedFiles[index].size > 5 * 1024 * 1024 && (fileItems[index].status === 'uploading' || fileItems[index].status === 'success')"
+                      class="text-xs ml-1 px-1.5 py-0.5 rounded"
+                      :class="[
+                      useStreamUpload
+                        ? darkMode
+                          ? 'bg-blue-900/20 text-blue-300/90'
+                          : 'bg-blue-50 text-blue-500/90'
+                        : darkMode
+                        ? 'bg-purple-900/20 text-purple-300/90'
+                        : 'bg-purple-50 text-purple-500/90',
+                    ]"
+                  >
+                    {{ useStreamUpload ? "流式" : "分片" }}
                   </span>
                 </div>
 
@@ -223,7 +279,24 @@
             ></div>
           </div>
           <div class="flex justify-between items-center mt-1">
-            <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'"> 上传速度: {{ uploadSpeed }} </span>
+            <div class="flex items-center">
+              <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'"> 上传速度: {{ uploadSpeed }} </span>
+              <span
+                  v-if="selectedFiles.length > 0 && currentUploadIndex >= 0"
+                  class="text-xs ml-2 px-1.5 py-0.5 rounded"
+                  :class="[
+                  useStreamUpload
+                    ? darkMode
+                      ? 'bg-blue-900/30 text-blue-300'
+                      : 'bg-blue-100 text-blue-600'
+                    : darkMode
+                    ? 'bg-purple-900/30 text-purple-300'
+                    : 'bg-purple-100 text-purple-600',
+                ]"
+              >
+                {{ useStreamUpload ? "流式分片" : "普通分片" }}
+              </span>
+            </div>
             <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
               {{ currentUploadInfo }}
             </span>
@@ -349,6 +422,7 @@ const message = ref(null);
 const uploadSpeed = ref("");
 const lastLoaded = ref(0);
 const lastTime = ref(0);
+const useStreamUpload = ref(false); // 是否使用流式分片上传
 
 // 计算属性
 const hasFilesToUpload = computed(() => {
@@ -597,7 +671,7 @@ const submitUpload = async () => {
       item.message = "";
       item.xhr = null;
       item.fileId = null;
-      item.uploadId = null;
+      item.xhr = null;
     }
   });
 
@@ -693,17 +767,20 @@ const submitUpload = async () => {
 
         // 保存当前上传的XHR引用，以便能够取消
         if (file.size <= MULTIPART_THRESHOLD) {
-          console.log(`重试上传：文件 ${file.name} 大小(${file.size}字节)小于阈值，使用普通上传`);
+          console.log(`文件 ${file.name} 大小(${file.size}字节)小于阈值，使用普通上传`);
           response = await uploadFile(props.currentPath, file, null, (xhr) => {
             console.log(`设置普通上传的 XHR 引用，用于支持取消操作`);
             fileItems.value[i].xhr = xhr;
           });
         } else {
-          console.log(`重试上传：文件 ${file.name} 大小(${file.size}字节)超过阈值(${MULTIPART_THRESHOLD}字节)，直接使用分片上传`);
+          console.log(`文件 ${file.name} 大小(${file.size}字节)超过阈值(${MULTIPART_THRESHOLD}字节)，使用${useStreamUpload.value ? "流式" : "普通"}分片上传`);
 
-          // 直接执行分片上传，不再先尝试普通上传
-          response = await api.fs.performMultipartUpload(file, props.currentPath, props.isAdmin, updateProgress, checkCancel, (xhr) => {
-            console.log(`设置分片上传的 XHR 引用，用于支持取消操作`);
+          // 根据上传模式选择
+          const uploadFunction = useStreamUpload.value ? api.fs.performStreamMultipartUpload : api.fs.performMultipartUpload;
+
+          // 执行分片上传
+          response = await uploadFunction(file, props.currentPath, props.isAdmin, updateProgress, checkCancel, (xhr) => {
+            console.log(`设置${useStreamUpload.value ? "流式" : "普通"}分片上传的 XHR 引用，用于支持取消操作`);
             fileItems.value[i].xhr = xhr;
           });
         }
@@ -995,11 +1072,14 @@ const retryUpload = async (index) => {
           fileItem.xhr = xhr;
         });
       } else {
-        console.log(`重试上传：文件 ${file.name} 大小(${file.size}字节)超过阈值(${MULTIPART_THRESHOLD}字节)，直接使用分片上传`);
+        console.log(`重试上传：文件 ${file.name} 大小(${file.size}字节)超过阈值(${MULTIPART_THRESHOLD}字节)，使用${useStreamUpload.value ? "流式" : "普通"}分片上传`);
 
-        // 直接执行分片上传，不再先尝试普通上传
-        response = await api.fs.performMultipartUpload(file, props.currentPath, props.isAdmin, updateProgress, checkCancel, (xhr) => {
-          console.log(`设置分片上传的 XHR 引用，用于支持取消操作`);
+        // 根据上传模式选择
+        const uploadFunction = useStreamUpload.value ? api.fs.performStreamMultipartUpload : api.fs.performMultipartUpload;
+
+        // 执行分片上传
+        response = await uploadFunction(file, props.currentPath, props.isAdmin, updateProgress, checkCancel, (xhr) => {
+          console.log(`设置${useStreamUpload.value ? "流式" : "普通"}分片上传的 XHR 引用，用于支持取消操作`);
           fileItem.xhr = xhr;
         });
       }
@@ -1059,6 +1139,11 @@ const retryUpload = async (index) => {
       }
     }
   }
+};
+
+// 显示上传模式说明
+const showUploadModeInfo = () => {
+  showMessage("info", `普通分片上传：适合一般场景，将文件分成小块传输；流式分片上传：适合大文件，以流方式上传，减少内存占用，提高上传性能。`);
 };
 </script>
 

@@ -9,7 +9,13 @@ import { createErrorResponse } from "../utils/common.js";
 import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
 import { listDirectory, getFileInfo, downloadFile, createDirectory, uploadFile, removeItem, renameItem, previewFile, batchRemoveItems } from "../services/fsService.js";
-import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
+import {
+  handleInitMultipartUpload,
+  handleUploadPart,
+  handleCompleteMultipartUpload,
+  handleAbortMultipartUpload,
+  handleStreamUploadPart,
+} from "../controllers/multipartUploadController.js";
 
 // 创建文件系统路由处理程序
 const fsRoutes = new Hono();
@@ -25,7 +31,7 @@ function setCorsHeaders(c) {
   c.header("Access-Control-Allow-Origin", origin || "*");
 
   c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With");
-  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition");
+  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition, Access-Control-Allow-Origin");
   c.header("Access-Control-Allow-Credentials", "true");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
 
@@ -816,6 +822,92 @@ fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) =>
         {
           success: false,
           message: error.message || "中止分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
+    );
+  }
+});
+
+// OPTIONS处理 - 管理员版本，专门处理预检请求
+fsRoutes.options("/api/admin/fs/multipart/stream-part", (c) => {
+  setCorsHeaders(c);
+  c.header("Access-Control-Allow-Methods", "OPTIONS, POST");
+  c.header("Access-Control-Max-Age", "86400"); // 24小时缓存预检响应
+  return c.text("", 204); // No Content
+});
+
+// 流式上传分片 - 管理员版本
+fsRoutes.post("/api/admin/fs/multipart/stream-part", authMiddleware, async (c) => {
+  try {
+    // 设置CORS头部
+    setCorsHeaders(c);
+
+    // 调用实际的处理函数
+    return await handleStreamUploadPart(c);
+  } catch (error) {
+    // 确保即使发生错误，也添加CORS头部
+    setCorsHeaders(c);
+
+    // 返回适当的错误响应
+    if (error instanceof HTTPException) {
+      return c.json(
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
+      );
+    }
+
+    return c.json(
+        {
+          success: false,
+          message: error.message || "流式上传分片失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
+    );
+  }
+});
+
+// OPTIONS处理 - API密钥用户版本，专门处理预检请求
+fsRoutes.options("/api/user/fs/multipart/stream-part", (c) => {
+  setCorsHeaders(c);
+  c.header("Access-Control-Allow-Methods", "OPTIONS, POST");
+  c.header("Access-Control-Max-Age", "86400"); // 24小时缓存预检响应
+  return c.text("", 204); // No Content
+});
+
+// 流式上传分片 - API密钥用户版本
+fsRoutes.post("/api/user/fs/multipart/stream-part", apiKeyFileMiddleware, async (c) => {
+  try {
+    // 设置CORS头部
+    setCorsHeaders(c);
+
+    // 调用实际的处理函数
+    return await handleStreamUploadPart(c);
+  } catch (error) {
+    // 确保即使发生错误，也添加CORS头部
+    setCorsHeaders(c);
+
+    // 返回适当的错误响应
+    if (error instanceof HTTPException) {
+      return c.json(
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
+      );
+    }
+
+    return c.json(
+        {
+          success: false,
+          message: error.message || "流式上传分片失败",
           code: ApiStatus.INTERNAL_ERROR,
         },
         ApiStatus.INTERNAL_ERROR

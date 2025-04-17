@@ -147,7 +147,7 @@ export async function initializeMultipartUpload(db, path, contentType, fileSize,
           path: path,
           storage_type: mount.storage_type,
           // 建议的分片大小 (从5MB减小到3MB，以减少Worker CPU使用量)
-          recommendedPartSize: 15 * 1024 * 1024,
+          recommendedPartSize: 5 * 1024 * 1024,
         };
       },
       "初始化分片上传",
@@ -199,6 +199,95 @@ export async function uploadPart(db, path, uploadId, partNumber, partData, userI
       },
       "上传分片",
       "上传分片失败"
+  );
+}
+
+/**
+ * 将 ReadableStream 转换为 Buffer，分块读取以避免内存问题
+ * @param {ReadableStream} stream - 输入流
+ * @param {number} chunkSize - 每块大小（字节）
+ * @returns {Promise<ArrayBuffer>} 完整的缓冲区
+ */
+async function streamToBuffer(stream, chunkSize = 512 * 1024) {
+  // 默认 512KB 块大小
+  const reader = stream.getReader();
+  const chunks = [];
+  let totalSize = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      if (value) {
+        chunks.push(value);
+        totalSize += value.length;
+      }
+    }
+
+    // 合并所有块
+    const result = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return result.buffer;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/**
+ * 流式上传单个分片
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} path - 文件路径
+ * @param {string} uploadId - 上传ID
+ * @param {number} partNumber - 分片编号（从1开始）
+ * @param {ReadableStream} partStream - 分片数据流
+ * @param {string} userId - 用户ID
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} encryptionSecret - 加密密钥
+ * @param {string} s3Key - S3对象键值，用于确保与初始化阶段一致（可选）
+ * @returns {Promise<Object>} 包含ETag的响应对象
+ */
+export async function streamUploadPart(db, path, uploadId, partNumber, partStream, userId, userType, encryptionSecret, s3Key) {
+  return handleMultipartError(
+      async () => {
+        // 获取S3资源
+        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
+
+        // 规范化文件路径 - 如果提供了s3Key，直接使用，否则重新计算
+        const s3SubPath = s3Key || normalizeFilePath(subPath, s3Config, path);
+
+        // 转换 ReadableStream 为 Buffer
+        console.log(`正在处理分片 #${partNumber} 的流数据...`);
+        const buffer = await streamToBuffer(partStream);
+        console.log(`分片 #${partNumber} 已转换为buffer，大小：${buffer.byteLength} 字节`);
+
+        // 上传分片 - 使用转换后的 buffer 而不是原始流
+        const uploadCommand = new UploadPartCommand({
+          Bucket: s3Config.bucket_name,
+          Key: s3SubPath,
+          UploadId: uploadId,
+          PartNumber: partNumber,
+          Body: buffer,
+        });
+
+        const uploadResponse = await s3Client.send(uploadCommand);
+
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
+
+        // 返回必要的信息用于后续完成上传
+        return {
+          partNumber: partNumber,
+          etag: uploadResponse.ETag,
+        };
+      },
+      "流式上传分片",
+      "流式上传分片失败"
   );
 }
 
