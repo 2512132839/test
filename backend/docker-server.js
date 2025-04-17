@@ -150,6 +150,14 @@ WEBDAV_METHODS.forEach((method) => {
   };
 });
 
+// 为WebDAV方法添加直接路由，确保它们能被正确处理
+WEBDAV_METHODS.forEach((method) => {
+  server[method.toLowerCase()]("/dav*", (req, res, next) => {
+    console.log(`直接WebDAV路由处理: ${method} ${req.path}`);
+    next();
+  });
+});
+
 // CORS配置
 const corsOptions = {
   origin: "*", // 允许的域名，如果未设置则允许所有
@@ -188,8 +196,42 @@ server.use((req, res, next) => {
 // 添加原始请求体处理中间件
 server.use(
     express.raw({
-      type: ["application/xml", "text/xml", "application/octet-stream"],
+      type: [
+        "application/xml",
+        "text/xml",
+        "application/octet-stream",
+        // 添加更多WebDAV请求可能使用的内容类型
+        "text/plain",
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        // 通配符处理，为WebDAV方法接受所有内容类型
+        "*/xml",
+        "*/*",
+      ],
       limit: "1gb", // 设置合理的大小限制
+      verify: (req, res, buf, encoding) => {
+        // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
+        if (req.method === "MKCOL" || req.method === "PUT") {
+          console.log(`WebDAV ${req.method} 原始请求体验证: Content-Type=${req.headers["content-type"]}, 大小=${buf ? buf.length : 0}字节`);
+        }
+      },
+    })
+);
+
+// 添加处理413错误（请求体过大）的中间件
+server.use((err, req, res, next) => {
+  if (err.type === "entity.too.large") {
+    console.error(`请求体过大错误: ${req.method} ${req.path}, 可能超过了限制`);
+    return res.status(413).send("请求体过大");
+  }
+  next(err);
+});
+
+// 添加urlencoded中间件处理表单类型请求
+server.use(
+    express.urlencoded({
+      extended: true,
+      limit: "1gb",
     })
 );
 
@@ -219,6 +261,17 @@ server.use("/dav", (req, res, next) => {
   // 记录详细的WebDAV请求信息
   console.log(`WebDAV专用中间件捕获请求: ${req.method} ${req.path}`);
 
+  // 记录更详细的请求头信息，用于调试
+  console.log(`WebDAV请求头: ${req.method} ${req.path}`, {
+    "Content-Type": req.headers["content-type"] || "无",
+    "Content-Length": req.headers["content-length"] || "无",
+    "User-Agent": req.headers["user-agent"] || "无",
+    Authorization: req.headers["authorization"] ? "已提供" : "无",
+    Depth: req.headers["depth"] || "无",
+    Destination: req.headers["destination"] || "无",
+    Overwrite: req.headers["overwrite"] || "无",
+  });
+
   // WebDAV的OPTIONS请求特殊处理
   if (req.method === "OPTIONS") {
     console.log("处理WebDAV OPTIONS请求");
@@ -226,6 +279,21 @@ server.use("/dav", (req, res, next) => {
     res.setHeader("DAV", "1,2");
     res.setHeader("MS-Author-Via", "DAV");
     return res.status(200).end();
+  }
+
+  // 针对MKCOL方法的特殊处理
+  if (req.method === "MKCOL") {
+    console.log(`处理WebDAV MKCOL请求: ${req.path}`);
+    // 对于Windows客户端，可能会发送一些特殊的头部
+    const isWindowsClient = (req.headers["user-agent"] || "").includes("Microsoft") || (req.headers["user-agent"] || "").includes("Windows");
+    if (isWindowsClient) {
+      console.log(`检测到Windows客户端的MKCOL请求: ${req.path}`);
+    }
+  }
+
+  // 针对PUT方法的特殊处理
+  if (req.method === "PUT") {
+    console.log(`处理WebDAV PUT请求: ${req.path}, Content-Type: ${req.headers["content-type"] || "无"}`);
   }
 
   // 针对DELETE方法的特殊处理
@@ -320,22 +388,77 @@ function createAdaptedRequest(expressReq) {
   let body = undefined;
   if (["POST", "PUT", "PATCH", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "DELETE"].includes(expressReq.method)) {
     // 检查请求体的类型和内容
-    const contentType = expressReq.headers["content-type"] || "";
+    let contentType = expressReq.headers["content-type"] || "";
 
-    // 如果是JSON请求且已经被解析
-    if (contentType.includes("application/json") && expressReq.body && typeof expressReq.body === "object") {
-      body = JSON.stringify(expressReq.body);
+    // 对于WebDAV请求特殊处理
+    const isWebDAVRequest = expressReq.path.startsWith("/dav");
+    if (isWebDAVRequest) {
+      // 确认Content-Type字段存在，如果不存在则设置一个默认值
+      if (!contentType) {
+        if (expressReq.method === "MKCOL") {
+          // 为MKCOL设置默认的Content-Type
+          contentType = "application/octet-stream";
+          console.log(`WebDAV请求: 添加默认Content-Type (${contentType}) 到 ${expressReq.method} 请求`);
+        }
+      }
     }
-    // 如果是XML或二进制数据，使用Buffer
-    else if (
-        (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
-        Buffer.isBuffer(expressReq.body)
-    ) {
-      body = expressReq.body;
+
+    // MKCOL请求特殊处理: 即使有请求体也允许处理
+    if (expressReq.method === "MKCOL") {
+      // 对于MKCOL，如果有请求体就记录但不严格要求特定格式
+      if (expressReq.body) {
+        console.log(`MKCOL请求包含请求体，内容类型: ${contentType}, 请求体类型: ${typeof expressReq.body}`);
+        // 对于MKCOL，我们总是设置一个空字符串作为请求体
+        // 这样可以避免API处理逻辑中的415错误
+        body = "";
+      }
     }
-    // 如果是其他类型的请求体，如果有原始数据就使用
-    else if (expressReq.body) {
-      body = expressReq.body;
+    // 正常处理其他请求类型
+    else {
+      // 如果是JSON请求且已经被解析
+      if (contentType.includes("application/json") && expressReq.body && typeof expressReq.body === "object") {
+        body = JSON.stringify(expressReq.body);
+      }
+      // 如果是XML或二进制数据，使用Buffer
+      else if (
+          (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
+          Buffer.isBuffer(expressReq.body)
+      ) {
+        body = expressReq.body;
+      }
+      // 针对form-urlencoded类型的处理
+      else if (contentType.includes("application/x-www-form-urlencoded") && expressReq.body && typeof expressReq.body === "object") {
+        // 将表单数据转换为字符串
+        const formData = new URLSearchParams();
+        for (const key in expressReq.body) {
+          formData.append(key, expressReq.body[key]);
+        }
+        body = formData.toString();
+      }
+      // 如果是其他类型的请求体，如果有原始数据就使用
+      else if (expressReq.body) {
+        if (Buffer.isBuffer(expressReq.body)) {
+          body = expressReq.body;
+        } else if (typeof expressReq.body === "string") {
+          body = expressReq.body;
+        } else {
+          // 尝试将其他类型转换为字符串
+          try {
+            body = JSON.stringify(expressReq.body);
+          } catch (e) {
+            console.warn(`无法将请求体转换为JSON字符串: ${e.message}`);
+            body = String(expressReq.body);
+          }
+        }
+      }
+    }
+  }
+
+  // 创建自定义的头部对象，以便添加或修改特定头部
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(expressReq.headers)) {
+    if (value !== undefined) {
+      headers.set(key, value);
     }
   }
 
@@ -349,7 +472,7 @@ function createAdaptedRequest(expressReq) {
   // 处理特殊情况：DELETE方法通常没有请求体，但需要确保方法传递正确
   const requestInit = {
     method: expressReq.method,
-    headers: expressReq.headers,
+    headers: headers,
   };
 
   // 只有在有请求体时才添加body参数
