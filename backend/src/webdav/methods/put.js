@@ -151,7 +151,6 @@ async function processStreamInChunks(stream, partSize, uploadCallback, options =
 
   try {
     while (true) {
-
       const { done, value } = await reader.read();
 
       if (done) {

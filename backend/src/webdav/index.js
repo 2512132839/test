@@ -11,6 +11,9 @@ import { handleDelete } from "./methods/delete.js";
 import { handleMkcol } from "./methods/mkcol.js";
 import { handleMove } from "./methods/move.js";
 import { handleCopy } from "./methods/copy.js";
+import { handleLock } from "./methods/lock.js";
+import { handleUnlock } from "./methods/unlock.js";
+import { handleProppatch } from "./methods/proppatch.js";
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { verifyPassword } from "../utils/crypto.js";
@@ -18,6 +21,7 @@ import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import { getLocalTimeString } from "../utils/common.js";
+import { storeAuthInfo, getAuthInfo } from "./utils/authCache.js";
 
 /**
  * 创建未授权响应
@@ -44,11 +48,36 @@ export const webdavAuthMiddleware = async (c, next) => {
   const authHeader = c.req.header("Authorization");
   const userAgent = c.req.header("User-Agent") || "未知";
 
+  // 获取客户端IP地址
+  const clientIp = c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || c.req.header("X-Real-IP") || "unknown";
+
   // 记录请求信息，包括用户代理
   console.log(`WebDAV认证请求: ${c.req.method} ${c.req.path}, 用户代理: ${userAgent.substring(0, 50)}${userAgent.length > 50 ? "..." : ""}`);
 
-  // 如果完全没有认证头，返回401并请求认证
+  // 如果没有认证头，检查缓存的认证信息
   if (!authHeader) {
+    // 尝试从缓存获取认证信息
+    const cachedAuth = getAuthInfo(clientIp, userAgent);
+
+    // 如果找到缓存的认证信息，直接使用
+    if (cachedAuth) {
+      console.log(`WebDAV认证: 使用缓存的认证信息 (${clientIp.substring(0, 10)})`);
+
+      // 根据缓存的认证类型设置上下文
+      if (cachedAuth.isAdmin) {
+        c.set("userId", cachedAuth.userId);
+        c.set("userType", "admin");
+        c.set("authInfo", cachedAuth);
+        return next();
+      } else if (cachedAuth.apiKey) {
+        c.set("userId", cachedAuth.userId);
+        c.set("userType", "apiKey");
+        c.set("authInfo", cachedAuth);
+        return next();
+      }
+    }
+
+    // 如果没有缓存或缓存无效，返回401
     console.log("WebDAV认证失败: 缺少认证头");
     return createUnauthorizedResponse("Unauthorized: Missing authentication header");
   }
@@ -56,13 +85,13 @@ export const webdavAuthMiddleware = async (c, next) => {
   // 1. 尝试Basic认证
   if (authHeader.toLowerCase().startsWith("basic ")) {
     console.log("WebDAV认证: 尝试Basic认证");
-    return await handleBasicAuth(c, next, authHeader, db);
+    return await handleBasicAuth(c, next, authHeader, db, clientIp, userAgent);
   }
 
   // 2. 尝试Bearer令牌认证
   if (authHeader.startsWith("Bearer ")) {
     console.log("WebDAV认证: 尝试Bearer令牌认证");
-    return await handleBearerAuth(c, next, authHeader, db);
+    return await handleBearerAuth(c, next, authHeader, db, clientIp, userAgent);
   }
 
   // 3. 不支持的认证方式
@@ -76,9 +105,11 @@ export const webdavAuthMiddleware = async (c, next) => {
  * @param {Function} next - 下一个中间件
  * @param {string} authHeader - 认证头
  * @param {D1Database} db - D1数据库实例
+ * @param {string} clientIp - 客户端IP
+ * @param {string} userAgent - 用户代理
  * @returns {Promise<Response>} 响应对象
  */
-async function handleBasicAuth(c, next, authHeader, db) {
+async function handleBasicAuth(c, next, authHeader, db, clientIp, userAgent) {
   try {
     // 提取并解析Base64认证信息
     const base64Credentials = authHeader.substring(6).trim(); // 移除"Basic "前缀（长度为6）并修剪空格
@@ -118,13 +149,22 @@ async function handleBasicAuth(c, next, authHeader, db) {
             // 设置管理员ID到上下文
             c.set("userId", admin.id);
             c.set("userType", "admin");
-            // 设置认证信息以便后续重新验证
-            c.set("authInfo", {
+
+            // 认证信息
+            const authInfo = {
+              userId: admin.id,
               username,
               password,
               isAdmin: true,
               authType: "basic",
-            });
+            };
+
+            // 设置认证信息以便后续重新验证
+            c.set("authInfo", authInfo);
+
+            // 存储认证信息到缓存
+            storeAuthInfo(clientIp, userAgent, authInfo);
+
             return next();
           }
           // 简化日志
@@ -153,14 +193,23 @@ async function handleBasicAuth(c, next, authHeader, db) {
             // 设置API密钥ID到上下文
             c.set("userId", apiKey.id);
             c.set("userType", "apiKey");
-            // 设置认证信息以便后续重新验证
-            c.set("authInfo", {
+
+            // 认证信息
+            const authInfo = {
+              userId: apiKey.id,
               username,
               password,
               isAdmin: false,
               apiKey: username,
               authType: "basic",
-            });
+            };
+
+            // 设置认证信息以便后续重新验证
+            c.set("authInfo", authInfo);
+
+            // 存储认证信息到缓存
+            storeAuthInfo(clientIp, userAgent, authInfo);
+
             return next();
           } else {
             console.log("WebDAV认证: API密钥验证失败");
@@ -188,9 +237,11 @@ async function handleBasicAuth(c, next, authHeader, db) {
  * @param {Function} next - 下一个中间件
  * @param {string} authHeader - 认证头
  * @param {D1Database} db - D1数据库实例
+ * @param {string} clientIp - 客户端IP
+ * @param {string} userAgent - 用户代理
  * @returns {Promise<Response>} 响应对象
  */
-async function handleBearerAuth(c, next, authHeader, db) {
+async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
   try {
     const token = authHeader.substring(7); // 移除"Bearer "前缀
 
@@ -205,15 +256,24 @@ async function handleBearerAuth(c, next, authHeader, db) {
       const adminId = await validateAdminToken(db, token);
 
       if (adminId) {
-        // 令牌有效，设置管理员ID到上下文
-        c.set("userId", adminId);
-        c.set("userType", "admin");
-        // 设置认证信息以便后续重新验证
-        c.set("authInfo", {
+        // 认证信息
+        const authInfo = {
+          userId: adminId,
           token,
           isAdmin: true,
           authType: "bearer",
-        });
+        };
+
+        // 令牌有效，设置管理员ID到上下文
+        c.set("userId", adminId);
+        c.set("userType", "admin");
+
+        // 设置认证信息以便后续重新验证
+        c.set("authInfo", authInfo);
+
+        // 存储认证信息到缓存
+        storeAuthInfo(clientIp, userAgent, authInfo);
+
         console.log("WebDAV认证: Bearer令牌认证成功（管理员）");
         return next();
       }
@@ -251,16 +311,25 @@ async function handleBearerAuth(c, next, authHeader, db) {
               console.warn("WebDAV认证: 更新API密钥最后使用时间失败", updateError);
             }
 
-            // 设置API密钥ID到上下文
-            c.set("userId", apiKey.id);
-            c.set("userType", "apiKey");
-            // 设置认证信息以便后续重新验证
-            c.set("authInfo", {
+            // 认证信息
+            const authInfo = {
+              userId: apiKey.id,
               token, // 存储原始令牌
               isAdmin: false,
               apiKey: token, // 使用令牌作为apiKey值
               authType: "bearer",
-            });
+            };
+
+            // 设置API密钥ID到上下文
+            c.set("userId", apiKey.id);
+            c.set("userType", "apiKey");
+
+            // 设置认证信息以便后续重新验证
+            c.set("authInfo", authInfo);
+
+            // 存储认证信息到缓存
+            storeAuthInfo(clientIp, userAgent, authInfo);
+
             console.log("WebDAV认证: Bearer令牌认证成功（API密钥）");
             return next();
           } else {
@@ -394,6 +463,15 @@ export async function handleWebDAV(c) {
         break;
       case "COPY":
         response = await handleCopy(c, path, userId, userType, db);
+        break;
+      case "LOCK":
+        response = await handleLock(c, path, userId, userType, db);
+        break;
+      case "UNLOCK":
+        response = await handleUnlock(c, path, userId, userType, db);
+        break;
+      case "PROPPATCH":
+        response = await handleProppatch(c, path, userId, userType, db);
         break;
       default:
         throw new HTTPException(ApiStatus.METHOD_NOT_ALLOWED, { message: "不支持的请求方法" });
