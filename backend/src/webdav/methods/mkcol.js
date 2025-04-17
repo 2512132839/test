@@ -52,16 +52,25 @@ export async function handleMkcol(c, path, userId, userType, db) {
     // 规范化S3子路径（确保以斜杠结尾，表示目录）
     const s3SubPath = normalizeS3SubPath(subPath, s3Config, true);
 
+    // 验证S3子路径，确保不为空
+    // 防止空Key值导致的"Empty value provided for input HTTP label: Key"错误
+    let validS3SubPath = s3SubPath;
+    if (!validS3SubPath || validS3SubPath === "") {
+      // 如果路径为空，使用根目录标记
+      validS3SubPath = "_MARK_ROOT_DONT_DELETE_ME/";
+      console.log(`WebDAV MKCOL: 检测到空路径，使用默认值 "${validS3SubPath}"`);
+    }
+
     // 检查目录是否已存在
-    const dirExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, s3SubPath);
+    const dirExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, validS3SubPath);
 
     if (dirExists) {
       return new Response("目录已存在", { status: 405 }); // Method Not Allowed
     }
 
     // 检查父目录是否存在
-    if (s3SubPath.includes("/")) {
-      const parentPath = s3SubPath.substring(0, s3SubPath.lastIndexOf("/", s3SubPath.length - 2) + 1);
+    if (validS3SubPath.includes("/")) {
+      const parentPath = validS3SubPath.substring(0, validS3SubPath.lastIndexOf("/", validS3SubPath.length - 2) + 1);
 
       if (parentPath) {
         const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
@@ -75,7 +84,7 @@ export async function handleMkcol(c, path, userId, userType, db) {
     // 在S3中创建目录（通过创建一个空对象，键以斜杠结尾）
     const putParams = {
       Bucket: s3Config.bucket_name,
-      Key: s3SubPath,
+      Key: validS3SubPath, // 使用验证后的路径
       ContentLength: 0,
       Body: "",
     };
@@ -84,7 +93,7 @@ export async function handleMkcol(c, path, userId, userType, db) {
     await s3Client.send(putCommand);
 
     // 清理缓存 - 对于创建目录操作，应清理该目录及父目录的缓存
-    await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, true);
+    await clearCacheAfterWebDAVOperation(db, validS3SubPath, s3Config, true);
 
     // 更新挂载点的最后使用时间
     await updateMountLastUsed(db, mount.id);

@@ -5,9 +5,9 @@
       <div class="p-4 flex justify-between items-center border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">上传文件</h3>
         <button
-            @click="closeModal"
-            class="p-1 rounded-full transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+          @click="closeModal"
+          class="p-1 rounded-full transition-colors"
+          :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -17,35 +17,86 @@
 
       <!-- 弹窗内容区 -->
       <div class="flex-1 p-4 overflow-y-auto">
+        <!-- 上传方式选择 -->
+        <div class="mb-4 flex items-center justify-between p-3 rounded-lg" :class="darkMode ? 'bg-gray-700/50' : 'bg-gray-100'">
+          <div class="flex items-center">
+            <span class="text-sm font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">上传方式:</span>
+            <div class="flex space-x-4">
+              <label class="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="uploadMethod"
+                  value="presigned"
+                  v-model="uploadMethod"
+                  class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+                  :disabled="isUploading"
+                />
+                <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">
+                  预签名直传
+                  <span class="text-xs px-1 py-0.5 rounded" :class="darkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700'"> 推荐 </span>
+                </span>
+              </label>
+              <label class="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="uploadMethod"
+                  value="multipart"
+                  v-model="uploadMethod"
+                  class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+                  :disabled="isUploading"
+                />
+                <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">分片上传</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <span
+              class="text-xs px-2 py-1 rounded-full cursor-help"
+              :class="
+                uploadMethod === 'presigned'
+                  ? darkMode
+                    ? 'bg-blue-900/30 text-blue-300'
+                    : 'bg-blue-100 text-blue-700'
+                  : darkMode
+                  ? 'bg-amber-900/30 text-amber-300'
+                  : 'bg-amber-100 text-amber-700'
+              "
+              :title="uploadMethod === 'presigned' ? '直接上传到存储服务器，避免Worker CPU限制，速度更快' : '通过服务器分片上传，适合某些特殊场景'"
+            >
+              {{ uploadMethod === "presigned" ? "直传模式" : "分片模式" }}
+            </span>
+          </div>
+        </div>
+
         <!-- 文件拖放区域 -->
         <div
-            class="drop-zone mb-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-8 px-4 cursor-pointer transition-all duration-300"
-            :class="[
+          class="drop-zone mb-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-8 px-4 cursor-pointer transition-all duration-300"
+          :class="[
             darkMode ? 'border-gray-600 hover:border-gray-500 bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 bg-gray-50',
             isDragging ? (darkMode ? 'border-blue-500 bg-blue-500/10 pulsing-border' : 'border-blue-500 bg-blue-50 pulsing-border') : '',
           ]"
-            @dragenter.prevent="onDragOver"
-            @dragover.prevent="onDragOver"
-            @dragleave.prevent="onDragLeave"
-            @drop.prevent="onDrop"
-            @click="triggerFileInput"
+          @dragenter.prevent="onDragOver"
+          @dragover.prevent="onDragOver"
+          @dragleave.prevent="onDragLeave"
+          @drop.prevent="onDrop"
+          @click="triggerFileInput"
         >
           <div class="icon-container mb-3">
             <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-12 w-12 transition-colors duration-300"
-                :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-400' : 'text-blue-500') : '']"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-12 w-12 transition-colors duration-300"
+              :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-400' : 'text-blue-500') : '']"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
           </div>
           <div class="text-center">
             <p
-                class="text-base font-medium transition-colors duration-300"
-                :class="[darkMode ? 'text-gray-300' : 'text-gray-700', isDragging ? (darkMode ? 'text-blue-300' : 'text-blue-700') : '']"
+              class="text-base font-medium transition-colors duration-300"
+              :class="[darkMode ? 'text-gray-300' : 'text-gray-700', isDragging ? (darkMode ? 'text-blue-300' : 'text-blue-700') : '']"
             >
               {{ isDragging ? "拖放文件到这里" : "点击或拖动文件到这里上传" }}
             </p>
@@ -56,10 +107,10 @@
               <span class="inline-flex items-center">
                 <svg class="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                   />
                 </svg>
                 支持 Ctrl+V 粘贴文件
@@ -74,68 +125,29 @@
           <div class="files-header flex justify-between items-center mb-3">
             <h3 class="text-base font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">已选择 {{ selectedFiles.length }} 个文件</h3>
             <button
-                type="button"
-                @click="clearAllFiles"
-                class="text-sm px-2 py-1 rounded transition-colors flex items-center"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'"
-                :disabled="isUploading"
+              type="button"
+              @click="clearAllFiles"
+              class="text-sm px-2 py-1 rounded transition-colors flex items-center"
+              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'"
+              :disabled="isUploading"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                 />
               </svg>
               清除全部
             </button>
           </div>
-
-          <!-- 上传模式切换开关 -->
-          <div class="upload-mode-toggle mb-3">
-            <div class="flex items-center">
-              <span class="text-sm mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">上传模式:</span>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" v-model="useStreamUpload" class="sr-only peer" :disabled="isUploading" />
-                <div
-                    class="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"
-                    :class="[
-                    darkMode
-                      ? 'bg-gray-700 peer-checked:bg-blue-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500'
-                      : 'bg-gray-200 peer-checked:bg-blue-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300',
-                    isUploading ? 'opacity-50 cursor-not-allowed' : '',
-                  ]"
-                ></div>
-                <span
-                    class="ml-3 text-sm font-medium"
-                    :class="[darkMode ? (useStreamUpload ? 'text-blue-300' : 'text-gray-300') : useStreamUpload ? 'text-blue-600' : 'text-gray-700']"
-                >
-                  {{ useStreamUpload ? "流式分片上传" : "普通分片上传" }}
-                </span>
-              </label>
-              <div class="ml-2">
-                <button
-                    type="button"
-                    class="text-xs rounded-full h-5 w-5 flex items-center justify-center"
-                    :class="darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
-                    title="上传模式说明"
-                    @click="showUploadModeInfo"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
           <div class="files-list max-h-60 overflow-y-auto">
             <div
-                v-for="(file, index) in selectedFiles"
-                :key="index"
-                class="selected-file mb-3 flex items-center p-3 rounded-md"
-                :class="[
+              v-for="(file, index) in selectedFiles"
+              :key="index"
+              class="selected-file mb-3 flex items-center p-3 rounded-md"
+              :class="[
                 darkMode ? 'bg-gray-700/50' : 'bg-gray-100',
                 fileItems[index]?.status === 'error' ? (darkMode ? 'border-l-4 border-red-500' : 'border-l-4 border-red-500') : '',
                 fileItems[index]?.status === 'success' ? (darkMode ? 'border-l-4 border-green-500' : 'border-l-4 border-green-500') : '',
@@ -145,10 +157,10 @@
               <div class="file-icon mr-3">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" :class="darkMode ? 'text-gray-300' : 'text-gray-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
               </div>
@@ -163,9 +175,9 @@
 
                   <!-- 文件状态显示 -->
                   <span
-                      v-if="fileItems[index]"
-                      class="text-xs ml-2 px-2 py-0.5 rounded-full"
-                      :class="{
+                    v-if="fileItems[index]"
+                    class="text-xs ml-2 px-2 py-0.5 rounded-full"
+                    :class="{
                       'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': fileItems[index].status === 'pending',
                       'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': fileItems[index].status === 'uploading',
                       'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': fileItems[index].status === 'success',
@@ -174,41 +186,24 @@
                   >
                     {{
                       fileItems[index].status === "pending"
-                          ? "待上传"
-                          : fileItems[index].status === "uploading"
-                              ? `${fileItems[index].progress}%`
-                              : fileItems[index].status === "success"
-                                  ? "上传成功"
-                                  : fileItems[index].status === "error"
-                                      ? "上传失败"
-                                      : ""
+                        ? "待上传"
+                        : fileItems[index].status === "uploading"
+                        ? `${fileItems[index].progress}%`
+                        : fileItems[index].status === "success"
+                        ? "上传成功"
+                        : fileItems[index].status === "error"
+                        ? "上传失败"
+                        : ""
                     }}
-                  </span>
-
-                  <!-- 添加上传模式标签 - 当文件大于5MB且正在上传或已上传完成 -->
-                  <span
-                      v-if="selectedFiles[index].size > 5 * 1024 * 1024 && (fileItems[index].status === 'uploading' || fileItems[index].status === 'success')"
-                      class="text-xs ml-1 px-1.5 py-0.5 rounded"
-                      :class="[
-                      useStreamUpload
-                        ? darkMode
-                          ? 'bg-blue-900/20 text-blue-300/90'
-                          : 'bg-blue-50 text-blue-500/90'
-                        : darkMode
-                        ? 'bg-purple-900/20 text-purple-300/90'
-                        : 'bg-purple-50 text-purple-500/90',
-                    ]"
-                  >
-                    {{ useStreamUpload ? "流式" : "分片" }}
                   </span>
                 </div>
 
                 <!-- 单个文件进度条 -->
                 <div v-if="fileItems[index]?.status === 'uploading'" class="w-full bg-gray-200 rounded-full h-1.5 mt-1 dark:bg-gray-700">
                   <div
-                      class="h-1.5 rounded-full transition-all duration-200"
-                      :class="fileItems[index].progress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
-                      :style="{ width: `${fileItems[index].progress}%` }"
+                    class="h-1.5 rounded-full transition-all duration-200"
+                    :class="fileItems[index].progress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
+                    :style="{ width: `${fileItems[index].progress}%` }"
                   ></div>
                 </div>
                 <!-- 错误信息 -->
@@ -218,12 +213,12 @@
               </div>
               <!-- 取消上传按钮，仅在上传状态显示 -->
               <button
-                  v-if="fileItems[index]?.status === 'uploading'"
-                  type="button"
-                  @click="cancelSingleUpload(index)"
-                  class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
-                  :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
-                  title="取消上传"
+                v-if="fileItems[index]?.status === 'uploading'"
+                type="button"
+                @click="cancelSingleUpload(index)"
+                class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
+                :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
+                title="取消上传"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5M5 12l7-7 7 7" />
@@ -232,30 +227,30 @@
               </button>
               <!-- 重试按钮，仅在错误状态显示 -->
               <button
-                  v-if="fileItems[index]?.status === 'error'"
-                  type="button"
-                  @click="retryUpload(index)"
-                  class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
-                  :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-                  title="重试"
+                v-if="fileItems[index]?.status === 'error'"
+                type="button"
+                @click="retryUpload(index)"
+                class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
+                :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
+                title="重试"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
                 </svg>
               </button>
               <!-- 删除按钮 -->
               <button
-                  type="button"
-                  @click="clearSelectedFile(index)"
-                  class="p-1 rounded-full hover:bg-opacity-20 transition-colors"
-                  :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-                  title="移除"
-                  :disabled="fileItems[index]?.status === 'uploading'"
+                type="button"
+                @click="clearSelectedFile(index)"
+                class="p-1 rounded-full hover:bg-opacity-20 transition-colors"
+                :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
+                title="移除"
+                :disabled="fileItems[index]?.status === 'uploading'"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -273,30 +268,13 @@
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
             <div
-                class="h-2.5 rounded-full transition-all duration-200 progress-stripes animate-progress-stripes"
-                :class="totalProgress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
-                :style="{ width: `${totalProgress}%` }"
+              class="h-2.5 rounded-full transition-all duration-200 progress-stripes animate-progress-stripes"
+              :class="totalProgress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
+              :style="{ width: `${totalProgress}%` }"
             ></div>
           </div>
           <div class="flex justify-between items-center mt-1">
-            <div class="flex items-center">
-              <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'"> 上传速度: {{ uploadSpeed }} </span>
-              <span
-                  v-if="selectedFiles.length > 0 && currentUploadIndex >= 0"
-                  class="text-xs ml-2 px-1.5 py-0.5 rounded"
-                  :class="[
-                  useStreamUpload
-                    ? darkMode
-                      ? 'bg-blue-900/30 text-blue-300'
-                      : 'bg-blue-100 text-blue-600'
-                    : darkMode
-                    ? 'bg-purple-900/30 text-purple-300'
-                    : 'bg-purple-100 text-purple-600',
-                ]"
-              >
-                {{ useStreamUpload ? "流式分片" : "普通分片" }}
-              </span>
-            </div>
+            <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'"> 上传速度: {{ uploadSpeed }} </span>
             <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
               {{ currentUploadInfo }}
             </span>
@@ -305,9 +283,9 @@
 
         <!-- 上传消息 -->
         <div
-            v-if="message && message.content"
-            class="mb-4 p-3 rounded-md text-sm"
-            :class="
+          v-if="message && message.content"
+          class="mb-4 p-3 rounded-md text-sm"
+          :class="
             message.type === 'error'
               ? darkMode
                 ? 'bg-red-900/40 border border-red-800 text-red-200'
@@ -324,24 +302,24 @@
           <div class="flex items-center">
             <!-- 成功图标 -->
             <svg
-                v-if="message.type === 'success'"
-                class="h-5 w-5 mr-2"
-                :class="darkMode ? 'text-green-300' : 'text-green-500'"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              v-if="message.type === 'success'"
+              class="h-5 w-5 mr-2"
+              :class="darkMode ? 'text-green-300' : 'text-green-500'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
 
             <!-- 信息图标 -->
             <svg
-                v-else-if="message.type === 'info'"
-                class="h-5 w-5 mr-2"
-                :class="darkMode ? 'text-blue-300' : 'text-blue-500'"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              v-else-if="message.type === 'info'"
+              class="h-5 w-5 mr-2"
+              :class="darkMode ? 'text-blue-300' : 'text-blue-500'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -359,20 +337,20 @@
       <!-- 弹窗底部按钮 -->
       <div class="p-4 flex justify-end items-center gap-3 border-t" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <button
-            @click="closeModal"
-            class="px-4 py-2 rounded-md transition-colors"
-            :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
-            :disabled="isUploading"
+          @click="closeModal"
+          class="px-4 py-2 rounded-md transition-colors"
+          :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
+          :disabled="isUploading"
         >
           取消
         </button>
         <button v-if="isUploading" @click="cancelUpload" class="px-4 py-2 rounded-md text-white transition-colors bg-red-500 hover:bg-red-600">取消上传</button>
         <button
-            v-else
-            @click="submitUpload"
-            class="px-4 py-2 rounded-md text-white transition-colors"
-            :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
-            :disabled="!hasFilesToUpload"
+          v-else
+          @click="submitUpload"
+          class="px-4 py-2 rounded-md text-white transition-colors"
+          :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
+          :disabled="!hasFilesToUpload"
         >
           开始上传
         </button>
@@ -422,7 +400,7 @@ const message = ref(null);
 const uploadSpeed = ref("");
 const lastLoaded = ref(0);
 const lastTime = ref(0);
-const useStreamUpload = ref(false); // 是否使用流式分片上传
+const uploadMethod = ref("presigned");
 
 // 计算属性
 const hasFilesToUpload = computed(() => {
@@ -600,9 +578,9 @@ const clearSelectedFile = (index) => {
 const clearAllFiles = () => {
   // 过滤出非上传中的文件索引
   const indicesToRemove = fileItems.value
-      .map((item, index) => (item.status !== "uploading" ? index : -1))
-      .filter((index) => index !== -1)
-      .sort((a, b) => b - a); // 倒序排列以便从后向前删除
+    .map((item, index) => (item.status !== "uploading" ? index : -1))
+    .filter((index) => index !== -1)
+    .sort((a, b) => b - a); // 倒序排列以便从后向前删除
 
   // 从后向前删除文件
   for (const index of indicesToRemove) {
@@ -611,6 +589,26 @@ const clearAllFiles = () => {
   }
 
   // 重置文件输入框，以便重新选择同一文件
+  if (fileInput.value && selectedFiles.value.length === 0) {
+    fileInput.value.value = "";
+  }
+};
+
+// 清除已成功上传的文件
+const clearSuccessfulFiles = () => {
+  // 过滤出上传成功的文件索引
+  const indicesToRemove = fileItems.value
+    .map((item, index) => (item.status === "success" ? index : -1))
+    .filter((index) => index !== -1)
+    .sort((a, b) => b - a); // 倒序排列以便从后向前删除
+
+  // 从后向前删除文件
+  for (const index of indicesToRemove) {
+    selectedFiles.value.splice(index, 1);
+    fileItems.value.splice(index, 1);
+  }
+
+  // 如果已清空所有文件，重置文件输入框
   if (fileInput.value && selectedFiles.value.length === 0) {
     fileInput.value.value = "";
   }
@@ -691,38 +689,43 @@ const submitUpload = async () => {
   const errors = [];
 
   try {
-    // 顺序上传每个文件
-    for (let i = 0; i < selectedFiles.value.length; i++) {
-      // 检查是否触发了全局取消
-      if (cancelUploadFlag.value) {
-        console.log("上传已被全局取消，停止继续上传");
-        break;
-      }
+    // 选择适当的API函数
+    const fsApi = api.fs.getFsApiByUserType(props.isAdmin);
 
-      // 跳过已上传成功的文件和已取消的文件
-      if (fileItems.value[i].status === "success" || fileItems.value[i].status === "error") {
+    // 逐个上传文件
+    for (let i = 0; i < fileItems.value.length; i++) {
+      // 跳过已经上传成功的文件
+      if (fileItems.value[i].status === "success") {
         continue;
       }
 
+      // 检查是否取消上传
+      if (cancelUploadFlag.value) {
+        console.log("检测到取消标志，终止后续文件上传");
+        break;
+      }
+
+      // 更新当前上传文件索引
       currentUploadIndex.value = i;
       const file = selectedFiles.value[i];
-      fileItems.value[i].status = "uploading";
-      fileItems.value[i].progress = 0;
+      const fileItem = fileItems.value[i];
+
+      fileItem.status = "uploading";
+      fileItem.progress = 0;
+
+      console.log(`开始上传文件 ${i + 1}/${selectedFiles.value.length}: ${file.name} (${file.size} 字节)`);
 
       try {
-        // 更新消息
-        showMessage("info", `正在上传 ${file.name}...`);
-
         // 定义上传进度回调函数
         const updateProgress = (progress) => {
-          // 检查文件状态，如果已经被取消则不再更新进度
-          if (fileItems.value[i].status === "error") {
+          // 如果文件已被取消，不再更新进度
+          if (fileItem.status === "error") {
             return;
           }
 
-          fileItems.value[i].progress = progress;
+          fileItem.progress = progress;
 
-          // 计算所有文件的总进度 - 使用基于文件大小的更准确计算方式，排除已取消的文件
+          // 计算总进度 - 包括所有活跃文件
           const activeFiles = fileItems.value.filter((item) => item.status === "uploading" || item.status === "success" || item.status === "pending");
 
           if (activeFiles.length > 0) {
@@ -755,72 +758,69 @@ const submitUpload = async () => {
         // 定义取消检查函数
         const checkCancel = () => {
           // 检查全局取消标志或当前文件是否被标记为取消
-          return cancelUploadFlag.value || fileItems.value[i].status === "error";
+          return cancelUploadFlag.value || (fileItems.value[i] && fileItems.value[i].status === "error");
         };
 
-        // 根据用户类型选择合适的API函数
-        const uploadFile = props.isAdmin ? api.fs.uploadAdminFile : api.fs.uploadUserFile;
-
-        // 判断上传文件大小，5MB以下使用普通上传，否则使用分片上传
-        const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
         let response;
 
-        // 保存当前上传的XHR引用，以便能够取消
-        if (file.size <= MULTIPART_THRESHOLD) {
-          console.log(`文件 ${file.name} 大小(${file.size}字节)小于阈值，使用普通上传`);
-          response = await uploadFile(props.currentPath, file, null, (xhr) => {
-            console.log(`设置普通上传的 XHR 引用，用于支持取消操作`);
-            fileItems.value[i].xhr = xhr;
-          });
-        } else {
-          console.log(`文件 ${file.name} 大小(${file.size}字节)超过阈值(${MULTIPART_THRESHOLD}字节)，使用${useStreamUpload.value ? "流式" : "普通"}分片上传`);
+        // 根据上传方式选择对应的上传方法
+        if (uploadMethod.value === "presigned") {
+          // 预签名URL直传方式
+          console.log(`使用预签名URL直传上传文件: ${file.name}`);
 
-          // 根据上传模式选择
-          const uploadFunction = useStreamUpload.value ? api.fs.performStreamMultipartUpload : api.fs.performMultipartUpload;
+          // 设置XHR引用以支持取消操作
+          const onXhrCreated = (xhr) => {
+            console.log(`设置预签名上传的 XHR 引用，用于支持取消操作`);
+            fileItems.value[i].xhr = xhr;
+          };
+
+          // 执行预签名URL上传
+          response = await fsApi.performPresignedUpload(file, props.currentPath, updateProgress, checkCancel);
+        } else {
+          // 分片上传方式
+          console.log(`使用分片上传方式上传文件: ${file.name}`);
+
+          // 使用分片上传
+          console.log(`文件 ${file.name} 使用分片上传，大小: ${file.size}字节`);
+
+          // 设置XHR引用以支持取消操作
+          const onXhrCreated = (xhr) => {
+            console.log(`设置分片 XHR 引用，用于支持取消操作`);
+            fileItems.value[i].xhr = xhr;
+          };
 
           // 执行分片上传
-          response = await uploadFunction(file, props.currentPath, props.isAdmin, updateProgress, checkCancel, (xhr) => {
-            console.log(`设置${useStreamUpload.value ? "流式" : "普通"}分片上传的 XHR 引用，用于支持取消操作`);
-            fileItems.value[i].xhr = xhr;
-          });
+          response = await fsApi.performMultipartUpload(file, props.currentPath, updateProgress, checkCancel, onXhrCreated);
         }
 
-        // 在处理上传结果前，再次检查文件是否已被取消
-        if (fileItems.value[i].status === "error") {
-          console.log(`文件 ${file.name} 已被取消，忽略上传结果`);
-          continue;
-        }
-
-        // 处理上传结果
-        if (response.success) {
-          fileItems.value[i].status = "success";
-          fileItems.value[i].progress = 100;
-          fileItems.value[i].fileId = response.data?.id || null;
+        // 检查上传结果
+        if (response && response.success) {
+          console.log(`文件 ${file.name} 上传成功`);
+          fileItem.status = "success";
+          fileItem.progress = 100;
+          fileItem.message = "";
           uploadResults.push({
-            file: file.name,
-            success: true,
+            name: file.name,
+            size: file.size,
+            path: props.currentPath,
+            response: response,
           });
         } else {
-          fileItems.value[i].status = "error";
-          fileItems.value[i].message = response.message || "上传失败";
+          console.error(`文件 ${file.name} 上传失败:`, response);
+          fileItem.status = "error";
+          fileItem.message = response && response.message ? response.message : "上传失败";
           errors.push({
             file: file.name,
-            error: response.message,
+            error: response && response.message ? response.message : "未知错误",
           });
         }
       } catch (error) {
-        // 在处理错误前，检查文件是否已被取消
-        if (fileItems.value[i].status === "error" && fileItems.value[i].message === "上传已取消") {
-          console.log(`文件 ${file.name} 已被取消，忽略错误`);
-          continue;
-        }
-
-        console.error(`上传文件 ${file.name} 错误:`, error);
-        fileItems.value[i].status = "error";
-        fileItems.value[i].message = error.message || "上传失败";
+        console.error(`上传文件 ${file.name} 时出错:`, error);
+        fileItem.status = "error";
+        fileItem.message = error.message || "上传过程中发生错误";
         errors.push({
           file: file.name,
-          error: error.message,
+          error: error.message || "未知错误",
         });
       }
     }
@@ -861,6 +861,11 @@ const submitUpload = async () => {
       count: uploadResults.length,
       results: uploadResults,
     });
+
+    // 延迟1.5秒后清除已成功上传的文件，让用户有时间看到成功消息
+    setTimeout(() => {
+      clearSuccessfulFiles();
+    }, 1500);
   }
 };
 
@@ -892,6 +897,7 @@ const cancelSingleUpload = async (index) => {
     // 确保清理所有相关状态
     fileItem.fileId = null;
     fileItem.uploadId = null; // 清理可能存在的分片上传ID
+    fileItem.xhr = null;
 
     // 重新计算总进度（排除已取消的文件）
     const activeFiles = fileItems.value.filter((item) => item.status === "uploading" || item.status === "success" || item.status === "pending");
@@ -955,11 +961,17 @@ const cancelUpload = () => {
         // 如果有活动的XHR请求，取消它
         if (fileItem.xhr) {
           fileItem.xhr.abort();
+          fileItem.xhr = null;
         }
 
         // 更新文件状态为取消
         fileItem.status = "error";
         fileItem.message = "上传已取消";
+        fileItem.progress = 0; // 重置进度
+
+        // 确保清理所有相关状态
+        fileItem.fileId = null;
+        fileItem.uploadId = null;
       }
     }
 
@@ -1057,93 +1069,81 @@ const retryUpload = async (index) => {
       return cancelUploadFlag.value || fileItem.status === "error";
     };
 
-    // 根据用户类型选择合适的API函数
-    const uploadFile = props.isAdmin ? api.fs.uploadAdminFile : api.fs.uploadUserFile;
+    // 选择适当的API函数
+    const fsApi = api.fs.getFsApiByUserType(props.isAdmin);
 
-    // 判断上传文件大小，5MB以下使用普通上传，否则使用分片上传
-    const MULTIPART_THRESHOLD = 5 * 1024 * 1024;
     let response;
 
-    try {
+    // 根据上传方式选择对应的上传方法
+    if (uploadMethod.value === "presigned") {
+      // 预签名URL直传方式
+      console.log(`使用预签名URL直传重试上传文件: ${file.name}`);
+      response = await fsApi.performPresignedUpload(file, props.currentPath, updateProgress, checkCancel);
+    } else {
+      // 分片上传方式
+      console.log(`使用分片上传方式重试上传文件: ${file.name}`);
+      const MULTIPART_THRESHOLD = 5 * 1024 * 1024;
+
       if (file.size <= MULTIPART_THRESHOLD) {
-        console.log(`重试上传：文件 ${file.name} 大小(${file.size}字节)小于阈值，使用普通上传`);
-        response = await uploadFile(props.currentPath, file, null, (xhr) => {
+        // 小文件：使用普通上传
+        console.log(`文件 ${file.name} 大小(${file.size}字节)小于阈值，使用普通上传`);
+        response = await fsApi.uploadFile(props.currentPath, file, null, (xhr) => {
           console.log(`设置普通上传的 XHR 引用，用于支持取消操作`);
           fileItem.xhr = xhr;
         });
       } else {
-        console.log(`重试上传：文件 ${file.name} 大小(${file.size}字节)超过阈值(${MULTIPART_THRESHOLD}字节)，使用${useStreamUpload.value ? "流式" : "普通"}分片上传`);
-
-        // 根据上传模式选择
-        const uploadFunction = useStreamUpload.value ? api.fs.performStreamMultipartUpload : api.fs.performMultipartUpload;
+        // 大文件：使用分片上传
+        console.log(`文件 ${file.name} 大小(${file.size}字节)超过阈值，使用分片上传`);
 
         // 执行分片上传
-        response = await uploadFunction(file, props.currentPath, props.isAdmin, updateProgress, checkCancel, (xhr) => {
-          console.log(`设置${useStreamUpload.value ? "流式" : "普通"}分片上传的 XHR 引用，用于支持取消操作`);
+        response = await fsApi.performMultipartUpload(file, props.currentPath, updateProgress, checkCancel, (xhr) => {
+          console.log(`设置分片 XHR 引用，用于支持取消操作`);
           fileItem.xhr = xhr;
         });
       }
+    }
 
-      // 在处理上传结果前，检查文件是否已被取消
-      if (fileItem.status === "error") {
-        console.log(`文件 ${file.name} 已被取消，忽略上传结果`);
-        return;
-      }
+    // 检查上传结果
+    if (response && response.success) {
+      fileItem.status = "success";
+      fileItem.progress = 100;
+      fileItem.message = "";
 
-      // 处理上传结果
-      if (response.success) {
-        fileItem.status = "success";
-        fileItem.progress = 100;
-        fileItem.fileId = response.data?.id || null;
+      // 通知父组件上传成功
+      emit("upload-success", {
+        count: 1,
+        results: [
+          {
+            name: file.name,
+            size: file.size,
+            path: props.currentPath,
+            response: response,
+          },
+        ],
+      });
 
-        emit("upload-success", {
-          count: 1,
-          results: [{ file: file.name, success: true }],
-        });
-      } else {
-        throw new Error(response.message || "上传失败");
-      }
-    } catch (error) {
-      // 如果不是取消导致的错误，才显示错误消息
-      if (fileItem.status !== "error" || fileItem.message !== "上传已取消") {
-        fileItem.status = "error";
-        fileItem.message = error.message || "上传失败";
-        showMessage("error", `文件 ${file.name} 上传失败: ${error.message || "未知错误"}`);
-      }
-      throw error;
+      showMessage("success", `文件 ${file.name} 重新上传成功`);
+
+      // 延迟1.5秒后清除此成功文件
+      setTimeout(() => {
+        clearSelectedFile(index);
+      }, 1500);
+    } else {
+      fileItem.status = "error";
+      fileItem.message = response && response.message ? response.message : "上传失败";
+      showMessage("error", `文件 ${file.name} 重新上传失败: ${fileItem.message}`);
     }
   } catch (error) {
-    console.error(`重试上传文件 ${file.name} 失败:`, error);
-
-    // 如果不是取消导致的错误，才显示错误消息
-    if (fileItem.status !== "error" || fileItem.message !== "上传已取消") {
-      showMessage("error", `重试上传文件 ${file.name} 失败: ${error.message || "未知错误"}`);
-    }
+    fileItem.status = "error";
+    fileItem.message = error.message || "上传过程中发生错误";
+    showMessage("error", `文件 ${file.name} 重新上传错误: ${fileItem.message}`);
   } finally {
-    // 清理状态
+    // 更新上传状态
     isUploading.value = fileItems.value.some((item) => item.status === "uploading");
-    currentUploadIndex.value = -1;
-    uploadSpeed.value = "";
-
-    // 如果没有正在上传的文件，重新计算最终进度
     if (!isUploading.value) {
-      const activeFiles = fileItems.value.filter((item) => item.status === "success");
-
-      if (activeFiles.length > 0) {
-        const totalSize = activeFiles.reduce((sum, _, idx) => sum + selectedFiles.value[idx].size, 0);
-        const completedSize = selectedFiles.value.filter((_, idx) => fileItems.value[idx].status === "success").reduce((sum, f) => sum + f.size, 0);
-
-        totalProgress.value = Math.floor((completedSize / totalSize) * 100);
-      } else {
-        totalProgress.value = 0;
-      }
+      currentUploadIndex.value = -1;
     }
   }
-};
-
-// 显示上传模式说明
-const showUploadModeInfo = () => {
-  showMessage("info", `普通分片上传：适合一般场景，将文件分成小块传输；流式分片上传：适合大文件，以流方式上传，减少内存占用，提高上传性能。`);
 };
 </script>
 
@@ -1190,14 +1190,14 @@ const showUploadModeInfo = () => {
 /* 进度条条纹样式 */
 .progress-stripes {
   background-image: linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.15) 25%,
-      transparent 25%,
-      transparent 50%,
-      rgba(255, 255, 255, 0.15) 50%,
-      rgba(255, 255, 255, 0.15) 75%,
-      transparent 75%,
-      transparent
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
   );
   background-size: 30px 30px;
 }

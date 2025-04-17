@@ -7,9 +7,9 @@
         <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ file.name }}</h3>
         <div class="flex space-x-2">
           <button
-              @click="handleDownload"
-              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-              :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
+            @click="handleDownload"
+            class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+            :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
           >
             <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -45,12 +45,12 @@
         <!-- 图片预览 -->
         <div v-else-if="isImage" class="image-preview flex justify-center items-center p-4">
           <img
-              v-if="authenticatedPreviewUrl"
-              :src="authenticatedPreviewUrl"
-              :alt="file.name"
-              class="max-w-full max-h-[500px] object-contain"
-              @load="handleContentLoaded"
-              @error="handleContentError"
+            v-if="authenticatedPreviewUrl"
+            :src="authenticatedPreviewUrl"
+            :alt="file.name"
+            class="max-w-full max-h-[500px] object-contain"
+            @load="handleContentLoaded"
+            @error="handleContentError"
           />
           <div v-else class="loading-indicator text-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -82,12 +82,12 @@
         <!-- PDF预览 -->
         <div v-else-if="isPdf" class="pdf-preview h-[500px]">
           <iframe
-              v-if="authenticatedPreviewUrl"
-              :src="authenticatedPreviewUrl"
-              frameborder="0"
-              class="w-full h-full"
-              @load="handleContentLoaded"
-              @error="handleContentError"
+            v-if="authenticatedPreviewUrl"
+            :src="authenticatedPreviewUrl"
+            frameborder="0"
+            class="w-full h-full"
+            @load="handleContentLoaded"
+            @error="handleContentError"
           ></iframe>
           <div v-else class="loading-indicator text-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -102,18 +102,18 @@
         <!-- 其他文件类型或错误状态 -->
         <div v-else-if="loadError" class="generic-preview text-center py-12">
           <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-20 w-20 mx-auto mb-4"
-              :class="darkMode ? 'text-red-400' : 'text-red-500'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-20 w-20 mx-auto mb-4"
+            :class="darkMode ? 'text-red-400' : 'text-red-500'"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
             />
           </svg>
           <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-red-300' : 'text-red-700'">加载文件预览失败</p>
@@ -123,18 +123,18 @@
         <!-- 不支持预览的文件类型 -->
         <div v-else class="generic-preview text-center py-12">
           <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-20 w-20 mx-auto mb-4"
-              :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-20 w-20 mx-auto mb-4"
+            :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
             />
           </svg>
           <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">文件无法预览</p>
@@ -207,11 +207,11 @@ const isPdf = computed(() => {
 const isText = computed(() => {
   const contentType = props.file.contentType || "";
   return (
-      contentType.startsWith("text/") ||
-      contentType === "application/json" ||
-      contentType === "application/xml" ||
-      contentType === "application/javascript" ||
-      contentType === "application/typescript"
+    contentType.startsWith("text/") ||
+    contentType === "application/json" ||
+    contentType === "application/xml" ||
+    contentType === "application/javascript" ||
+    contentType === "application/typescript"
   );
 });
 
@@ -255,23 +255,23 @@ const loadTextContent = async () => {
 
 // 监听文件变更，重置状态
 watch(
-    () => props.file,
-    () => {
-      textContent.value = "";
-      loadError.value = false;
-      authenticatedPreviewUrl.value = null;
+  () => props.file,
+  () => {
+    textContent.value = "";
+    loadError.value = false;
+    authenticatedPreviewUrl.value = null;
 
-      // 如果文件是图片、视频、音频或PDF类型，则获取认证预览URL
-      if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
-        fetchAuthenticatedUrl();
-      }
+    // 如果文件是图片、视频、音频或PDF类型，则获取认证预览URL
+    if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
+      fetchAuthenticatedUrl();
+    }
 
-      // 对于文本文件，需要手动加载内容
-      if (isText.value) {
-        loadTextContent();
-      }
-    },
-    { immediate: true }
+    // 对于文本文件，需要手动加载内容
+    if (isText.value) {
+      loadTextContent();
+    }
+  },
+  { immediate: true }
 );
 
 // 内容加载成功处理

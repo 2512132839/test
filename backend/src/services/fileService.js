@@ -185,3 +185,23 @@ export function getPublicFileInfo(file, requiresPassword, urlsObj = null) {
     created_by: file.created_by || null,
   };
 }
+
+/**
+ * 根据存储路径删除文件记录
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} s3ConfigId - S3配置ID
+ * @param {string} storagePath - 存储路径
+ * @returns {Promise<Object>} 删除结果，包含deletedCount字段
+ */
+export async function deleteFileRecordByStoragePath(db, s3ConfigId, storagePath) {
+  if (!s3ConfigId || !storagePath) {
+    return { deletedCount: 0, message: "缺少必要参数" };
+  }
+
+  const result = await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE s3_config_id = ? AND storage_path = ?`).bind(s3ConfigId, storagePath).run();
+
+  return {
+    deletedCount: result.meta?.changes || 0,
+    message: `已删除${result.meta?.changes || 0}条文件记录`,
+  };
+}

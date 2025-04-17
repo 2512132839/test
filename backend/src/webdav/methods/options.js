@@ -30,6 +30,8 @@ export async function handleOptions(c) {
     "Access-Control-Allow-Methods": allowedMethods,
     "Access-Control-Allow-Headers":
       "Authorization, Content-Type, Depth, Destination, If-Match, If-Modified-Since, If-None-Match, If-Range, If-Unmodified-Since, Lock-Token, Overwrite, Timeout, X-Requested-With",
+    // 告知客户端服务器支持的认证类型
+    "WWW-Authenticate": 'Basic realm="WebDAV", Bearer realm="WebDAV"',
     // Windows WebDAV特定扩展
     "Microsoft-Server-WebDAV-Extensions": "1",
   };

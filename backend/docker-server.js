@@ -156,7 +156,7 @@ server.use(methodOverride("X-Method-Override"));
 server.use(
     express.raw({
       type: ["application/xml", "text/xml", "application/octet-stream"],
-      limit: "500mb", // 设置合理的大小限制
+      limit: "1gb", // 设置合理的大小限制
     })
 );
 

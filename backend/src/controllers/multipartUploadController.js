@@ -4,7 +4,7 @@
  */
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
-import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload, streamUploadPart } from "../services/multipartUploadService.js";
+import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload } from "../services/multipartUploadService.js";
 
 // 定义S3分片大小最小要求，除最后一个分片外，其他分片必须至少5MB
 const MIN_PART_SIZE = 5 * 1024 * 1024; // 5MB
@@ -153,7 +153,7 @@ export async function handleCompleteMultipartUpload(c) {
     const { userId, userType } = await getUserIdAndTypeFromContext(c);
 
     // 获取请求参数
-    const { path, uploadId, parts, key } = await c.req.json();
+    const { path, uploadId, parts, key, contentType, fileSize } = await c.req.json();
 
     // 验证必要参数
     if (!path || !uploadId || !Array.isArray(parts) || parts.length === 0) {
@@ -161,7 +161,18 @@ export async function handleCompleteMultipartUpload(c) {
     }
 
     // 完成分片上传
-    const result = await completeMultipartUpload(db, path, uploadId, parts, userId, userType, c.env.ENCRYPTION_SECRET, key);
+    const result = await completeMultipartUpload(
+      db,
+      path,
+      uploadId,
+      parts,
+      userId,
+      userType,
+      c.env.ENCRYPTION_SECRET,
+      key,
+      contentType || "application/octet-stream", // 添加MIME类型
+      fileSize || 0 // 添加文件大小
+    );
 
     // 返回完成结果
     return c.json({
@@ -210,52 +221,5 @@ export async function handleAbortMultipartUpload(c) {
       throw error;
     }
     throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: "中止分片上传失败" });
-  }
-}
-
-/**
- * 流式上传文件分片
- * @param {HonoContext} c - Hono上下文
- * @returns {Response} 包含分片上传状态的响应
- */
-export async function handleStreamUploadPart(c) {
-  try {
-    // 获取数据库
-    const db = getDatabase(c);
-
-    // 从上下文获取用户ID和类型
-    const { userId, userType } = await getUserIdAndTypeFromContext(c);
-
-    // 获取请求参数
-    const path = c.req.query("path");
-    const uploadId = c.req.query("uploadId");
-    const partNumber = parseInt(c.req.query("partNumber"), 10);
-    const isLastPart = c.req.query("isLastPart") === "true";
-    const s3Key = c.req.query("key"); // 获取传入的S3键值，确保使用与初始化相同的路径
-
-    // 验证必要参数
-    if (!path || !uploadId || isNaN(partNumber) || partNumber < 1) {
-      throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "缺少必要参数或参数无效" });
-    }
-
-    // 记录流式上传信息，帮助调试
-    console.log(`开始流式上传分片 #${partNumber}, isLastPart: ${isLastPart}`);
-
-    // 直接使用请求体流 - 不从请求中读取整个arrayBuffer
-    const partStream = c.req.body;
-
-    // 流式上传分片
-    const result = await streamUploadPart(db, path, uploadId, partNumber, partStream, userId, userType, c.env.ENCRYPTION_SECRET, s3Key);
-
-    // 返回分片上传结果
-    return c.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    if (error instanceof HTTPException) {
-      throw error;
-    }
-    throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `流式上传分片失败: ${error.message}` });
   }
 }

@@ -524,7 +524,7 @@ export default {
         },
         securityTip: "Security Tip",
         securityMessage:
-            "API keys have operational permissions. Keep your key secure after creation. If you enable mount permission, please also enable file permission. Otherwise, the mount function will not work.",
+          "API keys have operational permissions. Keep your key secure after creation. If you enable mount permission, please also enable file permission. Otherwise, the mount function will not work.",
         cancel: "Cancel",
         create: "Create Key",
         processing: "Processing...",
