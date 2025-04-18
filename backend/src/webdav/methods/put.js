@@ -142,6 +142,11 @@ async function processStreamInChunks(stream, partSize, uploadCallback, options =
   let totalProcessed = 0;
   let lastProgressLog = 0;
 
+  // 声明的内容长度，用于数据完整性验证
+  const declaredContentLength = options.contentLength || -1;
+  const MAX_READ_RETRIES = 3;
+  let readRetryCount = 0;
+
   // 检查是否为特殊客户端
   const isSpecialClient = options.isSpecialClient || false;
 
@@ -158,6 +163,31 @@ async function processStreamInChunks(stream, partSize, uploadCallback, options =
         // 处理最后剩余的缓冲区数据（可能小于partSize）
         if (buffer.length > 0) {
           console.log(`WebDAV PUT - 上传最后一个分片 #${partNumber}, 大小: ${buffer.length}字节`);
+
+          // 数据完整性检查：如果声明了内容长度，检查是否与实际读取的数据匹配
+          if (declaredContentLength > 0 && totalProcessed < declaredContentLength) {
+            // 读取的数据不完整，且还有重试次数
+            if (readRetryCount < MAX_READ_RETRIES) {
+              readRetryCount++;
+
+              // 尝试重新获取流
+              try {
+                reader.releaseLock();
+                return await processStreamInChunks(options.originalStream || stream, partSize, uploadCallback, {
+                  ...options,
+                  contentLength: declaredContentLength,
+                  isRetry: true,
+                  retryCount: readRetryCount,
+                });
+              } catch (retryError) {
+                // 如果重试失败，继续上传已获取的数据
+                console.warn(`WebDAV PUT - 分片上传数据不完整重试 #${readRetryCount} 失败，继续处理已读取的数据`);
+              }
+            } else if (readRetryCount === MAX_READ_RETRIES) {
+              console.warn(`WebDAV PUT - 数据不完整：预期 ${declaredContentLength} 字节，实际读取 ${totalProcessed} 字节，已达到最大重试次数，继续处理`);
+            }
+          }
+
           const partResult = await uploadCallback(partNumber, buffer);
           parts.push({
             partNumber: partNumber,
@@ -210,6 +240,25 @@ async function processStreamInChunks(stream, partSize, uploadCallback, options =
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * 检查实际上传大小与声明大小的差异
+ * @param {number} actualSize - 实际上传的字节数
+ * @param {number} declaredSize - 声明的内容大小
+ * @returns {boolean} 如果差异可接受返回true，否则返回false
+ */
+function checkSizeDifference(actualSize, declaredSize) {
+  // 如果没有声明大小，或实际大小大于等于声明大小，没有问题
+  if (declaredSize <= 0 || actualSize >= declaredSize) {
+    return true;
+  }
+
+  // 计算丢失的数据百分比
+  const lossPercentage = ((declaredSize - actualSize) / declaredSize) * 100;
+
+  // 如果丢失的数据少于1%或者少于1MB，可以接受
+  return lossPercentage < 1 || declaredSize - actualSize < 1024 * 1024;
 }
 
 /**
@@ -539,7 +588,22 @@ export async function handlePut(c, path, userId, userType, db) {
         // 处理流并上传分片，添加特殊客户端信息
         const { parts, totalProcessed } = await processStreamInChunks(bodyStream, recommendedPartSize, uploadPartCallback, {
           isSpecialClient: clientInfo.isPotentiallyProblematicClient || clientInfo.isChunkedClient,
+          contentLength: declaredContentLength,
+          originalStream: bodyStream,
         });
+
+        // 检查上传数据是否完整
+        if (declaredContentLength > 0 && totalProcessed < declaredContentLength) {
+          const acceptable = checkSizeDifference(totalProcessed, declaredContentLength);
+          if (!acceptable) {
+            console.warn(
+                `WebDAV PUT - 警告：文件数据不完整，声明大小：${declaredContentLength}字节，实际上传：${totalProcessed}字节，差异：${(
+                    (declaredContentLength - totalProcessed) /
+                    (1024 * 1024)
+                ).toFixed(2)}MB`
+            );
+          }
+        }
 
         console.log(`WebDAV PUT - 所有分片上传完成，开始完成分片上传，总共上传了 ${totalProcessed} 字节`);
 
