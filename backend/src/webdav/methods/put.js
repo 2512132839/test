@@ -524,12 +524,26 @@ async function proxyUploadToS3(c, presignedUrl, contentType) {
   console.log(`WebDAV PUT - 使用代理模式上传到S3，预签名URL: ${presignedUrl.split("?")[0]}`);
 
   try {
+    // 获取原始请求的Content-Length
+    const contentLength = c.req.header("Content-Length");
+
+    // 准备请求头，确保传递Content-Length
+    const headers = {
+      "Content-Type": contentType || "application/octet-stream",
+    };
+
+    // 如果原始请求中有Content-Length头，在代理请求中也设置它
+    if (contentLength) {
+      headers["Content-Length"] = contentLength;
+      console.log(`WebDAV PUT - 代理请求设置Content-Length: ${contentLength}`);
+    } else {
+      console.warn(`WebDAV PUT - 原始请求未提供Content-Length，可能导致上传失败`);
+    }
+
     // 直接使用fetch代理上传，避免在Worker中缓冲整个文件
     const response = await fetch(presignedUrl, {
       method: "PUT",
-      headers: {
-        "Content-Type": contentType || "application/octet-stream",
-      },
+      headers: headers,
       body: c.req.body, // 直接使用请求体流，不缓冲
       duplex: "half", // 添加duplex选项以支持Node.js 18+的fetch API要求
     });

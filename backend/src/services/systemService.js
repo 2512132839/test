@@ -9,14 +9,14 @@ export async function getAllSystemSettings(db) {
   try {
     // 获取所有系统设置
     const settings = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT key, value, description, updated_at
         FROM ${DbTables.SYSTEM_SETTINGS}
         ORDER BY key ASC
       `
-      )
-      .all();
+        )
+        .all();
 
     return settings.results;
   } catch (error) {
@@ -44,14 +44,36 @@ export async function updateSystemSettings(db, settings) {
 
       // 更新数据库
       await db
-        .prepare(
-          `
+          .prepare(
+              `
           INSERT OR REPLACE INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description, updated_at)
           VALUES ('max_upload_size', ?, '单次最大上传文件大小限制', datetime('now'))
         `
-        )
-        .bind(maxUploadSize.toString())
-        .run();
+          )
+          .bind(maxUploadSize.toString())
+          .run();
+    }
+
+    // 处理WebDAV上传模式设置
+    if (settings.webdav_upload_mode !== undefined) {
+      const webdavUploadMode = settings.webdav_upload_mode;
+
+      // 验证是否为有效的上传模式
+      const validModes = ["auto", "proxy", "multipart"];
+      if (!validModes.includes(webdavUploadMode)) {
+        throw new Error("WebDAV上传模式无效，有效值为: auto, proxy, multipart");
+      }
+
+      // 更新数据库
+      await db
+          .prepare(
+              `
+          INSERT OR REPLACE INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description, updated_at)
+          VALUES ('webdav_upload_mode', ?, 'WebDAV上传模式（auto, proxy, multipart）', datetime('now'))
+        `
+          )
+          .bind(webdavUploadMode)
+          .run();
     }
 
     // 可以在这里添加其他设置的更新逻辑
@@ -70,13 +92,13 @@ export async function getMaxUploadSize(db) {
   try {
     // 获取最大上传大小设置
     const maxUploadSize = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
         WHERE key = 'max_upload_size'
       `
-      )
-      .first();
+        )
+        .first();
 
     // 返回默认值或数据库中的值
     return maxUploadSize ? parseInt(maxUploadSize.value) : DEFAULT_MAX_UPLOAD_SIZE_MB;
@@ -181,15 +203,15 @@ async function getS3ConfigsWithUsage(db) {
   try {
     // 获取所有S3配置
     const configsResult = await db
-      .prepare(
-        `SELECT 
+        .prepare(
+            `SELECT 
           id, name, provider_type, bucket_name, 
           endpoint_url, region, path_style, default_folder, 
           is_public, total_storage_bytes
         FROM ${DbTables.S3_CONFIGS}
         ORDER BY name ASC`
-      )
-      .all();
+        )
+        .all();
 
     if (!configsResult.results || configsResult.results.length === 0) {
       return [];
@@ -202,13 +224,13 @@ async function getS3ConfigsWithUsage(db) {
     for (const config of configs) {
       // 获取该配置下的文件总大小
       const usageResult = await db
-        .prepare(
-          `SELECT SUM(size) as total_size, COUNT(*) as file_count
+          .prepare(
+              `SELECT SUM(size) as total_size, COUNT(*) as file_count
            FROM ${DbTables.FILES}
            WHERE s3_config_id = ?`
-        )
-        .bind(config.id)
-        .first();
+          )
+          .bind(config.id)
+          .first();
 
       const usedStorage = usageResult ? usageResult.total_size || 0 : 0;
       const fileCount = usageResult ? usageResult.file_count || 0 : 0;
