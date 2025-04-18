@@ -21,38 +21,6 @@ import { ApiStatus } from "./src/constants/index.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 日志级别常量
-const LOG_LEVELS = {
-  ERROR: 0,
-  WARN: 1,
-  INFO: 2,
-  DEBUG: 3,
-};
-
-// 当前日志级别，可通过环境变量设置
-const CURRENT_LOG_LEVEL = process.env.LOG_LEVEL ? parseInt(process.env.LOG_LEVEL) : LOG_LEVELS.INFO;
-
-/**
- * 统一的日志函数
- * @param {string} level - 日志级别 ('error', 'warn', 'info', 'debug')
- * @param {string} message - 日志消息
- * @param {Object} [data] - 附加数据对象
- */
-function logMessage(level, message, data = null) {
-  const logLevel = LOG_LEVELS[level.toUpperCase()];
-  if (logLevel <= CURRENT_LOG_LEVEL) {
-    if (data) {
-      console[level.toLowerCase()](message, data);
-    } else {
-      console[level.toLowerCase()](message);
-    }
-  }
-}
-
-// ==========================================
-// SQLite适配器类 - 提供与Cloudflare D1数据库兼容的接口
-// ==========================================
-
 /**
  * SQLite适配器类 - 提供与Cloudflare D1数据库兼容的接口
  * 用于在Docker环境中模拟D1数据库的行为
@@ -64,7 +32,7 @@ class SQLiteAdapter {
   }
 
   async init() {
-    logMessage("info", `初始化SQLite数据库: ${this.dbPath}`);
+    console.log(`初始化SQLite数据库: ${this.dbPath}`);
     this.db = await open({
       filename: this.dbPath,
       driver: sqlite3.Database,
@@ -92,7 +60,7 @@ class SQLiteAdapter {
           await this._db.run(this.sql, ...this.params);
           return { success: true };
         } catch (error) {
-          logMessage("error", "SQL执行错误:", { error, sql: this.sql, params: this.params });
+          console.error("SQL执行错误:", error, "SQL:", this.sql, "params:", this.params);
           throw error;
         }
       },
@@ -102,7 +70,7 @@ class SQLiteAdapter {
           const results = await this._db.all(this.sql, ...this.params);
           return { results };
         } catch (error) {
-          logMessage("error", "SQL查询错误:", { error, sql: this.sql, params: this.params });
+          console.error("SQL查询错误:", error, "SQL:", this.sql, "params:", this.params);
           throw error;
         }
       },
@@ -111,7 +79,7 @@ class SQLiteAdapter {
         try {
           return await this._db.get(this.sql, ...this.params);
         } catch (error) {
-          logMessage("error", "SQL查询错误:", { error, sql: this.sql, params: this.params });
+          console.error("SQL查询错误:", error, "SQL:", this.sql, "params:", this.params);
           throw error;
         }
       },
@@ -123,7 +91,7 @@ class SQLiteAdapter {
     try {
       return await this.db.exec(sql);
     } catch (error) {
-      logMessage("error", "SQL执行错误:", { error, sql });
+      console.error("SQL执行错误:", error, "SQL:", sql);
       throw error;
     }
   }
@@ -141,24 +109,10 @@ function createSQLiteAdapter(dbPath) {
  * @param {string} defaultMessage - 默认错误消息
  */
 function createErrorResponse(error, status = ApiStatus.INTERNAL_ERROR, defaultMessage = "服务器内部错误") {
-  // 生成唯一错误ID用于日志跟踪
-  const errorId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-
-  // 记录详细错误信息但过滤敏感数据
-  const sanitizedErrorMessage = error.message ? error.message.replace(/key|password|token|secret|auth/gi, (match) => "*".repeat(match.length)) : defaultMessage;
-
-  // 在日志中包含错误ID方便后续追踪
-  logMessage("error", `[${errorId}] 服务器错误:`, {
-    status,
-    message: sanitizedErrorMessage,
-    stack: error.stack ? error.stack.split("\n").slice(0, 3).join("\n") : null,
-  });
-
-  // 对外部响应隐藏技术细节
   return {
     code: status,
-    message: defaultMessage,
-    errorId: errorId, // 包含错误ID便于用户报告问题
+    message: error.message || defaultMessage,
+    error: error.message,
     success: false,
     data: null,
   };
@@ -175,34 +129,16 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const dbPath = path.join(dataDir, "cloudpaste.db");
-logMessage("info", `数据库文件路径: ${dbPath}`);
+console.log(`数据库文件路径: ${dbPath}`);
 
 // 初始化SQLite适配器
 const sqliteAdapter = createSQLiteAdapter(dbPath);
 let isDbInitialized = false;
 
-// ==========================================
-// WebDAV支持配置 - 集中WebDAV相关定义
-// ==========================================
-
 // WebDAV支持的HTTP方法
 const WEBDAV_METHODS = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"];
 
-// CORS配置 - WebDAV方法支持
-const corsOptions = {
-  origin: "*", // 允许的域名，如果未设置则允许所有
-  methods: WEBDAV_METHODS.join(","), // 使用上面定义的WebDAV方法
-  credentials: true,
-  optionsSuccessStatus: 204,
-  maxAge: 86400, // 缓存预检请求结果24小时
-  exposedHeaders: ["ETag", "Content-Type", "Content-Length", "Last-Modified"],
-};
-
-// ==========================================
-// 中间件和服务器配置
-// ==========================================
-
-// 明确告知Express处理WebDAV方法
+// 明确告知Express处理这些方法
 WEBDAV_METHODS.forEach((method) => {
   server[method.toLowerCase()] = function (path, ...handlers) {
     return server.route(path).all(function (req, res, next) {
@@ -217,24 +153,33 @@ WEBDAV_METHODS.forEach((method) => {
 // 为WebDAV方法添加直接路由，确保它们能被正确处理
 WEBDAV_METHODS.forEach((method) => {
   server[method.toLowerCase()]("/dav*", (req, res, next) => {
-    logMessage("debug", `直接WebDAV路由处理: ${method} ${req.path}`);
+    console.log(`直接WebDAV路由处理: ${method} ${req.path}`);
     next();
   });
 });
 
-// ==========================================
-// 中间件配置（按功能分组）
-// ==========================================
+// CORS配置
+const corsOptions = {
+  origin: "*", // 允许的域名，如果未设置则允许所有
+  methods: WEBDAV_METHODS.join(","), // 使用上面定义的WebDAV方法
+  credentials: true,
+  optionsSuccessStatus: 204,
+  maxAge: 86400, // 缓存预检请求结果24小时
+  exposedHeaders: ["ETag", "Content-Type", "Content-Length", "Last-Modified"],
+};
 
-// 1. 基础中间件 - CORS和HTTP方法处理
-// ==========================================
+// 中间件配置
 server.use(cors(corsOptions));
+
+// 添加method-override中间件支持WebDAV方法
 server.use(methodOverride("X-HTTP-Method-Override"));
 server.use(methodOverride("X-HTTP-Method"));
 server.use(methodOverride("X-Method-Override"));
+
+// 禁用WebDAV模块 (如果有的话)
 server.disable("x-powered-by");
 
-// WebDAV基础方法支持
+// 确保所有WebDAV方法都被允许
 server.use((req, res, next) => {
   if (req.path.startsWith("/dav")) {
     res.setHeader("Access-Control-Allow-Methods", WEBDAV_METHODS.join(","));
@@ -242,18 +187,13 @@ server.use((req, res, next) => {
 
     // 对于OPTIONS请求，直接响应以支持预检请求
     if (req.method === "OPTIONS") {
-      // 添加WebDAV特定的响应头
-      res.setHeader("DAV", "1,2");
-      res.setHeader("MS-Author-Via", "DAV");
       return res.status(204).end();
     }
   }
   next();
 });
 
-// 2. 请求体处理中间件
-// ==========================================
-// 处理原始请求体（XML、二进制等）
+// 添加原始请求体处理中间件
 server.use(
     express.raw({
       type: [
@@ -271,61 +211,23 @@ server.use(
       limit: "1gb", // 设置合理的大小限制
       verify: (req, res, buf, encoding) => {
         // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
-        if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 10 * 1024 * 1024) {
-          logMessage("debug", `大型WebDAV ${req.method} 请求体:`, {
-            contentType: req.headers["content-type"],
-            size: buf ? buf.length : 0,
-          });
-        }
-
-        // 安全检查：检测潜在的异常XML或二进制内容
-        if (buf && req.path.startsWith("/dav") && (req.headers["content-type"] || "").includes("xml") && buf.length > 0) {
-          // 检查是否为有效的XML开头标记，简单验证
-          const xmlStart = buf.slice(0, Math.min(50, buf.length)).toString();
-          if (!xmlStart.trim().startsWith("<?xml") && !xmlStart.trim().startsWith("<")) {
-            logMessage("warn", `可疑的XML请求体: ${req.method} ${req.path} - 内容不以XML标记开头`, {
-              contentType: req.headers["content-type"],
-              bodyPreview: xmlStart.replace(/[\x00-\x1F\x7F-\xFF]/g, ".").substring(0, 30),
-            });
-          }
+        if (req.method === "MKCOL" || req.method === "PUT") {
+          console.log(`WebDAV ${req.method} 原始请求体验证: Content-Type=${req.headers["content-type"]}, 大小=${buf ? buf.length : 0}字节`);
         }
       },
     })
 );
 
-// 处理请求体大小限制错误
+// 添加处理413错误（请求体过大）的中间件
 server.use((err, req, res, next) => {
   if (err.type === "entity.too.large") {
-    logMessage("error", `请求体过大错误:`, {
-      method: req.method,
-      path: req.path,
-      contentLength: req.headers["content-length"] || "未知",
-      limit: err.limit,
-    });
-    return res.status(413).json({
-      error: "请求体过大",
-      message: `上传内容超过限制 (${err.limit})`,
-      maxSize: err.limit,
-    });
+    console.error(`请求体过大错误: ${req.method} ${req.path}, 可能超过了限制`);
+    return res.status(413).send("请求体过大");
   }
-
-  // 增强：处理内容类型解析错误
-  if (err.status === 415 || (err.message && err.message.includes("content type"))) {
-    logMessage("error", `内容类型错误:`, {
-      method: req.method,
-      path: req.path,
-      contentType: req.headers["content-type"] || "未知",
-    });
-    return res.status(415).json({
-      error: "不支持的内容类型",
-      message: `服务器无法处理请求的内容类型 ${req.headers["content-type"] || "未指定"}`,
-    });
-  }
-
   next(err);
 });
 
-// 处理表单数据
+// 添加urlencoded中间件处理表单类型请求
 server.use(
     express.urlencoded({
       extended: true,
@@ -336,57 +238,83 @@ server.use(
 // 处理JSON请求体
 server.use(
     express.json({
-      type: ["application/json", "application/json; charset=utf-8", "+json", "*/json"],
+      type: ["application/json"],
       limit: "1gb",
     })
 );
 
-// 3. WebDAV专用中间件
-// ==========================================
-// WebDAV请求日志记录
+// 添加自定义中间件以支持WebDAV方法
 server.use((req, res, next) => {
-  // 仅记录关键WebDAV操作，减少不必要的日志
-  if (["MKCOL", "COPY", "MOVE", "DELETE", "PUT"].includes(req.method) && req.path.startsWith("/dav")) {
-    logMessage("debug", `关键WebDAV请求: ${req.method} ${req.path}`);
+  // 记录WebDAV请求以便调试
+  if (["PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "DELETE", "PUT"].includes(req.method)) {
+    console.log(`WebDAV请求被Express接收: ${req.method} ${req.path}`);
   }
 
   next();
 });
 
-// WebDAV详细处理中间件
+// 添加专门的WebDAV处理中间件
 server.use("/dav", (req, res, next) => {
   // 明确设置允许的方法
   res.setHeader("Allow", WEBDAV_METHODS.join(","));
 
-  // 仅在INFO级别记录关键WebDAV请求信息
-  logMessage("info", `WebDAV请求: ${req.method} ${req.path}`, {
-    contentType: req.headers["content-type"] || "无",
-    contentLength: req.headers["content-length"] || "无",
+  // 记录详细的WebDAV请求信息
+  console.log(`WebDAV专用中间件捕获请求: ${req.method} ${req.path}`);
+
+  // 记录更详细的请求头信息，用于调试
+  console.log(`WebDAV请求头: ${req.method} ${req.path}`, {
+    "Content-Type": req.headers["content-type"] || "无",
+    "Content-Length": req.headers["content-length"] || "无",
+    "User-Agent": req.headers["user-agent"] || "无",
+    Authorization: req.headers["authorization"] ? "已提供" : "无",
+    Depth: req.headers["depth"] || "无",
+    Destination: req.headers["destination"] || "无",
+    Overwrite: req.headers["overwrite"] || "无",
   });
+
+  // WebDAV的OPTIONS请求特殊处理
+  if (req.method === "OPTIONS") {
+    console.log("处理WebDAV OPTIONS请求");
+    res.setHeader("Allow", WEBDAV_METHODS.join(","));
+    res.setHeader("DAV", "1,2");
+    res.setHeader("MS-Author-Via", "DAV");
+    return res.status(200).end();
+  }
 
   // 针对MKCOL方法的特殊处理
   if (req.method === "MKCOL") {
-    // 仅记录Windows客户端的MKCOL请求
-    if ((req.headers["user-agent"] || "").includes("Microsoft") || (req.headers["user-agent"] || "").includes("Windows")) {
-      logMessage("debug", `Windows客户端的MKCOL请求: ${req.path}`);
+    console.log(`处理WebDAV MKCOL请求: ${req.path}`);
+    // 对于Windows客户端，可能会发送一些特殊的头部
+    const isWindowsClient = (req.headers["user-agent"] || "").includes("Microsoft") || (req.headers["user-agent"] || "").includes("Windows");
+    if (isWindowsClient) {
+      console.log(`检测到Windows客户端的MKCOL请求: ${req.path}`);
     }
+  }
+
+  // 针对PUT方法的特殊处理
+  if (req.method === "PUT") {
+    console.log(`处理WebDAV PUT请求: ${req.path}, Content-Type: ${req.headers["content-type"] || "无"}`);
+  }
+
+  // 针对DELETE方法的特殊处理
+  if (req.method === "DELETE") {
+    console.log(`处理WebDAV DELETE请求: ${req.path}`);
   }
 
   next();
 });
 
-// 4. 数据库初始化中间件
-// ==========================================
+// 数据库初始化中间件
 server.use(async (req, res, next) => {
   try {
     if (!isDbInitialized) {
-      logMessage("info", "首次请求，检查数据库状态...");
+      console.log("首次请求，检查数据库状态...");
       isDbInitialized = true;
       try {
         await sqliteAdapter.init();
         await checkAndInitDatabase(sqliteAdapter);
       } catch (error) {
-        logMessage("error", "数据库初始化出错:", { error });
+        console.error("数据库初始化出错:", error);
       }
     }
 
@@ -398,34 +326,9 @@ server.use(async (req, res, next) => {
 
     next();
   } catch (error) {
-    logMessage("error", "请求处理中间件错误:", { error });
+    console.error("请求处理中间件错误:", error);
     res.status(ApiStatus.INTERNAL_ERROR).json(createErrorResponse(error));
   }
-});
-
-// ==========================================
-// 路由处理
-// ==========================================
-
-// 添加登录请求专用调试中间件
-server.post("/api/admin/login", (req, res, next) => {
-  logMessage("info", "登录请求中间件捕获:", {
-    method: req.method,
-    path: req.path,
-    contentType: req.headers["content-type"],
-    hasBody: !!req.body,
-    bodyKeys: req.body ? Object.keys(req.body) : "无",
-  });
-
-  // 额外安全检查：确保用户名和密码已提供
-  if (!req.body || !req.body.username || !req.body.password) {
-    logMessage("warn", "登录请求缺少必要参数:", {
-      hasBody: !!req.body,
-      bodyContent: req.body ? JSON.stringify(req.body) : "无",
-    });
-  }
-
-  next();
 });
 
 /**
@@ -437,7 +340,7 @@ server.get("/api/file-download/:slug", async (req, res) => {
     const response = await handleFileDownload(req.params.slug, req.env, createAdaptedRequest(req), true);
     await convertWorkerResponseToExpress(response, res);
   } catch (error) {
-    logMessage("error", "文件下载错误:", { error });
+    console.error("文件下载错误:", error);
     res.status(ApiStatus.INTERNAL_ERROR).json(createErrorResponse(error, ApiStatus.INTERNAL_ERROR, "文件下载失败"));
   }
 });
@@ -447,7 +350,7 @@ server.get("/api/file-view/:slug", async (req, res) => {
     const response = await handleFileDownload(req.params.slug, req.env, createAdaptedRequest(req), false);
     await convertWorkerResponseToExpress(response, res);
   } catch (error) {
-    logMessage("error", "文件预览错误:", { error });
+    console.error("文件预览错误:", error);
     res.status(ApiStatus.INTERNAL_ERROR).json(createErrorResponse(error, ApiStatus.INTERNAL_ERROR, "文件预览失败"));
   }
 });
@@ -455,18 +358,24 @@ server.get("/api/file-view/:slug", async (req, res) => {
 // 通配符路由 - 处理所有其他API请求
 server.use("*", async (req, res) => {
   try {
+    // 特殊处理WebDAV请求
+    if (req.path.startsWith("/dav")) {
+      console.log(`WebDAV请求被路由: ${req.method} ${req.path}, Headers: ${JSON.stringify(Object.keys(req.headers))}`);
+
+      // 针对DELETE方法的特殊处理
+      if (req.method === "DELETE") {
+        console.log(`WebDAV DELETE请求: ${req.path}`);
+      }
+    }
+
     const response = await app.fetch(createAdaptedRequest(req), req.env, {});
     await convertWorkerResponseToExpress(response, res);
   } catch (error) {
-    // 使用更安全的错误记录和响应生成
+    console.error("请求处理错误:", error);
     const status = error.status && typeof error.status === "number" ? error.status : ApiStatus.INTERNAL_ERROR;
     res.status(status).json(createErrorResponse(error, status));
   }
 });
-
-// ==========================================
-// 工具函数
-// ==========================================
 
 /**
  * 工具函数：创建适配的Request对象
@@ -489,7 +398,7 @@ function createAdaptedRequest(expressReq) {
         if (expressReq.method === "MKCOL") {
           // 为MKCOL设置默认的Content-Type
           contentType = "application/octet-stream";
-          logMessage("debug", `WebDAV请求: 添加默认Content-Type (${contentType}) 到 ${expressReq.method} 请求`);
+          console.log(`WebDAV请求: 添加默认Content-Type (${contentType}) 到 ${expressReq.method} 请求`);
         }
       }
     }
@@ -498,21 +407,16 @@ function createAdaptedRequest(expressReq) {
     if (expressReq.method === "MKCOL") {
       // 对于MKCOL，如果有请求体就记录但不严格要求特定格式
       if (expressReq.body) {
-        logMessage("debug", `MKCOL请求包含请求体，内容类型: ${contentType}, 请求体类型: ${typeof expressReq.body}`);
+        console.log(`MKCOL请求包含请求体，内容类型: ${contentType}, 请求体类型: ${typeof expressReq.body}`);
         // 对于MKCOL，我们总是设置一个空字符串作为请求体
         // 这样可以避免API处理逻辑中的415错误
         body = "";
-
-        // 安全增强：检查请求体大小，防止DOS攻击
-        if (Buffer.isBuffer(expressReq.body) && expressReq.body.length > 1024) {
-          logMessage("warn", `MKCOL请求包含异常大的请求体 (${expressReq.body.length} 字节)，可能是客户端错误或恶意请求`);
-        }
       }
     }
     // 正常处理其他请求类型
     else {
       // 如果是JSON请求且已经被解析
-      if ((contentType.includes("application/json") || contentType.includes("json")) && expressReq.body && typeof expressReq.body === "object") {
+      if (contentType.includes("application/json") && expressReq.body && typeof expressReq.body === "object") {
         body = JSON.stringify(expressReq.body);
       }
       // 如果是XML或二进制数据，使用Buffer
@@ -542,19 +446,33 @@ function createAdaptedRequest(expressReq) {
           try {
             body = JSON.stringify(expressReq.body);
           } catch (e) {
-            logMessage("warn", `无法将请求体转换为JSON字符串: ${e.message}`);
+            console.warn(`无法将请求体转换为JSON字符串: ${e.message}`);
             body = String(expressReq.body);
           }
         }
       }
-
     }
   }
 
+  // 创建自定义的头部对象，以便添加或修改特定头部
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(expressReq.headers)) {
+    if (value !== undefined) {
+      headers.set(key, value);
+    }
+  }
 
+  // 检查并记录请求体信息，用于调试
+  if (expressReq.path.startsWith("/dav")) {
+    console.log(
+        `WebDAV请求体: 方法=${expressReq.method}, 路径=${expressReq.path}, 内容类型=${expressReq.headers["content-type"] || "无"}, 请求体类型=${body ? typeof body : "无"}`
+    );
+  }
+
+  // 处理特殊情况：DELETE方法通常没有请求体，但需要确保方法传递正确
   const requestInit = {
     method: expressReq.method,
-    headers: expressReq.headers,
+    headers: headers,
   };
 
   // 只有在有请求体时才添加body参数
@@ -604,7 +522,7 @@ async function convertWorkerResponseToExpress(workerResponse, expressRes) {
 
 // 启动服务器
 server.listen(PORT, "0.0.0.0", () => {
-  logMessage("info", `CloudPaste后端服务运行在 http://0.0.0.0:${PORT}`);
+  console.log(`CloudPaste后端服务运行在 http://0.0.0.0:${PORT}`);
 
   // Web.config文件支持WebDAV方法
   try {
@@ -639,8 +557,8 @@ server.listen(PORT, "0.0.0.0", () => {
 </configuration>`;
 
     fs.writeFileSync(webConfigPath, webConfigContent);
-    logMessage("info", `已创建Web.config文件以支持WebDAV方法: ${webConfigPath}`);
+    console.log(`已创建Web.config文件以支持WebDAV方法: ${webConfigPath}`);
   } catch (error) {
-    logMessage("warn", "创建Web.config文件失败:", { message: error.message });
+    console.warn("创建Web.config文件失败:", error.message);
   }
 });
