@@ -336,7 +336,7 @@ server.use(
 // 处理JSON请求体
 server.use(
     express.json({
-      type: ["application/json"],
+      type: ["application/json", "application/json; charset=utf-8", "+json", "*/json"],
       limit: "1gb",
     })
 );
@@ -406,6 +406,27 @@ server.use(async (req, res, next) => {
 // ==========================================
 // 路由处理
 // ==========================================
+
+// 添加登录请求专用调试中间件
+server.post("/api/admin/login", (req, res, next) => {
+  logMessage("info", "登录请求中间件捕获:", {
+    method: req.method,
+    path: req.path,
+    contentType: req.headers["content-type"],
+    hasBody: !!req.body,
+    bodyKeys: req.body ? Object.keys(req.body) : "无",
+  });
+
+  // 额外安全检查：确保用户名和密码已提供
+  if (!req.body || !req.body.username || !req.body.password) {
+    logMessage("warn", "登录请求缺少必要参数:", {
+      hasBody: !!req.body,
+      bodyContent: req.body ? JSON.stringify(req.body) : "无",
+    });
+  }
+
+  next();
+});
 
 /**
  * 文件下载路由处理
@@ -491,7 +512,7 @@ function createAdaptedRequest(expressReq) {
     // 正常处理其他请求类型
     else {
       // 如果是JSON请求且已经被解析
-      if (contentType.includes("application/json") && expressReq.body && typeof expressReq.body === "object") {
+      if ((contentType.includes("application/json") || contentType.includes("json")) && expressReq.body && typeof expressReq.body === "object") {
         body = JSON.stringify(expressReq.body);
       }
       // 如果是XML或二进制数据，使用Buffer
@@ -526,21 +547,14 @@ function createAdaptedRequest(expressReq) {
           }
         }
       }
+
     }
   }
 
-  // 创建自定义的头部对象，以便添加或修改特定头部
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(expressReq.headers)) {
-    if (value !== undefined) {
-      headers.set(key, value);
-    }
-  }
 
-  // 处理特殊情况：DELETE方法通常没有请求体，但需要确保方法传递正确
   const requestInit = {
     method: expressReq.method,
-    headers: headers,
+    headers: expressReq.headers,
   };
 
   // 只有在有请求体时才添加body参数
