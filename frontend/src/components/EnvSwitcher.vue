@@ -6,7 +6,7 @@ import { API_BASE_URL, getEnvironmentInfo } from "../api/config";
 const environments = [
   { name: "本地开发", url: "http://localhost:8787" },
   { name: "开发Worker", url: "https://cloudpaste-backend.开发环境域名.workers.dev" },
-  { name: "测试Worker", url: "https://cloudpaste-backend.xx.workers.dev" },
+  { name: "测试Worker", url: "https://cloudpaste-backend.xxxx.workers.dev" },
   { name: "生产Worker", url: "https://api.你的生产域名.com" },
 ];
 

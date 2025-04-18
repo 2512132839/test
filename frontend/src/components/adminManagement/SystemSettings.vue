@@ -40,10 +40,18 @@ let countdownTimer = null;
 const systemSettings = ref({
   max_upload_size: 100, // 默认100MB
   max_upload_size_unit: "MB", // 默认单位MB
+  webdav_upload_mode: "auto", // 默认自动模式 - 可选值: auto, proxy, multipart
 });
 
 // 可选的大小单位
 const sizeUnits = ref(["KB", "MB", "GB"]);
+
+// WebDAV上传模式选项
+const webdavUploadModes = ref([
+  { value: "auto", label: "admin.settings.webdavSettings.modes.auto" },
+  { value: "proxy", label: "admin.settings.webdavSettings.modes.proxy" },
+  { value: "multipart", label: "admin.settings.webdavSettings.modes.multipart" },
+]);
 
 // 系统设置更新状态
 const systemSettingsStatus = ref({
@@ -65,6 +73,9 @@ onMounted(async () => {
           systemSettings.value.max_upload_size = value;
           // 这里数据库中存储的始终是MB，界面上需要根据用户选择转换
           systemSettings.value.max_upload_size_unit = "MB";
+        }
+        if (setting.key === "webdav_upload_mode") {
+          systemSettings.value.webdav_upload_mode = setting.value;
         }
       });
     }
@@ -109,6 +120,7 @@ const handleUpdateSystemSettings = async (event) => {
 
     await updateSystemSettings({
       max_upload_size: convertedSize,
+      webdav_upload_mode: systemSettings.value.webdav_upload_mode,
     });
 
     // 更新成功
@@ -331,6 +343,26 @@ const getIconPath = (iconName) => {
                 </div>
               </div>
               <p class="mt-1.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ $t("admin.settings.uploadSettings.maxUploadSizeHint") }}</p>
+            </div>
+
+            <!-- WebDAV上传模式设置 -->
+            <div class="mb-4">
+              <label for="webdavUploadMode" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">
+                {{ $t("admin.settings.webdavSettings.uploadModeLabel") }}
+              </label>
+              <div class="mt-1 relative">
+                <select
+                  id="webdavUploadMode"
+                  v-model="systemSettings.webdav_upload_mode"
+                  class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent px-3 py-2"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white focus:ring-primary-500/70' : 'bg-white border-gray-300 text-gray-900 focus:ring-primary-500/60'"
+                >
+                  <option v-for="mode in webdavUploadModes" :key="mode.value" :value="mode.value">
+                    {{ $t(mode.label) }}
+                  </option>
+                </select>
+              </div>
+              <p class="mt-1.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ $t("admin.settings.webdavSettings.uploadModeHint") }}</p>
             </div>
 
             <div class="form-footer mt-4 flex justify-end">
