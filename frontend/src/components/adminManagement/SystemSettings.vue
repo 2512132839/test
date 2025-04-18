@@ -40,10 +40,18 @@ let countdownTimer = null;
 const systemSettings = ref({
   max_upload_size: 100, // 默认100MB
   max_upload_size_unit: "MB", // 默认单位MB
+  webdav_upload_mode: "auto", // 默认自动模式 - 可选值: auto, proxy, multipart
 });
 
 // 可选的大小单位
 const sizeUnits = ref(["KB", "MB", "GB"]);
+
+// WebDAV上传模式选项
+const webdavUploadModes = ref([
+  { value: "auto", label: "admin.settings.webdavSettings.modes.auto" },
+  { value: "proxy", label: "admin.settings.webdavSettings.modes.proxy" },
+  { value: "multipart", label: "admin.settings.webdavSettings.modes.multipart" },
+]);
 
 // 系统设置更新状态
 const systemSettingsStatus = ref({
@@ -65,6 +73,9 @@ onMounted(async () => {
           systemSettings.value.max_upload_size = value;
           // 这里数据库中存储的始终是MB，界面上需要根据用户选择转换
           systemSettings.value.max_upload_size_unit = "MB";
+        }
+        if (setting.key === "webdav_upload_mode") {
+          systemSettings.value.webdav_upload_mode = setting.value;
         }
       });
     }
@@ -109,6 +120,7 @@ const handleUpdateSystemSettings = async (event) => {
 
     await updateSystemSettings({
       max_upload_size: convertedSize,
+      webdav_upload_mode: systemSettings.value.webdav_upload_mode,
     });
 
     // 更新成功
@@ -234,8 +246,8 @@ const getIconPath = (iconName) => {
     <div class="settings-grid grid md:grid-cols-2 gap-5 mb-8">
       <!-- 上传限制设置面板 - 更小更紧凑的卡片 -->
       <div
-        class="setting-card flex flex-col rounded-md overflow-hidden transition-all duration-200 shadow-sm border"
-        :class="darkMode ? 'bg-gray-800 border-gray-700 hover:shadow-sm' : 'bg-white border-gray-200 hover:shadow-sm'"
+          class="setting-card flex flex-col rounded-md overflow-hidden transition-all duration-200 shadow-sm border"
+          :class="darkMode ? 'bg-gray-800 border-gray-700 hover:shadow-sm' : 'bg-white border-gray-200 hover:shadow-sm'"
       >
         <!-- 卡片标题栏 - 更紧凑 -->
         <div class="card-header px-4 py-3 border-b transition-colors duration-200" :class="darkMode ? 'border-gray-700 bg-gray-800/70' : 'border-gray-100 bg-gray-50/50'">
@@ -257,16 +269,16 @@ const getIconPath = (iconName) => {
           <!-- 成功消息 - 更扁平 -->
           <transition name="fade">
             <div
-              v-if="systemSettingsStatus.success"
-              class="mb-3 rounded-md p-2 border transition-colors duration-200"
-              :class="darkMode ? 'bg-green-900/20 border-green-800/40 text-green-200' : 'bg-green-50 border-green-200 text-green-800'"
+                v-if="systemSettingsStatus.success"
+                class="mb-3 rounded-md p-2 border transition-colors duration-200"
+                :class="darkMode ? 'bg-green-900/20 border-green-800/40 text-green-200' : 'bg-green-50 border-green-200 text-green-800'"
             >
               <div class="flex items-center">
                 <svg class="h-4 w-4 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                   <path
-                    fill-rule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clip-rule="evenodd"
+                      fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clip-rule="evenodd"
                   />
                 </svg>
                 <p class="text-sm font-medium">{{ $t("admin.settings.status.success") }}</p>
@@ -277,16 +289,16 @@ const getIconPath = (iconName) => {
           <!-- 错误消息 - 更扁平 -->
           <transition name="fade">
             <div
-              v-if="systemSettingsStatus.error"
-              class="mb-3 rounded-md p-2 border transition-colors duration-200"
-              :class="darkMode ? 'bg-red-900/20 border-red-800/40 text-red-200' : 'bg-red-50 border-red-200 text-red-800'"
+                v-if="systemSettingsStatus.error"
+                class="mb-3 rounded-md p-2 border transition-colors duration-200"
+                :class="darkMode ? 'bg-red-900/20 border-red-800/40 text-red-200' : 'bg-red-50 border-red-200 text-red-800'"
             >
               <div class="flex items-center">
                 <svg class="h-4 w-4 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                   <path
-                    fill-rule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                    clip-rule="evenodd"
+                      fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clip-rule="evenodd"
                   />
                 </svg>
                 <p class="text-sm font-medium">{{ systemSettingsStatus.error }}</p>
@@ -304,25 +316,25 @@ const getIconPath = (iconName) => {
               <div class="mt-1 relative">
                 <div class="flex">
                   <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    name="maxUploadSize"
-                    id="maxUploadSize"
-                    v-model.number="systemSettings.max_upload_size"
-                    required
-                    class="block w-full rounded-l border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent px-3 py-2"
-                    :class="
+                      type="number"
+                      min="1"
+                      step="1"
+                      name="maxUploadSize"
+                      id="maxUploadSize"
+                      v-model.number="systemSettings.max_upload_size"
+                      required
+                      class="block w-full rounded-l border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent px-3 py-2"
+                      :class="
                       darkMode
                         ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-primary-500/70'
                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-primary-500/60'
                     "
-                    :placeholder="$t('admin.settings.uploadSettings.maxUploadSizePlaceholder')"
+                      :placeholder="$t('admin.settings.uploadSettings.maxUploadSizePlaceholder')"
                   />
                   <select
-                    v-model="systemSettings.max_upload_size_unit"
-                    class="inline-flex items-center border border-l-0 px-3 text-sm rounded-r"
-                    :class="darkMode ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-gray-50 border-gray-300 text-gray-500'"
+                      v-model="systemSettings.max_upload_size_unit"
+                      class="inline-flex items-center border border-l-0 px-3 text-sm rounded-r"
+                      :class="darkMode ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-gray-50 border-gray-300 text-gray-500'"
                   >
                     <option v-for="unit in sizeUnits" :key="unit" :value="unit">
                       {{ $t(`admin.settings.uploadSettings.unit${unit}`) }}
@@ -333,12 +345,32 @@ const getIconPath = (iconName) => {
               <p class="mt-1.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ $t("admin.settings.uploadSettings.maxUploadSizeHint") }}</p>
             </div>
 
+            <!-- WebDAV上传模式设置 -->
+            <div class="mb-4">
+              <label for="webdavUploadMode" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">
+                {{ $t("admin.settings.webdavSettings.uploadModeLabel") }}
+              </label>
+              <div class="mt-1 relative">
+                <select
+                    id="webdavUploadMode"
+                    v-model="systemSettings.webdav_upload_mode"
+                    class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent px-3 py-2"
+                    :class="darkMode ? 'bg-gray-700 border-gray-600 text-white focus:ring-primary-500/70' : 'bg-white border-gray-300 text-gray-900 focus:ring-primary-500/60'"
+                >
+                  <option v-for="mode in webdavUploadModes" :key="mode.value" :value="mode.value">
+                    {{ $t(mode.label) }}
+                  </option>
+                </select>
+              </div>
+              <p class="mt-1.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ $t("admin.settings.webdavSettings.uploadModeHint") }}</p>
+            </div>
+
             <div class="form-footer mt-4 flex justify-end">
               <button
-                type="submit"
-                :disabled="systemSettingsStatus.loading"
-                class="inline-flex items-center justify-center rounded border border-transparent shadow-sm transition duration-150 ease-in-out px-4 py-1.5 text-sm font-medium"
-                :class="[
+                  type="submit"
+                  :disabled="systemSettingsStatus.loading"
+                  class="inline-flex items-center justify-center rounded border border-transparent shadow-sm transition duration-150 ease-in-out px-4 py-1.5 text-sm font-medium"
+                  :class="[
                   systemSettingsStatus.loading
                     ? 'bg-primary-400 cursor-not-allowed text-white'
                     : 'bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:ring-offset-1 text-white',
@@ -348,9 +380,9 @@ const getIconPath = (iconName) => {
                   <svg class="animate-spin -ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
                   {{ $t("admin.settings.status.processing") }}
@@ -368,8 +400,8 @@ const getIconPath = (iconName) => {
 
         <!-- 卡片底部提示信息 - 更简洁 -->
         <div
-          class="card-footer px-4 py-2 bg-opacity-50 border-t text-xs transition-colors duration-200"
-          :class="darkMode ? 'bg-gray-700/50 border-gray-700 text-gray-400' : 'bg-gray-50/50 border-gray-100 text-gray-500'"
+            class="card-footer px-4 py-2 bg-opacity-50 border-t text-xs transition-colors duration-200"
+            :class="darkMode ? 'bg-gray-700/50 border-gray-700 text-gray-400' : 'bg-gray-50/50 border-gray-100 text-gray-500'"
         >
           <div class="flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -382,8 +414,8 @@ const getIconPath = (iconName) => {
 
       <!-- 管理员信息修改面板 - 更小更紧凑的卡片 -->
       <div
-        class="setting-card flex flex-col rounded-md overflow-hidden transition-all duration-200 shadow-sm border"
-        :class="darkMode ? 'bg-gray-800 border-gray-700 hover:shadow-sm' : 'bg-white border-gray-200 hover:shadow-sm'"
+          class="setting-card flex flex-col rounded-md overflow-hidden transition-all duration-200 shadow-sm border"
+          :class="darkMode ? 'bg-gray-800 border-gray-700 hover:shadow-sm' : 'bg-white border-gray-200 hover:shadow-sm'"
       >
         <!-- 卡片标题栏 - 更紧凑 -->
         <div class="card-header px-4 py-3 border-b transition-colors duration-200" :class="darkMode ? 'border-gray-700 bg-gray-800/70' : 'border-gray-100 bg-gray-50/50'">
@@ -405,23 +437,23 @@ const getIconPath = (iconName) => {
           <!-- 成功消息 - 更扁平 -->
           <transition name="fade">
             <div
-              v-if="passwordChangeStatus.success"
-              class="mb-3 rounded-md p-2 border transition-colors duration-200"
-              :class="darkMode ? 'bg-green-900/20 border-green-800/40 text-green-200' : 'bg-green-50 border-green-200 text-green-800'"
+                v-if="passwordChangeStatus.success"
+                class="mb-3 rounded-md p-2 border transition-colors duration-200"
+                :class="darkMode ? 'bg-green-900/20 border-green-800/40 text-green-200' : 'bg-green-50 border-green-200 text-green-800'"
             >
               <div class="flex items-center">
                 <svg class="h-4 w-4 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                   <path
-                    fill-rule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clip-rule="evenodd"
+                      fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clip-rule="evenodd"
                   />
                 </svg>
                 <p class="text-sm font-medium">
                   {{ $t("admin.settings.status.adminUpdateSuccess") }}
                   <span
-                    class="ml-1 inline-flex items-center justify-center bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full h-5 w-5 text-xs font-bold"
-                    >{{ countdown }}</span
+                      class="ml-1 inline-flex items-center justify-center bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 rounded-full h-5 w-5 text-xs font-bold"
+                  >{{ countdown }}</span
                   >
                 </p>
               </div>
@@ -431,16 +463,16 @@ const getIconPath = (iconName) => {
           <!-- 错误消息 - 更扁平 -->
           <transition name="fade">
             <div
-              v-if="passwordChangeStatus.error"
-              class="mb-3 rounded-md p-2 border transition-colors duration-200"
-              :class="darkMode ? 'bg-red-900/20 border-red-800/40 text-red-200' : 'bg-red-50 border-red-200 text-red-800'"
+                v-if="passwordChangeStatus.error"
+                class="mb-3 rounded-md p-2 border transition-colors duration-200"
+                :class="darkMode ? 'bg-red-900/20 border-red-800/40 text-red-200' : 'bg-red-50 border-red-200 text-red-800'"
             >
               <div class="flex items-center">
                 <svg class="h-4 w-4 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                   <path
-                    fill-rule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                    clip-rule="evenodd"
+                      fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clip-rule="evenodd"
                   />
                 </svg>
                 <p class="text-sm font-medium">{{ passwordChangeStatus.error }}</p>
@@ -457,26 +489,26 @@ const getIconPath = (iconName) => {
               </label>
               <div class="relative">
                 <input
-                  type="text"
-                  name="newUsername"
-                  id="newUsername"
-                  v-model="passwordForm.newUsername"
-                  class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent pl-3 pr-10 py-2"
-                  :class="
+                    type="text"
+                    name="newUsername"
+                    id="newUsername"
+                    v-model="passwordForm.newUsername"
+                    class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent pl-3 pr-10 py-2"
+                    :class="
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-primary-500/70'
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-primary-500/60'
                   "
-                  :placeholder="$t('admin.settings.adminSettings.newUsernamePlaceholder')"
+                    :placeholder="$t('admin.settings.adminSettings.newUsernamePlaceholder')"
                 />
                 <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                   <svg
-                    class="h-5 w-5 transition-colors duration-200"
-                    :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                      class="h-5 w-5 transition-colors duration-200"
+                      :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
@@ -493,33 +525,33 @@ const getIconPath = (iconName) => {
               </label>
               <div class="relative">
                 <input
-                  type="password"
-                  name="currentPassword"
-                  id="currentPassword"
-                  v-model="passwordForm.currentPassword"
-                  required
-                  class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent pl-3 pr-10 py-2"
-                  :class="
+                    type="password"
+                    name="currentPassword"
+                    id="currentPassword"
+                    v-model="passwordForm.currentPassword"
+                    required
+                    class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent pl-3 pr-10 py-2"
+                    :class="
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-primary-500/70'
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-primary-500/60'
                   "
-                  :placeholder="$t('admin.settings.adminSettings.currentPasswordPlaceholder')"
+                    :placeholder="$t('admin.settings.adminSettings.currentPasswordPlaceholder')"
                 />
                 <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                   <svg
-                    class="h-5 w-5 transition-colors duration-200"
-                    :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                      class="h-5 w-5 transition-colors duration-200"
+                      :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                   >
                     <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
                     />
                   </svg>
                 </div>
@@ -534,32 +566,32 @@ const getIconPath = (iconName) => {
               </label>
               <div class="relative">
                 <input
-                  type="password"
-                  name="newPassword"
-                  id="newPassword"
-                  v-model="passwordForm.newPassword"
-                  class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent pl-3 pr-10 py-2"
-                  :class="
+                    type="password"
+                    name="newPassword"
+                    id="newPassword"
+                    v-model="passwordForm.newPassword"
+                    class="block w-full rounded border shadow-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent pl-3 pr-10 py-2"
+                    :class="
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-primary-500/70'
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-primary-500/60'
                   "
-                  :placeholder="$t('admin.settings.adminSettings.newPasswordPlaceholder')"
+                    :placeholder="$t('admin.settings.adminSettings.newPasswordPlaceholder')"
                 />
                 <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                   <svg
-                    class="h-5 w-5 transition-colors duration-200"
-                    :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                      class="h-5 w-5 transition-colors duration-200"
+                      :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                   >
                     <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                     />
                   </svg>
                 </div>
@@ -570,10 +602,10 @@ const getIconPath = (iconName) => {
             <!-- 表单按钮 -->
             <div class="form-footer mt-4 flex justify-end">
               <button
-                type="submit"
-                :disabled="passwordChangeStatus.loading"
-                class="inline-flex items-center justify-center rounded border border-transparent shadow-sm transition duration-150 ease-in-out px-4 py-1.5 text-sm font-medium"
-                :class="[
+                  type="submit"
+                  :disabled="passwordChangeStatus.loading"
+                  class="inline-flex items-center justify-center rounded border border-transparent shadow-sm transition duration-150 ease-in-out px-4 py-1.5 text-sm font-medium"
+                  :class="[
                   passwordChangeStatus.loading
                     ? 'bg-primary-400 cursor-not-allowed text-white'
                     : 'bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:ring-offset-1 text-white',
@@ -583,9 +615,9 @@ const getIconPath = (iconName) => {
                   <svg class="animate-spin -ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
                   {{ $t("admin.settings.status.processing") }}
@@ -603,16 +635,16 @@ const getIconPath = (iconName) => {
 
         <!-- 卡片底部提示信息 - 更简洁 -->
         <div
-          class="card-footer px-4 py-2 bg-opacity-50 border-t text-xs transition-colors duration-200"
-          :class="darkMode ? 'bg-gray-700/50 border-gray-700 text-gray-400' : 'bg-gray-50/50 border-gray-100 text-gray-500'"
+            class="card-footer px-4 py-2 bg-opacity-50 border-t text-xs transition-colors duration-200"
+            :class="darkMode ? 'bg-gray-700/50 border-gray-700 text-gray-400' : 'bg-gray-50/50 border-gray-100 text-gray-500'"
         >
           <div class="flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
             <p>{{ $t("admin.settings.adminSettings.footerHint") }}</p>

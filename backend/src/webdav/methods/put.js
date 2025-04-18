@@ -337,13 +337,32 @@ export async function handlePut(c, path, userId, userType, db) {
     // 为可能导致问题的客户端降低分片上传阈值
     const effectiveThreshold = clientInfo.isPotentiallyProblematicClient ? WINDOWS_CLIENT_MULTIPART_THRESHOLD : MULTIPART_THRESHOLD;
 
-    // 添加代理上传逻辑 - 使用预签名URL和代理模式避免Worker的CPU限制
-    // 设定使用代理模式的文件大小阈值(2MB)，超过此大小的文件将使用代理模式
-    const PROXY_THRESHOLD = 2 * 1024 * 1024; // 2 MB
+    // 获取系统设置中的WebDAV上传模式
+    let webdavUploadMode = "auto"; // 默认为自动模式
+    try {
+      // 查询系统设置
+      const uploadModeSetting = await db.prepare("SELECT value FROM system_settings WHERE key = ?").bind("webdav_upload_mode").first();
+      if (uploadModeSetting && uploadModeSetting.value) {
+        webdavUploadMode = uploadModeSetting.value;
+      }
+    } catch (error) {
+      console.warn(`WebDAV PUT - 获取上传模式设置失败，使用默认模式:`, error);
+    }
 
-    // 非空文件且大于代理阈值时使用代理模式
-    if (!emptyBodyCheck && declaredContentLength > PROXY_THRESHOLD) {
-      console.log(`WebDAV PUT - 文件大小(${declaredContentLength}字节)超过代理阈值(${PROXY_THRESHOLD}字节)，使用代理模式上传`);
+    console.log(`WebDAV PUT - 当前上传模式设置: ${webdavUploadMode}`);
+
+    // 根据系统设置和文件大小决定使用哪种上传模式
+    const PROXY_THRESHOLD = 5 * 1024 * 1024; // 2 MB
+
+    // 判断是否应该使用代理模式：
+    // 1. 如果设置为'proxy'，则始终使用代理模式
+    // 2. 如果设置为'auto'，则根据文件大小判断
+    // 3. 如果设置为'multipart'，则始终使用分片上传
+    const shouldUseProxy = webdavUploadMode === "proxy" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > PROXY_THRESHOLD);
+
+    // 非空文件且应该使用代理模式时进行代理上传
+    if (shouldUseProxy) {
+      console.log(`WebDAV PUT - 使用代理模式上传，上传模式:${webdavUploadMode}，文件大小:${declaredContentLength}字节${webdavUploadMode === "proxy" ? "(强制代理模式)" : ""}`);
 
       try {
         // 创建S3的PUT对象命令

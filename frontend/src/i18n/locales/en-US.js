@@ -437,6 +437,18 @@ export default {
         newPasswordHint: "Leave empty to keep current password",
         footerHint: "After updating account info, you will be logged out and need to log in again",
       },
+      webdavSettings: {
+        title: "WebDAV Settings",
+        description: "Configure WebDAV service behavior",
+        uploadModeLabel: "WebDAV Upload Mode",
+        uploadModeHint:
+            "Select the WebDAV method for uploading files, with a 5MB threshold. Due to Cloudflare restrictions, it is recommended to use proxy mode for Workers. For Docker, you can choose freely.",
+        modes: {
+          auto: "Automatic (Recommended)",
+          proxy: "Proxy Upload",
+          multipart: "Multipart Upload",
+        },
+      },
       status: {
         success: "System settings updated successfully!",
         adminUpdateSuccess: "Information updated successfully! System will log you out in 3 seconds. Please login again with new credentials.",
@@ -524,7 +536,7 @@ export default {
         },
         securityTip: "Security Tip",
         securityMessage:
-          "API keys have operational permissions. Keep your key secure after creation. If you enable mount permission, please also enable file permission. Otherwise, the mount function will not work.",
+            "API keys have operational permissions. Keep your key secure after creation. If you enable mount permission, please also enable file permission. Otherwise, the mount function will not work.",
         cancel: "Cancel",
         create: "Create Key",
         processing: "Processing...",
