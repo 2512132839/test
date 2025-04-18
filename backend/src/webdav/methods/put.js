@@ -352,7 +352,8 @@ export async function handlePut(c, path, userId, userType, db) {
     console.log(`WebDAV PUT - 当前上传模式设置: ${webdavUploadMode}`);
 
     // 根据系统设置和文件大小决定使用哪种上传模式
-    const PROXY_THRESHOLD = 5 * 1024 * 1024; // 2 MB
+    const DIRECT_THRESHOLD = 10 * 1024 * 1024; // 10MB 小文件阈值
+    const PROXY_THRESHOLD = 50 * 1024 * 1024; // 50MB 代理模式阈值
 
     // 判断是否应该使用代理模式：
     // 1. 如果设置为'proxy'，则始终使用代理模式
@@ -360,8 +361,15 @@ export async function handlePut(c, path, userId, userType, db) {
     // 3. 如果设置为'multipart'，则始终使用分片上传
     const shouldUseProxy = webdavUploadMode === "proxy" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > PROXY_THRESHOLD);
 
+    // 判断是否应该使用直接上传模式：
+    // 1. 如果设置为'direct'，则始终使用直接上传模式
+    // 2. 如果设置为'auto'，小于指定阈值的文件使用直接上传
+    // 注意：空文件已经有专门的处理逻辑，这里只处理非空小文件
+    const shouldUseDirect =
+        webdavUploadMode === "direct" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > 0 && declaredContentLength <= DIRECT_THRESHOLD);
+
     // 非空文件且应该使用代理模式时进行代理上传
-    if (shouldUseProxy) {
+    if (webdavUploadMode !== "direct" && shouldUseProxy) {
       console.log(`WebDAV PUT - 使用代理模式上传，上传模式:${webdavUploadMode}，文件大小:${declaredContentLength}字节${webdavUploadMode === "proxy" ? "(强制代理模式)" : ""}`);
 
       try {
@@ -425,78 +433,151 @@ export async function handlePut(c, path, userId, userType, db) {
       });
     }
 
-    // 获取请求体流
-    const bodyStream = c.req.body;
+    // 处理应该直接上传的小文件，或者启用了强制直传模式
+    if (webdavUploadMode === "direct" || shouldUseDirect) {
+      console.log(`WebDAV PUT - 使用直接上传模式，文件大小:${declaredContentLength}字节${webdavUploadMode === "direct" ? "(直接上传模式)" : ""}`);
 
-    if (!bodyStream) {
-      return new Response("请求体不可用", {
-        status: 400,
-        headers: { "Content-Type": "text/plain" },
-      });
+      try {
+        // 读取请求体的所有数据
+        const reader = c.req.body.getReader();
+        let chunks = [];
+        let bytesRead = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          chunks.push(value);
+          bytesRead += value.length;
+        }
+
+        // 合并所有数据块
+        const allBytes = new Uint8Array(bytesRead);
+        let offset = 0;
+        for (const chunk of chunks) {
+          allBytes.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        // 直接上传到S3
+        const putParams = {
+          Bucket: s3Config.bucket_name,
+          Key: s3SubPath,
+          Body: allBytes,
+          ContentType: contentType,
+        };
+
+        console.log(`WebDAV PUT - 开始直接上传 ${bytesRead} 字节到 S3`);
+
+        // 直接上传文件
+        const putCommand = new PutObjectCommand(putParams);
+        const result = await s3Client.send(putCommand);
+
+        // 处理成功上传后的操作
+        await updateMountLastUsed(db, mount.id);
+        await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
+
+        const uploadDuration = Math.ceil((Date.now() - requestStartTime) / 1000);
+        const uploadSpeedMBps = (bytesRead / 1024 / 1024 / uploadDuration).toFixed(2);
+
+        console.log(`WebDAV PUT - 直接上传成功，总用时: ${uploadDuration}秒，平均速度: ${uploadSpeedMBps}MB/s`);
+
+        // 返回成功响应
+        return new Response(null, {
+          status: 201, // Created
+          headers: {
+            "Content-Type": "text/plain",
+            "Content-Length": "0",
+          },
+        });
+      } catch (error) {
+        // 如果设置为强制直传模式，且出错，则不再回退到其他模式
+        if (webdavUploadMode === "direct") {
+          console.error(`WebDAV PUT - 直接上传失败且处于强制直传模式，无法回退:`, error);
+          throw error;
+        }
+        console.error(`WebDAV PUT - 直接上传失败，回退到分片上传:`, error);
+        // 如果直接上传失败，继续执行后面的代码，回退到分片上传
+      }
     }
 
-    // 处理非空文件 - 使用流式分片上传
-    console.log(`WebDAV PUT - 文件名: ${filename}, 开始流式分片上传`);
+    // 如果设置了强制使用分片上传，或者其他模式失败了回退到这里
+    if (webdavUploadMode === "multipart" || (!shouldUseProxy && !shouldUseDirect) || webdavUploadMode === "auto") {
+      console.log(`WebDAV PUT - 使用分片上传模式${webdavUploadMode === "multipart" ? "(强制分片模式)" : ""}`);
 
-    let uploadId = null;
-    let s3Key = null;
+      // 获取请求体流
+      const bodyStream = c.req.body;
 
-    try {
-      // 初始化分片上传
-      const initResult = await initializeMultipartUpload(db, path, contentType, declaredContentLength, userId, userType, c.env.ENCRYPTION_SECRET, filename);
-
-      uploadId = initResult.uploadId;
-      s3Key = initResult.key;
-      const recommendedPartSize = initResult.recommendedPartSize || effectiveThreshold;
-
-      console.log(`WebDAV PUT - 初始化分片上传成功，开始流式处理 (分片大小: ${(recommendedPartSize / (1024 * 1024)).toFixed(2)}MB)`);
-
-      // 创建一个带重试机制的上传分片回调函数
-      const uploadPartCallback = async (partNumber, partData) => {
-        return await uploadPartWithRetry(db, path, uploadId, partNumber, partData, userId, userType, c.env.ENCRYPTION_SECRET, s3Key);
-      };
-
-      // 处理流并上传分片，添加特殊客户端信息
-      const { parts, totalProcessed } = await processStreamInChunks(bodyStream, recommendedPartSize, uploadPartCallback, {
-        isSpecialClient: clientInfo.isPotentiallyProblematicClient || clientInfo.isChunkedClient,
-      });
-
-      console.log(`WebDAV PUT - 所有分片上传完成，开始完成分片上传，总共上传了 ${totalProcessed} 字节`);
-
-      // 完成分片上传
-      const completeResult = await completeMultipartUpload(db, path, uploadId, parts, userId, userType, c.env.ENCRYPTION_SECRET, s3Key, contentType, totalProcessed);
-
-      // 清理缓存
-      await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
-
-      const uploadDuration = Math.ceil((Date.now() - requestStartTime) / 1000);
-      const uploadSpeedMBps = (totalProcessed / 1024 / 1024 / uploadDuration).toFixed(2);
-
-      console.log(`WebDAV PUT - 分片上传完成成功，总用时: ${uploadDuration}秒，平均速度: ${uploadSpeedMBps}MB/s`);
-
-      // 成功完成分片上传后返回成功响应
-      return new Response(null, {
-        status: 201, // Created
-        headers: {
-          "Content-Type": "text/plain",
-          "Content-Length": "0",
-        },
-      });
-    } catch (error) {
-      console.error(`WebDAV PUT - 分片上传过程中出错:`, error);
-
-      // 如果是在分片上传过程中出错，尝试中止上传
-      if (uploadId) {
-        try {
-          console.log(`WebDAV PUT - 尝试中止分片上传: ${uploadId}`);
-          await abortMultipartUpload(db, path, uploadId, userId, userType, c.env.ENCRYPTION_SECRET, s3Key);
-          console.log(`WebDAV PUT - 已成功中止分片上传: ${uploadId}`);
-        } catch (abortError) {
-          console.error(`WebDAV PUT - 中止分片上传失败:`, abortError);
-        }
+      if (!bodyStream) {
+        return new Response("请求体不可用", {
+          status: 400,
+          headers: { "Content-Type": "text/plain" },
+        });
       }
 
-      throw error; // 继续抛出原始错误
+      // 处理非空文件 - 使用流式分片上传
+      console.log(`WebDAV PUT - 文件名: ${filename}, 开始流式分片上传`);
+
+      let uploadId = null;
+      let s3Key = null;
+
+      try {
+        // 初始化分片上传
+        const initResult = await initializeMultipartUpload(db, path, contentType, declaredContentLength, userId, userType, c.env.ENCRYPTION_SECRET, filename);
+
+        uploadId = initResult.uploadId;
+        s3Key = initResult.key;
+        const recommendedPartSize = initResult.recommendedPartSize || effectiveThreshold;
+
+        console.log(`WebDAV PUT - 初始化分片上传成功，开始流式处理 (分片大小: ${(recommendedPartSize / (1024 * 1024)).toFixed(2)}MB)`);
+
+        // 创建一个带重试机制的上传分片回调函数
+        const uploadPartCallback = async (partNumber, partData) => {
+          return await uploadPartWithRetry(db, path, uploadId, partNumber, partData, userId, userType, c.env.ENCRYPTION_SECRET, s3Key);
+        };
+
+        // 处理流并上传分片，添加特殊客户端信息
+        const { parts, totalProcessed } = await processStreamInChunks(bodyStream, recommendedPartSize, uploadPartCallback, {
+          isSpecialClient: clientInfo.isPotentiallyProblematicClient || clientInfo.isChunkedClient,
+        });
+
+        console.log(`WebDAV PUT - 所有分片上传完成，开始完成分片上传，总共上传了 ${totalProcessed} 字节`);
+
+        // 完成分片上传
+        const completeResult = await completeMultipartUpload(db, path, uploadId, parts, userId, userType, c.env.ENCRYPTION_SECRET, s3Key, contentType, totalProcessed);
+
+        // 清理缓存
+        await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
+
+        const uploadDuration = Math.ceil((Date.now() - requestStartTime) / 1000);
+        const uploadSpeedMBps = (totalProcessed / 1024 / 1024 / uploadDuration).toFixed(2);
+
+        console.log(`WebDAV PUT - 分片上传完成成功，总用时: ${uploadDuration}秒，平均速度: ${uploadSpeedMBps}MB/s`);
+
+        // 成功完成分片上传后返回成功响应
+        return new Response(null, {
+          status: 201, // Created
+          headers: {
+            "Content-Type": "text/plain",
+            "Content-Length": "0",
+          },
+        });
+      } catch (error) {
+        console.error(`WebDAV PUT - 分片上传过程中出错:`, error);
+
+        // 如果是在分片上传过程中出错，尝试中止上传
+        if (uploadId) {
+          try {
+            console.log(`WebDAV PUT - 尝试中止分片上传: ${uploadId}`);
+            await abortMultipartUpload(db, path, uploadId, userId, userType, c.env.ENCRYPTION_SECRET, s3Key);
+            console.log(`WebDAV PUT - 已成功中止分片上传: ${uploadId}`);
+          } catch (abortError) {
+            console.error(`WebDAV PUT - 中止分片上传失败:`, abortError);
+          }
+        }
+
+        throw error; // 继续抛出原始错误
+      }
     }
   } catch (error) {
     console.error("PUT请求处理错误:", error);

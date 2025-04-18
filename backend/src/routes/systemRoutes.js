@@ -38,6 +38,19 @@ systemRoutes.put("/api/admin/system-settings", authMiddleware, async (c) => {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请求参数无效"), ApiStatus.BAD_REQUEST);
     }
 
+    // 验证webdav_upload_mode参数（如果存在）
+    if (body.webdav_upload_mode !== undefined) {
+      const validModes = ["auto", "proxy", "multipart", "direct"];
+      if (!validModes.includes(body.webdav_upload_mode)) {
+        return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, `WebDAV上传模式无效，有效值为: ${validModes.join(", ")}`), ApiStatus.BAD_REQUEST);
+      }
+
+      // 对于direct模式，添加警告提示
+      if (body.webdav_upload_mode === "direct") {
+        console.warn("系统设置：WebDAV上传模式设置为直接上传模式，这可能在上传大文件时导致性能问题");
+      }
+    }
+
     // 更新系统设置
     await updateSystemSettings(db, body);
 

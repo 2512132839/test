@@ -441,12 +441,13 @@ export default {
         title: "WebDAV设置",
         description: "配置WebDAV服务的行为方式",
         uploadModeLabel: "WebDAV上传模式",
-        uploadModeHint: "选择WebDAV上传文件方式，以5MB为分界线，受Cloudflare限制Worker建议使用代理模式，docker随意选择",
+        uploadModeHint: "选择WebDAV上传文件方式，自动以10MB以下为直传。受Cloudflare限制，Worker建议使用代理模式；Docker环境可随意选择。",
         modes: {
           auto: "自动选择（推荐）",
-          proxy: "预签名代理上传",
-          multipart: "分片上传",
-        }
+          proxy: "预签名代理上传(需跨域)",
+          multipart: "分片上传(beta)",
+          direct: "直接上传",
+        },
       },
       status: {
         success: "系统设置已成功更新！",

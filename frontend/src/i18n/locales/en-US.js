@@ -442,11 +442,12 @@ export default {
         description: "Configure WebDAV service behavior",
         uploadModeLabel: "WebDAV Upload Mode",
         uploadModeHint:
-            "Select the WebDAV method for uploading files, with a 5MB threshold. Due to Cloudflare restrictions, it is recommended to use proxy mode for Workers. For Docker, you can choose freely.",
+            "Select WebDAV upload file mode, automatically with less than 10MB for direct transfer. Restricted by Cloudflare, Worker is recommended to use proxy mode; Docker environment can be chosen at will.",
         modes: {
           auto: "Automatic (Recommended)",
-          proxy: "Proxy Upload",
-          multipart: "Multipart Upload",
+          proxy: "Proxy Upload (CORS Required)",
+          multipart: "Multipart Upload (beta)",
+          direct: "Direct Upload",
         },
       },
       status: {

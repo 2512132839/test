@@ -51,6 +51,7 @@ const webdavUploadModes = ref([
   { value: "auto", label: "admin.settings.webdavSettings.modes.auto" },
   { value: "proxy", label: "admin.settings.webdavSettings.modes.proxy" },
   { value: "multipart", label: "admin.settings.webdavSettings.modes.multipart" },
+  { value: "direct", label: "admin.settings.webdavSettings.modes.direct" },
 ]);
 
 // 系统设置更新状态
