@@ -74,6 +74,35 @@ adminPasteRoutes.delete("/api/admin/pastes", authMiddleware, async (c) => {
   }
 });
 
+// 批量删除文本分享 - POST方法（需要认证）
+// 添加POST端点以解决某些Docker环境中DELETE请求无法正确传递请求体的问题
+adminPasteRoutes.post("/api/admin/pastes/batch-delete", authMiddleware, async (c) => {
+  const db = c.env.DB;
+
+  try {
+    // 从请求体中获取要删除的ID数组
+    const { ids, clearExpired } = await c.req.json();
+
+    const deletedCount = await batchDeletePastes(db, ids, clearExpired);
+
+    // 返回删除结果
+    if (clearExpired) {
+      return c.json({
+        code: ApiStatus.SUCCESS,
+        message: `已清理 ${deletedCount} 个过期分享`,
+      });
+    } else {
+      return c.json({
+        code: ApiStatus.SUCCESS,
+        message: `已删除 ${deletedCount} 个分享`,
+      });
+    }
+  } catch (error) {
+    console.error("批量删除文本失败:", error);
+    throw error;
+  }
+});
+
 // 修改文本分享（需要认证）
 adminPasteRoutes.put("/api/admin/pastes/:slug", authMiddleware, async (c) => {
   const db = c.env.DB;
