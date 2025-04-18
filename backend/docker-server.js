@@ -49,40 +49,6 @@ function logMessage(level, message, data = null) {
   }
 }
 
-// Express应用程序设置
-const server = express();
-const PORT = process.env.PORT || 8787;
-
-// 数据目录和数据库设置
-const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const dbPath = path.join(dataDir, "cloudpaste.db");
-logMessage("info", `数据库文件路径: ${dbPath}`);
-
-// 初始化SQLite适配器
-const sqliteAdapter = createSQLiteAdapter(dbPath);
-let isDbInitialized = false;
-
-// ==========================================
-// WebDAV支持配置 - 集中WebDAV相关定义
-// ==========================================
-
-// WebDAV支持的HTTP方法
-const WEBDAV_METHODS = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"];
-
-// CORS配置 - WebDAV方法支持
-const corsOptions = {
-  origin: "*", // 允许的域名，如果未设置则允许所有
-  methods: WEBDAV_METHODS.join(","), // 使用上面定义的WebDAV方法
-  credentials: true,
-  optionsSuccessStatus: 204,
-  maxAge: 86400, // 缓存预检请求结果24小时
-  exposedHeaders: ["ETag", "Content-Type", "Content-Length", "Last-Modified"],
-};
-
 // ==========================================
 // SQLite适配器类 - 提供与Cloudflare D1数据库兼容的接口
 // ==========================================
@@ -162,6 +128,75 @@ class SQLiteAdapter {
     }
   }
 }
+
+// 创建SQLite适配器实例的工厂函数
+function createSQLiteAdapter(dbPath) {
+  return new SQLiteAdapter(dbPath);
+}
+
+/**
+ * 统一的错误响应处理函数
+ * @param {Error} error - 错误对象
+ * @param {number} status - HTTP状态码
+ * @param {string} defaultMessage - 默认错误消息
+ */
+function createErrorResponse(error, status = ApiStatus.INTERNAL_ERROR, defaultMessage = "服务器内部错误") {
+  // 生成唯一错误ID用于日志跟踪
+  const errorId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+
+  // 记录详细错误信息但过滤敏感数据
+  const sanitizedErrorMessage = error.message ? error.message.replace(/key|password|token|secret|auth/gi, (match) => "*".repeat(match.length)) : defaultMessage;
+
+  // 在日志中包含错误ID方便后续追踪
+  logMessage("error", `[${errorId}] 服务器错误:`, {
+    status,
+    message: sanitizedErrorMessage,
+    stack: error.stack ? error.stack.split("\n").slice(0, 3).join("\n") : null,
+  });
+
+  // 对外部响应隐藏技术细节
+  return {
+    code: status,
+    message: defaultMessage,
+    errorId: errorId, // 包含错误ID便于用户报告问题
+    success: false,
+    data: null,
+  };
+}
+
+// Express应用程序设置
+const server = express();
+const PORT = process.env.PORT || 8787;
+
+// 数据目录和数据库设置
+const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const dbPath = path.join(dataDir, "cloudpaste.db");
+logMessage("info", `数据库文件路径: ${dbPath}`);
+
+// 初始化SQLite适配器
+const sqliteAdapter = createSQLiteAdapter(dbPath);
+let isDbInitialized = false;
+
+// ==========================================
+// WebDAV支持配置 - 集中WebDAV相关定义
+// ==========================================
+
+// WebDAV支持的HTTP方法
+const WEBDAV_METHODS = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"];
+
+// CORS配置 - WebDAV方法支持
+const corsOptions = {
+  origin: "*", // 允许的域名，如果未设置则允许所有
+  methods: WEBDAV_METHODS.join(","), // 使用上面定义的WebDAV方法
+  credentials: true,
+  optionsSuccessStatus: 204,
+  maxAge: 86400, // 缓存预检请求结果24小时
+  exposedHeaders: ["ETag", "Content-Type", "Content-Length", "Last-Modified"],
+};
 
 // ==========================================
 // 中间件和服务器配置
@@ -411,41 +446,6 @@ server.use("*", async (req, res) => {
 // ==========================================
 // 工具函数
 // ==========================================
-
-// 创建SQLite适配器实例的工厂函数
-function createSQLiteAdapter(dbPath) {
-  return new SQLiteAdapter(dbPath);
-}
-
-/**
- * 统一的错误响应处理函数
- * @param {Error} error - 错误对象
- * @param {number} status - HTTP状态码
- * @param {string} defaultMessage - 默认错误消息
- */
-function createErrorResponse(error, status = ApiStatus.INTERNAL_ERROR, defaultMessage = "服务器内部错误") {
-  // 生成唯一错误ID用于日志跟踪
-  const errorId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-
-  // 记录详细错误信息但过滤敏感数据
-  const sanitizedErrorMessage = error.message ? error.message.replace(/key|password|token|secret|auth/gi, (match) => "*".repeat(match.length)) : defaultMessage;
-
-  // 在日志中包含错误ID方便后续追踪
-  logMessage("error", `[${errorId}] 服务器错误:`, {
-    status,
-    message: sanitizedErrorMessage,
-    stack: error.stack ? error.stack.split("\n").slice(0, 3).join("\n") : null,
-  });
-
-  // 对外部响应隐藏技术细节
-  return {
-    code: status,
-    message: defaultMessage,
-    errorId: errorId, // 包含错误ID便于用户报告问题
-    success: false,
-    data: null,
-  };
-}
 
 /**
  * 工具函数：创建适配的Request对象
