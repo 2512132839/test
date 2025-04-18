@@ -531,6 +531,7 @@ async function proxyUploadToS3(c, presignedUrl, contentType) {
         "Content-Type": contentType || "application/octet-stream",
       },
       body: c.req.body, // 直接使用请求体流，不缓冲
+      duplex: "half", // 添加duplex选项以支持Node.js 18+的fetch API要求
     });
 
     if (response.ok) {
