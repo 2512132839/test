@@ -17,8 +17,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
  */
 export async function getS3ConfigsByAdmin(db, adminId) {
   const configs = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, name, provider_type, endpoint_url, bucket_name, 
         region, path_style, default_folder, is_public, is_default, 
@@ -27,9 +27,9 @@ export async function getS3ConfigsByAdmin(db, adminId) {
       WHERE admin_id = ?
       ORDER BY name ASC
       `
-      )
-      .bind(adminId)
-      .all();
+    )
+    .bind(adminId)
+    .all();
 
   return configs.results;
 }
@@ -41,8 +41,8 @@ export async function getS3ConfigsByAdmin(db, adminId) {
  */
 export async function getPublicS3Configs(db) {
   const configs = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, name, provider_type, endpoint_url, bucket_name, 
         region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes
@@ -50,8 +50,8 @@ export async function getPublicS3Configs(db) {
       WHERE is_public = 1
       ORDER BY name ASC
       `
-      )
-      .all();
+    )
+    .all();
 
   return configs.results;
 }
@@ -65,8 +65,8 @@ export async function getPublicS3Configs(db) {
  */
 export async function getS3ConfigByIdForAdmin(db, id, adminId) {
   const config = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, name, provider_type, endpoint_url, bucket_name, 
         region, path_style, default_folder, is_public, is_default, 
@@ -74,9 +74,9 @@ export async function getS3ConfigByIdForAdmin(db, id, adminId) {
       FROM ${DbTables.S3_CONFIGS}
       WHERE id = ? AND admin_id = ?
     `
-      )
-      .bind(id, adminId)
-      .first();
+    )
+    .bind(id, adminId)
+    .first();
 
   if (!config) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
@@ -93,17 +93,17 @@ export async function getS3ConfigByIdForAdmin(db, id, adminId) {
  */
 export async function getPublicS3ConfigById(db, id) {
   const config = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, name, provider_type, endpoint_url, bucket_name, 
         region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes
       FROM ${DbTables.S3_CONFIGS}
       WHERE id = ? AND is_public = 1
     `
-      )
-      .bind(id)
-      .first();
+    )
+    .bind(id)
+    .first();
 
   if (!config) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
@@ -166,8 +166,8 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
 
   // 添加到数据库
   await db
-      .prepare(
-          `
+    .prepare(
+      `
     INSERT INTO ${DbTables.S3_CONFIGS} (
       id, name, provider_type, endpoint_url, bucket_name, 
       region, access_key_id, secret_access_key, path_style, 
@@ -178,23 +178,23 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
       ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `
-      )
-      .bind(
-          id,
-          configData.name,
-          configData.provider_type,
-          configData.endpoint_url,
-          configData.bucket_name,
-          region,
-          encryptedAccessKey,
-          encryptedSecretKey,
-          pathStyle,
-          defaultFolder,
-          isPublic,
-          adminId,
-          totalStorageBytes
-      )
-      .run();
+    )
+    .bind(
+      id,
+      configData.name,
+      configData.provider_type,
+      configData.endpoint_url,
+      configData.bucket_name,
+      region,
+      encryptedAccessKey,
+      encryptedSecretKey,
+      pathStyle,
+      defaultFolder,
+      isPublic,
+      adminId,
+      totalStorageBytes
+    )
+    .run();
 
   // 返回创建成功响应（不包含敏感字段）
   return {
@@ -336,9 +336,9 @@ export async function updateS3Config(db, id, updateData, adminId, encryptionSecr
 
   // 执行更新
   await db
-      .prepare(`UPDATE ${DbTables.S3_CONFIGS} SET ${updateFields.join(", ")} WHERE id = ? AND admin_id = ?`)
-      .bind(...params)
-      .run();
+    .prepare(`UPDATE ${DbTables.S3_CONFIGS} SET ${updateFields.join(", ")} WHERE id = ? AND admin_id = ?`)
+    .bind(...params)
+    .run();
 }
 
 /**
@@ -358,14 +358,14 @@ export async function deleteS3Config(db, id, adminId) {
 
   // 检查是否有文件使用此配置
   const filesCount = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT COUNT(*) as count FROM ${DbTables.FILES}
       WHERE s3_config_id = ?
     `
-      )
-      .bind(id)
-      .first();
+    )
+    .bind(id)
+    .first();
 
   if (filesCount && filesCount.count > 0) {
     throw new HTTPException(ApiStatus.CONFLICT, { message: `无法删除此配置，因为有${filesCount.count}个文件正在使用它` });
@@ -394,21 +394,21 @@ export async function setDefaultS3Config(db, id, adminId) {
   await db.batch([
     // 1. 首先将所有配置设置为非默认
     db
-        .prepare(
-            `UPDATE ${DbTables.S3_CONFIGS}
+      .prepare(
+        `UPDATE ${DbTables.S3_CONFIGS}
        SET is_default = 0, updated_at = CURRENT_TIMESTAMP
        WHERE admin_id = ?`
-        )
-        .bind(adminId),
+      )
+      .bind(adminId),
 
     // 2. 然后将当前配置设置为默认
     db
-        .prepare(
-            `UPDATE ${DbTables.S3_CONFIGS}
+      .prepare(
+        `UPDATE ${DbTables.S3_CONFIGS}
        SET is_default = 1, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
-        )
-        .bind(id),
+      )
+      .bind(id),
   ]);
 }
 
@@ -424,14 +424,14 @@ export async function setDefaultS3Config(db, id, adminId) {
 export async function testS3Connection(db, id, adminId, encryptionSecret, requestOrigin) {
   // 获取S3配置
   const config = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT * FROM ${DbTables.S3_CONFIGS}
       WHERE id = ? AND admin_id = ?
     `
-      )
-      .bind(id, adminId)
-      .first();
+    )
+    .bind(id, adminId)
+    .first();
 
   if (!config) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
@@ -819,15 +819,15 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
 
   // 更新最后使用时间
   await db
-      .prepare(
-          `
+    .prepare(
+      `
       UPDATE ${DbTables.S3_CONFIGS}
       SET last_used = ?
       WHERE id = ?
     `
-      )
-      .bind(getLocalTimeString(), id)
-      .run();
+    )
+    .bind(getLocalTimeString(), id)
+    .run();
 
   // 生成友好的测试结果消息
   let message = "S3配置测试";
@@ -877,8 +877,8 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
 export async function getS3ConfigsWithUsage(db) {
   // 1. 获取所有S3配置
   const configs = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, name, provider_type, endpoint_url, bucket_name, 
         region, path_style, default_folder, is_public, is_default, 
@@ -886,24 +886,24 @@ export async function getS3ConfigsWithUsage(db) {
       FROM ${DbTables.S3_CONFIGS}
       ORDER BY name ASC
       `
-      )
-      .all();
+    )
+    .all();
 
   // 2. 对每个配置，查询使用情况
   const result = [];
   for (const config of configs.results) {
     // 查询每个配置的文件数和总大小
     const usage = await db
-        .prepare(
-            `
+      .prepare(
+        `
         SELECT 
           COUNT(*) as file_count, 
           SUM(size) as total_size
         FROM ${DbTables.FILES}
         WHERE s3_config_id = ?`
-        )
-        .bind(config.id)
-        .first();
+      )
+      .bind(config.id)
+      .first();
 
     result.push({
       ...config,

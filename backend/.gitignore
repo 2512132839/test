@@ -1,5 +1,5 @@
-# Dependencies
-node_modules
+# Dependencies1
+/node_modules/
 
 # Wrangler specific
 .wrangler/

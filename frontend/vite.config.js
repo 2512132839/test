@@ -25,7 +25,8 @@ export default defineConfig(({ command, mode }) => {
     // 将环境变量作为定义注入到应用中
     define: {
       __APP_ENV__: JSON.stringify(env.VITE_APP_ENV || "production"),
-      __BACKEND_URL__: JSON.stringify(env.VITE_BACKEND_URL || ""),
+      // 使用动态import.meta.env来支持运行时环境变量
+      __BACKEND_URL__: "import.meta.env.VITE_BACKEND_URL",
     },
     server: {
       port: 3000,
@@ -59,7 +60,8 @@ export default defineConfig(({ command, mode }) => {
       minify: "terser",
       terserOptions: {
         compress: {
-          drop_console: true,
+          // 生产环境保留console.warn和console.error，方便调试环境变量问题
+          pure_funcs: ["console.log", "console.info", "console.debug"],
         },
       },
     },

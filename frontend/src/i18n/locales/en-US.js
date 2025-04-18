@@ -442,7 +442,7 @@ export default {
         description: "Configure WebDAV service behavior",
         uploadModeLabel: "WebDAV Upload Mode",
         uploadModeHint:
-            "Select WebDAV upload file mode, automatically with less than 10MB for direct transfer. Restricted by Cloudflare, Worker is recommended to use proxy mode; Docker environment can be chosen at will.",
+          "Select WebDAV upload file mode, automatically with less than 10MB for direct transfer. Restricted by Cloudflare, Worker is recommended to use proxy mode; Docker environment can be chosen at will.",
         modes: {
           auto: "Automatic (Recommended)",
           proxy: "Proxy Upload (CORS Required)",
@@ -537,7 +537,7 @@ export default {
         },
         securityTip: "Security Tip",
         securityMessage:
-            "API keys have operational permissions. Keep your key secure after creation. If you enable mount permission, please also enable file permission. Otherwise, the mount function will not work.",
+          "API keys have operational permissions. Keep your key secure after creation. If you enable mount permission, please also enable file permission. Otherwise, the mount function will not work.",
         cancel: "Cancel",
         create: "Create Key",
         processing: "Processing...",

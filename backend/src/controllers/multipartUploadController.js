@@ -6,9 +6,6 @@ import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload } from "../services/multipartUploadService.js";
 
-// 定义S3分片大小最小要求，除最后一个分片外，其他分片必须至少5MB
-const MIN_PART_SIZE = 5 * 1024 * 1024; // 5MB
-
 /**
  * 从Hono上下文中获取用户ID和类型
  * @param {HonoContext} c - Hono上下文

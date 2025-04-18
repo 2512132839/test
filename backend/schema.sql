@@ -21,7 +21,7 @@ CREATE TABLE pastes (
   password TEXT,
   expires_at DATETIME,
   max_views INTEGER,
-  views INTEGER DEFAULT 0,  
+  views INTEGER DEFAULT 0,
   created_by TEXT,                     -- 创建者标识（管理员ID或API密钥ID）
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -31,8 +31,6 @@ CREATE TABLE pastes (
 CREATE INDEX idx_pastes_slug ON pastes(slug);
 CREATE INDEX idx_pastes_created_at ON pastes(created_at DESC);
 CREATE INDEX idx_pastes_created_by ON pastes(created_by);    -- 添加创建者索引
-
-
 
 -- 创建admins表 - 存储管理员信息
 CREATE TABLE admins (
