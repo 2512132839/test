@@ -35,8 +35,8 @@ export async function getAllApiKeys(db) {
 
   // 查询所有密钥，并隐藏完整密钥
   const keys = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT 
       id, 
       name, 
@@ -51,8 +51,8 @@ export async function getAllApiKeys(db) {
     FROM ${DbTables.API_KEYS}
     ORDER BY created_at DESC
   `
-    )
-    .all();
+      )
+      .all();
 
   return keys.results;
 }
@@ -108,16 +108,19 @@ export async function createApiKey(db, keyData) {
   const filePermission = keyData.file_permission === true ? 1 : 0;
   const mountPermission = keyData.mount_permission === true ? 1 : 0;
 
+  // 创建时间
+  const createdAt = now.toISOString();
+
   // 插入到数据库
   await db
-    .prepare(
-      `
-    INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, mount_permission, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      .prepare(
+          `
+    INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, mount_permission, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `
-    )
-    .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, expiresAt.toISOString())
-    .run();
+      )
+      .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, expiresAt.toISOString(), createdAt)
+      .run();
 
   // 准备响应数据
   return {
@@ -128,7 +131,7 @@ export async function createApiKey(db, keyData) {
     text_permission: textPermission === 1,
     file_permission: filePermission === 1,
     mount_permission: mountPermission === 1,
-    created_at: now.toISOString(),
+    created_at: createdAt,
     expires_at: expiresAt.toISOString(),
   };
 }
@@ -216,9 +219,9 @@ export async function updateApiKey(db, id, updateData) {
 
   // 执行更新
   await db
-    .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
-    .bind(...params)
-    .run();
+      .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
+      .bind(...params)
+      .run();
 }
 
 /**
@@ -249,13 +252,13 @@ export async function getApiKeyByKey(db, key) {
   if (!key) return null;
 
   const result = await db
-    .prepare(
-      `SELECT id, name, key, text_permission, file_permission, mount_permission, expires_at, last_used
+      .prepare(
+          `SELECT id, name, key, text_permission, file_permission, mount_permission, expires_at, last_used
        FROM ${DbTables.API_KEYS}
        WHERE key = ?`
-    )
-    .bind(key)
-    .first();
+      )
+      .bind(key)
+      .first();
 
   return result;
 }

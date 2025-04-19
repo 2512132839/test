@@ -58,6 +58,8 @@ export default {
     qrCodeDownloaded: "二维码已下载",
     onlyAllowedChars: "仅允许使用字母、数字、-和_",
     invalidFormat: "无效格式，只允许使用字母、数字、-和_",
+    confirmClearContent: "确定要清空所有内容吗？",
+    contentCleared: "内容已清空",
     form: {
       remark: "备注(可选)",
       remarkPlaceholder: "添加备注信息...",

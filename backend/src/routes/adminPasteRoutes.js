@@ -47,29 +47,40 @@ adminPasteRoutes.delete("/api/admin/pastes/:id", authMiddleware, async (c) => {
 });
 
 // 批量删除文本分享（需要认证）
-adminPasteRoutes.delete("/api/admin/pastes", authMiddleware, async (c) => {
+adminPasteRoutes.post("/api/admin/pastes/batch-delete", authMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
     // 从请求体中获取要删除的ID数组
-    const { ids, clearExpired } = await c.req.json();
+    const { ids } = await c.req.json();
 
-    const deletedCount = await batchDeletePastes(db, ids, clearExpired);
+    const deletedCount = await batchDeletePastes(db, ids, false);
 
     // 返回删除结果
-    if (clearExpired) {
-      return c.json({
-        code: ApiStatus.SUCCESS,
-        message: `已清理 ${deletedCount} 个过期分享`,
-      });
-    } else {
-      return c.json({
-        code: ApiStatus.SUCCESS,
-        message: `已删除 ${deletedCount} 个分享`,
-      });
-    }
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `已删除 ${deletedCount} 个分享`,
+    });
   } catch (error) {
     console.error("批量删除文本失败:", error);
+    throw error;
+  }
+});
+
+// 清理过期文本分享（需要认证）
+adminPasteRoutes.post("/api/admin/pastes/clear-expired", authMiddleware, async (c) => {
+  const db = c.env.DB;
+
+  try {
+    const deletedCount = await batchDeletePastes(db, null, true);
+
+    // 返回删除结果
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `已清理 ${deletedCount} 个过期分享`,
+    });
+  } catch (error) {
+    console.error("清理过期文本失败:", error);
     throw error;
   }
 });

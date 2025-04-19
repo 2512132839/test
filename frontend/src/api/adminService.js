@@ -49,7 +49,7 @@ export function deletePaste(id) {
  * @returns {Promise<Object>} 删除结果
  */
 export function deletePastes(ids) {
-  return del("/admin/pastes", { ids });
+  return post("/admin/pastes/batch-delete", { ids });
 }
 
 /**
@@ -57,7 +57,7 @@ export function deletePastes(ids) {
  * @returns {Promise<Object>} 清理结果
  */
 export function clearExpiredPastes() {
-  return del("/admin/pastes", { clearExpired: true });
+  return post("/admin/pastes/clear-expired", { clearExpired: true });
 }
 
 /**

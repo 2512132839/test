@@ -57,6 +57,8 @@ export default {
     qrCodeDownloaded: "QR code downloaded",
     onlyAllowedChars: "Only letters, numbers, - and _ are allowed",
     invalidFormat: "Invalid format, only letters, numbers, - and _ are allowed",
+    confirmClearContent: "Are you sure you want to clear all content?",
+    contentCleared: "Content cleared",
     form: {
       remark: "Remark (Optional)",
       remarkPlaceholder: "Add remark information...",

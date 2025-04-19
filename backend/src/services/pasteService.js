@@ -143,31 +143,35 @@ export async function createPaste(db, pasteData, createdBy) {
     passwordHash = await hashPassword(pasteData.password);
   }
 
+  // 创建时间
+  const now = new Date();
+  const createdAt = now.toISOString();
+
   // 插入数据库
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     INSERT INTO ${DbTables.PASTES} (
       id, slug, content, remark, password, 
       expires_at, max_views, created_by, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
-    )
-    .bind(pasteId, slug, pasteData.content, pasteData.remark || null, passwordHash, pasteData.expiresAt || null, pasteData.maxViews || null, createdBy)
-    .run();
+      )
+      .bind(pasteId, slug, pasteData.content, pasteData.remark || null, passwordHash, pasteData.expiresAt || null, pasteData.maxViews || null, createdBy, createdAt, createdAt)
+      .run();
 
   // 如果设置了密码，将明文密码存入paste_passwords表
   if (pasteData.password) {
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO ${DbTables.PASTE_PASSWORDS} (
         paste_id, plain_password, created_at, updated_at
       ) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `
-      )
-      .bind(pasteId, pasteData.password)
-      .run();
+        )
+        .bind(pasteId, pasteData.password)
+        .run();
   }
 
   // 返回创建结果
@@ -178,7 +182,7 @@ export async function createPaste(db, pasteData, createdBy) {
     expiresAt: pasteData.expiresAt,
     maxViews: pasteData.maxViews,
     hasPassword: !!passwordHash,
-    createdAt: new Date().toISOString(),
+    createdAt: createdAt,
   };
 }
 
@@ -191,15 +195,15 @@ export async function createPaste(db, pasteData, createdBy) {
 export async function getPasteBySlug(db, slug) {
   // 查询paste
   const paste = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT id, slug, content, remark, password IS NOT NULL as has_password,
     expires_at, max_views, views, created_at, updated_at, created_by
     FROM ${DbTables.PASTES} WHERE slug = ?
   `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 
   // 如果不存在则返回404
   if (!paste) {
@@ -225,15 +229,15 @@ export async function getPasteBySlug(db, slug) {
 export async function verifyPastePassword(db, slug, password, incrementViews = true) {
   // 查询paste
   const paste = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT id, slug, content, remark, password,
     expires_at, max_views, views, created_at, updated_at, created_by
     FROM ${DbTables.PASTES} WHERE slug = ?
   `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 
   // 如果不存在则返回404
   if (!paste) {
@@ -333,16 +337,16 @@ export async function getAllPastes(db, page = 1, limit = 10, createdBy = null) {
   // 获取总数（包括所有内容，根据筛选条件过滤）
   const countParams = createdBy ? [createdBy] : [];
   const countResult = await db
-    .prepare(countSql)
-    .bind(...countParams)
-    .first();
+      .prepare(countSql)
+      .bind(...countParams)
+      .first();
   const total = countResult.total;
 
   // 查询分页数据，加入内容字段并做截断处理
   const pastes = await db
-    .prepare(querySql)
-    .bind(...queryParams)
-    .all();
+      .prepare(querySql)
+      .bind(...queryParams)
+      .all();
 
   // 处理查询结果，为API密钥创建者添加密钥名称
   let results = pastes.results;
@@ -400,8 +404,8 @@ export async function getAllPastes(db, page = 1, limit = 10, createdBy = null) {
 export async function getUserPastes(db, apiKeyId, limit = 30, offset = 0) {
   // 查询文本分享记录
   const pastes = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT id, slug, content, remark, password IS NOT NULL as has_password,
     expires_at, max_views, views, created_at, updated_at, created_by
     FROM ${DbTables.PASTES}
@@ -409,9 +413,9 @@ export async function getUserPastes(db, apiKeyId, limit = 30, offset = 0) {
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
   `
-    )
-    .bind(`apikey:${apiKeyId}`, limit, offset)
-    .all();
+      )
+      .bind(`apikey:${apiKeyId}`, limit, offset)
+      .all();
 
   // 查询总数
   const countResult = await db.prepare(`SELECT COUNT(*) as total FROM ${DbTables.PASTES} WHERE created_by = ?`).bind(`apikey:${apiKeyId}`).first();
@@ -472,17 +476,17 @@ export async function getUserPastes(db, apiKeyId, limit = 30, offset = 0) {
 export async function getPasteById(db, id) {
   // 查询文本分享记录
   const paste = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT 
       id, slug, content, remark, password IS NOT NULL as has_password,
       expires_at, max_views, views, created_at, updated_at, created_by
     FROM ${DbTables.PASTES}
     WHERE id = ?
   `
-    )
-    .bind(id)
-    .first();
+      )
+      .bind(id)
+      .first();
 
   if (!paste) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文本分享不存在" });
@@ -559,9 +563,9 @@ export async function batchDeletePastes(db, ids, clearExpired = false) {
 
   // 执行批量删除
   const result = await db
-    .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders})`)
-    .bind(...ids)
-    .run();
+      .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders})`)
+      .bind(...ids)
+      .run();
 
   deletedCount = result.changes || ids.length;
   return deletedCount;
@@ -588,9 +592,9 @@ export async function batchDeleteUserPastes(db, ids, apiKeyId) {
 
   // 执行批量删除（只删除属于该API密钥用户的文本）
   const result = await db
-    .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders}) AND created_by = ?`)
-    .bind(...bindParams)
-    .run();
+      .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders}) AND created_by = ?`)
+      .bind(...bindParams)
+      .run();
 
   return result.changes || 0;
 }
@@ -616,9 +620,9 @@ export async function updatePaste(db, slug, updateData, createdBy = null) {
 
   // 检查分享是否存在
   const paste = await db
-    .prepare(`SELECT id, slug, expires_at, max_views, views FROM ${DbTables.PASTES} WHERE ${queryCondition}`)
-    .bind(...queryParams)
-    .first();
+      .prepare(`SELECT id, slug, expires_at, max_views, views FROM ${DbTables.PASTES} WHERE ${queryCondition}`)
+      .bind(...queryParams)
+      .first();
 
   if (!paste) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文本分享不存在或无权修改" });
@@ -659,12 +663,12 @@ export async function updatePaste(db, slug, updateData, createdBy = null) {
     } else {
       // 插入新记录
       await db
-        .prepare(
-          `INSERT INTO ${DbTables.PASTE_PASSWORDS} (paste_id, plain_password, created_at, updated_at) 
+          .prepare(
+              `INSERT INTO ${DbTables.PASTE_PASSWORDS} (paste_id, plain_password, created_at, updated_at) 
            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-        )
-        .bind(paste.id, updateData.password)
-        .run();
+          )
+          .bind(paste.id, updateData.password)
+          .run();
     }
   } else if (updateData.clearPassword) {
     // 如果指定了清除密码
@@ -716,20 +720,20 @@ export async function updatePaste(db, slug, updateData, createdBy = null) {
 
   // 构建参数列表
   sqlParams.push(
-    updateData.content,
-    updateData.remark || null,
-    updateData.expiresAt || null,
-    updateData.maxViews || null,
-    // 如果更新了max_views且新值小于当前views，则重置views为0
-    isMaxViewsChanged && updateData.maxViews < paste.views ? 0 : paste.views,
-    paste.id
+      updateData.content,
+      updateData.remark || null,
+      updateData.expiresAt || null,
+      updateData.maxViews || null,
+      // 如果更新了max_views且新值小于当前views，则重置views为0
+      isMaxViewsChanged && updateData.maxViews < paste.views ? 0 : paste.views,
+      paste.id
   );
 
   // 执行更新
   await db
-    .prepare(sql)
-    .bind(...sqlParams)
-    .run();
+      .prepare(sql)
+      .bind(...sqlParams)
+      .run();
 
   // 返回更新结果
   return {

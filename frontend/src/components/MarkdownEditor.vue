@@ -6,8 +6,8 @@
 
     <!-- 管理员权限提示 -->
     <div
-      v-if="!hasPermission"
-      class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
+        v-if="!hasPermission"
+        class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
     >
       <div class="flex items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -35,25 +35,25 @@
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.remark") }}</label>
           <input
-            type="text"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.remarkPlaceholder')"
-            v-model="formData.remark"
-            :disabled="!hasPermission"
+              type="text"
+              class="form-input"
+              :class="getInputClasses()"
+              :placeholder="$t('markdown.form.remarkPlaceholder')"
+              v-model="formData.remark"
+              :disabled="!hasPermission"
           />
         </div>
 
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.customLink") }}</label>
           <input
-            type="text"
-            class="form-input"
-            :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
-            :placeholder="$t('markdown.form.customLinkPlaceholder')"
-            v-model="formData.customLink"
-            :disabled="!hasPermission"
-            @input="validateCustomLink"
+              type="text"
+              class="form-input"
+              :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
+              :placeholder="$t('markdown.form.customLinkPlaceholder')"
+              v-model="formData.customLink"
+              :disabled="!hasPermission"
+              @input="validateCustomLink"
           />
           <p v-if="slugError" class="mt-1 text-sm" :class="darkMode ? 'text-red-400' : 'text-red-600'">{{ slugError }}</p>
           <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t("markdown.onlyAllowedChars") }}</p>
@@ -62,12 +62,12 @@
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.password") }}</label>
           <input
-            type="text"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.passwordPlaceholder')"
-            v-model="formData.password"
-            :disabled="!hasPermission"
+              type="text"
+              class="form-input"
+              :class="getInputClasses()"
+              :placeholder="$t('markdown.form.passwordPlaceholder')"
+              v-model="formData.password"
+              :disabled="!hasPermission"
           />
         </div>
 
@@ -85,16 +85,16 @@
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.maxViews") }}</label>
           <input
-            type="number"
-            min="0"
-            step="1"
-            pattern="\d*"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.maxViewsPlaceholder')"
-            v-model.number="formData.maxViews"
-            @input="validateMaxViews"
-            :disabled="!hasPermission"
+              type="number"
+              min="0"
+              step="1"
+              pattern="\d*"
+              class="form-input"
+              :class="getInputClasses()"
+              :placeholder="$t('markdown.form.maxViewsPlaceholder')"
+              v-model.number="formData.maxViews"
+              @input="validateMaxViews"
+              :disabled="!hasPermission"
           />
         </div>
       </div>
@@ -119,44 +119,44 @@
 
           <!-- 复制图标 -->
           <button
-            @click="copyShareLink"
-            class="ml-2 p-1 rounded-md transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-            :title="$t('markdown.copyLink')"
+              @click="copyShareLink"
+              class="ml-2 p-1 rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+              :title="$t('markdown.copyLink')"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
               />
             </svg>
           </button>
 
           <!-- 二维码图标 -->
           <button
-            @click="showQRCode"
-            class="ml-2 p-1 rounded-md transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-            :title="$t('markdown.showQRCode')"
+              @click="showQRCode"
+              class="ml-2 p-1 rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+              :title="$t('markdown.showQRCode')"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
               />
             </svg>
           </button>
 
           <!-- 复制原始文本直链按钮 -->
           <button
-            @click="copyRawTextLink"
-            class="ml-2 p-1 rounded-md transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-            :title="$t('markdown.copyRawLink')"
+              @click="copyRawTextLink"
+              class="ml-2 p-1 rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+              :title="$t('markdown.copyRawLink')"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
@@ -200,10 +200,10 @@
 
     <!-- 复制格式菜单 -->
     <div
-      v-if="copyFormatMenuVisible"
-      id="copyFormatMenu"
-      class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
-      :style="{ top: `${copyFormatMenuPosition.y}px`, left: `${copyFormatMenuPosition.x}px` }"
+        v-if="copyFormatMenuVisible"
+        id="copyFormatMenu"
+        class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+        :style="{ top: `${copyFormatMenuPosition.y}px`, left: `${copyFormatMenuPosition.x}px` }"
     >
       <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsMarkdown">
         <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -217,11 +217,11 @@
       <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsHTML">
         <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path
-            d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+              d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
           />
           <path d="M8 9l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
           <path d="M16 15l-3-3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -399,8 +399,8 @@ const validateCustomLink = () => {
 
 const getInputClasses = () => {
   return props.darkMode
-    ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
-    : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
+      ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
+      : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
 };
 
 const initEditor = () => {
@@ -422,7 +422,7 @@ const initEditor = () => {
     theme: theme,
     // JS 文件使用 CDN，CSS 文件使用本地
     // 如后续需要升级Vditor版本，需要同时更新预览页中的CDN版本号
-    cdn: "https://cdn.jsdelivr.net/npm/vditor@3.11.0",
+    cdn: "https://fastly.jsdelivr.net/npm/vditor@3.11.0",
     resize: {
       enable: true,
       position: "bottom", // 只允许底部拖动
@@ -442,7 +442,7 @@ const initEditor = () => {
         lineNumber: true, // 显示行号
         style: props.darkMode ? "vs2015" : "github",
         // ：JS 文件使用 CDN，CSS 文件使用本地
-        js: "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js",
+        js: "https://fastly.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js",
         css: (style) => `/assets/vditor/dist/js/highlight.js/styles/${style}.min.css`,
       },
       actions: ["desktop", "tablet", "mobile", "mp-wechat", "zhihu"],
@@ -629,6 +629,17 @@ const initEditor = () => {
       "redo",
       "|",
       {
+        name: "clear-content",
+        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>',
+        tip: "清空内容",
+        click() {
+          // 添加确认对话框
+          if (confirm(t("markdown.confirmClearContent") || "确定要清空所有内容吗？")) {
+            clearEditorContent();
+          }
+        },
+      },
+      {
         name: "copy-formats",
         icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg>',
         tip: "复制为其他格式",
@@ -687,20 +698,20 @@ const initEditor = () => {
 
 // 监听暗色模式变化，重新初始化编辑器
 watch(
-  () => props.darkMode,
-  () => {
-    if (editor) {
-      const currentValue = editor.getValue();
-      editor.destroy();
-      initEditor();
-      // 保留当前编辑的内容
-      setTimeout(() => {
-        if (editor && currentValue) {
-          editor.setValue(currentValue);
-        }
-      }, 100);
+    () => props.darkMode,
+    () => {
+      if (editor) {
+        const currentValue = editor.getValue();
+        editor.destroy();
+        initEditor();
+        // 保留当前编辑的内容
+        setTimeout(() => {
+          if (editor && currentValue) {
+            editor.setValue(currentValue);
+          }
+        }, 100);
+      }
     }
-  }
 );
 
 // 自动保存
@@ -783,9 +794,9 @@ const validateApiKey = async (apiKey) => {
 
           // 触发自定义事件，通知其他组件权限已更新
           window.dispatchEvent(
-            new CustomEvent("api-key-permissions-updated", {
-              detail: { permissions },
-            })
+              new CustomEvent("api-key-permissions-updated", {
+                detail: { permissions },
+              })
           );
 
           console.log("API密钥验证成功，文本权限:", textPermission ? "有权限" : "无权限");
@@ -1008,11 +1019,11 @@ const saveContent = async () => {
 
     // 针对403权限错误进行特殊处理
     if (
-      (error.message && error.message.includes("权限")) ||
-      error.status === ApiStatus.FORBIDDEN ||
-      error.response?.status === ApiStatus.FORBIDDEN ||
-      error.code === ApiStatus.FORBIDDEN ||
-      error.message.includes(ApiStatus.FORBIDDEN.toString())
+        (error.message && error.message.includes("权限")) ||
+        error.status === ApiStatus.FORBIDDEN ||
+        error.response?.status === ApiStatus.FORBIDDEN ||
+        error.code === ApiStatus.FORBIDDEN ||
+        error.message.includes(ApiStatus.FORBIDDEN.toString())
     ) {
       // 清除权限缓存并重新验证
       if (hasApiKey.value) {
@@ -1061,17 +1072,17 @@ const copyShareLink = () => {
   if (!shareLink.value) return;
 
   navigator.clipboard
-    .writeText(shareLink.value)
-    .then(() => {
-      savingStatus.value = t("markdown.linkCopied");
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 2000);
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-      savingStatus.value = t("markdown.copyFailed");
-    });
+      .writeText(shareLink.value)
+      .then(() => {
+        savingStatus.value = t("markdown.linkCopied");
+        setTimeout(() => {
+          savingStatus.value = "";
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error("复制失败:", err);
+        savingStatus.value = t("markdown.copyFailed");
+      });
 };
 
 // 复制原始文本直链到剪贴板
@@ -1085,17 +1096,17 @@ const copyRawTextLink = () => {
   const rawLink = getRawPasteUrl(slug, currentSharePassword.value || null);
 
   navigator.clipboard
-    .writeText(rawLink)
-    .then(() => {
-      savingStatus.value = t("markdown.rawLinkCopied");
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 2000);
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-      savingStatus.value = t("markdown.copyFailed");
-    });
+      .writeText(rawLink)
+      .then(() => {
+        savingStatus.value = t("markdown.rawLinkCopied");
+        setTimeout(() => {
+          savingStatus.value = "";
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error("复制失败:", err);
+        savingStatus.value = t("markdown.copyFailed");
+      });
 };
 
 // 添加对maxViews的验证函数
@@ -1352,20 +1363,20 @@ const copyToClipboard = (text, successMessage) => {
 
   try {
     navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        savingStatus.value = successMessage;
-        setTimeout(() => {
-          savingStatus.value = "";
-        }, 3000);
-      })
-      .catch((err) => {
-        console.error("复制失败:", err);
-        savingStatus.value = "复制失败，请手动选择内容复制";
-        setTimeout(() => {
-          savingStatus.value = "";
-        }, 3000);
-      });
+        .writeText(text)
+        .then(() => {
+          savingStatus.value = successMessage;
+          setTimeout(() => {
+            savingStatus.value = "";
+          }, 3000);
+        })
+        .catch((err) => {
+          console.error("复制失败:", err);
+          savingStatus.value = "复制失败，请手动选择内容复制";
+          setTimeout(() => {
+            savingStatus.value = "";
+          }, 3000);
+        });
   } catch (e) {
     console.error("复制API不可用:", e);
     // 降级方案：创建临时文本区域
@@ -1396,11 +1407,11 @@ const handleGlobalClick = (event) => {
   // 如果点击事件不是来自复制格式菜单，并且复制格式菜单可见，则关闭菜单
   const menu = document.getElementById("copyFormatMenu");
   if (
-    menu &&
-    !menu.contains(event.target) &&
-    // 更新选择器以匹配自定义按钮
-    !event.target.closest('.vditor-toolbar button[data-type="copy-formats"]') &&
-    copyFormatMenuVisible.value
+      menu &&
+      !menu.contains(event.target) &&
+      // 更新选择器以匹配自定义按钮
+      !event.target.closest('.vditor-toolbar button[data-type="copy-formats"]') &&
+      copyFormatMenuVisible.value
   ) {
     closeCopyFormatMenu();
   }
@@ -1430,8 +1441,8 @@ const exportAsPng = async () => {
     // 生成文件名
     const now = new Date();
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(
-      2,
-      "0"
+        2,
+        "0"
     )}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
     const filename = `${title.replace(/[^\w\u4e00-\u9fa5]/g, "-")}-${timestamp}.png`;
 
@@ -1478,6 +1489,20 @@ const exportAsPng = async () => {
       savingStatus.value = "";
     }, 3000);
   }
+};
+
+// 在script setup部分，添加一个清除内容的函数
+const clearEditorContent = () => {
+  if (!editor) return;
+
+  // 清空编辑器内容
+  editor.setValue("");
+
+  // 显示提示信息
+  savingStatus.value = t("markdown.contentCleared") || "内容已清空";
+  setTimeout(() => {
+    savingStatus.value = "";
+  }, 2000);
 };
 </script>
 

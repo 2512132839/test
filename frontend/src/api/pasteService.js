@@ -90,7 +90,7 @@ export function deleteUserPaste(id) {
  * @returns {Promise<Object>} 删除结果
  */
 export function deleteUserPastes(ids) {
-  return del(`/user/pastes`, { ids });
+  return post(`/user/pastes/batch-delete`, { ids });
 }
 
 /**

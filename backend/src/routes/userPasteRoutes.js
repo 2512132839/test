@@ -47,15 +47,15 @@ userPasteRoutes.post("/api/paste", async (c) => {
 
     // 查询数据库中的API密钥记录
     const keyRecord = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT id, name, text_permission, expires_at
       FROM ${DbTables.API_KEYS}
       WHERE key = ?
     `
-      )
-      .bind(apiKey)
-      .first();
+        )
+        .bind(apiKey)
+        .first();
 
     // 如果密钥存在且有文本权限
     if (keyRecord && keyRecord.text_permission === 1) {
@@ -67,15 +67,15 @@ userPasteRoutes.post("/api/paste", async (c) => {
 
         // 更新最后使用时间
         await db
-          .prepare(
-            `
+            .prepare(
+                `
           UPDATE ${DbTables.API_KEYS}
           SET last_used = ?
           WHERE id = ?
         `
-          )
-          .bind(getLocalTimeString(), keyRecord.id)
-          .run();
+            )
+            .bind(getLocalTimeString(), keyRecord.id)
+            .run();
       }
     }
   }
@@ -272,8 +272,8 @@ userPasteRoutes.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
   try {
     // 获取用户自己创建的文本
     const paste = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           id, slug, content, remark,
           password IS NOT NULL as has_password,
@@ -281,9 +281,9 @@ userPasteRoutes.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
         FROM ${DbTables.PASTES}
         WHERE id = ? AND created_by = ?
       `
-      )
-      .bind(id, `apikey:${apiKeyId}`)
-      .first();
+        )
+        .bind(id, `apikey:${apiKeyId}`)
+        .first();
 
     if (!paste) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文本不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -354,7 +354,7 @@ userPasteRoutes.delete("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) =
 });
 
 // API密钥用户批量删除自己的文本
-userPasteRoutes.delete("/api/user/pastes", apiKeyTextMiddleware, async (c) => {
+userPasteRoutes.post("/api/user/pastes/batch-delete", apiKeyTextMiddleware, async (c) => {
   const db = c.env.DB;
   const apiKeyId = c.get("apiKeyId");
 

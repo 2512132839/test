@@ -84,43 +84,43 @@ const togglePasswordVisibility = () => {
 
 // 监听paste对象变化，更新表单数据
 watch(
-  () => props.paste,
-  (newPaste) => {
-    if (newPaste) {
-      // 初始化编辑表单数据
-      editForm.value.remark = newPaste.remark || "";
-      editForm.value.customLink = newPaste.slug || "";
-      // 密码字段重置为空字符串
-      editForm.value.password = "";
-      editForm.value.clearPassword = false;
+    () => props.paste,
+    (newPaste) => {
+      if (newPaste) {
+        // 初始化编辑表单数据
+        editForm.value.remark = newPaste.remark || "";
+        editForm.value.customLink = newPaste.slug || "";
+        // 密码字段重置为空字符串
+        editForm.value.password = "";
+        editForm.value.clearPassword = false;
 
-      // 处理过期时间 - 将ISO日期转换为选择项值
-      if (newPaste.expiresAt) {
-        const expiryDate = new Date(newPaste.expiresAt);
-        const now = new Date();
-        const diffHours = Math.round((expiryDate - now) / (1000 * 60 * 60));
+        // 处理过期时间 - 将ISO日期转换为选择项值
+        if (newPaste.expiresAt) {
+          const expiryDate = new Date(newPaste.expiresAt);
+          const now = new Date();
+          const diffHours = Math.round((expiryDate - now) / (1000 * 60 * 60));
 
-        // 根据剩余时间选择最接近的预设选项
-        if (diffHours <= 1) {
-          editForm.value.expiryTime = "1";
-        } else if (diffHours <= 24) {
-          editForm.value.expiryTime = "24";
-        } else if (diffHours <= 168) {
-          editForm.value.expiryTime = "168";
-        } else if (diffHours <= 720) {
-          editForm.value.expiryTime = "720";
+          // 根据剩余时间选择最接近的预设选项
+          if (diffHours <= 1) {
+            editForm.value.expiryTime = "1";
+          } else if (diffHours <= 24) {
+            editForm.value.expiryTime = "24";
+          } else if (diffHours <= 168) {
+            editForm.value.expiryTime = "168";
+          } else if (diffHours <= 720) {
+            editForm.value.expiryTime = "720";
+          } else {
+            editForm.value.expiryTime = "0"; // 设置为永不过期
+          }
         } else {
-          editForm.value.expiryTime = "0"; // 设置为永不过期
+          editForm.value.expiryTime = "0"; // 永不过期
         }
-      } else {
-        editForm.value.expiryTime = "0"; // 永不过期
-      }
 
-      // 最大查看次数
-      editForm.value.maxViews = newPaste.maxViews || 0;
-    }
-  },
-  { immediate: true }
+        // 最大查看次数
+        editForm.value.maxViews = newPaste.maxViews || 0;
+      }
+    },
+    { immediate: true }
 );
 
 // 初始化Vditor编辑器，配置主题、工具栏等选项
@@ -140,7 +140,7 @@ const initEditor = () => {
     value: props.content, // 设置初始内容
     theme: props.darkMode ? "dark" : "classic", // 根据主题设置
     mode: "ir", // 即时渲染模式，兼顾编辑体验和所见即所得
-    cdn: "https://cdn.jsdelivr.net/npm/vditor@3.11.0", // 添加CDN配置，确保资源正确加载
+    cdn: "https://fastly.jsdelivr.net/npm/vditor@3.11.0", // 添加CDN配置，确保资源正确加载
     resize: {
       enable: true,
       position: "bottom", // 只允许底部拖动
@@ -387,12 +387,12 @@ const initEditor = () => {
 
 // 监听暗色模式变化，实时更新编辑器主题
 watch(
-  () => props.darkMode,
-  (newDarkMode) => {
-    if (vditorInstance.value) {
-      vditorInstance.value.setTheme(newDarkMode ? "dark" : "classic", newDarkMode ? "dark" : "light");
+    () => props.darkMode,
+    (newDarkMode) => {
+      if (vditorInstance.value) {
+        vditorInstance.value.setTheme(newDarkMode ? "dark" : "classic", newDarkMode ? "dark" : "light");
+      }
     }
-  }
 );
 
 // 保存编辑内容，收集所有表单数据并触发保存事件
@@ -687,8 +687,8 @@ const exportAsPng = async () => {
     // 生成文件名
     const now = new Date();
     const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(
-      2,
-      "0"
+        2,
+        "0"
     )}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
     const filename = `${title.replace(/[^\w\u4e00-\u9fa5]/g, "-")}-${timestamp}.png`;
 
@@ -746,21 +746,21 @@ const copyToClipboard = (text, successMessage) => {
 
   try {
     navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // 使用notification显示成功消息，而非error
-        notification.value = successMessage;
-        setTimeout(() => {
-          notification.value = "";
-        }, 3000);
-      })
-      .catch((err) => {
-        console.error("复制失败:", err);
-        emit("update:error", "复制失败，请手动选择内容复制");
-        setTimeout(() => {
-          emit("update:error", "");
-        }, 3000);
-      });
+        .writeText(text)
+        .then(() => {
+          // 使用notification显示成功消息，而非error
+          notification.value = successMessage;
+          setTimeout(() => {
+            notification.value = "";
+          }, 3000);
+        })
+        .catch((err) => {
+          console.error("复制失败:", err);
+          emit("update:error", "复制失败，请手动选择内容复制");
+          setTimeout(() => {
+            emit("update:error", "");
+          }, 3000);
+        });
   } catch (e) {
     console.error("复制API不可用:", e);
     // 降级方案：创建临时文本区域
@@ -792,11 +792,11 @@ const handleGlobalClick = (event) => {
   // 如果点击事件不是来自复制格式菜单，并且复制格式菜单可见，则关闭菜单
   const menu = document.getElementById("copyFormatMenu");
   if (
-    menu &&
-    !menu.contains(event.target) &&
-    // 更新选择器以匹配自定义按钮
-    !event.target.closest('.vditor-toolbar button[data-type="copy-formats"]') &&
-    copyFormatMenuVisible.value
+      menu &&
+      !menu.contains(event.target) &&
+      // 更新选择器以匹配自定义按钮
+      !event.target.closest('.vditor-toolbar button[data-type="copy-formats"]') &&
+      copyFormatMenuVisible.value
   ) {
     closeCopyFormatMenu();
   }
@@ -828,14 +828,14 @@ const handleGlobalClick = (event) => {
         <div class="form-group">
           <label class="form-label block mb-1 text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">链接后缀</label>
           <input
-            type="text"
-            class="form-input w-full rounded-md shadow-sm cursor-not-allowed opacity-75"
-            :class="getInputClasses(darkMode)"
-            placeholder="不可修改"
-            v-model="editForm.customLink"
-            disabled
+              type="text"
+              class="form-input w-full rounded-md shadow-sm cursor-not-allowed opacity-75"
+              :class="getInputClasses(darkMode)"
+              placeholder="不可修改"
+              v-model="editForm.customLink"
+              disabled
           />
-          <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">后缀不可修改，仅支持字母、-和_</p>
+          <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">后缀不可修改，仅支持字母、数字、-和_</p>
         </div>
 
         <!-- 备注信息 -->
@@ -860,15 +860,15 @@ const handleGlobalClick = (event) => {
         <div class="form-group">
           <label class="form-label block mb-1 text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">可打开次数(0表示无限制)</label>
           <input
-            type="number"
-            min="0"
-            step="1"
-            pattern="\d*"
-            class="form-input w-full rounded-md shadow-sm"
-            :class="getInputClasses(darkMode)"
-            placeholder="0表示无限制"
-            v-model.number="editForm.maxViews"
-            @input="validateMaxViews"
+              type="number"
+              min="0"
+              step="1"
+              pattern="\d*"
+              class="form-input w-full rounded-md shadow-sm"
+              :class="getInputClasses(darkMode)"
+              placeholder="0表示无限制"
+              v-model.number="editForm.maxViews"
+              @input="validateMaxViews"
           />
         </div>
 
@@ -877,21 +877,21 @@ const handleGlobalClick = (event) => {
           <label class="form-label block mb-1 text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">访问密码</label>
           <div class="flex items-center space-x-2">
             <input
-              :type="showPassword ? 'text' : 'password'"
-              class="form-input w-full rounded-md shadow-sm"
-              :class="getInputClasses(darkMode)"
-              placeholder="设置访问密码..."
-              v-model="editForm.password"
-              :disabled="editForm.clearPassword"
+                :type="showPassword ? 'text' : 'password'"
+                class="form-input w-full rounded-md shadow-sm"
+                :class="getInputClasses(darkMode)"
+                placeholder="设置访问密码..."
+                v-model="editForm.password"
+                :disabled="editForm.clearPassword"
             />
           </div>
           <div class="mt-2 flex items-center">
             <input
-              type="checkbox"
-              id="clear-password"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
-              v-model="editForm.clearPassword"
+                type="checkbox"
+                id="clear-password"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                v-model="editForm.clearPassword"
             />
             <label for="clear-password" class="ml-2 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-600'"> 清除访问密码 </label>
           </div>
@@ -905,19 +905,19 @@ const handleGlobalClick = (event) => {
       <div class="submit-section mt-6 flex flex-row items-center gap-4">
         <!-- 保存按钮 -->
         <button
-          @click="saveEdit"
-          class="btn-primary px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-          :disabled="loading"
+            @click="saveEdit"
+            class="btn-primary px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+            :disabled="loading"
         >
           {{ loading ? "保存中..." : "保存修改" }}
         </button>
 
         <!-- 取消按钮 -->
         <button
-          @click="cancelEdit"
-          class="px-4 py-2 text-sm font-medium border rounded-md transition-colors"
-          :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
-          title="取消编辑并恢复原始内容"
+            @click="cancelEdit"
+            class="px-4 py-2 text-sm font-medium border rounded-md transition-colors"
+            :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
+            title="取消编辑并恢复原始内容"
         >
           取消
         </button>
@@ -933,10 +933,10 @@ const handleGlobalClick = (event) => {
 
     <!-- 复制格式菜单 -->
     <div
-      v-if="copyFormatMenuVisible"
-      id="copyFormatMenu"
-      class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
-      :style="{ top: `${copyFormatMenuPosition.y}px`, left: `${copyFormatMenuPosition.x}px` }"
+        v-if="copyFormatMenuVisible"
+        id="copyFormatMenu"
+        class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+        :style="{ top: `${copyFormatMenuPosition.y}px`, left: `${copyFormatMenuPosition.x}px` }"
     >
       <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsMarkdown">
         <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -950,11 +950,11 @@ const handleGlobalClick = (event) => {
       <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsHTML">
         <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path
-            d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+              d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
           />
           <path d="M8 9l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
           <path d="M16 15l-3-3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />

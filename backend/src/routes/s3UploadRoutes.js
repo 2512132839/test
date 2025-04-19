@@ -897,8 +897,17 @@ export function registerS3UploadRoutes(app) {
 
       // 如果启用了覆盖并且找到了已存在的slug，删除旧文件
       if (override && customSlug) {
-        const existingFile = await db.prepare(`SELECT id, storage_path, s3_config_id FROM ${DbTables.FILES} WHERE slug = ?`).bind(customSlug).first();
+        const existingFile = await db.prepare(`SELECT id, storage_path, s3_config_id, created_by FROM ${DbTables.FILES} WHERE slug = ?`).bind(customSlug).first();
         if (existingFile) {
+          console.log(`覆盖模式：检查文件记录  Slug: ${customSlug}`);
+
+          // 检查当前用户是否为文件创建者
+          const currentCreator = authorizedBy === "admin" ? adminId : authorizedBy === "apikey" ? `apikey:${apiKeyId}` : null;
+          if (existingFile.created_by !== currentCreator) {
+            console.log(`覆盖操作被拒绝：用户 ${currentCreator} 尝试覆盖 ${existingFile.created_by} 创建的文件`);
+            return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "您无权覆盖其他用户创建的文件"), ApiStatus.FORBIDDEN);
+          }
+
           console.log(`覆盖模式：删除已存在的文件记录  Slug: ${customSlug}`);
 
           try {
