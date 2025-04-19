@@ -63,53 +63,53 @@ async function handleFsError(fn, operationName, defaultErrorMessage) {
  */
 export async function listDirectory(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
-    async () => {
-      // 规范化路径
-      path = normalizePath(path, true); // 使用统一的路径规范化函数
+      async () => {
+        // 规范化路径
+        path = normalizePath(path, true); // 使用统一的路径规范化函数
 
-      // 根据用户类型获取挂载点列表
-      let mounts;
-      if (userType === "admin") {
-        mounts = await getMountsByAdmin(db, userId);
-      } else if (userType === "apiKey") {
-        mounts = await getMountsByApiKey(db, userId);
-      } else {
-        throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
-      }
-
-      // 按照路径长度降序排序，以便优先匹配最长的路径
-      mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
-
-      // 检查是否匹配到实际的挂载点
-      let isVirtualPath = true;
-      let matchingMount = null;
-      let subPath = "";
-
-      for (const mount of mounts) {
-        const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
-
-        // 如果请求路径完全匹配挂载点或者是挂载点的子路径
-        if (path === mountPath + "/" || path.startsWith(mountPath + "/")) {
-          matchingMount = mount;
-          subPath = path.substring(mountPath.length);
-          if (!subPath.startsWith("/")) {
-            subPath = "/" + subPath;
-          }
-          isVirtualPath = false;
-          break;
+        // 根据用户类型获取挂载点列表
+        let mounts;
+        if (userType === "admin") {
+          mounts = await getMountsByAdmin(db, userId);
+        } else if (userType === "apiKey") {
+          mounts = await getMountsByApiKey(db, userId);
+        } else {
+          throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
         }
-      }
 
-      // 处理虚拟目录路径（根目录或中间目录）
-      if (isVirtualPath) {
-        return await getVirtualDirectoryListing(mounts, path);
-      }
+        // 按照路径长度降序排序，以便优先匹配最长的路径
+        mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
 
-      // 处理实际挂载点目录，查询S3
-      return await getS3DirectoryListing(db, matchingMount, subPath, encryptionSecret);
-    },
-    "列出目录",
-    "列出目录失败"
+        // 检查是否匹配到实际的挂载点
+        let isVirtualPath = true;
+        let matchingMount = null;
+        let subPath = "";
+
+        for (const mount of mounts) {
+          const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
+
+          // 如果请求路径完全匹配挂载点或者是挂载点的子路径
+          if (path === mountPath + "/" || path.startsWith(mountPath + "/")) {
+            matchingMount = mount;
+            subPath = path.substring(mountPath.length);
+            if (!subPath.startsWith("/")) {
+              subPath = "/" + subPath;
+            }
+            isVirtualPath = false;
+            break;
+          }
+        }
+
+        // 处理虚拟目录路径（根目录或中间目录）
+        if (isVirtualPath) {
+          return await getVirtualDirectoryListing(mounts, path);
+        }
+
+        // 处理实际挂载点目录，查询S3
+        return await getS3DirectoryListing(db, matchingMount, subPath, encryptionSecret);
+      },
+      "列出目录",
+      "列出目录失败"
   );
 }
 
@@ -369,98 +369,98 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
  */
 export async function getFileInfo(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
-    async () => {
-      // 查找挂载点
-      const mountResult = await findMountPointByPath(db, path, userId, userType);
+      async () => {
+        // 查找挂载点
+        const mountResult = await findMountPointByPath(db, path, userId, userType);
 
-      // 处理错误情况
-      if (mountResult.error) {
-        throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
-      }
-
-      const { mount, subPath } = mountResult;
-
-      // 获取S3配置
-      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-      if (!s3Config) {
-        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-      }
-
-      // 创建S3客户端
-      const s3Client = await createS3Client(s3Config, encryptionSecret);
-
-      // 规范化S3子路径 (不添加斜杠，因为可能是文件)
-      const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
-
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
-
-      // 获取对象信息
-      try {
-        const headParams = {
-          Bucket: s3Config.bucket_name,
-          Key: s3SubPath,
-        };
-
-        const headCommand = new HeadObjectCommand(headParams);
-        const headResponse = await s3Client.send(headCommand);
-
-        // 判断是文件还是目录
-        const isDirectory = s3SubPath.endsWith("/") || headResponse.ContentType === "application/x-directory";
-
-        // 构建文件/目录信息
-        const result = {
-          path: path,
-          name: path.split("/").filter(Boolean).pop() || "/",
-          isDirectory: isDirectory,
-          size: headResponse.ContentLength,
-          modified: headResponse.LastModified ? headResponse.LastModified.toISOString() : new Date().toISOString(),
-          contentType: headResponse.ContentType || "application/octet-stream",
-          etag: headResponse.ETag ? headResponse.ETag.replace(/"/g, "") : undefined,
-          mount_id: mount.id,
-          storage_type: mount.storage_type,
-        };
-
-        return result;
-      } catch (error) {
-        // 如果是404错误，可能是目录，尝试列出前缀内容来确认
-        if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-          // 尝试作为目录处理
-          const dirPath = s3SubPath.endsWith("/") ? s3SubPath : s3SubPath + "/";
-
-          const listParams = {
-            Bucket: s3Config.bucket_name,
-            Prefix: dirPath,
-            MaxKeys: 1,
-          };
-
-          const listCommand = new ListObjectsV2Command(listParams);
-          const listResponse = await s3Client.send(listCommand);
-
-          // 如果有内容，说明是目录
-          if (listResponse.Contents && listResponse.Contents.length > 0) {
-            const result = {
-              path: path,
-              name: path.split("/").filter(Boolean).pop() || "/",
-              isDirectory: true,
-              size: 0,
-              modified: new Date().toISOString(),
-              contentType: "application/x-directory",
-              mount_id: mount.id,
-              storage_type: mount.storage_type,
-            };
-            return result;
-          }
-
-          // 如果没有内容，可能是文件不存在
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件或目录不存在" });
+        // 处理错误情况
+        if (mountResult.error) {
+          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
         }
 
-        throw error;
-      }
-    },
-    "获取文件信息",
-    "获取文件信息失败"
+        const { mount, subPath } = mountResult;
+
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
+
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+        // 规范化S3子路径 (不添加斜杠，因为可能是文件)
+        const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
+
+        // 获取对象信息
+        try {
+          const headParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3SubPath,
+          };
+
+          const headCommand = new HeadObjectCommand(headParams);
+          const headResponse = await s3Client.send(headCommand);
+
+          // 判断是文件还是目录
+          const isDirectory = s3SubPath.endsWith("/") || headResponse.ContentType === "application/x-directory";
+
+          // 构建文件/目录信息
+          const result = {
+            path: path,
+            name: path.split("/").filter(Boolean).pop() || "/",
+            isDirectory: isDirectory,
+            size: headResponse.ContentLength,
+            modified: headResponse.LastModified ? headResponse.LastModified.toISOString() : new Date().toISOString(),
+            contentType: headResponse.ContentType || "application/octet-stream",
+            etag: headResponse.ETag ? headResponse.ETag.replace(/"/g, "") : undefined,
+            mount_id: mount.id,
+            storage_type: mount.storage_type,
+          };
+
+          return result;
+        } catch (error) {
+          // 如果是404错误，可能是目录，尝试列出前缀内容来确认
+          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+            // 尝试作为目录处理
+            const dirPath = s3SubPath.endsWith("/") ? s3SubPath : s3SubPath + "/";
+
+            const listParams = {
+              Bucket: s3Config.bucket_name,
+              Prefix: dirPath,
+              MaxKeys: 1,
+            };
+
+            const listCommand = new ListObjectsV2Command(listParams);
+            const listResponse = await s3Client.send(listCommand);
+
+            // 如果有内容，说明是目录
+            if (listResponse.Contents && listResponse.Contents.length > 0) {
+              const result = {
+                path: path,
+                name: path.split("/").filter(Boolean).pop() || "/",
+                isDirectory: true,
+                size: 0,
+                modified: new Date().toISOString(),
+                contentType: "application/x-directory",
+                mount_id: mount.id,
+                storage_type: mount.storage_type,
+              };
+              return result;
+            }
+
+            // 如果没有内容，可能是文件不存在
+            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件或目录不存在" });
+          }
+
+          throw error;
+        }
+      },
+      "获取文件信息",
+      "获取文件信息失败"
   );
 }
 
@@ -475,69 +475,69 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
  */
 export async function downloadFile(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
-    async () => {
-      // 查找挂载点
-      const mountResult = await findMountPointByPath(db, path, userId, userType);
+      async () => {
+        // 查找挂载点
+        const mountResult = await findMountPointByPath(db, path, userId, userType);
 
-      // 处理错误情况
-      if (mountResult.error) {
-        throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
-      }
-
-      const { mount, subPath } = mountResult;
-
-      // 获取S3配置
-      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-      if (!s3Config) {
-        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-      }
-
-      // 创建S3客户端
-      const s3Client = await createS3Client(s3Config, encryptionSecret);
-
-      // 规范化S3子路径 (不添加斜杠，因为是文件)
-      const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
-
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
-
-      // 获取文件内容
-      try {
-        const getParams = {
-          Bucket: s3Config.bucket_name,
-          Key: s3SubPath,
-        };
-
-        const getCommand = new GetObjectCommand(getParams);
-        const getResponse = await s3Client.send(getCommand);
-
-        // 文件名处理
-        const fileName = path.split("/").filter(Boolean).pop() || "file";
-        const contentDisposition = `attachment; filename="${encodeURIComponent(fileName)}"`;
-
-        // 构建响应头
-        const headers = {
-          "Content-Type": getResponse.ContentType || "application/octet-stream",
-          "Content-Disposition": contentDisposition,
-          "Content-Length": String(getResponse.ContentLength || 0),
-          "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
-          "Cache-Control": "private, max-age=0",
-        };
-
-        // 返回文件内容
-        return new Response(getResponse.Body, {
-          status: 200,
-          headers: headers,
-        });
-      } catch (error) {
-        if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+        // 处理错误情况
+        if (mountResult.error) {
+          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
         }
-        throw error;
-      }
-    },
-    "下载文件",
-    "下载文件失败"
+
+        const { mount, subPath } = mountResult;
+
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
+
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+        // 规范化S3子路径 (不添加斜杠，因为是文件)
+        const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
+
+        // 获取文件内容
+        try {
+          const getParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3SubPath,
+          };
+
+          const getCommand = new GetObjectCommand(getParams);
+          const getResponse = await s3Client.send(getCommand);
+
+          // 文件名处理
+          const fileName = path.split("/").filter(Boolean).pop() || "file";
+          const contentDisposition = `attachment; filename="${encodeURIComponent(fileName)}"`;
+
+          // 构建响应头
+          const headers = {
+            "Content-Type": getResponse.ContentType || "application/octet-stream",
+            "Content-Disposition": contentDisposition,
+            "Content-Length": String(getResponse.ContentLength || 0),
+            "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
+            "Cache-Control": "private, max-age=0",
+          };
+
+          // 返回文件内容
+          return new Response(getResponse.Body, {
+            status: 200,
+            headers: headers,
+          });
+        } catch (error) {
+          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+          }
+          throw error;
+        }
+      },
+      "下载文件",
+      "下载文件失败"
   );
 }
 
@@ -552,70 +552,70 @@ export async function downloadFile(db, path, userId, userType, encryptionSecret)
  */
 export async function previewFile(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
-    async () => {
-      // 查找挂载点
-      const mountResult = await findMountPointByPath(db, path, userId, userType);
+      async () => {
+        // 查找挂载点
+        const mountResult = await findMountPointByPath(db, path, userId, userType);
 
-      // 处理错误情况
-      if (mountResult.error) {
-        throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
-      }
-
-      const { mount, subPath } = mountResult;
-
-      // 获取S3配置
-      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-      if (!s3Config) {
-        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-      }
-
-      // 创建S3客户端
-      const s3Client = await createS3Client(s3Config, encryptionSecret);
-
-      // 规范化S3子路径 (不添加斜杠，因为是文件)
-      const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
-
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
-
-      // 获取文件内容
-      try {
-        const getParams = {
-          Bucket: s3Config.bucket_name,
-          Key: s3SubPath,
-        };
-
-        const getCommand = new GetObjectCommand(getParams);
-        const getResponse = await s3Client.send(getCommand);
-
-        // 文件名处理
-        const fileName = path.split("/").filter(Boolean).pop() || "file";
-        // 设置为inline用于预览而不是下载
-        const contentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
-
-        // 构建响应头
-        const headers = {
-          "Content-Type": getResponse.ContentType || "application/octet-stream",
-          "Content-Disposition": contentDisposition,
-          "Content-Length": String(getResponse.ContentLength || 0),
-          "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
-          "Cache-Control": "private, max-age=0",
-        };
-
-        // 返回文件内容
-        return new Response(getResponse.Body, {
-          status: 200,
-          headers: headers,
-        });
-      } catch (error) {
-        if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+        // 处理错误情况
+        if (mountResult.error) {
+          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
         }
-        throw error;
-      }
-    },
-    "预览文件",
-    "预览文件失败"
+
+        const { mount, subPath } = mountResult;
+
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
+
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+        // 规范化S3子路径 (不添加斜杠，因为是文件)
+        const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
+
+        // 获取文件内容
+        try {
+          const getParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3SubPath,
+          };
+
+          const getCommand = new GetObjectCommand(getParams);
+          const getResponse = await s3Client.send(getCommand);
+
+          // 文件名处理
+          const fileName = path.split("/").filter(Boolean).pop() || "file";
+          // 设置为inline用于预览而不是下载
+          const contentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
+
+          // 构建响应头
+          const headers = {
+            "Content-Type": getResponse.ContentType || "application/octet-stream",
+            "Content-Disposition": contentDisposition,
+            "Content-Length": String(getResponse.ContentLength || 0),
+            "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
+            "Cache-Control": "private, max-age=0",
+          };
+
+          // 返回文件内容
+          return new Response(getResponse.Body, {
+            status: 200,
+            headers: headers,
+          });
+        } catch (error) {
+          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+          }
+          throw error;
+        }
+      },
+      "预览文件",
+      "预览文件失败"
   );
 }
 
@@ -630,88 +630,88 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
  */
 export async function createDirectory(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
-    async () => {
-      // 确保路径以斜杠结尾
-      path = normalizePath(path, true); // 使用统一的路径规范化函数
+      async () => {
+        // 确保路径以斜杠结尾
+        path = normalizePath(path, true); // 使用统一的路径规范化函数
 
-      // 查找挂载点
-      const mountResult = await findMountPointByPath(db, path, userId, userType);
+        // 查找挂载点
+        const mountResult = await findMountPointByPath(db, path, userId, userType);
 
-      // 处理错误情况
-      if (mountResult.error) {
-        throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
-      }
-
-      const { mount, subPath } = mountResult;
-
-      // 获取S3配置
-      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-      if (!s3Config) {
-        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-      }
-
-      // 创建S3客户端
-      const s3Client = await createS3Client(s3Config, encryptionSecret);
-
-      // 规范化S3子路径 (添加斜杠，因为是目录)
-      const s3SubPath = normalizeS3SubPath(subPath, s3Config, true);
-
-      // 检查父目录是否存在
-      if (s3SubPath.split("/").filter(Boolean).length > 1) {
-        const parentPath = s3SubPath.substring(0, s3SubPath.lastIndexOf("/", s3SubPath.length - 2) + 1);
-        const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
-
-        if (!parentExists) {
-          throw new HTTPException(ApiStatus.CONFLICT, { message: "父目录不存在" });
+        // 处理错误情况
+        if (mountResult.error) {
+          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
         }
-      }
 
-      // 检查目录是否已存在
-      try {
-        const headParams = {
-          Bucket: s3Config.bucket_name,
-          Key: s3SubPath,
-        };
+        const { mount, subPath } = mountResult;
 
-        const headCommand = new HeadObjectCommand(headParams);
-        await s3Client.send(headCommand);
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
 
-        // 如果到这里，说明目录已存在
-        throw new HTTPException(ApiStatus.CONFLICT, { message: "目录已存在" });
-      } catch (error) {
-        // 如果是404错误，说明目录不存在，可以创建
-        if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-          // 创建空目录对象
-          const putParams = {
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+        // 规范化S3子路径 (添加斜杠，因为是目录)
+        const s3SubPath = normalizeS3SubPath(subPath, s3Config, true);
+
+        // 检查父目录是否存在
+        if (s3SubPath.split("/").filter(Boolean).length > 1) {
+          const parentPath = s3SubPath.substring(0, s3SubPath.lastIndexOf("/", s3SubPath.length - 2) + 1);
+          const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
+
+          if (!parentExists) {
+            throw new HTTPException(ApiStatus.CONFLICT, { message: "父目录不存在" });
+          }
+        }
+
+        // 检查目录是否已存在
+        try {
+          const headParams = {
             Bucket: s3Config.bucket_name,
             Key: s3SubPath,
-            Body: "",
-            ContentType: "application/x-directory",
           };
 
-          const putCommand = new PutObjectCommand(putParams);
-          await s3Client.send(putCommand);
+          const headCommand = new HeadObjectCommand(headParams);
+          await s3Client.send(headCommand);
 
-          // 更新最后使用时间
-          await updateMountLastUsed(db, mount.id);
+          // 如果到这里，说明目录已存在
+          throw new HTTPException(ApiStatus.CONFLICT, { message: "目录已存在" });
+        } catch (error) {
+          // 如果是404错误，说明目录不存在，可以创建
+          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+            // 创建空目录对象
+            const putParams = {
+              Bucket: s3Config.bucket_name,
+              Key: s3SubPath,
+              Body: "",
+              ContentType: "application/x-directory",
+            };
 
-          // 清除父目录的缓存，因为目录内容已变更
-          if (subPath !== "/") {
-            const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/", subPath.length - 2) + 1);
-            // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-            const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
-            console.log(`创建目录后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+            const putCommand = new PutObjectCommand(putParams);
+            await s3Client.send(putCommand);
+
+            // 更新最后使用时间
+            await updateMountLastUsed(db, mount.id);
+
+            // 清除父目录的缓存，因为目录内容已变更
+            if (subPath !== "/") {
+              const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/", subPath.length - 2) + 1);
+              // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
+              const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
+              console.log(`创建目录后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+            }
+
+            return;
           }
 
-          return;
+          // 其他错误则抛出
+          throw error;
         }
-
-        // 其他错误则抛出
-        throw error;
-      }
-    },
-    "创建目录",
-    "创建目录失败"
+      },
+      "创建目录",
+      "创建目录失败"
   );
 }
 
@@ -728,26 +728,116 @@ export async function createDirectory(db, path, userId, userType, encryptionSecr
  */
 export async function uploadFile(db, path, file, userId, userType, encryptionSecret, useMultipart = true) {
   return handleFsError(
-    async () => {
-      // 直接使用分片上传，不再根据文件大小判断
-      // 初始化分片上传
-      const multipartInfo = await initializeMultipartUpload(db, path, file.type || "application/octet-stream", file.size, userId, userType, encryptionSecret);
+      async () => {
+        // 根据useMultipart参数决定使用哪种上传方式
+        if (useMultipart) {
+          // 使用分片上传
+          const multipartInfo = await initializeMultipartUpload(db, path, file.type || "application/octet-stream", file.size, userId, userType, encryptionSecret);
 
-      // 返回包含必要信息的对象，前端将使用这些信息进行分片上传
-      return {
-        useMultipart: true,
-        uploadId: multipartInfo.uploadId,
-        path: multipartInfo.path,
-        recommendedPartSize: multipartInfo.recommendedPartSize,
-        bucket: multipartInfo.bucket,
-        key: multipartInfo.key,
-        mount_id: multipartInfo.mount_id,
-        storage_type: multipartInfo.storage_type,
-        message: "请使用分片上传API上传此文件",
-      };
-    },
-    "上传文件",
-    "上传文件失败"
+          // 返回包含必要信息的对象，前端将使用这些信息进行分片上传
+          return {
+            useMultipart: true,
+            uploadId: multipartInfo.uploadId,
+            path: multipartInfo.path,
+            recommendedPartSize: multipartInfo.recommendedPartSize,
+            bucket: multipartInfo.bucket,
+            key: multipartInfo.key,
+            mount_id: multipartInfo.mount_id,
+            storage_type: multipartInfo.storage_type,
+            message: "请使用分片上传API上传此文件",
+          };
+        } else {
+          // 使用直接上传
+          console.log(`使用直接上传模式，文件: ${file.name}, 大小: ${file.size} 字节`);
+
+          // 查找挂载点
+          const mountResult = await findMountPointByPath(db, path, userId, userType);
+
+          // 处理错误情况
+          if (mountResult.error) {
+            throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
+          }
+
+          const { mount, subPath } = mountResult;
+
+          // 获取S3配置
+          const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+          if (!s3Config) {
+            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+          }
+
+          // 创建S3客户端
+          const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+          // 规范化S3子路径 (不添加斜杠，因为是文件)
+          const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+
+          // 确保文件路径不为空，如果为空，则使用文件名
+          const fileName = file.name || "unnamed_file";
+          const finalS3Path = s3SubPath && s3SubPath.trim() !== "" ? s3SubPath : (s3Config.root_prefix || "") + (s3Config.default_folder || "") + fileName;
+
+          console.log(`规范化后的S3路径: ${finalS3Path}`);
+
+          // 检查父目录是否存在
+          if (finalS3Path.includes("/")) {
+            const parentPath = finalS3Path.substring(0, finalS3Path.lastIndexOf("/") + 1);
+            const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
+
+            if (!parentExists) {
+              throw new HTTPException(ApiStatus.CONFLICT, { message: "父目录不存在" });
+            }
+          }
+
+          try {
+            // 读取文件内容
+            const fileContent = await file.arrayBuffer();
+
+            // 直接上传到S3
+            const putParams = {
+              Bucket: s3Config.bucket_name,
+              Key: finalS3Path,
+              Body: fileContent,
+              ContentType: file.type || "application/octet-stream",
+            };
+
+            console.log(`开始直接上传 ${file.size} 字节到 S3，路径: ${finalS3Path}`);
+
+            // 直接上传文件
+            const putCommand = new PutObjectCommand(putParams);
+            const result = await s3Client.send(putCommand);
+
+            // 更新最后使用时间
+            await updateMountLastUsed(db, mount.id);
+
+            // 清除父目录缓存
+            if (subPath !== "/" && subPath.includes("/")) {
+              const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/") + 1);
+              const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
+              console.log(`上传文件后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+            } else {
+              // 如果是根目录下的文件，清除根目录缓存
+              directoryCacheManager.invalidate(mount.id, "/");
+            }
+
+            // 构建返回结果
+            return {
+              useMultipart: false,
+              success: true,
+              path: path,
+              name: path.split("/").filter(Boolean).pop() || file.name,
+              size: file.size,
+              mimetype: file.type || "application/octet-stream",
+              etag: result.ETag ? result.ETag.replace(/"/g, "") : undefined,
+              message: "文件上传成功",
+            };
+          } catch (error) {
+            console.error("直接上传失败:", error);
+            throw error;
+          }
+        }
+      },
+      "上传文件",
+      "上传文件失败"
   );
 }
 
@@ -762,83 +852,83 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
  */
 export async function removeItem(db, path, userId, userType, encryptionSecret) {
   return handleFsError(
-    async () => {
-      // 查找挂载点
-      const mountResult = await findMountPointByPath(db, path, userId, userType);
+      async () => {
+        // 查找挂载点
+        const mountResult = await findMountPointByPath(db, path, userId, userType);
 
-      // 处理错误情况
-      if (mountResult.error) {
-        throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
-      }
+        // 处理错误情况
+        if (mountResult.error) {
+          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
+        }
 
-      const { mount, subPath } = mountResult;
+        const { mount, subPath } = mountResult;
 
-      // 获取S3配置
-      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-      if (!s3Config) {
-        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-      }
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
 
-      // 创建S3客户端
-      const s3Client = await createS3Client(s3Config, encryptionSecret);
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
 
-      // 判断是目录还是文件
-      const isDirectory = path.endsWith("/");
+        // 判断是目录还是文件
+        const isDirectory = path.endsWith("/");
 
-      // 规范化S3子路径
-      const s3SubPath = normalizeS3SubPath(subPath, s3Config, isDirectory);
+        // 规范化S3子路径
+        const s3SubPath = normalizeS3SubPath(subPath, s3Config, isDirectory);
 
-      if (isDirectory) {
-        // 对于目录，需要递归删除所有内容
-        await deleteDirectory(s3Client, s3Config.bucket_name, s3SubPath, db, mount.storage_config_id);
+        if (isDirectory) {
+          // 对于目录，需要递归删除所有内容
+          await deleteDirectory(s3Client, s3Config.bucket_name, s3SubPath, db, mount.storage_config_id);
 
-        // 清除该目录的缓存
-        directoryCacheManager.invalidate(mount.id, subPath);
-      } else {
-        // 对于文件，直接删除
-        const deleteParams = {
-          Bucket: s3Config.bucket_name,
-          Key: s3SubPath,
-        };
+          // 清除该目录的缓存
+          directoryCacheManager.invalidate(mount.id, subPath);
+        } else {
+          // 对于文件，直接删除
+          const deleteParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3SubPath,
+          };
 
-        try {
-          const deleteCommand = new DeleteObjectCommand(deleteParams);
-          await s3Client.send(deleteCommand);
-        } catch (error) {
-          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+          try {
+            const deleteCommand = new DeleteObjectCommand(deleteParams);
+            await s3Client.send(deleteCommand);
+          } catch (error) {
+            if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+              throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+            }
+            throw error;
           }
-          throw error;
         }
-      }
 
-      // 尝试删除文件记录表中的对应记录
-      try {
-        const fileDeleteResult = await deleteFileRecordByStoragePath(db, mount.storage_config_id, s3SubPath);
-        if (fileDeleteResult.deletedCount > 0) {
-          console.log(`从文件记录中删除了${fileDeleteResult.deletedCount}条数据：挂载点=${mount.id}, 路径=${s3SubPath}`);
+        // 尝试删除文件记录表中的对应记录
+        try {
+          const fileDeleteResult = await deleteFileRecordByStoragePath(db, mount.storage_config_id, s3SubPath);
+          if (fileDeleteResult.deletedCount > 0) {
+            console.log(`从文件记录中删除了${fileDeleteResult.deletedCount}条数据：挂载点=${mount.id}, 路径=${s3SubPath}`);
+          }
+        } catch (fileDeleteError) {
+          // 文件记录删除失败不影响主流程
+          console.error(`删除文件记录失败: ${fileDeleteError.message}`);
         }
-      } catch (fileDeleteError) {
-        // 文件记录删除失败不影响主流程
-        console.error(`删除文件记录失败: ${fileDeleteError.message}`);
-      }
 
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
 
-      // 清除父目录缓存
-      if (subPath !== "/" && subPath.includes("/")) {
-        const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/", isDirectory ? subPath.length - 2 : subPath.length - 1) + 1);
-        // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-        const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
-        console.log(`删除文件后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
-      } else if (!isDirectory) {
-        // 如果删除的是根目录下的文件，清除根目录缓存
-        directoryCacheManager.invalidate(mount.id, "/");
-      }
-    },
-    "删除文件或目录",
-    "删除失败"
+        // 清除父目录缓存
+        if (subPath !== "/" && subPath.includes("/")) {
+          const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/", isDirectory ? subPath.length - 2 : subPath.length - 1) + 1);
+          // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
+          const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
+          console.log(`删除文件后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+        } else if (!isDirectory) {
+          // 如果删除的是根目录下的文件，清除根目录缓存
+          directoryCacheManager.invalidate(mount.id, "/");
+        }
+      },
+      "删除文件或目录",
+      "删除失败"
   );
 }
 
@@ -932,139 +1022,139 @@ async function deleteDirectory(s3Client, bucketName, dirPath, db = null, s3Confi
  */
 export async function renameItem(db, oldPath, newPath, userId, userType, encryptionSecret) {
   return handleFsError(
-    async () => {
-      // 检查路径类型必须匹配 (都是文件或都是目录)
-      const oldIsDirectory = oldPath.endsWith("/");
-      const newIsDirectory = newPath.endsWith("/");
+      async () => {
+        // 检查路径类型必须匹配 (都是文件或都是目录)
+        const oldIsDirectory = oldPath.endsWith("/");
+        const newIsDirectory = newPath.endsWith("/");
 
-      if (oldIsDirectory !== newIsDirectory) {
-        throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "源路径和目标路径类型必须一致（文件或目录）" });
-      }
-
-      // 查找源路径的挂载点
-      const oldMountResult = await findMountPointByPath(db, oldPath, userId, userType);
-
-      // 处理错误情况
-      if (oldMountResult.error) {
-        throw new HTTPException(oldMountResult.error.status, { message: oldMountResult.error.message });
-      }
-
-      // 查找目标路径的挂载点
-      const newMountResult = await findMountPointByPath(db, newPath, userId, userType);
-
-      // 处理错误情况
-      if (newMountResult.error) {
-        throw new HTTPException(newMountResult.error.status, { message: newMountResult.error.message });
-      }
-
-      // 只支持同一个挂载点内的重命名
-      if (oldMountResult.mount.id !== newMountResult.mount.id) {
-        throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "不支持跨挂载点重命名，请使用复制和删除操作" });
-      }
-
-      const mount = oldMountResult.mount;
-      const oldSubPath = oldMountResult.subPath;
-      const newSubPath = newMountResult.subPath;
-
-      // 获取S3配置
-      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-      if (!s3Config) {
-        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-      }
-
-      // 创建S3客户端
-      const s3Client = await createS3Client(s3Config, encryptionSecret);
-
-      // 规范化S3子路径
-      const s3OldPath = normalizeS3SubPath(oldSubPath, s3Config, oldIsDirectory);
-      const s3NewPath = normalizeS3SubPath(newSubPath, s3Config, newIsDirectory);
-
-      // 检查新路径父目录是否存在
-      if (s3NewPath.includes("/")) {
-        const parentPath = s3NewPath.substring(0, s3NewPath.lastIndexOf("/") + 1);
-        const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
-
-        if (!parentExists) {
-          throw new HTTPException(ApiStatus.CONFLICT, { message: "目标父目录不存在" });
+        if (oldIsDirectory !== newIsDirectory) {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "源路径和目标路径类型必须一致（文件或目录）" });
         }
-      }
 
-      // 检查目标路径是否已存在
-      try {
-        const headParams = {
-          Bucket: s3Config.bucket_name,
-          Key: s3NewPath,
-        };
+        // 查找源路径的挂载点
+        const oldMountResult = await findMountPointByPath(db, oldPath, userId, userType);
 
-        const headCommand = new HeadObjectCommand(headParams);
-        await s3Client.send(headCommand);
-
-        // 如果到这里，说明目标已存在
-        throw new HTTPException(ApiStatus.CONFLICT, { message: "目标路径已存在" });
-      } catch (error) {
-        // 如果是404错误，说明目标不存在，可以继续
-        if (error.$metadata && error.$metadata.httpStatusCode !== 404) {
-          throw error;
+        // 处理错误情况
+        if (oldMountResult.error) {
+          throw new HTTPException(oldMountResult.error.status, { message: oldMountResult.error.message });
         }
-      }
 
-      if (oldIsDirectory) {
-        // 对于目录，需要复制所有内容
-        await renameDirectory(s3Client, s3Config.bucket_name, s3OldPath, s3NewPath);
+        // 查找目标路径的挂载点
+        const newMountResult = await findMountPointByPath(db, newPath, userId, userType);
 
-        // 清除重命名的目录的缓存
-        directoryCacheManager.invalidate(mount.id, oldSubPath);
-        // 清除目标目录可能存在的缓存
-        directoryCacheManager.invalidate(mount.id, newSubPath);
-      } else {
-        // 对于文件，使用复制然后删除
-        // 复制对象
-        const copyParams = {
-          Bucket: s3Config.bucket_name,
-          CopySource: encodeURIComponent(s3Config.bucket_name + "/" + s3OldPath),
-          Key: s3NewPath,
-        };
+        // 处理错误情况
+        if (newMountResult.error) {
+          throw new HTTPException(newMountResult.error.status, { message: newMountResult.error.message });
+        }
 
-        const copyCommand = new CopyObjectCommand(copyParams);
-        await s3Client.send(copyCommand);
+        // 只支持同一个挂载点内的重命名
+        if (oldMountResult.mount.id !== newMountResult.mount.id) {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "不支持跨挂载点重命名，请使用复制和删除操作" });
+        }
 
-        // 删除原对象
-        const deleteParams = {
-          Bucket: s3Config.bucket_name,
-          Key: s3OldPath,
-        };
+        const mount = oldMountResult.mount;
+        const oldSubPath = oldMountResult.subPath;
+        const newSubPath = newMountResult.subPath;
 
-        const deleteCommand = new DeleteObjectCommand(deleteParams);
-        await s3Client.send(deleteCommand);
-      }
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
 
-      // 更新最后使用时间
-      await updateMountLastUsed(db, mount.id);
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
 
-      // 清除源文件/目录所在目录的缓存
-      if (oldSubPath !== "/" && oldSubPath.includes("/")) {
-        const oldParentSubPath = oldSubPath.substring(0, oldSubPath.lastIndexOf("/", oldIsDirectory ? oldSubPath.length - 2 : oldSubPath.length - 1) + 1);
-        // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-        const oldInvalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, oldParentSubPath);
-        console.log(`重命名文件/目录后源路径缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${oldParentSubPath}, 清理了${oldInvalidatedCount}个缓存条目`);
-      } else if (!oldIsDirectory) {
-        // 如果是根目录下的文件，清除根目录缓存
-        directoryCacheManager.invalidate(mount.id, "/");
-      }
+        // 规范化S3子路径
+        const s3OldPath = normalizeS3SubPath(oldSubPath, s3Config, oldIsDirectory);
+        const s3NewPath = normalizeS3SubPath(newSubPath, s3Config, newIsDirectory);
 
-      // 清除目标文件/目录所在目录的缓存
-      if (newSubPath !== "/" && newSubPath.includes("/")) {
-        const newParentSubPath = newSubPath.substring(0, newSubPath.lastIndexOf("/", newIsDirectory ? newSubPath.length - 2 : newSubPath.length - 1) + 1);
-        // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-        const newInvalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, newParentSubPath);
-        console.log(`重命名文件/目录后目标路径缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${newParentSubPath}, 清理了${newInvalidatedCount}个缓存条目`);
-      } else if (!newIsDirectory) {
-        // 如果是根目录下的文件，清除根目录缓存
-        directoryCacheManager.invalidate(mount.id, "/");
-      }
-    },
-    "重命名文件或目录",
-    "重命名失败"
+        // 检查新路径父目录是否存在
+        if (s3NewPath.includes("/")) {
+          const parentPath = s3NewPath.substring(0, s3NewPath.lastIndexOf("/") + 1);
+          const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
+
+          if (!parentExists) {
+            throw new HTTPException(ApiStatus.CONFLICT, { message: "目标父目录不存在" });
+          }
+        }
+
+        // 检查目标路径是否已存在
+        try {
+          const headParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3NewPath,
+          };
+
+          const headCommand = new HeadObjectCommand(headParams);
+          await s3Client.send(headCommand);
+
+          // 如果到这里，说明目标已存在
+          throw new HTTPException(ApiStatus.CONFLICT, { message: "目标路径已存在" });
+        } catch (error) {
+          // 如果是404错误，说明目标不存在，可以继续
+          if (error.$metadata && error.$metadata.httpStatusCode !== 404) {
+            throw error;
+          }
+        }
+
+        if (oldIsDirectory) {
+          // 对于目录，需要复制所有内容
+          await renameDirectory(s3Client, s3Config.bucket_name, s3OldPath, s3NewPath);
+
+          // 清除重命名的目录的缓存
+          directoryCacheManager.invalidate(mount.id, oldSubPath);
+          // 清除目标目录可能存在的缓存
+          directoryCacheManager.invalidate(mount.id, newSubPath);
+        } else {
+          // 对于文件，使用复制然后删除
+          // 复制对象
+          const copyParams = {
+            Bucket: s3Config.bucket_name,
+            CopySource: encodeURIComponent(s3Config.bucket_name + "/" + s3OldPath),
+            Key: s3NewPath,
+          };
+
+          const copyCommand = new CopyObjectCommand(copyParams);
+          await s3Client.send(copyCommand);
+
+          // 删除原对象
+          const deleteParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3OldPath,
+          };
+
+          const deleteCommand = new DeleteObjectCommand(deleteParams);
+          await s3Client.send(deleteCommand);
+        }
+
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
+
+        // 清除源文件/目录所在目录的缓存
+        if (oldSubPath !== "/" && oldSubPath.includes("/")) {
+          const oldParentSubPath = oldSubPath.substring(0, oldSubPath.lastIndexOf("/", oldIsDirectory ? oldSubPath.length - 2 : oldSubPath.length - 1) + 1);
+          // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
+          const oldInvalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, oldParentSubPath);
+          console.log(`重命名文件/目录后源路径缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${oldParentSubPath}, 清理了${oldInvalidatedCount}个缓存条目`);
+        } else if (!oldIsDirectory) {
+          // 如果是根目录下的文件，清除根目录缓存
+          directoryCacheManager.invalidate(mount.id, "/");
+        }
+
+        // 清除目标文件/目录所在目录的缓存
+        if (newSubPath !== "/" && newSubPath.includes("/")) {
+          const newParentSubPath = newSubPath.substring(0, newSubPath.lastIndexOf("/", newIsDirectory ? newSubPath.length - 2 : newSubPath.length - 1) + 1);
+          // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
+          const newInvalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, newParentSubPath);
+          console.log(`重命名文件/目录后目标路径缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${newParentSubPath}, 清理了${newInvalidatedCount}个缓存条目`);
+        } else if (!newIsDirectory) {
+          // 如果是根目录下的文件，清除根目录缓存
+          directoryCacheManager.invalidate(mount.id, "/");
+        }
+      },
+      "重命名文件或目录",
+      "重命名失败"
   );
 }
 

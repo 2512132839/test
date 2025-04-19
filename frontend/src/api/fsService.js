@@ -50,14 +50,17 @@ export async function createAdminDirectory(path) {
  * 管理员API - 上传文件
  * @param {string} path 目标路径
  * @param {File} file 文件对象
+ * @param {boolean} useMultipart 是否使用服务器分片上传，默认为true
+ * @param {Function} onXhrCreated XHR创建后的回调，用于保存引用以便取消请求
  * @returns {Promise<Object>} 上传结果响应对象
  */
-export async function uploadAdminFile(path, file) {
+export async function uploadAdminFile(path, file, useMultipart = true, onXhrCreated) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("path", path);
+  formData.append("use_multipart", useMultipart.toString());
 
-  return post(`/admin/fs/upload`, formData);
+  return post(`/admin/fs/upload`, formData, { onXhrCreated });
 }
 
 /**
@@ -137,14 +140,17 @@ export async function createUserDirectory(path) {
  * API密钥用户API - 上传文件
  * @param {string} path 目标路径
  * @param {File} file 文件对象
+ * @param {boolean} useMultipart 是否使用分片上传，默认为true
+ * @param {Function} onXhrCreated XHR创建后的回调，用于保存引用以便取消请求
  * @returns {Promise<Object>} 上传结果响应对象
  */
-export async function uploadUserFile(path, file) {
+export async function uploadUserFile(path, file, useMultipart = true, onXhrCreated) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("path", path);
+  formData.append("use_multipart", useMultipart.toString());
 
-  return post(`/user/fs/upload`, formData);
+  return post(`/user/fs/upload`, formData, { onXhrCreated });
 }
 
 /**
@@ -182,7 +188,7 @@ export async function renameUserItem(oldPath, newPath) {
  */
 export function getFsApiByUserType(isAdmin) {
   return isAdmin
-    ? {
+      ? {
         getDirectoryList: getAdminDirectoryList,
         getFileInfo: getAdminFileInfo,
         getFileDownloadUrl: getAdminFileDownloadUrl,
@@ -203,7 +209,7 @@ export function getFsApiByUserType(isAdmin) {
         commitPresignedUpload: commitAdminPresignedUpload,
         performPresignedUpload: (file, path, onProgress, onCancel) => performPresignedUpload(file, path, true, onProgress, onCancel),
       }
-    : {
+      : {
         getDirectoryList: getUserDirectoryList,
         getFileInfo: getUserFileInfo,
         getFileDownloadUrl: getUserFileDownloadUrl,
@@ -251,7 +257,7 @@ export async function initAdminMultipartUpload(path, contentType, fileSize, file
  */
 export async function uploadAdminPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/admin/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -318,7 +324,7 @@ export async function initUserMultipartUpload(path, contentType, fileSize, filen
  */
 export async function uploadUserPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/user/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -494,12 +500,12 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress = n
     while (completionRetryCount <= maxCompletionRetries) {
       try {
         completeResponse = await completeUpload(
-          path,
-          uploadId,
-          parts,
-          s3Key,
-          file.type || "application/octet-stream", // 添加文件类型
-          file.size // 添加文件大小
+            path,
+            uploadId,
+            parts,
+            s3Key,
+            file.type || "application/octet-stream", // 添加文件类型
+            file.size // 添加文件大小
         );
         break; // 成功则跳出循环
       } catch (err) {
