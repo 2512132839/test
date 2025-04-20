@@ -62,4 +62,4 @@ ENV ENCRYPTION_SECRET=PLEASE_CHANGE_THIS_IN_PRODUCTION
 EXPOSE 8787
 
 # 启动命令
-CMD ["node", "server.js"]
+CMD ["node", "--expose-gc", "server.js"]
