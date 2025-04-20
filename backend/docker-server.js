@@ -10,7 +10,6 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import methodOverride from "method-override";
-import multer from "multer";
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -198,25 +197,6 @@ const corsOptions = {
   maxAge: 86400, // 缓存预检请求结果24小时
   exposedHeaders: ["ETag", "Content-Type", "Content-Length", "Last-Modified"],
 };
-
-// ==========================================
-// multer配置 - 文件上传中间件
-// ==========================================
-
-// 配置multer的磁盘存储，但我们实际上只是暂存，不会真正保存到磁盘
-const storage = multer.memoryStorage();
-
-// 创建multer实例，限制文件大小为1GB
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 1024 * 1024 * 1024, // 1GB
-  },
-  fileFilter: function (req, file, cb) {
-    // 所有文件类型均接受，由业务逻辑决定是否处理
-    cb(null, true);
-  },
-});
 
 // ==========================================
 // 中间件和服务器配置
@@ -416,86 +396,10 @@ server.use(async (req, res, next) => {
 // 路由处理
 // ==========================================
 
-// 添加专门处理文件上传的路由
-// 注意：这些路由必须在通配符路由之前定义
-
-// 管理员文件上传
-server.post("/api/admin/fs/upload", upload.single("file"), async (req, res) => {
-  try {
-    logMessage("info", "处理管理员文件上传请求");
-    // 如果文件已由multer处理，构建模拟的文件对象
-    if (req.file) {
-      logMessage("debug", `文件已由multer处理: ${req.file.originalname}, 大小: ${req.file.size} 字节, Content-Type: ${req.headers["content-type"]}`);
-
-      // 构建特殊的请求体，将在createAdaptedRequest中处理
-      req.multerProcessed = true;
-
-      // 将文件信息添加到请求体中，以便后续处理
-      req.body = req.body || {};
-      req.body.file_name = req.file.originalname;
-      req.body.file_type = req.file.mimetype;
-      req.body.file_size = req.file.size.toString();
-
-      // 这些信息会在createAdaptedRequest中使用，但不会被发送到Worker
-      req._file = {
-        buffer: req.file.buffer,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-      };
-    } else {
-      logMessage("warn", "未收到文件，但请求发送到了文件上传端点");
-    }
-
-    // 处理请求，并将响应传递回客户端
-    const response = await app.fetch(createAdaptedRequest(req), req.env, {});
-    await convertWorkerResponseToExpress(response, res);
-  } catch (error) {
-    logMessage("error", "处理管理员文件上传请求错误:", { error });
-    const status = error.status && typeof error.status === "number" ? error.status : ApiStatus.INTERNAL_ERROR;
-    res.status(status).json(createErrorResponse(error, status));
-  }
-});
-
-// API密钥用户文件上传
-server.post("/api/user/fs/upload", upload.single("file"), async (req, res) => {
-  try {
-    logMessage("info", "处理API密钥用户文件上传请求");
-    // 如果文件已由multer处理，构建模拟的文件对象
-    if (req.file) {
-      logMessage("debug", `文件已由multer处理: ${req.file.originalname}, 大小: ${req.file.size} 字节, Content-Type: ${req.headers["content-type"]}`);
-
-      // 构建特殊的请求体，将在createAdaptedRequest中处理
-      req.multerProcessed = true;
-
-      // 将文件信息添加到请求体中，以便后续处理
-      req.body = req.body || {};
-      req.body.file_name = req.file.originalname;
-      req.body.file_type = req.file.mimetype;
-      req.body.file_size = req.file.size.toString();
-
-      // 这些信息会在createAdaptedRequest中使用，但不会被发送到Worker
-      req._file = {
-        buffer: req.file.buffer,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-      };
-    } else {
-      logMessage("warn", "未收到文件，但请求发送到了文件上传端点");
-    }
-
-    // 处理请求，并将响应传递回客户端
-    const response = await app.fetch(createAdaptedRequest(req), req.env, {});
-    await convertWorkerResponseToExpress(response, res);
-  } catch (error) {
-    logMessage("error", "处理API密钥用户文件上传请求错误:", { error });
-    const status = error.status && typeof error.status === "number" ? error.status : ApiStatus.INTERNAL_ERROR;
-    res.status(status).json(createErrorResponse(error, status));
-  }
-});
-
-// 文件下载路由处理
+/**
+ * 文件下载路由处理
+ * 支持文件下载和预览功能
+ */
 server.get("/api/file-download/:slug", async (req, res) => {
   try {
     const response = await handleFileDownload(req.params.slug, req.env, createAdaptedRequest(req), true);
@@ -545,47 +449,9 @@ function createAdaptedRequest(expressReq) {
     // 检查请求体的类型和内容
     let contentType = expressReq.headers["content-type"] || "";
 
-    // 特殊处理multer已处理的文件上传请求
-    if (expressReq.multerProcessed && expressReq._file && expressReq.originalUrl.includes("/fs/upload")) {
-      logMessage("debug", "处理createAdaptedRequest中的multer处理过的文件上传");
-
-      // 构建FormData格式的请求体
-      const formData = new FormData();
-
-      // 从file buffer创建File对象
-      const file = new File([expressReq._file.buffer], expressReq._file.originalname, { type: expressReq._file.mimetype });
-
-      // 添加文件到FormData
-      formData.append("file", file);
-
-      // 添加其他表单字段（除了文件相关的元数据）
-      Object.keys(expressReq.body).forEach((key) => {
-        if (!key.startsWith("file_")) {
-          formData.append(key, expressReq.body[key]);
-        }
-      });
-
-      // 如果有path字段，确保添加
-      if (expressReq.body.path) {
-        formData.append("path", expressReq.body.path);
-      }
-
-      // 如果有use_multipart字段，确保添加
-      if (expressReq.body.use_multipart !== undefined) {
-        formData.append("use_multipart", expressReq.body.use_multipart);
-      }
-
-      body = formData;
-
-      // 确保Content-Type正确设置
-      if (!contentType.includes("multipart/form-data")) {
-        // 浏览器通常会自动生成boundary，我们这里添加一个标记
-        contentType = "multipart/form-data; boundary=----WebKitFormBoundarySimulated";
-        expressReq.headers["content-type"] = contentType;
-      }
-    }
     // 对于WebDAV请求特殊处理
-    else if (expressReq.path.startsWith("/dav")) {
+    const isWebDAVRequest = expressReq.path.startsWith("/dav");
+    if (isWebDAVRequest) {
       // 确认Content-Type字段存在，如果不存在则设置一个默认值
       if (!contentType) {
         if (expressReq.method === "MKCOL") {
@@ -595,8 +461,9 @@ function createAdaptedRequest(expressReq) {
         }
       }
     }
+
     // MKCOL请求特殊处理: 即使有请求体也允许处理
-    else if (expressReq.method === "MKCOL") {
+    if (expressReq.method === "MKCOL") {
       // 对于MKCOL，如果有请求体就记录但不严格要求特定格式
       if (expressReq.body) {
         logMessage("debug", `MKCOL请求包含请求体，内容类型: ${contentType}, 请求体类型: ${typeof expressReq.body}`);
@@ -610,7 +477,7 @@ function createAdaptedRequest(expressReq) {
         }
       }
     }
-    // 正常处理其他请求类型
+    // 处理multipart/form-data和其他类型请求
     else {
       // 如果是JSON请求且已经被解析
       if ((contentType.includes("application/json") || contentType.includes("json")) && expressReq.body && typeof expressReq.body === "object") {
@@ -631,6 +498,32 @@ function createAdaptedRequest(expressReq) {
           formData.append(key, expressReq.body[key]);
         }
         body = formData.toString();
+      }
+      // 特殊处理multipart/form-data类型请求
+      else if (contentType.includes("multipart/form-data")) {
+        // 对于multipart/form-data请求，直接使用原始请求体，避免处理
+        // 这可能导致无法处理错误的multipart请求，但不会导致服务器崩溃
+        if (typeof expressReq.body === "object" && expressReq.body) {
+          // 如果已经被其他中间件处理，尝试序列化
+          try {
+            body = JSON.stringify(expressReq.body);
+          } catch (e) {
+            logMessage("warn", `无法序列化multipart请求的对象体: ${e.message}`);
+            body = null; // 使用空对象代替
+          }
+        } else if (Buffer.isBuffer(expressReq.body)) {
+          // 如果是Buffer，直接使用
+          body = expressReq.body;
+        } else {
+          // 记录无法处理的情况
+          logMessage("warn", `收到multipart请求，但无法处理请求体类型: ${typeof expressReq.body}`);
+
+          // 创建替代的小型FormData，避免解析错误
+          // 这会丢失原始请求内容，但能防止服务器崩溃
+          const formData = new FormData();
+          formData.append("_placeholder", "empty");
+          body = formData;
+        }
       }
       // 如果是其他类型的请求体，如果有原始数据就使用
       else if (expressReq.body) {
