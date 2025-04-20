@@ -9,6 +9,7 @@ import { createS3Client, buildS3Url } from "../utils/s3Utils.js";
 import { CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from "@aws-sdk/client-s3";
 import { generateFileId } from "../utils/common.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
+import { getLocalTimeString } from "../utils/common.js";
 
 /**
  * 获取S3资源（挂载点、配置、客户端）
@@ -243,28 +244,67 @@ export async function completeMultipartUpload(
         // 确保parts按照partNumber排序
         const sortedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
 
-        // 完成分片上传
-        const completeCommand = new CompleteMultipartUploadCommand({
-          Bucket: s3Config.bucket_name,
-          Key: s3SubPath,
-          UploadId: uploadId,
-          MultipartUpload: {
-            Parts: sortedParts.map((part) => ({
-              PartNumber: part.partNumber,
-              ETag: part.etag,
-            })),
-          },
-        });
+        let completeResponse;
+        try {
+          // 完成分片上传
+          const completeCommand = new CompleteMultipartUploadCommand({
+            Bucket: s3Config.bucket_name,
+            Key: s3SubPath,
+            UploadId: uploadId,
+            MultipartUpload: {
+              Parts: sortedParts.map((part) => ({
+                PartNumber: part.partNumber,
+                ETag: part.etag,
+              })),
+            },
+          });
 
-        const completeResponse = await s3Client.send(completeCommand);
+          completeResponse = await s3Client.send(completeCommand);
+        } catch (error) {
+          // 特殊处理"NoSuchUpload"错误 - 可能上传已经完成
+          if (error.name === "NoSuchUpload" || (error.message && error.message.includes("The specified multipart upload does not exist"))) {
+            console.log(`检测到NoSuchUpload错误，检查文件是否已存在: ${s3SubPath}`);
+            try {
+              // 尝试检查对象是否已存在（上传可能已成功）
+              const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+              const headCommand = new HeadObjectCommand({
+                Bucket: s3Config.bucket_name,
+                Key: s3SubPath,
+              });
+
+              const headResponse = await s3Client.send(headCommand);
+              if (headResponse) {
+                console.log(`文件已存在，视为上传成功: ${s3SubPath}`);
+                // 创建一个类似于成功完成的响应
+                completeResponse = {
+                  ETag: headResponse.ETag,
+                  Location: buildS3Url(s3Config, s3SubPath),
+                };
+              } else {
+                // 如果检查对象也失败，重新抛出原始错误
+                throw error;
+              }
+            } catch (headError) {
+              console.error(`检查对象是否存在失败: ${headError.message}`);
+              // 重新抛出原始错误
+              throw error;
+            }
+          } else {
+            // 其他类型错误，继续抛出
+            throw error;
+          }
+        }
 
         // 更新最后使用时间
         await updateMountLastUsed(db, mount.id);
 
-        // 只有当saveToDatabase为true时，才将文件信息保存到数据库
+        // 构建S3直接访问URL
+        const s3Url = buildS3Url(s3Config, s3SubPath);
+
+        // 如果需要保存到数据库
+        let fileId;
         if (saveToDatabase) {
-          // 提取文件名 - 改进的文件名提取逻辑
-          // 尝试从s3Key中提取文件名，因为这可能包含初始化阶段提供的自定义文件名
+          // 提取文件名
           let fileName = s3SubPath.split("/").filter(Boolean).pop();
           // 如果s3Key中没有提取到有效文件名，则尝试从路径中提取
           if (!fileName) {
@@ -276,30 +316,30 @@ export async function completeMultipartUpload(
           }
 
           // 生成文件ID
-          const fileId = generateFileId();
+          fileId = generateFileId();
 
-          // 生成slug（使用文件ID的前8位作为slug）
+          // 生成slug（使用文件ID的前5位作为slug）
           const fileSlug = "M-" + fileId.substring(0, 5);
 
-          // 构建S3直接访问URL
-          const s3Url = buildS3Url(s3Config, s3SubPath);
+          // 获取当前时间，使用与直接上传相同的方式
+          const now = getLocalTimeString();
 
-          // 记录文件上传成功到数据库
+          // 记录文件信息到数据库
           await db
               .prepare(
                   `
           INSERT INTO files (
-            id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
               )
-              .bind(fileId, fileName, s3SubPath, s3Url, contentType, fileSize, s3Config.id, fileSlug, completeResponse.ETag, `${userType}:${userId}`)
+              .bind(fileId, fileName, s3SubPath, s3Url, contentType, fileSize, s3Config.id, fileSlug, completeResponse.ETag, `${userType}:${userId}`, now, now)
               .run();
         } else {
           console.log(`分片上传完成但跳过数据库记录 (路径: ${path})`);
         }
 
-        // 刷新目录缓存
+        // 提取父目录路径，用于刷新目录缓存
         const parentPath = path.substring(0, path.lastIndexOf("/") + 1);
         if (mount.id && parentPath) {
           const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentPath);
@@ -314,7 +354,7 @@ export async function completeMultipartUpload(
           etag: completeResponse.ETag,
           location: completeResponse.Location,
           fileId: saveToDatabase ? fileId : undefined, // 只有保存到数据库时才返回fileId
-          s3Url: s3Url, // 返回S3 URL
+          s3Url: s3Url,
         };
       },
       "完成分片上传",
