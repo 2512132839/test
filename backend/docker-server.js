@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import methodOverride from "method-override";
+import multer from "multer";
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -181,6 +182,14 @@ logMessage("info", `数据库文件路径: ${dbPath}`);
 const sqliteAdapter = createSQLiteAdapter(dbPath);
 let isDbInitialized = false;
 
+// 配置multer中间件，用于处理文件上传
+const upload = multer({
+  storage: multer.memoryStorage(), // 使用内存存储，避免写入磁盘
+  limits: {
+    fileSize: 1024 * 1024 * 1024, // 限制文件大小为1GB
+  },
+});
+
 // ==========================================
 // WebDAV支持配置 - 集中WebDAV相关定义
 // ==========================================
@@ -312,6 +321,31 @@ server.use((err, req, res, next) => {
   }
 
   next(err);
+});
+
+// 处理文件上传的路由 - 必须在其他中间件之前配置
+server.post("/api/admin/fs/upload", upload.single("file"), (req, res, next) => {
+  // multer成功处理文件后，文件内容和字段会被附加到req对象
+  // 在这里记录一些有用的信息便于调试
+  if (req.file) {
+    logMessage("info", `文件上传请求已处理: ${req.path}`, {
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
+    });
+  }
+  next(); // 继续执行下一个中间件
+});
+
+server.post("/api/user/fs/upload", upload.single("file"), (req, res, next) => {
+  if (req.file) {
+    logMessage("info", `用户文件上传请求已处理: ${req.path}`, {
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
+    });
+  }
+  next();
 });
 
 // 处理表单数据
@@ -449,9 +483,28 @@ function createAdaptedRequest(expressReq) {
     // 检查请求体的类型和内容
     let contentType = expressReq.headers["content-type"] || "";
 
+    // 处理multer解析的文件上传请求
+    if (contentType.includes("multipart/form-data") && expressReq.file) {
+      // 创建新的FormData对象来模拟浏览器发送的multipart/form-data
+      const formData = new FormData();
+
+      // 添加文件
+      const fileBlob = new Blob([expressReq.file.buffer], { type: expressReq.file.mimetype });
+      formData.append("file", fileBlob, expressReq.file.originalname);
+
+      // 添加其他表单字段
+      if (expressReq.body) {
+        Object.keys(expressReq.body).forEach((key) => {
+          formData.append(key, expressReq.body[key]);
+        });
+      }
+
+      body = formData;
+
+      logMessage("debug", `已处理multipart/form-data请求，文件大小: ${expressReq.file.size} 字节`);
+    }
     // 对于WebDAV请求特殊处理
-    const isWebDAVRequest = expressReq.path.startsWith("/dav");
-    if (isWebDAVRequest) {
+    else if (expressReq.path.startsWith("/dav")) {
       // 确认Content-Type字段存在，如果不存在则设置一个默认值
       if (!contentType) {
         if (expressReq.method === "MKCOL") {
@@ -477,8 +530,9 @@ function createAdaptedRequest(expressReq) {
         }
       }
     }
-    // 处理multipart/form-data和其他类型请求
-    else {
+    // 正常处理其他请求类型
+    else if (!body) {
+      // 只有在body未设置时才继续处理
       // 如果是JSON请求且已经被解析
       if ((contentType.includes("application/json") || contentType.includes("json")) && expressReq.body && typeof expressReq.body === "object") {
         body = JSON.stringify(expressReq.body);
@@ -498,32 +552,6 @@ function createAdaptedRequest(expressReq) {
           formData.append(key, expressReq.body[key]);
         }
         body = formData.toString();
-      }
-      // 特殊处理multipart/form-data类型请求
-      else if (contentType.includes("multipart/form-data")) {
-        // 对于multipart/form-data请求，直接使用原始请求体，避免处理
-        // 这可能导致无法处理错误的multipart请求，但不会导致服务器崩溃
-        if (typeof expressReq.body === "object" && expressReq.body) {
-          // 如果已经被其他中间件处理，尝试序列化
-          try {
-            body = JSON.stringify(expressReq.body);
-          } catch (e) {
-            logMessage("warn", `无法序列化multipart请求的对象体: ${e.message}`);
-            body = null; // 使用空对象代替
-          }
-        } else if (Buffer.isBuffer(expressReq.body)) {
-          // 如果是Buffer，直接使用
-          body = expressReq.body;
-        } else {
-          // 记录无法处理的情况
-          logMessage("warn", `收到multipart请求，但无法处理请求体类型: ${typeof expressReq.body}`);
-
-          // 创建替代的小型FormData，避免解析错误
-          // 这会丢失原始请求内容，但能防止服务器崩溃
-          const formData = new FormData();
-          formData.append("_placeholder", "empty");
-          body = formData;
-        }
       }
       // 如果是其他类型的请求体，如果有原始数据就使用
       else if (expressReq.body) {
