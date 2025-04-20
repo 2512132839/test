@@ -36,13 +36,28 @@ export function createErrorResponse(statusCode, message) {
  * @returns {string} 格式化的本地时间字符串，如：'2023-06-01 14:30:45'
  */
 export function getLocalTimeString() {
+  // 创建一个基于UTC时间的Date对象
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  const seconds = String(now.getSeconds()).padStart(2, "0");
+
+  // 调整为UTC+8时区（中国标准时间）
+  // 获取当前UTC时间的毫秒数
+  const utcTime = now.getTime();
+  // 获取本地时区与UTC的时差（分钟）
+  const localTimezoneOffset = now.getTimezoneOffset();
+  // UTC+8时区比UTC快8小时，即480分钟
+  const cstTimezoneOffset = -480;
+  // 计算需要调整的时差（分钟）
+  const timeDifference = (localTimezoneOffset - cstTimezoneOffset) * 60 * 1000;
+  // 创建调整后的时间对象
+  const cstTime = new Date(utcTime + timeDifference);
+
+  // 从CST时间对象中提取各个部分
+  const year = cstTime.getFullYear();
+  const month = String(cstTime.getMonth() + 1).padStart(2, "0");
+  const day = String(cstTime.getDate()).padStart(2, "0");
+  const hours = String(cstTime.getHours()).padStart(2, "0");
+  const minutes = String(cstTime.getMinutes()).padStart(2, "0");
+  const seconds = String(cstTime.getSeconds()).padStart(2, "0");
 
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
@@ -161,6 +176,6 @@ export function getFileNameAndExt(filename) {
  */
 export function getSafeFileName(fileName) {
   return fileName
-    .replace(/[^\w\u4e00-\u9fa5\-\.]/g, "_") // 仅保留字母、数字、中文、下划线、连字符和点
-    .replace(/_{2,}/g, "_"); // 将多个连续下划线替换为单个
+      .replace(/[^\w\u4e00-\u9fa5\-\.]/g, "_") // 仅保留字母、数字、中文、下划线、连字符和点
+      .replace(/_{2,}/g, "_"); // 将多个连续下划线替换为单个
 }
