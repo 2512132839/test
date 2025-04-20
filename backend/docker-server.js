@@ -728,8 +728,14 @@ function startMemoryMonitoring(interval = 60000) {
     });
 
     // 当内存使用率高于阈值时，尝试手动触发垃圾回收
-    if (global.gc && memUsage.heapUsed / memUsage.heapTotal > 0.85) {
-      logMessage("info", "内存使用率高，尝试手动垃圾回收");
+    // 增加对外部内存和ArrayBuffers的检查，以便在文件上传后更好地触发内存回收
+    if (
+        global.gc &&
+        (memUsage.heapUsed / memUsage.heapTotal > 0.85 ||
+            memUsage.external > 30 * 1024 * 1024 || // 外部内存超过30MB
+            (memUsage.arrayBuffers && memUsage.arrayBuffers > 50 * 1024 * 1024)) // ArrayBuffers超过50MB
+    ) {
+      logMessage("info", "检测到内存使用较高，尝试手动垃圾回收");
       global.gc();
     }
   };
