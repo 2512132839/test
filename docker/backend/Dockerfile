@@ -57,12 +57,9 @@ ENV DATA_DIR=/data
 ENV PORT=8787
 # 注意：这个密钥应该在运行时通过环境变量传入，这里只是设置默认值
 ENV ENCRYPTION_SECRET=PLEASE_CHANGE_THIS_IN_PRODUCTION
-# 内存监控相关设置
-ENV MEMORY_MONITOR_INTERVAL=60000
-ENV MEMORY_USAGE_THRESHOLD=300
 
 # 暴露端口
 EXPOSE 8787
 
 # 启动命令
-CMD ["node", "--expose-gc", "server.js"]
+CMD ["node", "server.js"]

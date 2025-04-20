@@ -10,6 +10,8 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import methodOverride from "method-override";
+import os from "os"; // 添加临时目录支持
+import crypto from "crypto"; // 添加用于生成随机文件名
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -48,192 +50,6 @@ function logMessage(level, message, data = null) {
     }
   }
 }
-
-// ==========================================
-// 内存监控与管理
-// ==========================================
-
-// 内存使用阈值（MB）- 超过此值将发出警告
-const MEMORY_WARN_THRESHOLD = process.env.MEMORY_WARN_THRESHOLD || 300; // 默认300MB
-// 内存监控间隔（毫秒）
-const MEMORY_MONITOR_INTERVAL = process.env.MEMORY_MONITOR_INTERVAL || 60000; // 默认1分钟
-
-// 保存请求级别的内存使用数据
-const requestMemoryUsage = new Map();
-
-/**
- * 格式化内存大小
- * @param {number} bytes - 字节数
- * @returns {string} 格式化后的内存大小
- */
-function formatMemorySize(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + " KB";
-  else if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + " MB";
-  else return (bytes / 1024 / 1024 / 1024).toFixed(2) + " GB";
-}
-
-/**
- * 获取当前内存使用情况
- * @returns {Object} 内存使用数据
- */
-function getMemoryUsage() {
-  const memoryUsage = process.memoryUsage();
-  return {
-    rss: formatMemorySize(memoryUsage.rss),
-    heapTotal: formatMemorySize(memoryUsage.heapTotal),
-    heapUsed: formatMemorySize(memoryUsage.heapUsed),
-    external: formatMemorySize(memoryUsage.external || 0),
-    arrayBuffers: formatMemorySize(memoryUsage.arrayBuffers || 0),
-    rawRss: memoryUsage.rss,
-    rawHeapTotal: memoryUsage.heapTotal,
-    rawHeapUsed: memoryUsage.heapUsed,
-  };
-}
-
-/**
- * 记录内存使用情况
- * @param {string} label - 记录标识
- * @param {boolean} [force=false] - 是否强制记录（忽略日志级别）
- */
-function logMemoryUsage(label = "周期性内存检查", force = false) {
-  const memory = getMemoryUsage();
-
-  // 检查是否超过警告阈值
-  const isOverThreshold = memory.rawHeapUsed > MEMORY_WARN_THRESHOLD * 1024 * 1024;
-
-  // 如果强制记录、超过阈值或日志级别为DEBUG，则记录内存使用情况
-  if (force || isOverThreshold || CURRENT_LOG_LEVEL >= LOG_LEVELS.DEBUG) {
-    const logLevel = isOverThreshold ? "warn" : "info";
-    logMessage(logLevel, `${label} - 内存使用情况:`, {
-      rss: memory.rss,
-      heapTotal: memory.heapTotal,
-      heapUsed: memory.heapUsed,
-      external: memory.external,
-      timestamp: new Date().toISOString(),
-    });
-
-    // 如果可能，尝试触发垃圾回收
-    if (isOverThreshold && global.gc) {
-      logMessage("info", "内存使用超过阈值，尝试强制垃圾回收");
-      global.gc();
-
-      // 垃圾回收后再次记录内存使用情况
-      setTimeout(() => {
-        const afterGC = getMemoryUsage();
-        logMessage("info", "垃圾回收后内存使用情况:", {
-          rss: afterGC.rss,
-          heapTotal: afterGC.heapTotal,
-          heapUsed: afterGC.heapUsed,
-          freed: formatMemorySize(memory.rawHeapUsed - afterGC.rawHeapUsed),
-          timestamp: new Date().toISOString(),
-        });
-      }, 100);
-    }
-  }
-
-  return memory;
-}
-
-/**
- * 跟踪请求的内存使用
- * @param {string} requestId - 请求ID
- * @param {string} phase - 阶段 ('start', 'end', 'process', etc.)
- * @param {Object} [extraData] - 额外数据
- */
-function trackRequestMemory(requestId, phase, extraData = {}) {
-  // 只在DEBUG级别或以上记录请求内存使用
-  if (CURRENT_LOG_LEVEL < LOG_LEVELS.DEBUG) return;
-
-  const memory = getMemoryUsage();
-  const timestamp = Date.now();
-
-  if (!requestMemoryUsage.has(requestId)) {
-    requestMemoryUsage.set(requestId, {
-      phases: [],
-      startTime: timestamp,
-    });
-  }
-
-  const requestData = requestMemoryUsage.get(requestId);
-  requestData.phases.push({
-    phase,
-    memory,
-    timestamp,
-    ...extraData,
-  });
-
-  // 保存回Map
-  requestMemoryUsage.set(requestId, requestData);
-}
-
-/**
- * 生成请求ID
- * @returns {string} 唯一请求ID
- */
-function generateRequestId() {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
-}
-
-/**
- * 完成请求内存跟踪并记录结果
- * @param {string} requestId - 请求ID
- * @param {string} [status='completed'] - 请求状态
- */
-function finishRequestMemoryTracking(requestId, status = "completed") {
-  // 只在DEBUG级别或以上记录请求内存使用
-  if (CURRENT_LOG_LEVEL < LOG_LEVELS.DEBUG) return;
-
-  if (requestMemoryUsage.has(requestId)) {
-    const data = requestMemoryUsage.get(requestId);
-    const now = Date.now();
-    const duration = now - data.startTime;
-
-    // 获取开始和结束阶段的内存使用
-    const startPhase = data.phases.find((p) => p.phase === "start");
-    const endPhase = data.phases.find((p) => p.phase === "end") || data.phases[data.phases.length - 1];
-
-    if (startPhase && endPhase && startPhase !== endPhase) {
-      const memoryDiff = endPhase.memory.rawHeapUsed - startPhase.memory.rawHeapUsed;
-      const isSignificant = Math.abs(memoryDiff) > 10 * 1024 * 1024; // 10MB变化视为显著
-
-      if (isSignificant || duration > 1000) {
-        logMessage("debug", `请求 ${requestId} ${status} - 内存使用情况:`, {
-          duration: `${duration}ms`,
-          memoryChange: formatMemorySize(memoryDiff),
-          startHeapUsed: startPhase.memory.heapUsed,
-          endHeapUsed: endPhase.memory.heapUsed,
-          phases: data.phases.length,
-        });
-      }
-    }
-
-    // 清理请求数据
-    requestMemoryUsage.delete(requestId);
-  }
-}
-
-// 定期内存使用监控
-setInterval(() => {
-  logMemoryUsage();
-
-  // 清理超过5分钟的请求记录（可能是未正确清理的请求）
-  const now = Date.now();
-  const fiveMinutesAgo = now - 5 * 60 * 1000;
-
-  for (const [requestId, data] of requestMemoryUsage.entries()) {
-    if (data.startTime < fiveMinutesAgo) {
-      logMessage("warn", `请求 ${requestId} 的内存记录未正确清理，已超时`, {
-        startTime: new Date(data.startTime).toISOString(),
-        phases: data.phases.length,
-      });
-      requestMemoryUsage.delete(requestId);
-    }
-  }
-}, MEMORY_MONITOR_INTERVAL);
-
-// 启动时记录初始内存状态
-logMemoryUsage("服务器启动", true);
 
 // ==========================================
 // SQLite适配器类 - 提供与Cloudflare D1数据库兼容的接口
@@ -442,113 +258,58 @@ server.use((req, res, next) => {
 // 处理multipart/form-data请求体的中间件
 server.use((req, res, next) => {
   if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].includes("multipart/form-data")) {
-    // 生成唯一请求ID用于内存跟踪
-    const requestId = generateRequestId();
-    req.requestId = requestId;
+    logMessage("debug", `检测到multipart/form-data请求: ${req.path}，使用流式处理和临时文件存储`);
 
-    // 开始跟踪请求内存使用
-    trackRequestMemory(requestId, "start", {
-      path: req.path,
-      method: req.method,
-      contentType: req.headers["content-type"],
-      contentLength: req.headers["content-length"] || "未知",
-    });
+    // 创建随机临时文件名
+    const tempFileName = `upload-${crypto.randomBytes(16).toString("hex")}`;
+    const tempFilePath = path.join(os.tmpdir(), tempFileName);
 
-    logMessage("debug", `检测到multipart/form-data请求: ${req.path}，请求ID: ${requestId}`);
+    // 创建写入流
+    const fileStream = fs.createWriteStream(tempFilePath);
 
-    // 设置大小限制，避免过大的请求
-    const MAX_SIZE = 300 * 1024 * 1024; // 300MB限制
-    let totalSize = 0;
-    let isTooLarge = false;
+    // 通过管道将请求流导入文件
+    req.pipe(fileStream);
 
-    // 对于multipart请求，我们需要保存原始数据
-    const chunks = [];
+    // 保存临时文件路径，供后续处理使用
+    req.tempFilePath = tempFilePath;
 
-    req.on("data", (chunk) => {
-      // 累计大小
-      totalSize += chunk.length;
-
-      // 检查是否超过限制
-      if (totalSize > MAX_SIZE) {
-        if (!isTooLarge) {
-          isTooLarge = true;
-          logMessage("warn", `请求体超过最大限制 (${MAX_SIZE / 1024 / 1024}MB)，可能导致内存问题`, {
-            requestId,
-            path: req.path,
-            totalSize: formatMemorySize(totalSize),
-            limit: formatMemorySize(MAX_SIZE),
-          });
-
-          // 记录内存检查点
-          trackRequestMemory(requestId, "size_exceeded", {
-            totalSize: formatMemorySize(totalSize),
-            limit: formatMemorySize(MAX_SIZE),
-          });
-        }
-      }
-
-      chunks.push(chunk);
-    });
-
-    req.on("end", () => {
-      // 记录内存检查点
-      trackRequestMemory(requestId, "chunks_loaded", {
-        chunkCount: chunks.length,
-        totalSize: formatMemorySize(totalSize),
-      });
-
-      if (isTooLarge) {
-        logMessage("warn", `完成接收超大请求体: ${formatMemorySize(totalSize)}`, { requestId });
-      }
-
-      // 保存原始请求体
-      req.rawBody = Buffer.concat(chunks);
-
-      // 在请求处理完成后执行清理
-      res.on("finish", () => {
-        // 释放内存
-        req.rawBody = null;
-
-        // 记录和完成内存跟踪
-        trackRequestMemory(requestId, "end");
-        finishRequestMemoryTracking(requestId);
-
-        // 建议垃圾回收
-        if (totalSize > 50 * 1024 * 1024 && global.gc) {
-          // 50MB
-          logMessage("debug", `请求处理完成，尝试触发垃圾回收，请求大小: ${formatMemorySize(totalSize)}`, { requestId });
-          setTimeout(() => {
-            global.gc();
-          }, 100);
-        }
-      });
-
-      logMessage("debug", `multipart请求体已保存，大小: ${formatMemorySize(req.rawBody.length)}`, { requestId });
-
-      // 记录内存检查点
-      trackRequestMemory(requestId, "body_created", {
-        bodySize: formatMemorySize(req.rawBody.length),
-      });
-
+    // 处理文件写入完成
+    fileStream.on("finish", () => {
+      logMessage("debug", `multipart请求数据已保存到临时文件: ${tempFilePath}`);
       next();
     });
 
-    req.on("error", (err) => {
-      logMessage("error", `读取multipart请求体错误:`, { error: err, requestId });
-
-      // 记录错误并完成内存跟踪
-      trackRequestMemory(requestId, "error", { error: err.message });
-      finishRequestMemoryTracking(requestId, "error");
-
+    // 处理错误
+    fileStream.on("error", (err) => {
+      logMessage("error", `保存multipart请求数据到临时文件失败:`, { error: err });
+      // 尝试清理失败的临时文件
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (cleanupErr) {
+        // 忽略清理错误
+      }
       next(err);
     });
 
-    // 请求超时处理
-    req.setTimeout(300000, () => {
-      // 5分钟超时
-      logMessage("error", `处理multipart请求超时`, { requestId, path: req.path });
-      trackRequestMemory(requestId, "timeout");
-      finishRequestMemoryTracking(requestId, "timeout");
+    // 处理请求结束，确保资源清理
+    res.on("finish", () => {
+      // 响应结束后清理临时文件
+      if (req.tempFilePath) {
+        logMessage("debug", `请求处理完成，清理临时文件: ${req.tempFilePath}`);
+        try {
+          fs.unlinkSync(req.tempFilePath);
+          req.tempFilePath = null;
+        } catch (cleanupErr) {
+          logMessage("error", `清理临时文件失败:`, { error: cleanupErr, path: req.tempFilePath });
+        }
+      }
+    });
+
+    // 处理错误中断
+    req.on("error", (err) => {
+      logMessage("error", `multipart请求处理错误:`, { error: err });
+      fileStream.end();
+      next(err);
     });
   } else {
     // 非multipart请求，直接传递给下一个中间件
@@ -562,28 +323,11 @@ server.use(
       type: ["application/xml", "text/xml", "application/octet-stream"],
       limit: "1gb", // 设置合理的大小限制
       verify: (req, res, buf, encoding) => {
-        // 记录大型请求的内存使用
-        if (buf && buf.length > 50 * 1024 * 1024) {
-          // 10MB
-          logMessage("debug", `大型请求体 (${req.method} ${req.path}):`, {
-            contentType: req.headers["content-type"],
-            size: formatMemorySize(buf.length),
-            requrestId: req.requestId,
-          });
-
-          // 如果有请求ID，跟踪内存使用
-          if (req.requestId) {
-            trackRequestMemory(req.requestId, "raw_body_processed", {
-              size: formatMemorySize(buf.length),
-            });
-          }
-        }
-
         // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
-        if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 50 * 1024 * 1024) {
+        if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 10 * 1024 * 1024) {
           logMessage("debug", `大型WebDAV ${req.method} 请求体:`, {
             contentType: req.headers["content-type"],
-            size: buf ? formatMemorySize(buf.length) : 0,
+            size: buf ? buf.length : 0,
           });
         }
 
@@ -781,11 +525,6 @@ server.use("*", async (req, res) => {
 function createAdaptedRequest(expressReq) {
   const url = new URL(expressReq.originalUrl, `http://${expressReq.headers.host || "localhost"}`);
 
-  // 跟踪内存使用（如果有请求ID）
-  if (expressReq.requestId) {
-    trackRequestMemory(expressReq.requestId, "adapt_request_start");
-  }
-
   // 获取请求体内容
   let body = undefined;
   if (["POST", "PUT", "PATCH", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "DELETE"].includes(expressReq.method)) {
@@ -793,19 +532,15 @@ function createAdaptedRequest(expressReq) {
     let contentType = expressReq.headers["content-type"] || "";
 
     // 特殊处理multipart/form-data请求
-    if (contentType.includes("multipart/form-data") && expressReq.rawBody) {
-      // 使用预先保存的原始请求体
-      logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，使用原始请求体，大小: ${formatMemorySize(expressReq.rawBody.length)}字节`, {
-        requestId: expressReq.requestId,
-      });
-
-      body = expressReq.rawBody;
-
-      // 跟踪内存使用
-      if (expressReq.requestId) {
-        trackRequestMemory(expressReq.requestId, "adapt_body_assigned", {
-          bodySize: formatMemorySize(expressReq.rawBody.length),
-        });
+    if (contentType.includes("multipart/form-data")) {
+      if (expressReq.tempFilePath && fs.existsSync(expressReq.tempFilePath)) {
+        logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，从临时文件读取: ${expressReq.tempFilePath}`);
+        // 使用临时文件的内容
+        body = fs.readFileSync(expressReq.tempFilePath);
+      } else if (expressReq.rawBody) {
+        // 兼容模式 - 如果有rawBody但没有tempFilePath（向后兼容）
+        logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，使用原始请求体（兼容模式），大小: ${expressReq.rawBody.length} 字节`);
+        body = expressReq.rawBody;
       }
     }
     // 对于WebDAV请求特殊处理
@@ -831,7 +566,7 @@ function createAdaptedRequest(expressReq) {
 
         // 安全增强：检查请求体大小，防止DOS攻击
         if (Buffer.isBuffer(expressReq.body) && expressReq.body.length > 1024) {
-          logMessage("warn", `MKCOL请求包含异常大的请求体 (${formatMemorySize(expressReq.body.length)})，可能是客户端错误或恶意请求`);
+          logMessage("warn", `MKCOL请求包含异常大的请求体 (${expressReq.body.length} 字节)，可能是客户端错误或恶意请求`);
         }
       }
     }
@@ -847,21 +582,6 @@ function createAdaptedRequest(expressReq) {
           (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
           Buffer.isBuffer(expressReq.body)
       ) {
-        // 对于大型Buffer，记录内存使用
-        if (expressReq.body.length > 50 * 1024 * 1024) {
-          logMessage("debug", `处理大型二进制请求体: ${formatMemorySize(expressReq.body.length)}`, {
-            requestId: expressReq.requestId,
-            contentType,
-          });
-
-          // 跟踪内存使用
-          if (expressReq.requestId) {
-            trackRequestMemory(expressReq.requestId, "adapt_binary_body", {
-              size: formatMemorySize(expressReq.body.length),
-            });
-          }
-        }
-
         body = expressReq.body;
       }
       // 针对form-urlencoded类型的处理
@@ -902,22 +622,7 @@ function createAdaptedRequest(expressReq) {
     requestInit.body = body;
   }
 
-  const request = new Request(url, requestInit);
-
-  // 跟踪内存使用（如果有请求ID）
-  if (expressReq.requestId) {
-    trackRequestMemory(expressReq.requestId, "adapt_request_complete");
-
-    // 将请求ID附加到请求对象上，方便后续跟踪
-    // 注意：这是非标准的，因为Request对象不支持自定义属性
-    // 我们在这里只是为了内部跟踪目的而添加
-    Object.defineProperty(request, "requestId", {
-      value: expressReq.requestId,
-      enumerable: false,
-    });
-  }
-
-  return request;
+  return new Request(url, requestInit);
 }
 
 /**
@@ -925,14 +630,6 @@ function createAdaptedRequest(expressReq) {
  * 处理不同类型的响应（JSON、二进制、XML等）
  */
 async function convertWorkerResponseToExpress(workerResponse, expressRes) {
-  // 获取请求ID（如果存在）
-  const requestId = expressRes.req?.requestId;
-
-  // 如果存在请求ID，跟踪内存使用
-  if (requestId) {
-    trackRequestMemory(requestId, "convert_response_start");
-  }
-
   expressRes.status(workerResponse.status);
 
   workerResponse.headers.forEach((value, key) => {
@@ -942,102 +639,32 @@ async function convertWorkerResponseToExpress(workerResponse, expressRes) {
   if (workerResponse.body) {
     const contentType = workerResponse.headers.get("content-type") || "";
 
-    try {
-      // 处理不同类型的响应
-      if (contentType.includes("application/json")) {
-        // JSON响应
-        const jsonData = await workerResponse.json();
-
-        // 跟踪大型JSON响应
-        if (requestId && JSON.stringify(jsonData).length > 1024 * 1024) {
-          trackRequestMemory(requestId, "large_json_response", {
-            size: formatMemorySize(JSON.stringify(jsonData).length),
-          });
-        }
-
-        expressRes.json(jsonData);
-      } else if (contentType.includes("application/xml") || contentType.includes("text/xml")) {
-        // XML响应，常见于WebDAV请求
-        const text = await workerResponse.text();
-
-        // 跟踪大型XML响应
-        if (requestId && text.length > 1024 * 1024) {
-          trackRequestMemory(requestId, "large_xml_response", {
-            size: formatMemorySize(text.length),
-          });
-        }
-
-        expressRes.type(contentType).send(text);
-      } else if (contentType.includes("text/")) {
-        // 文本响应
-        const text = await workerResponse.text();
-
-        // 跟踪大型文本响应
-        if (requestId && text.length > 1024 * 1024) {
-          trackRequestMemory(requestId, "large_text_response", {
-            size: formatMemorySize(text.length),
-          });
-        }
-
-        expressRes.type(contentType).send(text);
-      } else {
-        // 二进制响应
-        const buffer = await workerResponse.arrayBuffer();
-
-        // 跟踪大型二进制响应
-        if (requestId && buffer.byteLength > 50 * 1024 * 1024) {
-          trackRequestMemory(requestId, "large_binary_response", {
-            size: formatMemorySize(buffer.byteLength),
-          });
-
-          // 记录日志
-          logMessage("debug", `发送大型二进制响应: ${formatMemorySize(buffer.byteLength)}`, {
-            requestId,
-            contentType,
-          });
-        }
-
-        const responseBuffer = Buffer.from(buffer);
-        expressRes.send(responseBuffer);
-      }
-    } catch (error) {
-      // 记录错误
-      logMessage("error", "处理响应时出错:", {
-        error,
-        requestId,
-        status: workerResponse.status,
-        contentType,
-      });
-
-      // 如果有请求ID，跟踪错误
-      if (requestId) {
-        trackRequestMemory(requestId, "response_error", {
-          error: error.message,
-        });
-      }
-
-      // 返回错误响应
-      expressRes.status(500).json({
-        error: "处理响应失败",
-        message: error.message,
-      });
+    // 处理不同类型的响应
+    if (contentType.includes("application/json")) {
+      // JSON响应
+      const jsonData = await workerResponse.json();
+      expressRes.json(jsonData);
+    } else if (contentType.includes("application/xml") || contentType.includes("text/xml")) {
+      // XML响应，常见于WebDAV请求
+      const text = await workerResponse.text();
+      expressRes.type(contentType).send(text);
+    } else if (contentType.includes("text/")) {
+      // 文本响应
+      const text = await workerResponse.text();
+      expressRes.type(contentType).send(text);
+    } else {
+      // 二进制响应
+      const buffer = await workerResponse.arrayBuffer();
+      expressRes.send(Buffer.from(buffer));
     }
   } else {
     expressRes.end();
-  }
-
-  // 如果存在请求ID，跟踪完成状态
-  if (requestId) {
-    trackRequestMemory(requestId, "convert_response_complete");
   }
 }
 
 // 启动服务器
 server.listen(PORT, "0.0.0.0", () => {
   logMessage("info", `CloudPaste后端服务运行在 http://0.0.0.0:${PORT}`);
-
-  // 设置Docker容器内存监控
-  setupDockerMemoryMonitoring();
 
   // Web.config文件支持WebDAV方法
   try {
@@ -1077,89 +704,3 @@ server.listen(PORT, "0.0.0.0", () => {
     logMessage("warn", "创建Web.config文件失败:", { message: error.message });
   }
 });
-
-/**
- * 设置Docker容器内存监控
- * 定期检查并记录容器的内存使用情况
- */
-function setupDockerMemoryMonitoring() {
-  // 容器内存监控间隔（毫秒）
-  const DOCKER_MEMORY_CHECK_INTERVAL = process.env.DOCKER_MEMORY_CHECK_INTERVAL || 300000; // 默认5分钟
-
-  // 尝试检测是否在Docker环境中运行
-  const isInDocker = fs.existsSync("/.dockerenv") || (fs.existsSync("/proc/1/cgroup") && fs.readFileSync("/proc/1/cgroup", "utf8").includes("docker"));
-
-  if (isInDocker) {
-    logMessage("info", "检测到Docker环境，启用容器内存监控");
-
-    // 初始容器内存检查
-    setTimeout(checkDockerMemoryUsage, 10000); // 启动10秒后进行首次检查
-
-    // 定期检查容器内存
-    setInterval(checkDockerMemoryUsage, DOCKER_MEMORY_CHECK_INTERVAL);
-  } else {
-    logMessage("info", "未检测到Docker环境，跳过容器内存监控");
-  }
-}
-
-/**
- * 检查Docker容器内存使用情况
- */
-function checkDockerMemoryUsage() {
-  try {
-    // 获取容器内存限制
-    let memoryLimit = 0;
-    if (fs.existsSync("/sys/fs/cgroup/memory/memory.limit_in_bytes")) {
-      memoryLimit = parseInt(fs.readFileSync("/sys/fs/cgroup/memory/memory.limit_in_bytes", "utf8").trim());
-    } else if (fs.existsSync("/sys/fs/cgroup/memory.max")) {
-      // cgroups v2
-      const maxMem = fs.readFileSync("/sys/fs/cgroup/memory.max", "utf8").trim();
-      if (maxMem !== "max") {
-        memoryLimit = parseInt(maxMem);
-      }
-    }
-
-    // 获取容器内存使用情况
-    let memoryUsage = 0;
-    if (fs.existsSync("/sys/fs/cgroup/memory/memory.usage_in_bytes")) {
-      memoryUsage = parseInt(fs.readFileSync("/sys/fs/cgroup/memory/memory.usage_in_bytes", "utf8").trim());
-    } else if (fs.existsSync("/sys/fs/cgroup/memory.current")) {
-      // cgroups v2
-      memoryUsage = parseInt(fs.readFileSync("/sys/fs/cgroup/memory.current", "utf8").trim());
-    }
-
-    // 计算内存使用百分比
-    const memoryPercentage = memoryLimit > 0 ? ((memoryUsage / memoryLimit) * 100).toFixed(2) : 0;
-
-    // 获取当前进程内存使用
-    const nodeMemory = process.memoryUsage();
-
-    // 记录内存使用情况
-    logMessage("info", "Docker容器内存使用情况:", {
-      containerMemoryUsage: formatMemorySize(memoryUsage),
-      containerMemoryLimit: memoryLimit > 0 ? formatMemorySize(memoryLimit) : "未设置",
-      containerMemoryPercentage: `${memoryPercentage}%`,
-      nodeRss: formatMemorySize(nodeMemory.rss),
-      nodeHeapTotal: formatMemorySize(nodeMemory.heapTotal),
-      nodeHeapUsed: formatMemorySize(nodeMemory.heapUsed),
-      timestamp: new Date().toISOString(),
-    });
-
-    // 检查严重内存不足情况
-    if (memoryPercentage > 85) {
-      logMessage("warn", `容器内存使用率过高 (${memoryPercentage}%)，可能导致OOM`, {
-        containerMemoryUsage: formatMemorySize(memoryUsage),
-        containerMemoryLimit: formatMemorySize(memoryLimit),
-        nodeRss: formatMemorySize(nodeMemory.rss),
-      });
-
-      // 尝试强制垃圾回收
-      if (global.gc) {
-        logMessage("info", "内存使用率过高，尝试强制垃圾回收");
-        global.gc();
-      }
-    }
-  } catch (error) {
-    logMessage("error", "检查Docker内存使用失败:", { error: error.message });
-  }
-}
