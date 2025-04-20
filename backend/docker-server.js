@@ -10,7 +10,6 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import methodOverride from "method-override";
-import multer from "multer";
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -235,23 +234,6 @@ server.use(methodOverride("X-HTTP-Method"));
 server.use(methodOverride("X-Method-Override"));
 server.disable("x-powered-by");
 
-// 文件上传请求早期检查中间件
-server.use((req, res, next) => {
-  if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].includes("multipart/form-data")) {
-    // 检查文件上传路径
-    if (req.path.includes("/fs/upload")) {
-      logMessage("info", `检测到文件上传请求: ${req.path}`, {
-        contentType: req.headers["content-type"],
-        contentLength: req.headers["content-length"] || "未知",
-      });
-
-      // 添加自定义响应头表明此请求将由multer处理
-      res.setHeader("X-Upload-Handler", "multer");
-    }
-  }
-  next();
-});
-
 // WebDAV基础方法支持
 server.use((req, res, next) => {
   if (req.path.startsWith("/dav")) {
@@ -271,6 +253,35 @@ server.use((req, res, next) => {
 
 // 2. 请求体处理中间件
 // ==========================================
+// 处理multipart/form-data请求体的中间件 - 必须放在其他请求体处理中间件之前
+server.use((req, res, next) => {
+  if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].includes("multipart/form-data")) {
+    logMessage("debug", `检测到multipart/form-data请求: ${req.path}，保存原始请求体`);
+
+    // 对于multipart请求，我们需要保存原始数据
+    const chunks = [];
+
+    req.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+
+    req.on("end", () => {
+      // 保存原始请求体
+      req.rawBody = Buffer.concat(chunks);
+      logMessage("debug", `multipart请求体已保存，大小: ${req.rawBody.length} 字节`);
+      next();
+    });
+
+    req.on("error", (err) => {
+      logMessage("error", `读取multipart请求体错误:`, { error: err });
+      next(err);
+    });
+  } else {
+    // 非multipart请求，直接传递给下一个中间件
+    next();
+  }
+});
+
 // 处理原始请求体（XML、二进制等）
 server.use(
     express.raw({
@@ -316,6 +327,24 @@ server.use((err, req, res, next) => {
     });
   }
 
+  // 增强：处理multipart/form-data解析错误
+  if (
+      err.message &&
+      (err.message.includes("Unexpected end of form") || err.message.includes("Unexpected end of multipart data") || err.message.includes("Multipart: Boundary not found"))
+  ) {
+    logMessage("error", `Multipart解析错误:`, {
+      method: req.method,
+      path: req.path,
+      contentType: req.headers["content-type"] || "未知",
+      error: err.message,
+    });
+    return res.status(400).json({
+      error: "无效的表单数据",
+      message: "无法解析multipart/form-data请求，请检查表单格式是否正确",
+      detail: err.message,
+    });
+  }
+
   // 增强：处理内容类型解析错误
   if (err.status === 415 || (err.message && err.message.includes("content type"))) {
     logMessage("error", `内容类型错误:`, {
@@ -332,48 +361,11 @@ server.use((err, req, res, next) => {
   next(err);
 });
 
-// 处理Multer文件上传错误
-server.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    logMessage("error", `Multer错误: ${err.message}`, {
-      code: err.code,
-      field: err.field,
-      path: req.path,
-    });
-    return res.status(400).json({
-      success: false,
-      message: `文件上传错误: ${err.message}`,
-      code: 400,
-    });
-  }
-
-  // 处理文件上传相关错误，特别是busboy错误
-  if (
-      err &&
-      err.message &&
-      (err.message.includes("Unexpected end of multipart data") || err.message.includes("Unexpected end of form") || err.message.includes("Unexpected end"))
-  ) {
-    logMessage("error", `文件上传错误: ${err.message}`, {
-      path: req.path,
-      contentType: req.headers["content-type"] || "未知",
-    });
-    return res.status(400).json({
-      success: false,
-      message: `文件上传错误: 请检查上传请求格式或尝试减小文件大小`,
-      code: 400,
-    });
-  }
-
-  next(err);
-});
-
 // 处理表单数据
 server.use(
     express.urlencoded({
       extended: true,
       limit: "1gb",
-      // 显式排除multipart请求类型，避免与multer冲突
-      type: ["application/x-www-form-urlencoded"],
     })
 );
 
@@ -384,20 +376,6 @@ server.use(
       limit: "1gb",
     })
 );
-
-// 添加文件上传请求调试中间件
-server.use((req, res, next) => {
-  // 仅针对文件上传路径进行日志记录
-  if (req.path.includes("/fs/upload")) {
-    const contentType = req.headers["content-type"] || "";
-    logMessage("debug", `文件上传请求Content-Type检查: ${contentType}`, {
-      method: req.method,
-      path: req.path,
-      boundary: contentType.includes("boundary=") ? contentType.split("boundary=")[1].split(";")[0] : "无",
-    });
-  }
-  next();
-});
 
 // 3. WebDAV专用中间件
 // ==========================================
@@ -518,12 +496,11 @@ function createAdaptedRequest(expressReq) {
     // 检查请求体的类型和内容
     let contentType = expressReq.headers["content-type"] || "";
 
-    // 处理multipart/form-data请求（如文件上传）
-    if (contentType.includes("multipart/form-data")) {
-      // multipart请求的处理已由multer等中间件完成
-      // 这里不需要处理请求体内容，让multer处理即可
-      logMessage("debug", `跳过multipart请求体处理，由multer负责: ${expressReq.path}`);
-      // 不设置body，允许后续中间件处理
+    // 特殊处理multipart/form-data请求
+    if (contentType.includes("multipart/form-data") && expressReq.rawBody) {
+      logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，使用原始请求体，大小: ${expressReq.rawBody.length} 字节`);
+      // 使用预先保存的原始请求体
+      body = expressReq.rawBody;
     }
     // 对于WebDAV请求特殊处理
     else if (expressReq.path.startsWith("/dav")) {
@@ -553,7 +530,8 @@ function createAdaptedRequest(expressReq) {
       }
     }
     // 正常处理其他请求类型
-    else {
+    else if (!body) {
+      // 只有在没有设置body的情况下才处理
       // 如果是JSON请求且已经被解析
       if ((contentType.includes("application/json") || contentType.includes("json")) && expressReq.body && typeof expressReq.body === "object") {
         body = JSON.stringify(expressReq.body);
