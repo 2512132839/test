@@ -58,14 +58,11 @@ ENV PORT=8787
 # 注意：这个密钥应该在运行时通过环境变量传入，这里只是设置默认值
 ENV ENCRYPTION_SECRET=PLEASE_CHANGE_THIS_IN_PRODUCTION
 # 内存监控相关设置
-ENV MEMORY_MONITOR_INTERVAL=3600000
+ENV MEMORY_MONITOR_INTERVAL=60000
 ENV MEMORY_USAGE_THRESHOLD=300
-# 注意: 若需上传大文件，请适当调整以下参数:
-# 1. --max-old-space-size 值可调整为512-1024之间
-# 2. MEMORY_USAGE_THRESHOLD 设置为接近 --max-old-space-size 的值
 
 # 暴露端口
 EXPOSE 8787
 
 # 启动命令
-CMD ["node", "--max-old-space-size=512", "--expose-gc", "server.js"]
+CMD ["node", "--expose-gc", "server.js"]
