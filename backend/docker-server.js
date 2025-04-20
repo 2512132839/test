@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import methodOverride from "method-override";
+import multer from "multer";
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -234,6 +235,23 @@ server.use(methodOverride("X-HTTP-Method"));
 server.use(methodOverride("X-Method-Override"));
 server.disable("x-powered-by");
 
+// 文件上传请求早期检查中间件
+server.use((req, res, next) => {
+  if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].includes("multipart/form-data")) {
+    // 检查文件上传路径
+    if (req.path.includes("/fs/upload")) {
+      logMessage("info", `检测到文件上传请求: ${req.path}`, {
+        contentType: req.headers["content-type"],
+        contentLength: req.headers["content-length"] || "未知",
+      });
+
+      // 添加自定义响应头表明此请求将由multer处理
+      res.setHeader("X-Upload-Handler", "multer");
+    }
+  }
+  next();
+});
+
 // WebDAV基础方法支持
 server.use((req, res, next) => {
   if (req.path.startsWith("/dav")) {
@@ -255,31 +273,31 @@ server.use((req, res, next) => {
 // ==========================================
 // 处理原始请求体（XML、二进制等）
 server.use(
-  express.raw({
-    type: ["application/xml", "text/xml", "application/octet-stream"],
-    limit: "1gb", // 设置合理的大小限制
-    verify: (req, res, buf, encoding) => {
-      // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
-      if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 10 * 1024 * 1024) {
-        logMessage("debug", `大型WebDAV ${req.method} 请求体:`, {
-          contentType: req.headers["content-type"],
-          size: buf ? buf.length : 0,
-        });
-      }
-
-      // 安全检查：检测潜在的异常XML或二进制内容
-      if (buf && req.path.startsWith("/dav") && (req.headers["content-type"] || "").includes("xml") && buf.length > 0) {
-        // 检查是否为有效的XML开头标记，简单验证
-        const xmlStart = buf.slice(0, Math.min(50, buf.length)).toString();
-        if (!xmlStart.trim().startsWith("<?xml") && !xmlStart.trim().startsWith("<")) {
-          logMessage("warn", `可疑的XML请求体: ${req.method} ${req.path} - 内容不以XML标记开头`, {
+    express.raw({
+      type: ["application/xml", "text/xml", "application/octet-stream"],
+      limit: "1gb", // 设置合理的大小限制
+      verify: (req, res, buf, encoding) => {
+        // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
+        if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 10 * 1024 * 1024) {
+          logMessage("debug", `大型WebDAV ${req.method} 请求体:`, {
             contentType: req.headers["content-type"],
-            bodyPreview: xmlStart.replace(/[\x00-\x1F\x7F-\xFF]/g, ".").substring(0, 30),
+            size: buf ? buf.length : 0,
           });
         }
-      }
-    },
-  })
+
+        // 安全检查：检测潜在的异常XML或二进制内容
+        if (buf && req.path.startsWith("/dav") && (req.headers["content-type"] || "").includes("xml") && buf.length > 0) {
+          // 检查是否为有效的XML开头标记，简单验证
+          const xmlStart = buf.slice(0, Math.min(50, buf.length)).toString();
+          if (!xmlStart.trim().startsWith("<?xml") && !xmlStart.trim().startsWith("<")) {
+            logMessage("warn", `可疑的XML请求体: ${req.method} ${req.path} - 内容不以XML标记开头`, {
+              contentType: req.headers["content-type"],
+              bodyPreview: xmlStart.replace(/[\x00-\x1F\x7F-\xFF]/g, ".").substring(0, 30),
+            });
+          }
+        }
+      },
+    })
 );
 
 // 处理请求体大小限制错误
@@ -314,21 +332,72 @@ server.use((err, req, res, next) => {
   next(err);
 });
 
+// 处理Multer文件上传错误
+server.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    logMessage("error", `Multer错误: ${err.message}`, {
+      code: err.code,
+      field: err.field,
+      path: req.path,
+    });
+    return res.status(400).json({
+      success: false,
+      message: `文件上传错误: ${err.message}`,
+      code: 400,
+    });
+  }
+
+  // 处理文件上传相关错误，特别是busboy错误
+  if (
+      err &&
+      err.message &&
+      (err.message.includes("Unexpected end of multipart data") || err.message.includes("Unexpected end of form") || err.message.includes("Unexpected end"))
+  ) {
+    logMessage("error", `文件上传错误: ${err.message}`, {
+      path: req.path,
+      contentType: req.headers["content-type"] || "未知",
+    });
+    return res.status(400).json({
+      success: false,
+      message: `文件上传错误: 请检查上传请求格式或尝试减小文件大小`,
+      code: 400,
+    });
+  }
+
+  next(err);
+});
+
 // 处理表单数据
 server.use(
-  express.urlencoded({
-    extended: true,
-    limit: "1gb",
-  })
+    express.urlencoded({
+      extended: true,
+      limit: "1gb",
+      // 显式排除multipart请求类型，避免与multer冲突
+      type: ["application/x-www-form-urlencoded"],
+    })
 );
 
 // 处理JSON请求体
 server.use(
-  express.json({
-    type: ["application/json", "application/json; charset=utf-8", "+json", "*/json"],
-    limit: "1gb",
-  })
+    express.json({
+      type: ["application/json", "application/json; charset=utf-8", "+json", "*/json"],
+      limit: "1gb",
+    })
 );
+
+// 添加文件上传请求调试中间件
+server.use((req, res, next) => {
+  // 仅针对文件上传路径进行日志记录
+  if (req.path.includes("/fs/upload")) {
+    const contentType = req.headers["content-type"] || "";
+    logMessage("debug", `文件上传请求Content-Type检查: ${contentType}`, {
+      method: req.method,
+      path: req.path,
+      boundary: contentType.includes("boundary=") ? contentType.split("boundary=")[1].split(";")[0] : "无",
+    });
+  }
+  next();
+});
 
 // 3. WebDAV专用中间件
 // ==========================================
@@ -449,9 +518,15 @@ function createAdaptedRequest(expressReq) {
     // 检查请求体的类型和内容
     let contentType = expressReq.headers["content-type"] || "";
 
+    // 处理multipart/form-data请求（如文件上传）
+    if (contentType.includes("multipart/form-data")) {
+      // multipart请求的处理已由multer等中间件完成
+      // 这里不需要处理请求体内容，让multer处理即可
+      logMessage("debug", `跳过multipart请求体处理，由multer负责: ${expressReq.path}`);
+      // 不设置body，允许后续中间件处理
+    }
     // 对于WebDAV请求特殊处理
-    const isWebDAVRequest = expressReq.path.startsWith("/dav");
-    if (isWebDAVRequest) {
+    else if (expressReq.path.startsWith("/dav")) {
       // 确认Content-Type字段存在，如果不存在则设置一个默认值
       if (!contentType) {
         if (expressReq.method === "MKCOL") {
@@ -485,8 +560,8 @@ function createAdaptedRequest(expressReq) {
       }
       // 如果是XML或二进制数据，使用Buffer
       else if (
-        (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
-        Buffer.isBuffer(expressReq.body)
+          (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
+          Buffer.isBuffer(expressReq.body)
       ) {
         body = expressReq.body;
       }
