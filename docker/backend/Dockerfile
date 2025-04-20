@@ -51,7 +51,7 @@ RUN mkdir -p /data
 
 # 设置环境变量
 ENV NODE_ENV=production
-ENV LOG_LEVEL=info
+ENV LOG_LEVEL=dubug
 ENV RUNTIME_ENV=docker
 ENV DATA_DIR=/data
 ENV PORT=8787
