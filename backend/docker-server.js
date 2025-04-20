@@ -11,6 +11,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import methodOverride from "method-override";
 import multer from "multer";
+import { Readable } from "stream";
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -182,14 +183,6 @@ logMessage("info", `数据库文件路径: ${dbPath}`);
 const sqliteAdapter = createSQLiteAdapter(dbPath);
 let isDbInitialized = false;
 
-// 配置multer中间件，用于处理文件上传
-const upload = multer({
-  storage: multer.memoryStorage(), // 使用内存存储，避免写入磁盘
-  limits: {
-    fileSize: 1024 * 1024 * 1024, // 限制文件大小为1GB
-  },
-});
-
 // ==========================================
 // WebDAV支持配置 - 集中WebDAV相关定义
 // ==========================================
@@ -234,6 +227,30 @@ WEBDAV_METHODS.forEach((method) => {
 // ==========================================
 // 中间件配置（按功能分组）
 // ==========================================
+
+// 配置multer临时存储和限制
+const multerStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const tempDir = path.join(dataDir, "temp");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    cb(null, tempDir);
+  },
+  filename: function (req, file, cb) {
+    // 为上传的文件创建唯一文件名
+    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+
+// 创建multer配置
+const upload = multer({
+  storage: multerStorage,
+  limits: {
+    fileSize: 1024 * 1024 * 1024, // 1GB大小限制
+  },
+});
 
 // 1. 基础中间件 - CORS和HTTP方法处理
 // ==========================================
@@ -323,31 +340,6 @@ server.use((err, req, res, next) => {
   next(err);
 });
 
-// 处理文件上传的路由 - 必须在其他中间件之前配置
-server.post("/api/admin/fs/upload", upload.single("file"), (req, res, next) => {
-  // multer成功处理文件后，文件内容和字段会被附加到req对象
-  // 在这里记录一些有用的信息便于调试
-  if (req.file) {
-    logMessage("info", `文件上传请求已处理: ${req.path}`, {
-      fileName: req.file.originalname,
-      fileSize: req.file.size,
-      mimeType: req.file.mimetype,
-    });
-  }
-  next(); // 继续执行下一个中间件
-});
-
-server.post("/api/user/fs/upload", upload.single("file"), (req, res, next) => {
-  if (req.file) {
-    logMessage("info", `用户文件上传请求已处理: ${req.path}`, {
-      fileName: req.file.originalname,
-      fileSize: req.file.size,
-      mimeType: req.file.mimetype,
-    });
-  }
-  next();
-});
-
 // 处理表单数据
 server.use(
     express.urlencoded({
@@ -426,6 +418,65 @@ server.use(async (req, res, next) => {
   }
 });
 
+// 5. 文件上传专用中间件 - 处理multipart/form-data请求
+// ==========================================
+// 处理管理员文件上传
+server.post("/api/admin/fs/upload", upload.single("file"), (req, res, next) => {
+  // 将multer处理后的文件信息添加到req中
+  if (req.file) {
+    logMessage("info", `通过multer处理管理员文件上传: ${req.file.originalname}, 大小: ${req.file.size} 字节`);
+    // 将临时文件路径添加到req中，便于后续处理
+    req.multerFile = req.file;
+  } else {
+    logMessage("warn", "管理员文件上传请求中未找到文件");
+  }
+  next();
+});
+
+// 处理用户文件上传
+server.post("/api/user/fs/upload", upload.single("file"), (req, res, next) => {
+  // 将multer处理后的文件信息添加到req中
+  if (req.file) {
+    logMessage("info", `通过multer处理用户文件上传: ${req.file.originalname}, 大小: ${req.file.size} 字节`);
+    // 将临时文件路径添加到req中，便于后续处理
+    req.multerFile = req.file;
+  } else {
+    logMessage("warn", "用户文件上传请求中未找到文件");
+  }
+  next();
+});
+
+// 添加multer错误处理中间件
+server.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    logMessage("error", "Multer错误:", { code: err.code, field: err.field, message: err.message });
+
+    // 处理不同类型的multer错误
+    switch (err.code) {
+      case "LIMIT_FILE_SIZE":
+        return res.status(413).json({
+          success: false,
+          code: ApiStatus.PAYLOAD_TOO_LARGE,
+          message: "文件大小超过限制 (1GB)",
+        });
+      case "LIMIT_UNEXPECTED_FILE":
+        return res.status(400).json({
+          success: false,
+          code: ApiStatus.BAD_REQUEST,
+          message: `意外的文件字段: ${err.field}`,
+        });
+      default:
+        return res.status(500).json({
+          success: false,
+          code: ApiStatus.INTERNAL_ERROR,
+          message: "文件上传出错",
+          error: err.message,
+        });
+    }
+  }
+  next(err);
+});
+
 // ==========================================
 // 路由处理
 // ==========================================
@@ -479,32 +530,96 @@ function createAdaptedRequest(expressReq) {
 
   // 获取请求体内容
   let body = undefined;
-  if (["POST", "PUT", "PATCH", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "DELETE"].includes(expressReq.method)) {
+
+  // 特殊处理文件上传请求 - 使用multer处理后的文件
+  if (expressReq.multerFile && (expressReq.path === "/api/admin/fs/upload" || expressReq.path === "/api/user/fs/upload")) {
+    logMessage("info", "处理multer上传的文件，创建FormData", {
+      path: expressReq.multerFile.path,
+      originalname: expressReq.multerFile.originalname,
+      size: expressReq.multerFile.size,
+    });
+
+    try {
+      // 读取文件内容
+      const fileBuffer = fs.readFileSync(expressReq.multerFile.path);
+
+      // 创建表单对象 - 使用原生FormData或我们的polyfill
+      let formData;
+
+      // 检查是否使用原生FormData还是我们的polyfill
+      if (typeof FormData.prototype.getBuffer === "function") {
+        // 使用我们的polyfill
+        formData = new FormData();
+        formData.append("file", fileBuffer, expressReq.multerFile.originalname);
+
+        // 添加其他表单字段
+        if (expressReq.body && typeof expressReq.body === "object") {
+          Object.keys(expressReq.body).forEach((key) => {
+            if (key !== "file") {
+              // 避免重复添加文件
+              formData.append(key, expressReq.body[key]);
+            }
+          });
+        }
+
+        // 获取编码后的buffer和content-type
+        const { buffer, contentType } = formData.getBuffer();
+        body = buffer;
+
+        // 更新Content-Type头
+        expressReq.headers["content-type"] = contentType;
+      } else {
+        // 使用原生的FormData
+        formData = new FormData();
+
+        // 安全地创建Blob对象 - 避免使用实验性的File构造函数
+        let fileBlob;
+        try {
+          fileBlob = new Blob([fileBuffer], { type: expressReq.multerFile.mimetype || "application/octet-stream" });
+        } catch (blobError) {
+          logMessage("warn", "创建Blob对象失败，尝试使用Buffer作为fallback", { error: blobError.message });
+          fileBlob = fileBuffer; // 如果Blob创建失败，直接使用Buffer
+        }
+
+        // 将文件添加到FormData
+        formData.append("file", fileBlob, expressReq.multerFile.originalname);
+
+        // 添加其他表单字段
+        if (expressReq.body && typeof expressReq.body === "object") {
+          Object.keys(expressReq.body).forEach((key) => {
+            if (key !== "file") {
+              // 避免重复添加文件
+              formData.append(key, expressReq.body[key]);
+            }
+          });
+        }
+
+        body = formData;
+      }
+
+      // 请求处理完成后清理临时文件
+      process.nextTick(() => {
+        try {
+          if (fs.existsSync(expressReq.multerFile.path)) {
+            fs.unlinkSync(expressReq.multerFile.path);
+            logMessage("debug", `已删除临时文件: ${expressReq.multerFile.path}`);
+          }
+        } catch (error) {
+          logMessage("warn", `删除临时文件失败: ${expressReq.multerFile.path}`, { error });
+        }
+      });
+    } catch (error) {
+      logMessage("error", "读取上传文件失败:", { error, path: expressReq.multerFile.path });
+    }
+  }
+  // 常规请求处理
+  else if (["POST", "PUT", "PATCH", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "DELETE"].includes(expressReq.method)) {
     // 检查请求体的类型和内容
     let contentType = expressReq.headers["content-type"] || "";
 
-    // 处理multer解析的文件上传请求
-    if (contentType.includes("multipart/form-data") && expressReq.file) {
-      // 创建新的FormData对象来模拟浏览器发送的multipart/form-data
-      const formData = new FormData();
-
-      // 添加文件
-      const fileBlob = new Blob([expressReq.file.buffer], { type: expressReq.file.mimetype });
-      formData.append("file", fileBlob, expressReq.file.originalname);
-
-      // 添加其他表单字段
-      if (expressReq.body) {
-        Object.keys(expressReq.body).forEach((key) => {
-          formData.append(key, expressReq.body[key]);
-        });
-      }
-
-      body = formData;
-
-      logMessage("debug", `已处理multipart/form-data请求，文件大小: ${expressReq.file.size} 字节`);
-    }
     // 对于WebDAV请求特殊处理
-    else if (expressReq.path.startsWith("/dav")) {
+    const isWebDAVRequest = expressReq.path.startsWith("/dav");
+    if (isWebDAVRequest) {
       // 确认Content-Type字段存在，如果不存在则设置一个默认值
       if (!contentType) {
         if (expressReq.method === "MKCOL") {
@@ -531,8 +646,7 @@ function createAdaptedRequest(expressReq) {
       }
     }
     // 正常处理其他请求类型
-    else if (!body) {
-      // 只有在body未设置时才继续处理
+    else {
       // 如果是JSON请求且已经被解析
       if ((contentType.includes("application/json") || contentType.includes("json")) && expressReq.body && typeof expressReq.body === "object") {
         body = JSON.stringify(expressReq.body);
@@ -592,39 +706,242 @@ function createAdaptedRequest(expressReq) {
 async function convertWorkerResponseToExpress(workerResponse, expressRes) {
   expressRes.status(workerResponse.status);
 
+  // 记录详细的响应信息，便于调试
+  const contentType = workerResponse.headers.get("content-type") || "";
+  const contentLength = workerResponse.headers.get("content-length") || "未知";
+
+  logMessage("debug", `处理响应: 状态码=${workerResponse.status}, 内容类型=${contentType}, 内容长度=${contentLength}`);
+
+  // 设置响应头
   workerResponse.headers.forEach((value, key) => {
     expressRes.set(key, value);
   });
 
   if (workerResponse.body) {
-    const contentType = workerResponse.headers.get("content-type") || "";
+    // 特别关注文件上传响应
+    if (expressRes.req && (expressRes.req.path === "/api/admin/fs/upload" || expressRes.req.path === "/api/user/fs/upload")) {
+      logMessage("info", `处理文件上传响应: 状态码=${workerResponse.status}, 内容类型=${contentType}`);
+    }
 
     // 处理不同类型的响应
     if (contentType.includes("application/json")) {
       // JSON响应
-      const jsonData = await workerResponse.json();
-      expressRes.json(jsonData);
+      try {
+        const jsonData = await workerResponse.json();
+        logMessage("debug", `发送JSON响应: ${JSON.stringify(jsonData).substring(0, 200)}${JSON.stringify(jsonData).length > 200 ? "..." : ""}`);
+        expressRes.json(jsonData);
+      } catch (error) {
+        logMessage("error", "解析JSON响应失败:", { error });
+        // 尝试发送原始响应
+        const text = await workerResponse.text();
+        expressRes.type(contentType).send(text);
+      }
     } else if (contentType.includes("application/xml") || contentType.includes("text/xml")) {
       // XML响应，常见于WebDAV请求
       const text = await workerResponse.text();
+      logMessage("debug", `发送XML响应: ${text.substring(0, 200)}${text.length > 200 ? "..." : ""}`);
       expressRes.type(contentType).send(text);
     } else if (contentType.includes("text/")) {
       // 文本响应
       const text = await workerResponse.text();
+      logMessage("debug", `发送文本响应: ${text.substring(0, 200)}${text.length > 200 ? "..." : ""}`);
       expressRes.type(contentType).send(text);
     } else {
       // 二进制响应
-      const buffer = await workerResponse.arrayBuffer();
-      expressRes.send(Buffer.from(buffer));
+      try {
+        const buffer = await workerResponse.arrayBuffer();
+        logMessage("debug", `发送二进制响应: ${buffer.byteLength} 字节`);
+        expressRes.send(Buffer.from(buffer));
+      } catch (error) {
+        logMessage("error", "处理二进制响应失败:", { error });
+        // 尝试使用流式方式发送
+        const readable = workerResponse.body;
+        readable.pipe(expressRes);
+      }
     }
   } else {
+    logMessage("debug", "响应无内容，结束请求");
     expressRes.end();
   }
+}
+
+// ==========================================
+// Blob和File的兼容性处理（用于解决"buffer.File is an experimental feature"问题）
+// ==========================================
+
+// 在Node.js环境中，如果没有全局的Blob类，创建一个polyfill
+if (typeof global.Blob === "undefined") {
+  class NodeBlob {
+    constructor(parts, options = {}) {
+      this.parts = parts;
+      this.type = options.type || "";
+
+      // 计算总大小
+      this.size = parts.reduce((acc, part) => {
+        if (Buffer.isBuffer(part)) {
+          return acc + part.length;
+        } else if (typeof part === "string") {
+          return acc + Buffer.byteLength(part);
+        } else if (part instanceof ArrayBuffer) {
+          return acc + part.byteLength;
+        } else {
+          return acc + 0;
+        }
+      }, 0);
+    }
+
+    // 创建可读流
+    stream() {
+      const readable = new Readable();
+      for (const part of this.parts) {
+        if (Buffer.isBuffer(part) || typeof part === "string") {
+          readable.push(part);
+        } else if (part instanceof ArrayBuffer) {
+          readable.push(Buffer.from(part));
+        }
+      }
+      readable.push(null);
+      return readable;
+    }
+
+    // 转换为Buffer
+    async arrayBuffer() {
+      const chunks = [];
+      for (const part of this.parts) {
+        if (Buffer.isBuffer(part)) {
+          chunks.push(part);
+        } else if (typeof part === "string") {
+          chunks.push(Buffer.from(part));
+        } else if (part instanceof ArrayBuffer) {
+          chunks.push(Buffer.from(part));
+        }
+      }
+      return Buffer.concat(chunks).buffer;
+    }
+
+    // 转换为文本
+    async text() {
+      const buffer = await this.arrayBuffer();
+      return Buffer.from(buffer).toString();
+    }
+  }
+
+  // 设置全局Blob
+  global.Blob = NodeBlob;
+}
+
+// 如果没有全局FormData，提供一个基本实现
+if (typeof global.FormData === "undefined") {
+  class NodeFormData {
+    constructor() {
+      this.parts = new Map();
+    }
+
+    append(name, value, filename) {
+      if (!this.parts.has(name)) {
+        this.parts.set(name, []);
+      }
+
+      this.parts.get(name).push({
+        value,
+        filename,
+      });
+    }
+
+    // 转换为请求体
+    getBuffer() {
+      // 实现一个简单的multipart/form-data编码
+      const boundary = `----WebKitFormBoundary${Math.random().toString(16).substr(2)}`;
+      const chunks = [];
+
+      for (const [name, values] of this.parts.entries()) {
+        for (const { value, filename } of values) {
+          chunks.push(Buffer.from(`--${boundary}\r\n`));
+
+          if (filename) {
+            // 文件部分
+            chunks.push(Buffer.from(`Content-Disposition: form-data; name="${name}"; filename="${filename}"\r\n`));
+            chunks.push(Buffer.from(`Content-Type: application/octet-stream\r\n\r\n`));
+
+            if (Buffer.isBuffer(value)) {
+              chunks.push(value);
+            } else if (value instanceof NodeBlob) {
+              chunks.push(Buffer.from(value.arrayBuffer()));
+            } else {
+              chunks.push(Buffer.from(String(value)));
+            }
+          } else {
+            // 普通表单字段
+            chunks.push(Buffer.from(`Content-Disposition: form-data; name="${name}"\r\n\r\n`));
+            chunks.push(Buffer.from(String(value)));
+          }
+
+          chunks.push(Buffer.from("\r\n"));
+        }
+      }
+
+      // 添加结束边界
+      chunks.push(Buffer.from(`--${boundary}--\r\n`));
+
+      return {
+        buffer: Buffer.concat(chunks),
+        contentType: `multipart/form-data; boundary=${boundary}`,
+      };
+    }
+  }
+
+  // 设置全局FormData
+  global.FormData = NodeFormData;
 }
 
 // 启动服务器
 server.listen(PORT, "0.0.0.0", () => {
   logMessage("info", `CloudPaste后端服务运行在 http://0.0.0.0:${PORT}`);
+
+  // 创建临时文件目录
+  const tempDir = path.join(dataDir, "temp");
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+    logMessage("info", `创建临时文件目录: ${tempDir}`);
+  }
+
+  // 设置定期清理临时文件的任务
+  const cleanupInterval = 1 * 60 * 60 * 1000; // 1小时清理一次
+  setInterval(() => {
+    try {
+      let filesRemoved = 0;
+      if (fs.existsSync(tempDir)) {
+        // 获取所有临时文件
+        const files = fs.readdirSync(tempDir);
+
+        // 当前时间
+        const now = Date.now();
+
+        // 遍历文件，删除超过2小时的文件
+        for (const file of files) {
+          const filePath = path.join(tempDir, file);
+          try {
+            const stats = fs.statSync(filePath);
+            // 文件修改时间超过2小时则删除
+            if (now - stats.mtimeMs > 2 * 60 * 60 * 1000) {
+              fs.unlinkSync(filePath);
+              filesRemoved++;
+            }
+          } catch (error) {
+            logMessage("warn", `清理临时文件出错: ${filePath}`, { error });
+          }
+        }
+      }
+
+      if (filesRemoved > 0) {
+        logMessage("info", `定期清理完成，删除了 ${filesRemoved} 个临时文件`);
+      } else {
+        logMessage("debug", "定期清理完成，没有需要删除的临时文件");
+      }
+    } catch (error) {
+      logMessage("error", "临时文件清理任务出错:", { error });
+    }
+  }, cleanupInterval);
 
   // Web.config文件支持WebDAV方法
   try {
