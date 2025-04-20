@@ -620,6 +620,8 @@ function createAdaptedRequest(expressReq) {
   // 只有在有请求体时才添加body参数
   if (body !== undefined) {
     requestInit.body = body;
+    // 添加duplex选项以符合Node.js新版本要求
+    requestInit.duplex = "half";
   }
 
   return new Request(url, requestInit);
