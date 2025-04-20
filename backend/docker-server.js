@@ -75,6 +75,22 @@ class SQLiteAdapter {
     return this;
   }
 
+  // 添加数据库连接关闭方法，确保资源释放
+  async close() {
+    if (this.db) {
+      try {
+        await this.db.close();
+        this.db = null;
+        logMessage("info", "数据库连接已关闭");
+        return true;
+      } catch (error) {
+        logMessage("error", "关闭数据库连接出错:", { error });
+        throw error;
+      }
+    }
+    return false;
+  }
+
   // 模拟D1的prepare方法，提供与Cloudflare D1兼容的接口
   prepare(sql) {
     return {
@@ -182,6 +198,81 @@ const sqliteAdapter = createSQLiteAdapter(dbPath);
 let isDbInitialized = false;
 
 // ==========================================
+// 内存监控和资源管理
+// ==========================================
+
+/**
+ * 内存监控函数
+ * 记录当前内存使用情况，帮助诊断潜在的内存泄漏
+ */
+function monitorMemory() {
+  const memUsage = process.memoryUsage();
+  const formatMemoryUsage = (data) => `${Math.round((data / 1024 / 1024) * 100) / 100} MB`;
+
+  const memoryData = {
+    rss: formatMemoryUsage(memUsage.rss), // 进程占用的内存总量
+    heapTotal: formatMemoryUsage(memUsage.heapTotal), // V8分配的堆内存
+    heapUsed: formatMemoryUsage(memUsage.heapUsed), // V8实际使用的堆内存
+    external: formatMemoryUsage(memUsage.external || 0), // V8管理的外部内存
+  };
+
+  logMessage("info", "内存使用情况:", memoryData);
+
+  // 从环境变量读取阈值，默认为300MB
+  const memoryThreshold = parseInt(process.env.MEMORY_USAGE_THRESHOLD || 300) * 1024 * 1024;
+
+  // 检测内存使用量是否超过阈值，发出警告
+  if (memUsage.heapUsed > memoryThreshold) {
+    logMessage("warn", "内存使用量过高，可能存在内存泄漏:", memoryData);
+  }
+}
+
+/**
+ * 尝试手动触发垃圾回收
+ * 需要使用 --expose-gc 参数启动Node.js
+ */
+function attemptGarbageCollection() {
+  if (global.gc) {
+    logMessage("info", "手动触发垃圾回收");
+
+    // 记录垃圾回收前的内存使用情况
+    const beforeMemUsage = process.memoryUsage();
+
+    // 触发垃圾回收
+    global.gc();
+
+    // 记录垃圾回收后的内存使用情况
+    setTimeout(() => {
+      const afterMemUsage = process.memoryUsage();
+      logMessage("info", "垃圾回收效果:", {
+        before: `${Math.round(beforeMemUsage.heapUsed / 1024 / 1024)} MB`,
+        after: `${Math.round(afterMemUsage.heapUsed / 1024 / 1024)} MB`,
+        difference: `${Math.round((beforeMemUsage.heapUsed - afterMemUsage.heapUsed) / 1024 / 1024)} MB`,
+      });
+    }, 1000);
+  } else {
+    logMessage("debug", "无法触发垃圾回收，启动时需要使用 --expose-gc 标志");
+  }
+}
+
+// 从环境变量读取监控间隔，默认为60分钟
+const MEMORY_MONITOR_INTERVAL = parseInt(process.env.MEMORY_MONITOR_INTERVAL || 60 * 60 * 1000);
+setInterval(monitorMemory, MEMORY_MONITOR_INTERVAL);
+
+// 启动时记录一次内存使用情况
+monitorMemory();
+
+// 定期触发垃圾回收（如果可用）
+const GC_INTERVAL = 2 * 60 * 60 * 1000; // 2小时
+setInterval(() => {
+  const currentHour = new Date().getHours();
+  // 在低负载时段触发垃圾回收
+  if (currentHour >= 2 && currentHour <= 5) {
+    attemptGarbageCollection();
+  }
+}, GC_INTERVAL);
+
+// ==========================================
 // WebDAV支持配置 - 集中WebDAV相关定义
 // ==========================================
 
@@ -253,7 +344,7 @@ server.use((req, res, next) => {
 
 // 2. 请求体处理中间件
 // ==========================================
-// 处理multipart/form-data请求体的中间件 - 必须放在其他请求体处理中间件之前
+// 处理multipart/form-data请求体的中间件
 server.use((req, res, next) => {
   if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].includes("multipart/form-data")) {
     logMessage("debug", `检测到multipart/form-data请求: ${req.path}，保存原始请求体`);
@@ -327,7 +418,7 @@ server.use((err, req, res, next) => {
     });
   }
 
-  // 增强：处理multipart/form-data解析错误
+  // 处理multipart/form-data解析错误
   if (
       err.message &&
       (err.message.includes("Unexpected end of form") || err.message.includes("Unexpected end of multipart data") || err.message.includes("Multipart: Boundary not found"))
@@ -662,4 +753,56 @@ server.listen(PORT, "0.0.0.0", () => {
   } catch (error) {
     logMessage("warn", "创建Web.config文件失败:", { message: error.message });
   }
+});
+
+// ==========================================
+// 进程退出处理
+// ==========================================
+
+/**
+ * 退出函数
+ * 确保在进程退出前释放资源，防止资源泄漏
+ */
+async function gracefulShutdown() {
+  logMessage("info", "收到退出信号，开始优雅退出...");
+
+  // 关闭 HTTP 服务器，停止接受新请求
+  server.close(() => {
+    logMessage("info", "HTTP 服务器已关闭");
+  });
+
+  // 关闭数据库连接
+  if (sqliteAdapter && sqliteAdapter.db) {
+    try {
+      await sqliteAdapter.close();
+    } catch (error) {
+      logMessage("error", "关闭数据库连接出错:", { error });
+    }
+  }
+
+  // 最后记录一次内存使用情况
+  monitorMemory();
+
+  // 强制退出前的最后清理
+  setTimeout(() => {
+    logMessage("info", "优雅退出完成");
+    process.exit(0);
+  }, 1000);
+}
+
+// 添加信号处理
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
+
+// 处理未捕获的异常，避免进程直接崩溃
+process.on("uncaughtException", (error) => {
+  logMessage("error", "未捕获的异常:", { error });
+  // 尝试优雅退出
+  gracefulShutdown();
+});
+
+// 处理未处理的Promise拒绝
+process.on("unhandledRejection", (reason, promise) => {
+  logMessage("error", "未处理的Promise拒绝:", { reason });
+  // 记录但不退出，避免中断服务
 });
