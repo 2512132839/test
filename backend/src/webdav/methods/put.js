@@ -415,7 +415,7 @@ export async function handlePut(c, path, userId, userType, db) {
     // 2. 如果设置为'auto'，小于指定阈值的文件使用直接上传
     // 注意：空文件已经有专门的处理逻辑，这里只处理非空小文件
     const shouldUseDirect =
-      webdavUploadMode === "direct" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > 0 && declaredContentLength <= DIRECT_THRESHOLD);
+        webdavUploadMode === "direct" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > 0 && declaredContentLength <= DIRECT_THRESHOLD);
 
     // 非空文件且应该使用代理模式时进行代理上传
     if (webdavUploadMode !== "direct" && shouldUseProxy) {
@@ -597,10 +597,10 @@ export async function handlePut(c, path, userId, userType, db) {
           const acceptable = checkSizeDifference(totalProcessed, declaredContentLength);
           if (!acceptable) {
             console.warn(
-              `WebDAV PUT - 警告：文件数据不完整，声明大小：${declaredContentLength}字节，实际上传：${totalProcessed}字节，差异：${(
-                (declaredContentLength - totalProcessed) /
-                (1024 * 1024)
-              ).toFixed(2)}MB`
+                `WebDAV PUT - 警告：文件数据不完整，声明大小：${declaredContentLength}字节，实际上传：${totalProcessed}字节，差异：${(
+                    (declaredContentLength - totalProcessed) /
+                    (1024 * 1024)
+                ).toFixed(2)}MB`
             );
           }
         }
@@ -608,7 +608,7 @@ export async function handlePut(c, path, userId, userType, db) {
         console.log(`WebDAV PUT - 所有分片上传完成，开始完成分片上传，总共上传了 ${totalProcessed} 字节`);
 
         // 完成分片上传
-        const completeResult = await completeMultipartUpload(db, path, uploadId, parts, userId, userType, c.env.ENCRYPTION_SECRET, s3Key, contentType, totalProcessed);
+        const completeResult = await completeMultipartUpload(db, path, uploadId, parts, userId, userType, c.env.ENCRYPTION_SECRET, s3Key, contentType, totalProcessed, false);
 
         // 清理缓存
         await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
