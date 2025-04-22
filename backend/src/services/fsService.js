@@ -770,14 +770,23 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
           // 创建S3客户端
           const s3Client = await createS3Client(s3Config, encryptionSecret);
 
-          // 规范化S3子路径 (不添加斜杠，因为是文件)
-          const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
-
-          // 确保文件路径不为空，如果为空，则使用文件名
+          // 规范化S3子路径
+          let s3SubPath = normalizeS3SubPath(subPath, s3Config, true); // 设置为true确保以斜杠结尾
+          // 获取文件名
           const fileName = file.name || "unnamed_file";
-          const finalS3Path = s3SubPath && s3SubPath.trim() !== "" ? s3SubPath : (s3Config.root_prefix || "") + (s3Config.default_folder || "") + fileName;
 
-          console.log(`规范化后的S3路径: ${finalS3Path}`);
+          // 构建最终的S3路径：确保子路径以斜杠结尾，然后附加文件名
+          let finalS3Path;
+          if (s3SubPath && s3SubPath.trim() !== "") {
+            // 确保子路径以斜杠结尾
+            if (!s3SubPath.endsWith("/")) {
+              s3SubPath += "/";
+            }
+            finalS3Path = s3SubPath + fileName;
+          } else {
+            // 处理根路径的情况
+            finalS3Path = (s3Config.root_prefix || "") + (s3Config.default_folder || "") + fileName;
+          }
 
           // 检查父目录是否存在
           if (finalS3Path.includes("/")) {

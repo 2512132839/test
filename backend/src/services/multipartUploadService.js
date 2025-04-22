@@ -8,7 +8,7 @@ import { findMountPointByPath, normalizeS3SubPath, updateMountLastUsed, checkDir
 import { createS3Client, buildS3Url } from "../utils/s3Utils.js";
 import { CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from "@aws-sdk/client-s3";
 import { generateFileId } from "../utils/common.js";
-import { directoryCacheManager } from "../utils/DirectoryCache.js";
+import { directoryCacheManager, clearCacheForFilePath } from "../utils/DirectoryCache.js";
 import { getLocalTimeString } from "../utils/common.js";
 
 /**
@@ -340,12 +340,54 @@ export async function completeMultipartUpload(
         }
 
         // 提取父目录路径，用于刷新目录缓存
-        const parentPath = path.substring(0, path.lastIndexOf("/") + 1);
+        let parentPath;
+        if (path.endsWith("/")) {
+          // 如果路径已经是目录路径（以斜杠结尾），直接使用
+          parentPath = path;
+        } else {
+          // 尝试从路径中提取父目录
+          const lastSlashIndex = path.lastIndexOf("/");
+          if (lastSlashIndex >= 0) {
+            parentPath = path.substring(0, lastSlashIndex + 1);
+          } else {
+            // 如果没有斜杠，设置为根路径
+            parentPath = "/";
+          }
+        }
+
+        // 再次确保parentPath以斜杠结尾
+        if (!parentPath.endsWith("/")) {
+          parentPath += "/";
+        }
+
+        // 处理根路径的特殊情况
+        if (parentPath === "//") {
+          parentPath = "/";
+        }
+
         if (mount.id && parentPath) {
           const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentPath);
           console.log(`缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentPath}, 清理了${invalidatedCount}个缓存条目`);
+
+          // 额外刷新挂载点的根目录缓存，确保在任何情况下都能显示新上传的文件
+          if (mount.mount_path && mount.mount_path !== parentPath) {
+            const rootPath = mount.mount_path.endsWith("/") ? mount.mount_path : mount.mount_path + "/";
+            const rootInvalidatedCount = directoryCacheManager.invalidate(mount.id, rootPath);
+            if (rootInvalidatedCount) {
+              console.log(`挂载点根目录缓存已刷新：挂载点=${mount.id}, 根路径=${rootPath}`);
+            }
+          }
         } else {
           console.warn(`跳过缓存刷新，参数不完整: mountId=${mount.id}, parentPath=${parentPath}`);
+        }
+
+        // 调用clearCacheForFilePath函数，更彻底地清除文件相关缓存
+        try {
+          await clearCacheForFilePath(db, s3SubPath, s3Config.id);
+          console.log(`已调用clearCacheForFilePath清除文件相关缓存 - 路径=${s3SubPath}, S3配置ID=${s3Config.id}`);
+        } catch (cacheError) {
+          // 不让缓存清除错误影响上传流程
+          console.warn(`清除文件缓存时出错: ${cacheError.message}`);
         }
 
         return {
