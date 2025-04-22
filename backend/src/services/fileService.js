@@ -14,16 +14,16 @@ export async function getFileBySlug(db, slug) {
   }
 
   const file = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
       FROM ${DbTables.FILES} f
       LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
       WHERE f.slug = ?
     `
-      )
-      .bind(slug)
-      .first();
+    )
+    .bind(slug)
+    .first();
 
   if (!file) {
     throw new Error("文件不存在");
@@ -76,16 +76,16 @@ export async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取文件信息，包括更新后的views计数
   const updatedFile = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
       FROM ${DbTables.FILES} f
       LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
       WHERE f.id = ?
     `
-      )
-      .bind(file.id)
-      .first();
+    )
+    .bind(file.id)
+    .first();
 
   // 检查是否达到最大查看次数限制
   if (updatedFile.max_views !== null && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {

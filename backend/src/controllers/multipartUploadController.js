@@ -6,7 +6,6 @@ import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload } from "../services/multipartUploadService.js";
 
-
 /**
  * 从Hono上下文中获取用户ID和类型
  * @param {HonoContext} c - Hono上下文
