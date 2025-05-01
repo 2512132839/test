@@ -695,6 +695,7 @@ const exportAsPng = async () => {
     const result = await htmlToImage.editorContentToPng(vditorInstance.value, {
       title: docTitle,
       filename: `${docTitle}.png`, // 设置文件名
+      autoSave: false, // 禁用自动保存，避免生成两个文件
       imageOptions: {
         quality: 0.95,
         pixelRatio: 2, // 高清图像倍率

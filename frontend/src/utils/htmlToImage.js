@@ -12,6 +12,7 @@ import { saveAs } from "file-saver";
  * @param {Object} options - 转换选项
  * @param {string} options.filename - 下载的文件名，默认为 'download.png'
  * @param {Object} options.imageOptions - 传递给html-to-image的选项
+ * @param {boolean} options.autoSave - 是否自动保存文件，默认为 true
  * @param {function} options.beforeCapture - 捕获前的回调函数
  * @param {function} options.afterCapture - 捕获后的回调函数
  * @param {function} options.onSuccess - 成功时的回调函数
@@ -33,6 +34,7 @@ export async function elementToPng(element, options = {}) {
         return !node.classList?.contains("no-export");
       },
     },
+    autoSave: true, // 默认自动保存文件
     beforeCapture: null,
     afterCapture: null,
     onSuccess: null,
@@ -41,7 +43,7 @@ export async function elementToPng(element, options = {}) {
 
   // 合并默认选项和用户选项
   const mergedOptions = { ...defaultOptions, ...options };
-  const { filename, imageOptions, beforeCapture, afterCapture, onSuccess, onError } = mergedOptions;
+  const { filename, imageOptions, autoSave, beforeCapture, afterCapture, onSuccess, onError } = mergedOptions;
 
   try {
     // 如果element是字符串（选择器），则获取实际DOM元素
@@ -64,9 +66,13 @@ export async function elementToPng(element, options = {}) {
       await afterCapture(targetElement);
     }
 
-    // 使用file-saver保存图片
+    // 将dataURL转换为Blob对象
     const blob = dataURLToBlob(dataUrl);
-    saveAs(blob, filename);
+
+    // 只有在autoSave为true时才自动保存文件
+    if (autoSave) {
+      saveAs(blob, filename);
+    }
 
     // 成功回调
     if (typeof onSuccess === "function") {
@@ -90,6 +96,13 @@ export async function elementToPng(element, options = {}) {
  * 将HTML元素转换为JPEG并下载
  * @param {HTMLElement|string} element - DOM元素或选择器字符串
  * @param {Object} options - 与elementToPng相同的选项，但默认文件名为'download.jpg'
+ * @param {string} options.filename - 下载的文件名，默认为 'download.jpg'
+ * @param {Object} options.imageOptions - 传递给html-to-image的选项
+ * @param {boolean} options.autoSave - 是否自动保存文件，默认为 true
+ * @param {function} options.beforeCapture - 捕获前的回调函数
+ * @param {function} options.afterCapture - 捕获后的回调函数
+ * @param {function} options.onSuccess - 成功时的回调函数
+ * @param {function} options.onError - 错误时的回调函数
  * @returns {Promise} - 返回一个Promise对象
  */
 export async function elementToJpeg(element, options = {}) {
@@ -101,11 +114,12 @@ export async function elementToJpeg(element, options = {}) {
       backgroundColor: "#ffffff",
       cacheBust: true,
     },
+    autoSave: true, // 默认自动保存文件
   };
 
   // 合并默认选项和用户选项
   const mergedOptions = { ...defaultOptions, ...options };
-  const { filename, imageOptions, beforeCapture, afterCapture, onSuccess, onError } = mergedOptions;
+  const { filename, imageOptions, autoSave, beforeCapture, afterCapture, onSuccess, onError } = mergedOptions;
 
   try {
     // 如果element是字符串（选择器），则获取实际DOM元素
@@ -128,9 +142,13 @@ export async function elementToJpeg(element, options = {}) {
       await afterCapture(targetElement);
     }
 
-    // 使用file-saver保存图片
+    // 将dataURL转换为Blob对象
     const blob = dataURLToBlob(dataUrl);
-    saveAs(blob, filename);
+
+    // 只有在autoSave为true时才自动保存文件
+    if (autoSave) {
+      saveAs(blob, filename);
+    }
 
     // 成功回调
     if (typeof onSuccess === "function") {
@@ -154,7 +172,15 @@ export async function elementToJpeg(element, options = {}) {
  * 从编辑器获取内容并转换为PNG
  * @param {Object} editor - 编辑器实例
  * @param {Object} options - 转换选项
- * @returns {Promise} - 返回一个Promise对象
+ * @param {string} options.filename - 下载的文件名
+ * @param {Object} options.imageOptions - 传递给html-to-image的选项
+ * @param {boolean} options.autoSave - 是否自动保存文件，默认为 true
+ * @param {boolean} options.darkMode - 是否使用暗色模式
+ * @param {function} options.beforeCapture - 捕获前的回调函数
+ * @param {function} options.afterCapture - 捕获后的回调函数
+ * @param {function} options.onSuccess - 成功时的回调函数
+ * @param {function} options.onError - 错误时的回调函数
+ * @returns {Promise} - 返回一个Promise对象，包含生成的dataUrl和blob
  */
 export async function editorContentToPng(editor, options = {}) {
   // 检查编辑器实例
@@ -167,6 +193,21 @@ export async function editorContentToPng(editor, options = {}) {
   // 获取当前模式
   const currentMode = editor.vditor?.currentMode;
   console.log("当前编辑器模式:", currentMode);
+
+  // 提取暗色模式设置
+  // 从背景色中检测暗色模式或从选项中获取
+  let isDarkMode = false;
+  if (options.imageOptions && options.imageOptions.backgroundColor) {
+    // 如果背景色是深色的，则认为是暗色模式
+    const bgColor = options.imageOptions.backgroundColor.toLowerCase();
+    isDarkMode = bgColor.includes("#1") || bgColor.includes("#2") || bgColor.includes("#3") || bgColor.includes("dark") || bgColor.includes("black");
+  }
+  // 如果options中有明确的darkMode设置，优先使用它
+  if (options.darkMode !== undefined) {
+    isDarkMode = Boolean(options.darkMode);
+  }
+
+  console.log(`检测到暗色模式: ${isDarkMode ? "是" : "否"}`);
 
   // 根据不同模式选择不同的内容获取方式
   let targetElement = null;
@@ -205,8 +246,9 @@ export async function editorContentToPng(editor, options = {}) {
 
         // 应用样式以匹配编辑器
         const editorStyles = window.getComputedStyle(editorContainer);
-        tempContainer.style.backgroundColor = editorStyles.backgroundColor || "#ffffff";
-        tempContainer.style.color = editorStyles.color || "#000000";
+        // 根据暗色模式设置背景色和文本颜色
+        tempContainer.style.backgroundColor = isDarkMode ? "#1e1e1e" : "#ffffff";
+        tempContainer.style.color = isDarkMode ? "#d4d4d4" : "#24292e";
         tempContainer.style.padding = "20px";
         tempContainer.style.maxWidth = "100%";
         tempContainer.style.width = editorContainer.offsetWidth + "px";
@@ -226,14 +268,14 @@ export async function editorContentToPng(editor, options = {}) {
       throw new Error("无法找到适合转换的内容元素");
     }
 
-    // 处理Mermaid图表，确保它们被正确渲染
-    await preprocessMermaidCharts(targetElement);
+    // 处理Mermaid图表，确保它们被正确渲染，并传递暗色模式参数
+    await preprocessMermaidCharts(targetElement, isDarkMode);
 
     // 处理数学公式，确保它们被正确渲染
     await preprocessMathFormulas(targetElement);
 
-    // 处理代码块和文本，提高清晰度
-    await preprocessCodeAndText(targetElement);
+    // 处理代码块和文本，提高清晰度，并传递暗色模式参数
+    await preprocessCodeAndText(targetElement, isDarkMode);
 
     // 在调用elementToPng前预处理图片，解决跨域问题
     await preprocessImages(targetElement);
@@ -550,9 +592,10 @@ async function preprocessMathFormulas(rootElement) {
 /**
  * 预处理Mermaid图表，确保它们被正确渲染
  * @param {HTMLElement} rootElement - 包含Mermaid图表的根元素
+ * @param {boolean} isDarkMode - 是否为暗色模式
  * @returns {Promise} - Mermaid图表预处理完成的Promise
  */
-async function preprocessMermaidCharts(rootElement) {
+async function preprocessMermaidCharts(rootElement, isDarkMode = false) {
   // 检查是否有Mermaid图表元素
   const mermaidElements = rootElement.querySelectorAll("div.language-mermaid");
   console.log(`找到${mermaidElements.length}个Mermaid图表`);
@@ -573,6 +616,21 @@ async function preprocessMermaidCharts(rootElement) {
   if (mermaidElements.length === 0 && echartsElements.length === 0 && flowchartElements.length === 0 && abcElements.length === 0) {
     console.log("没有找到需要处理的图表，跳过预处理");
     return;
+  }
+
+  // 设置Mermaid的主题配置，如果支持暗色模式
+  if (mermaidElements.length > 0 && typeof window.mermaid !== "undefined" && typeof window.mermaid.initialize === "function") {
+    try {
+      window.mermaid.initialize({
+        startOnLoad: true,
+        theme: isDarkMode ? "dark" : "default", // 根据暗色模式选择主题
+        securityLevel: "loose",
+        fontFamily: "sans-serif",
+      });
+      console.log(`配置Mermaid主题: ${isDarkMode ? "dark" : "default"}`);
+    } catch (e) {
+      console.warn("配置Mermaid主题时出错:", e);
+    }
   }
 
   // 处理Mermaid图表
@@ -598,9 +656,9 @@ async function preprocessMermaidCharts(rootElement) {
   // 等待所有图表处理完成
   await new Promise((resolve) => setTimeout(resolve, 2000)); // 增加等待时间到2秒，确保复杂图表有足够渲染时间
 
-  // 最后检查是否有未能渲染的图表元素，应用降级策略
+  // 最后检查是否有未能渲染的图表元素，应用降级策略，并传递暗色模式参数
   const allChartElements = [...mermaidElements, ...echartsElements, ...flowchartElements, ...abcElements];
-  applyFallbackForUnrenderedCharts(allChartElements);
+  applyFallbackForUnrenderedCharts(allChartElements, isDarkMode);
 
   console.log("所有图表处理完成");
 }
@@ -608,8 +666,9 @@ async function preprocessMermaidCharts(rootElement) {
 /**
  * 为未能成功渲染的图表应用降级策略
  * @param {Array} chartElements - 所有图表元素数组
+ * @param {boolean} isDarkMode - 是否为暗色模式
  */
-function applyFallbackForUnrenderedCharts(chartElements) {
+function applyFallbackForUnrenderedCharts(chartElements, isDarkMode = false) {
   chartElements.forEach((el, index) => {
     // 检测元素是否已被渲染（通常渲染后会有SVG或Canvas子元素）
     const isRendered = el.querySelector("svg") || el.querySelector("canvas") || el.querySelector(".echarts-container");
@@ -627,11 +686,13 @@ function applyFallbackForUnrenderedCharts(chartElements) {
       codeContainer.style.textAlign = "left";
       codeContainer.style.margin = "1em auto";
       codeContainer.style.padding = "10px";
-      codeContainer.style.backgroundColor = "#f6f8fa";
+      // 根据暗色/亮色模式使用不同的背景色
+      codeContainer.style.backgroundColor = isDarkMode ? "#1e1e1e" : "#f6f8fa";
       codeContainer.style.borderRadius = "4px";
       codeContainer.style.overflow = "auto";
       codeContainer.style.maxWidth = "100%";
-      codeContainer.style.border = "1px solid #ddd";
+      // 根据暗色/亮色模式使用不同的边框颜色
+      codeContainer.style.border = isDarkMode ? "1px solid #30363d" : "1px solid #ddd";
 
       // 创建代码元素
       const codeElement = document.createElement("code");
@@ -639,13 +700,21 @@ function applyFallbackForUnrenderedCharts(chartElements) {
       codeElement.style.whiteSpace = "pre-wrap";
       codeElement.style.fontFamily = "monospace, Consolas, 'Courier New', monospace";
       codeElement.style.fontSize = "13px";
+      // 根据暗色/亮色模式设置代码文本颜色
+      codeElement.style.color = isDarkMode ? "#d4d4d4" : "#333333";
 
       // 添加一个注释，说明图表未能渲染
       const noteElement = document.createElement("div");
       noteElement.className = "chart-fallback-note";
       noteElement.textContent = `注意：${chartType}图表未能渲染，显示原始代码。`;
-      noteElement.style.color = "#856404";
-      noteElement.style.backgroundColor = "#fff3cd";
+      // 根据暗色/亮色模式设置警告信息的样式
+      if (isDarkMode) {
+        noteElement.style.color = "#d4ba6c";
+        noteElement.style.backgroundColor = "#332c1b";
+      } else {
+        noteElement.style.color = "#856404";
+        noteElement.style.backgroundColor = "#fff3cd";
+      }
       noteElement.style.padding = "8px";
       noteElement.style.borderRadius = "4px";
       noteElement.style.marginBottom = "10px";
@@ -1060,10 +1129,12 @@ async function handleAbcNotation(abcElements) {
 /**
  * 预处理代码块和文本，提高导出图像的清晰度
  * @param {HTMLElement} rootElement - 包含代码块和文本的根元素
+ * @param {boolean} isDarkMode - 是否为暗色模式
  * @returns {Promise} - 预处理完成的Promise
  */
-async function preprocessCodeAndText(rootElement) {
+async function preprocessCodeAndText(rootElement, isDarkMode = false) {
   console.log("开始处理代码块和文本，提高清晰度...");
+  console.log(`当前模式: ${isDarkMode ? "暗色" : "亮色"}`);
 
   // 处理代码块 - 提高代码块的可读性
   const codeBlocks = rootElement.querySelectorAll("pre code, pre.hljs");
@@ -1078,6 +1149,8 @@ async function preprocessCodeAndText(rootElement) {
     codeBlock.style.whiteSpace = "pre-wrap";
     codeBlock.style.wordBreak = "keep-all";
     codeBlock.style.overflow = "visible";
+    // 根据模式设置文本颜色
+    codeBlock.style.color = isDarkMode ? "#d4d4d4" : "#333333";
 
     // 增强代码块父元素的样式
     const preElement = codeBlock.closest("pre");
@@ -1086,10 +1159,12 @@ async function preprocessCodeAndText(rootElement) {
       preElement.style.padding = "12px 16px";
       preElement.style.overflow = "visible";
       preElement.style.borderRadius = "4px";
-      // 确保背景色与前景色对比明显
+      // 确保背景色与前景色对比明显，根据暗色模式调整
       if (!preElement.style.backgroundColor) {
-        preElement.style.backgroundColor = "#f6f8fa";
+        preElement.style.backgroundColor = isDarkMode ? "#1e1e1e" : "#f6f8fa";
       }
+      // 添加适当的边框
+      preElement.style.border = isDarkMode ? "1px solid #30363d" : "1px solid #e1e4e8";
     }
   });
 
@@ -1112,6 +1187,11 @@ async function preprocessCodeAndText(rootElement) {
     if (!textElement.style.lineHeight) {
       textElement.style.lineHeight = "1.6";
     }
+
+    // 根据暗色模式设置文本颜色
+    if (!textElement.style.color) {
+      textElement.style.color = isDarkMode ? "#d4d4d4" : "#24292e";
+    }
   });
 
   // 优化表格显示
@@ -1122,13 +1202,57 @@ async function preprocessCodeAndText(rootElement) {
     table.style.maxWidth = "100%";
     table.style.margin = "1em 0";
     table.style.overflow = "visible";
+    // 为表格添加边框色
+    table.style.borderColor = isDarkMode ? "#30363d" : "#ddd";
 
     // 处理表格单元格
     const cells = table.querySelectorAll("th, td");
     cells.forEach((cell) => {
       cell.style.padding = "8px 12px";
-      cell.style.border = "1px solid #ddd";
+      cell.style.border = isDarkMode ? "1px solid #30363d" : "1px solid #ddd";
     });
+
+    // 为表头设置背景色
+    const headers = table.querySelectorAll("th");
+    headers.forEach((header) => {
+      header.style.backgroundColor = isDarkMode ? "#252526" : "#f1f1f1";
+      header.style.color = isDarkMode ? "#e2e8f0" : "#24292e";
+    });
+
+    // 为表格行添加斑马纹样式
+    const rows = table.querySelectorAll("tr");
+    rows.forEach((row, index) => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length && index % 2 === 1) {
+        // 奇数行
+        cells.forEach((cell) => {
+          cell.style.backgroundColor = isDarkMode ? "#252526" : "#f6f8fa";
+        });
+      } else if (cells.length) {
+        // 偶数行
+        cells.forEach((cell) => {
+          cell.style.backgroundColor = isDarkMode ? "#1e1e1e" : "#ffffff";
+        });
+      }
+    });
+  });
+
+  // 优化链接颜色
+  const links = rootElement.querySelectorAll("a");
+  links.forEach((link) => {
+    link.style.color = isDarkMode ? "#3b82f6" : "#0366d6";
+    link.style.textDecoration = "none";
+  });
+
+  // 优化引用块样式
+  const blockquotes = rootElement.querySelectorAll("blockquote");
+  blockquotes.forEach((blockquote) => {
+    blockquote.style.borderLeft = isDarkMode ? "4px solid #4b5563" : "4px solid #e5e7eb";
+    blockquote.style.padding = "0.5em 1em";
+    blockquote.style.margin = "1em 0";
+    blockquote.style.color = isDarkMode ? "#9ca3af" : "#6b7280";
+    blockquote.style.backgroundColor = isDarkMode ? "#1a1a1a" : "#f9fafb";
+    blockquote.style.borderRadius = "0.25rem";
   });
 
   console.log("代码块和文本处理完成");
