@@ -664,76 +664,96 @@ const exportWordDocument = async () => {
 
 // 导出为PNG图片
 const exportAsPng = async () => {
+  if (!vditorInstance.value) return;
+
+  // 显示状态消息
+  notification.value = "正在生成PNG图片...";
+
   try {
-    closeCopyFormatMenu();
+    // 获取当前编辑器内容的HTML
+    const htmlContent = vditorInstance.value.getHTML();
 
-    // 显示加载中提示
-    notification.value = "正在生成图片...";
-
-    // 获取编辑器内容区域的DOM元素
-    const editorElement = document.querySelector(".vditor-preview");
-
-    if (!editorElement) {
-      notification.value = "编辑器未准备好，请稍后再试";
+    if (!htmlContent) {
+      notification.value = "没有内容可导出";
       setTimeout(() => {
         notification.value = "";
       }, 3000);
       return;
     }
 
-    // 获取文档标题
-    const title = props.paste?.remark || "markdown";
+    // 使用标题（如果有）或默认名称
+    const docTitle = props.paste?.remark || "Markdown导出图片";
 
-    // 生成文件名
-    const now = new Date();
-    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(
-        2,
-        "0"
-    )}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
-    const filename = `${title.replace(/[^\w\u4e00-\u9fa5]/g, "-")}-${timestamp}.png`;
+    // 检查编辑器容器是否有ID
+    const editorContainer = document.getElementById("vditor-editor");
+    if (editorContainer) {
+      // 为了与htmlToImage.js兼容，临时添加一个ID为vditor的属性
+      editorContainer.setAttribute("id", "vditor");
+    }
 
-    // 创建一个过滤函数，避免尝试访问外部样式表
-    const filter = (node) => {
-      // 排除所有从CDN加载的样式表和可能导致CORS问题的元素
-      if (node.tagName === "LINK" && node.getAttribute("rel") === "stylesheet") {
-        const href = node.getAttribute("href");
-        if (href && (href.startsWith("http") || href.startsWith("//"))) {
-          return false;
+    // 使用editorContentToPng函数将编辑器内容转换为PNG
+    const result = await htmlToImage.editorContentToPng(vditorInstance.value, {
+      title: docTitle,
+      filename: `${docTitle}.png`, // 设置文件名
+      imageOptions: {
+        quality: 0.95,
+        pixelRatio: 2, // 高清图像倍率
+        backgroundColor: props.darkMode ? "#1F2937" : "#FFFFFF",
+        skipFonts: false, // 不跳过字体处理
+      },
+      style: {
+        fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
+        padding: "20px",
+        maxWidth: "1920px", // 限制最大宽度
+      },
+      beforeCapture: (element) => {
+        debugLog(props.enableDebug, props.isDev, "准备捕获编辑器内容...");
+      },
+      afterCapture: (capturedElement) => {
+        debugLog(props.enableDebug, props.isDev, "内容已捕获，准备转换为PNG");
+        // 恢复编辑器容器的原始ID
+        if (editorContainer) {
+          editorContainer.setAttribute("id", "vditor-editor");
         }
-      }
-
-      // 排除外部图片链接，避免CORS问题
-      if (node.tagName === "IMG") {
-        const src = node.getAttribute("src");
-        if (src && (src.startsWith("http") || src.startsWith("//"))) {
-          console.log("跳过外部图片:", src);
-          return false;
-        }
-      }
-
-      return true;
-    };
-
-    // 调用工具类方法导出PNG并下载
-    await htmlToImage.exportToPngAndDownload(editorElement, {
-      fileName: filename,
-      backgroundColor: props.darkMode ? "#1e1e1e" : "#ffffff",
-      filter: filter,
-      fontEmbedCss: false, // 禁用字体嵌入以避免CORS问题
-      pixelRatio: 2,
+      },
     });
 
-    // 显示成功提示
-    notification.value = "图片已保存";
+    // 检查结果
+    if (!result || result.success === false) {
+      throw new Error(result?.error || "导出PNG失败");
+    }
+
+    // 获取blob数据
+    const blob = result.blob || result;
+
+    // 生成文件名 - 使用日期和时间
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "-");
+    const fileName = `${docTitle.replace(/[\\/:*?"<>|]/g, "_")}-${dateStr}-${timeStr}.png`;
+
+    // 使用file-saver保存文件
+    saveAs(blob, fileName);
+
+    // 显示成功消息
+    notification.value = "PNG图片已生成并下载";
     setTimeout(() => {
       notification.value = "";
     }, 3000);
   } catch (error) {
-    console.error("导出PNG图片失败:", error);
-    notification.value = "导出图片失败";
+    console.error("导出PNG图片时出错:", error);
+    // 尝试恢复编辑器容器的原始ID，即使在错误情况下
+    const editorContainer = document.getElementById("vditor");
+    if (editorContainer) {
+      editorContainer.setAttribute("id", "vditor-editor");
+    }
+
+    notification.value = "导出失败，请稍后重试";
     setTimeout(() => {
       notification.value = "";
     }, 3000);
+  } finally {
+    closeCopyFormatMenu();
   }
 };
 

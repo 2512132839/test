@@ -1418,76 +1418,163 @@ const handleGlobalClick = (event) => {
 };
 
 const exportAsPng = async () => {
+  // 统一超时时间常量
+  const MESSAGE_TIMEOUT = 3000;
+
+  if (!editor) {
+    console.error("导出PNG失败：编辑器实例不存在");
+    savingStatus.value = t("common.pngExportFailed") || "导出PNG失败：编辑器实例不存在";
+    return;
+  }
+
+  // 显示状态消息
+  savingStatus.value = t("common.exportingPng") || "正在导出PNG图片...";
+
   try {
-    closeCopyFormatMenu();
-
-    // 显示加载中提示
-    savingStatus.value = t("common.generatingImage") || "正在生成图片...";
-
-    // 获取编辑器内容区域的DOM元素
-    const editorElement = document.querySelector(".vditor-preview");
-
-    if (!editorElement) {
-      savingStatus.value = t("common.editorNotReady") || "编辑器未准备好，请稍后再试";
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 3000);
-      return;
-    }
-
-    // 获取文档标题
-    const title = props.initialContent?.startsWith("#") ? props.initialContent.split("\n")[0].replace(/^#+ /, "") : "markdown";
-
-    // 生成文件名
+    // 生成文件名 - 使用日期和时间
     const now = new Date();
-    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(
-        2,
-        "0"
-    )}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
-    const filename = `${title.replace(/[^\w\u4e00-\u9fa5]/g, "-")}-${timestamp}.png`;
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "-");
+    const fileName = `markdown-${dateStr}-${timeStr}.png`;
 
-    // 创建一个过滤函数，避免尝试访问外部样式表
-    const filter = (node) => {
-      // 排除所有从CDN加载的样式表和可能导致CORS问题的元素
-      if (node.tagName === "LINK" && node.getAttribute("rel") === "stylesheet") {
-        const href = node.getAttribute("href");
-        if (href && (href.startsWith("http") || href.startsWith("//"))) {
-          return false;
+    // 获取编辑器容器
+    const editorContainer = document.getElementById("vditor");
+
+    // 等待内容渲染
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // 设置处理选项并调用导出函数
+    const result = await htmlToImage.editorContentToPng(editor, {
+      filename: fileName,
+      imageOptions: {
+        quality: 1.0,
+        backgroundColor: props.darkMode ? "#1e1e1e" : "#ffffff",
+        style: {
+          "max-width": "100%",
+          width: "auto",
+        },
+        cacheBust: true,
+        imagePlaceholder: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+        skipFonts: false,
+        pixelRatio: 4,
+        canvasWidth: editorContainer ? editorContainer.offsetWidth : undefined,
+        canvasHeight: undefined,
+      },
+      // 捕获前准备 - 添加临时样式
+      beforeCapture: async (targetElement) => {
+        // 添加临时样式以优化导出效果
+        const tempStyle = document.createElement("style");
+        tempStyle.id = "temp-export-style";
+        tempStyle.textContent = `
+          .vditor-reset {
+            padding: 20px !important;
+            box-sizing: border-box !important;
+          }
+          .vditor-reset pre {
+            white-space: pre-wrap !important;
+            word-break: break-all !important;
+            overflow: visible !important;
+            background-color: #f6f8fa !important;
+            border-radius: 4px !important;
+            padding: 12px 16px !important;
+            margin: 1em 0 !important;
+          }
+          .vditor-reset pre code {
+            font-family: monospace, Consolas, "Courier New", monospace !important;
+            font-size: 13px !important;
+            line-height: 1.5 !important;
+            white-space: pre-wrap !important;
+            tab-size: 4 !important;
+            word-break: keep-all !important;
+          }
+          .vditor-reset img {
+            max-width: 100% !important;
+            image-rendering: auto !important;
+          }
+          .vditor-reset table {
+            display: table !important;
+            width: auto !important;
+            max-width: 100% !important;
+            overflow: visible !important;
+            border-collapse: collapse !important;
+            margin: 1em 0 !important;
+          }
+          .vditor-reset table th,
+          .vditor-reset table td {
+            border: 1px solid #ddd !important;
+            padding: 8px 12px !important;
+          }
+        `;
+        document.head.appendChild(tempStyle);
+
+        // 处理图片以解决跨域问题
+        const images = targetElement.querySelectorAll("img");
+        images.forEach((img) => {
+          if (!img.hasAttribute("crossorigin")) {
+            img.setAttribute("crossorigin", "anonymous");
+          }
+        });
+
+        // 等待样式应用
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return Promise.resolve();
+      },
+      // 捕获后清理 - 移除临时样式
+      afterCapture: (targetElement) => {
+        const tempStyle = document.getElementById("temp-export-style");
+        if (tempStyle) {
+          document.head.removeChild(tempStyle);
         }
-      }
+        return Promise.resolve();
+      },
+      // 成功回调
+      onSuccess: (dataUrl, blob) => {
+        savingStatus.value = t("common.pngExported") || "PNG图片已导出并下载";
+        setTimeout(() => {
+          savingStatus.value = "";
+        }, MESSAGE_TIMEOUT);
+      },
+      // 错误回调
+      onError: (error) => {
+        console.error("导出PNG图片时出错:", error);
 
-      // 排除外部图片链接，避免CORS问题
-      if (node.tagName === "IMG") {
-        const src = node.getAttribute("src");
-        if (src && (src.startsWith("http") || src.startsWith("//"))) {
-          console.log("跳过外部图片:", src);
-          return false;
+        // 根据错误类型显示不同的错误信息
+        if (error instanceof Event && error.type === "error" && error.target instanceof HTMLImageElement) {
+          savingStatus.value = "由于跨域限制，部分图片可能无法正确显示在导出图片中";
+        } else {
+          savingStatus.value = (t("common.pngExportFailed") || "导出PNG失败") + ": " + (error.message || "未知错误");
         }
-      }
 
-      return true;
-    };
-
-    // 调用工具类方法导出PNG并下载
-    await htmlToImage.exportToPngAndDownload(editorElement, {
-      fileName: filename,
-      backgroundColor: props.darkMode ? "#1e1e1e" : "#ffffff",
-      filter: filter,
-      fontEmbedCss: false, // 禁用字体嵌入以避免CORS问题
-      pixelRatio: 2,
+        setTimeout(() => {
+          savingStatus.value = "";
+        }, MESSAGE_TIMEOUT);
+      },
     });
 
-    // 显示成功提示
-    savingStatus.value = t("common.imageSaved") || "图片已保存";
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
+    // 检查结果
+    if (!result || !result.success) {
+      const errorMsg =
+          result && result.error instanceof Event && result.error.type === "error" && result.error.target instanceof HTMLImageElement
+              ? "导出失败：图片加载出现跨域问题，部分图片可能无法正确显示"
+              : "导出失败";
+
+      throw result?.error || new Error(errorMsg);
+    }
   } catch (error) {
-    console.error("导出PNG图片失败:", error);
-    savingStatus.value = t("common.imageSaveFailed") || "导出图片失败";
+    console.error("导出PNG图片过程中发生错误:", error);
+
+    // 统一错误处理
+    if (error instanceof Event && error.type === "error") {
+      savingStatus.value = "由于跨域限制，无法导出包含外部图片的内容";
+    } else {
+      savingStatus.value = t("common.pngExportFailed") || "导出PNG失败，请稍后重试";
+    }
+
     setTimeout(() => {
       savingStatus.value = "";
-    }, 3000);
+    }, MESSAGE_TIMEOUT);
+  } finally {
+    closeCopyFormatMenu();
   }
 };
 
