@@ -11,19 +11,19 @@ import { generatePresignedUrl, deleteFileFromS3 } from "../utils/s3Utils.js";
  */
 async function getFileBySlug(db, slug, includePassword = true) {
   const fields = includePassword
-    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
-    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
+      ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
+      : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
 
   return await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT ${fields}
       FROM ${DbTables.FILES} f
       WHERE f.slug = ?
     `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 }
 
 /**
@@ -121,8 +121,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取更新后的文件信息
   const updatedFile = await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT 
         f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
         f.remark, f.password, f.max_views, f.views, f.created_by,
@@ -130,9 +130,9 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
       FROM ${DbTables.FILES} f
       WHERE f.id = ?
     `
-    )
-    .bind(file.id)
-    .first();
+      )
+      .bind(file.id)
+      .first();
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -243,7 +243,19 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       const response = await fetch(fileRequest);
 
       // 创建一个新的响应，包含正确的文件名和Content-Type
-      const headers = new Headers(response.headers);
+      const headers = new Headers();
+      // 复制所有头部，但处理可能冲突的头部
+      for (const [key, value] of response.headers.entries()) {
+        const lowerKey = key.toLowerCase();
+
+        // 如果响应包含Transfer-Encoding，跳过Content-Length
+        if (lowerKey === "content-length" && response.headers.get("transfer-encoding")) {
+          console.log(`跳过添加Content-Length头，因为已存在Transfer-Encoding头`);
+          continue;
+        }
+
+        headers.append(key, value);
+      }
 
       // 根据是否强制下载设置Content-Disposition
       if (forceDownload) {
