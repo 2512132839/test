@@ -212,6 +212,7 @@ export async function editorContentToPng(editor, options = {}) {
   // 根据不同模式选择不同的内容获取方式
   let targetElement = null;
   let tempContainer = null;
+  let hiddenParentContainer = null;
 
   try {
     // 首先尝试直接通过ID获取编辑器容器
@@ -239,6 +240,15 @@ export async function editorContentToPng(editor, options = {}) {
         // 对于其他所有模式(wysiwyg, ir, sv)，创建临时容器并使用getHTML获取内容
         console.log(`在${currentMode}模式下，创建临时容器以获取渲染后的HTML`);
 
+        // 使用隐藏父容器来包裹临时容器，确保在渲染PNG图像时不会在页面上短暂显示临时内容
+        hiddenParentContainer = document.createElement("div");
+        hiddenParentContainer.style.height = "0";
+        hiddenParentContainer.style.overflow = "hidden";
+        hiddenParentContainer.style.position = "absolute";
+        hiddenParentContainer.style.left = "-9999px"; // 移出视口
+        hiddenParentContainer.style.top = "0";
+        hiddenParentContainer.id = "vditor-hidden-container"; // 添加ID便于调试
+
         // 创建临时容器
         tempContainer = document.createElement("div");
         tempContainer.innerHTML = editor.getHTML();
@@ -257,8 +267,12 @@ export async function editorContentToPng(editor, options = {}) {
         tempContainer.style.fontSize = editorStyles.fontSize;
         tempContainer.style.lineHeight = editorStyles.lineHeight || "1.6";
 
-        // 添加到文档中
-        document.body.appendChild(tempContainer);
+        // 将临时容器添加到隐藏父容器中
+        hiddenParentContainer.appendChild(tempContainer);
+
+        // 添加隐藏父容器到文档中
+        document.body.appendChild(hiddenParentContainer);
+
         targetElement = tempContainer;
         console.log("创建的临时容器:", tempContainer);
       }
@@ -286,8 +300,12 @@ export async function editorContentToPng(editor, options = {}) {
       if (originalAfterCapture) {
         await originalAfterCapture(el);
       }
-      // 确保临时容器被移除
-      if (tempContainer && document.body.contains(tempContainer)) {
+      // 确保隐藏父容器被移除
+      if (hiddenParentContainer && document.body.contains(hiddenParentContainer)) {
+        document.body.removeChild(hiddenParentContainer);
+        console.log("隐藏容器及其内部的临时容器已移除");
+      } else if (tempContainer && document.body.contains(tempContainer)) {
+        // 兼容处理：如果找不到隐藏父容器但临时容器仍在DOM中，直接移除临时容器
         document.body.removeChild(tempContainer);
         console.log("临时容器已移除");
       }
@@ -358,8 +376,11 @@ export async function editorContentToPng(editor, options = {}) {
   } catch (error) {
     console.error("获取编辑器内容元素时出错:", error);
 
-    // 确保在发生错误时也能清理临时容器
-    if (tempContainer && document.body.contains(tempContainer)) {
+    // 确保在发生错误时也能清理临时容器和隐藏父容器
+    if (hiddenParentContainer && document.body.contains(hiddenParentContainer)) {
+      document.body.removeChild(hiddenParentContainer);
+      console.log("出错时清理了隐藏容器及其内部的临时容器");
+    } else if (tempContainer && document.body.contains(tempContainer)) {
       document.body.removeChild(tempContainer);
       console.log("出错时清理了临时容器");
     }
@@ -582,8 +603,7 @@ async function preprocessMathFormulas(rootElement) {
     }
   }
 
-  // 如果网页用的是其他数学公式渲染库，我们可能需要额外处理
-  // 这里添加一个通用的延迟，以确保任何动态渲染都有时间完成
+  // 通用的延迟，以确保任何动态渲染都有时间完成
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
   console.log("数学公式预处理完成");
