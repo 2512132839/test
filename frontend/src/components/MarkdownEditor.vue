@@ -1,5 +1,8 @@
 <template>
   <div class="editor-container mx-auto px-3 sm:px-6 flex-1 flex flex-col pt-6 sm:pt-8 w-full max-w-full sm:max-w-6xl">
+    <!-- 添加隐藏的文件输入控件用于导入Markdown文件 -->
+    <input type="file" ref="markdownImporter" accept=".md,.markdown,.mdown,.mkd" style="display: none" @change="importMarkdownFile" />
+
     <div class="header mb-4 border-b pb-2" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
       <h2 class="text-xl font-semibold">{{ $t("markdown.title") }}</h2>
     </div>
@@ -322,6 +325,9 @@ const currentSharePassword = ref("");
 const copyFormatMenuVisible = ref(false);
 const copyFormatMenuPosition = ref({ x: 0, y: 0 });
 
+// 添加ref引用
+const markdownImporter = ref(null);
+
 // 检查用户权限状态
 const checkPermissionStatus = async () => {
   console.log("检查用户权限状态...");
@@ -622,12 +628,20 @@ const initEditor = () => {
       "insert-before",
       "insert-after",
       "|",
-      "upload",
+      // "upload",
       "table",
       "|",
       "undo",
       "redo",
       "|",
+      {
+        name: "import-markdown",
+        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"></path></svg>',
+        tip: t("markdown.importMarkdown"),
+        click() {
+          triggerImportFile();
+        },
+      },
       {
         name: "clear-content",
         icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>',
@@ -1590,6 +1604,89 @@ const clearEditorContent = () => {
   setTimeout(() => {
     savingStatus.value = "";
   }, 2000);
+};
+
+// 导入Markdown文件的函数
+const importMarkdownFile = (event) => {
+  if (!editor) return;
+
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // 检查文件类型
+  const validTypes = [".md", ".markdown", ".mdown", ".mkd"];
+  const fileName = file.name.toLowerCase();
+  const isValidType = validTypes.some((type) => fileName.endsWith(type));
+
+  if (!isValidType) {
+    savingStatus.value = t("markdown.invalidFileType");
+    setTimeout(() => {
+      savingStatus.value = "";
+    }, 3000);
+    return;
+  }
+
+  // 文件大小检查（限制为10MB）
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  if (file.size > maxSize) {
+    savingStatus.value = t("markdown.fileTooLarge");
+    setTimeout(() => {
+      savingStatus.value = "";
+    }, 3000);
+    return;
+  }
+
+  // 检查编辑器是否有内容
+  const currentContent = editor.getValue();
+  if (currentContent && currentContent.trim() !== "") {
+    if (!confirm(t("markdown.confirmOverwrite"))) {
+      // 重置文件输入
+      event.target.value = "";
+      return;
+    }
+  }
+
+  // 读取文件内容
+  const reader = new FileReader();
+  savingStatus.value = t("markdown.importingFile");
+
+  reader.onload = (e) => {
+    try {
+      const content = e.target.result;
+      editor.setValue(content);
+      savingStatus.value = t("markdown.fileImported");
+      setTimeout(() => {
+        savingStatus.value = "";
+      }, 2000);
+    } catch (error) {
+      console.error("导入文件时出错:", error);
+      savingStatus.value = t("markdown.importFailed");
+      setTimeout(() => {
+        savingStatus.value = "";
+      }, 3000);
+    }
+  };
+
+  reader.onerror = () => {
+    console.error("读取文件时出错");
+    savingStatus.value = t("markdown.readError");
+    setTimeout(() => {
+      savingStatus.value = "";
+    }, 3000);
+  };
+
+  reader.readAsText(file);
+
+  // 重置文件输入，以便可以重新选择同一文件
+  event.target.value = "";
+};
+
+// 触发文件选择的函数
+const triggerImportFile = () => {
+  // 使用ref访问文件输入元素并触发点击
+  if (markdownImporter.value) {
+    markdownImporter.value.click();
+  }
 };
 </script>
 

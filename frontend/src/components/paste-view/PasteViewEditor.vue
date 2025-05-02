@@ -76,6 +76,8 @@ const copyFormatMenuPosition = ref({ x: 0, y: 0 });
 const notification = ref("");
 // 存储最后一次使用的按钮元素引用，用于重新定位菜单
 const lastCopyFormatsBtnElement = ref(null);
+// 添加markdownImporter的ref引用
+const markdownImporter = ref(null);
 
 // 切换密码可见性
 const togglePasswordVisibility = () => {
@@ -350,6 +352,22 @@ const initEditor = () => {
       "undo",
       "redo",
       "|",
+      {
+        name: "import-markdown",
+        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"></path></svg>',
+        tip: "导入Markdown文件",
+        click() {
+          triggerImportFile();
+        },
+      },
+      {
+        name: "clear-content",
+        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>',
+        tip: "清空内容",
+        click() {
+          clearEditorContent();
+        },
+      },
       {
         name: "copy-formats",
         icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg>',
@@ -822,6 +840,106 @@ const handleGlobalClick = (event) => {
     closeCopyFormatMenu();
   }
 };
+
+// 导入Markdown文件的函数
+const importMarkdownFile = (event) => {
+  if (!vditorInstance.value) return;
+
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // 检查文件类型
+  const validTypes = [".md", ".markdown", ".mdown", ".mkd"];
+  const fileName = file.name.toLowerCase();
+  const isValidType = validTypes.some((type) => fileName.endsWith(type));
+
+  if (!isValidType) {
+    notification.value = "不支持的文件类型，请选择Markdown文件";
+    setTimeout(() => {
+      notification.value = "";
+    }, 3000);
+    return;
+  }
+
+  // 文件大小检查（限制为10MB）
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  if (file.size > maxSize) {
+    notification.value = "文件过大，请选择小于10MB的文件";
+    setTimeout(() => {
+      notification.value = "";
+    }, 3000);
+    return;
+  }
+
+  // 检查编辑器是否有内容
+  const currentContent = vditorInstance.value.getValue();
+  if (currentContent && currentContent.trim() !== "") {
+    if (!confirm("当前编辑器已有内容，导入将覆盖现有内容。是否继续？")) {
+      // 重置文件输入
+      event.target.value = "";
+      return;
+    }
+  }
+
+  // 读取文件内容
+  const reader = new FileReader();
+  notification.value = "正在导入文件...";
+
+  reader.onload = (e) => {
+    try {
+      const content = e.target.result;
+      vditorInstance.value.setValue(content);
+      notification.value = "文件导入成功";
+      setTimeout(() => {
+        notification.value = "";
+      }, 2000);
+    } catch (error) {
+      console.error("导入文件时出错:", error);
+      notification.value = "导入失败，请重试";
+      setTimeout(() => {
+        notification.value = "";
+      }, 3000);
+    }
+  };
+
+  reader.onerror = () => {
+    console.error("读取文件时出错");
+    notification.value = "读取文件时出错，请重试";
+    setTimeout(() => {
+      notification.value = "";
+    }, 3000);
+  };
+
+  reader.readAsText(file);
+
+  // 重置文件输入，以便可以重新选择同一文件
+  event.target.value = "";
+};
+
+// 触发文件选择的函数
+const triggerImportFile = () => {
+  // 使用ref访问文件输入元素并触发点击
+  if (markdownImporter.value) {
+    markdownImporter.value.click();
+  }
+};
+
+// 清空编辑器内容函数
+const clearEditorContent = () => {
+  if (!vditorInstance.value) return;
+
+  // 添加确认对话框
+  if (confirm("确定要清空所有内容吗？")) {
+    // 清空编辑器内容
+    vditorInstance.value.setValue("");
+
+    // 显示成功消息
+    notification.value = "内容已清空";
+    setTimeout(() => {
+      notification.value = "";
+    }, 2000);
+  }
+};
 </script>
 
 <template>
@@ -833,6 +951,9 @@ const handleGlobalClick = (event) => {
       </svg>
       <span>{{ notification }}</span>
     </div>
+
+    <!-- 添加隐藏的文件输入控件用于导入Markdown文件 -->
+    <input type="file" ref="markdownImporter" accept=".md,.markdown,.mdown,.mkd" style="display: none" @change="importMarkdownFile" />
 
     <div class="editor-wrapper">
       <!-- 编辑器区域 - Vditor实例将挂载到这个div -->

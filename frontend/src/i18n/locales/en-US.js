@@ -59,6 +59,15 @@ export default {
     invalidFormat: "Invalid format, only letters, numbers, - and _ are allowed",
     confirmClearContent: "Are you sure you want to clear all content?",
     contentCleared: "Content cleared",
+    // Import Markdown file related translations
+    importMarkdown: "Import Markdown File",
+    invalidFileType: "Unsupported file type, please select a Markdown file",
+    fileTooLarge: "File too large, please select a file less than 10MB",
+    confirmOverwrite: "The editor already has content, importing will overwrite existing content. Continue?",
+    importingFile: "Importing file...",
+    fileImported: "File imported successfully",
+    importFailed: "Import failed, please try again",
+    readError: "Error reading file, please try again",
     form: {
       remark: "Remark (Optional)",
       remarkPlaceholder: "Add remark information...",
