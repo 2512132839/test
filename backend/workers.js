@@ -60,7 +60,7 @@ export default {
       const pathParts = url.pathname.split("/");
 
       // 增强的WebDAV请求处理
-      if (pathParts.length >= 2 && pathParts[1] === "dav") {
+      if (url.pathname === "/dav" || url.pathname.startsWith("/dav/")) {
         // 获取客户端IP，用于认证缓存
         const clientIp = getClientIp(request);
         console.log(`WebDAV请求在Workers环境中: ${request.method} ${url.pathname}, 客户端IP: ${clientIp}`);
@@ -70,8 +70,13 @@ export default {
 
         // 添加WebDAV特定的响应头
         responseHeaders.set("Allow", WEBDAV_METHODS.join(","));
-        responseHeaders.set("DAV", "1,2");
+        responseHeaders.set("Public", WEBDAV_METHODS.join(",")); // 添加Public头，某些客户端使用
+        responseHeaders.set("DAV", "1, 2, 3"); // 修改为标准格式，包含更多支持级别
         responseHeaders.set("MS-Author-Via", "DAV");
+
+        // 添加Windows WebDAV所需的特定头
+        responseHeaders.set("Microsoft-Server-WebDAV-Extensions", "1");
+        responseHeaders.set("X-MSDAVEXT", "1");
 
         // CORS相关响应头
         responseHeaders.set("Access-Control-Allow-Methods", WEBDAV_METHODS.join(","));
@@ -86,7 +91,7 @@ export default {
         // 对OPTIONS请求直接响应
         if (request.method === "OPTIONS") {
           return new Response(null, {
-            status: 204,
+            status: 200, // 从204改为200，与应用层保持一致
             headers: responseHeaders,
           });
         }
