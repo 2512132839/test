@@ -585,7 +585,7 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
 
         try {
           // 首先使用HEAD请求检查对象存在性和获取元数据
-          // 这一步对某些S3提供商（如Cloudflare R2等）在Worker环境中可能是必需的
+          // 这一步对某些S3提供商在Worker环境中可能是必需的
           const headParams = {
             Bucket: s3Config.bucket_name,
             Key: s3SubPath,
@@ -603,20 +603,13 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
           const getCommand = new GetObjectCommand(getParams);
           const getResponse = await s3Client.send(getCommand);
 
-          // 获取ContentType，如果HEAD请求返回了ContentType则使用它，否则使用GET请求的ContentType
-          const contentType = headResponse.ContentType || getResponse.ContentType || "application/octet-stream";
-
           // 构建响应头
           const headers = {
-            "Content-Type": contentType,
+            "Content-Type": headResponse.ContentType || getResponse.ContentType || "application/octet-stream",
             "Content-Disposition": contentDisposition,
             "Content-Length": String(headResponse.ContentLength || getResponse.ContentLength || 0),
             "Last-Modified": (headResponse.LastModified || getResponse.LastModified || new Date()).toUTCString(),
             "Cache-Control": "private, max-age=0",
-            // 添加Cache-Control: no-transform以防止Cloudflare篡改响应内容
-            "Cache-Control": "private, max-age=0, no-transform",
-            // 明确告知Cloudflare不对文件内容进行压缩和转换
-            "CF-No-Compress": "true",
           };
 
           // 返回文件内容
@@ -625,21 +618,10 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
             headers: headers,
           });
         } catch (error) {
-          console.error("预览文件出错:", error);
-
-          // 提供更详细的错误信息，特别是处理Cloudflare Worker特有的问题
           if (error.$metadata && error.$metadata.httpStatusCode === 404) {
             throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
-          } else if (error.$metadata && error.$metadata.httpStatusCode === 403) {
-            throw new HTTPException(ApiStatus.FORBIDDEN, {
-              message: "没有权限访问此文件，可能是S3配置问题或Cloudflare Worker限制",
-            });
-          } else if (error.name === "NoSuchKey") {
-            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "找不到指定的文件" });
           }
-
-          // 对于其他错误，提供更具描述性的消息
-          throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `预览文件失败: ${error.name} - ${error.message}` });
+          throw error;
         }
       },
       "预览文件",
