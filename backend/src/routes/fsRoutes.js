@@ -28,14 +28,23 @@ function setCorsHeaders(c) {
   const origin = c.req.header("Origin");
   c.header("Access-Control-Allow-Origin", origin || "*");
 
-  c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With");
-  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition, Access-Control-Allow-Origin");
+  c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With, Range");
+  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition, Access-Control-Allow-Origin, Content-Type, Content-Range");
   c.header("Access-Control-Allow-Credentials", "true");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
 
-  // 对于预览和下载请求，添加一个更长的缓存时间
+  // 对于预览和下载请求，添加更多头部以确保Worker环境正确处理
   if (c.req.path.includes("/preview") || c.req.path.includes("/download")) {
     c.header("Access-Control-Max-Age", "3600"); // 1小时
+    // 添加以下头部以确保Cloudflare不会修改响应内容
+    c.header("CF-No-Compress", "true");
+    c.header("Cache-Control", "private, max-age=0, no-transform");
+
+    // 针对预检请求的特殊处理
+    if (c.req.method === "OPTIONS") {
+      c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With, Range, If-Modified-Since, If-None-Match");
+      c.header("Access-Control-Max-Age", "86400"); // 24小时缓存预检响应
+    }
   }
 }
 
@@ -44,6 +53,28 @@ fsRoutes.use("/api/admin/fs/*", authMiddleware);
 
 // API密钥用户文件系统访问
 fsRoutes.use("/api/user/fs/*", apiKeyFileMiddleware);
+
+// 处理预览和下载接口的OPTIONS请求 - 管理员版本
+fsRoutes.options("/api/admin/fs/preview", (c) => {
+  setCorsHeaders(c);
+  return c.text("", 204); // No Content
+});
+
+fsRoutes.options("/api/admin/fs/download", (c) => {
+  setCorsHeaders(c);
+  return c.text("", 204); // No Content
+});
+
+// 处理预览和下载接口的OPTIONS请求 - API密钥用户版本
+fsRoutes.options("/api/user/fs/preview", (c) => {
+  setCorsHeaders(c);
+  return c.text("", 204); // No Content
+});
+
+fsRoutes.options("/api/user/fs/download", (c) => {
+  setCorsHeaders(c);
+  return c.text("", 204); // No Content
+});
 
 // 列出目录内容 - 管理员版本
 fsRoutes.get("/api/admin/fs/list", async (c) => {
@@ -580,21 +611,21 @@ fsRoutes.post("/api/admin/fs/multipart/init", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "初始化分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "初始化分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -615,22 +646,22 @@ fsRoutes.post("/api/admin/fs/multipart/part", authMiddleware, async (c) => {
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
 
     return c.json(
-      {
-        success: false,
-        message: error.message || "上传分片失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "上传分片失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -644,21 +675,21 @@ fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "完成分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "完成分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -672,21 +703,21 @@ fsRoutes.post("/api/admin/fs/multipart/abort", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "中止分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "中止分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -716,21 +747,21 @@ fsRoutes.post("/api/user/fs/multipart/init", apiKeyFileMiddleware, async (c) => 
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "初始化分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "初始化分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -751,22 +782,22 @@ fsRoutes.post("/api/user/fs/multipart/part", apiKeyFileMiddleware, async (c) => 
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
 
     return c.json(
-      {
-        success: false,
-        message: error.message || "上传分片失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "上传分片失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -780,21 +811,21 @@ fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c)
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "完成分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "完成分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -808,21 +839,21 @@ fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) =>
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "中止分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "中止分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -1089,15 +1120,15 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
 
     // 记录文件上传成功
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-      )
-      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
-      .run();
+        )
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
+        .run();
 
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
@@ -1190,15 +1221,15 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
 
     // 记录文件上传成功
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-      )
-      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyId}`, now, now)
-      .run();
+        )
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyId}`, now, now)
+        .run();
 
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
