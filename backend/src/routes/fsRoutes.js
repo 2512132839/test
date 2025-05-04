@@ -211,7 +211,7 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-    console.error("预览文件错误:", error);
+    console.error("预览文件错误:", error, typeof error, error instanceof HTTPException);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }
@@ -263,7 +263,7 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-    console.error("预览文件错误:", error);
+    console.error("预览文件错误:", error, typeof error, error instanceof HTTPException);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }

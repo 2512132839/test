@@ -466,80 +466,86 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
 }
 
 /**
- * 下载文件
- * @param {D1Database} db - D1数据库实例
- * @param {string} path - 文件路径
- * @param {string} userId - 用户ID
- * @param {string} userType - 用户类型 (admin 或 apiKey)
- * @param {string} encryptionSecret - 加密密钥
+ * 从S3获取文件并创建响应
+ * @param {Object} s3Client - S3客户端
+ * @param {Object} s3Config - S3配置
+ * @param {string} s3SubPath - S3子路径
+ * @param {string} fileName - 文件名
+ * @param {boolean} isPreview - 是否为预览模式
  * @returns {Promise<Response>} 文件内容响应
  */
-export async function downloadFile(db, path, userId, userType, encryptionSecret) {
-  return handleFsError(
-      async () => {
-        // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+async function getFileFromS3(s3Client, s3Config, s3SubPath, fileName, isPreview) {
+  // 设置内联或附件模式
+  const contentDisposition = `${isPreview ? "inline" : "attachment"}; filename="${encodeURIComponent(fileName)}"`;
 
-        // 处理错误情况
-        if (mountResult.error) {
-          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
-        }
+  try {
+    // 首先使用HEAD请求检查对象存在性和获取元数据
+    const headParams = {
+      Bucket: s3Config.bucket_name,
+      Key: s3SubPath,
+    };
 
-        const { mount, subPath } = mountResult;
+    const headCommand = new HeadObjectCommand(headParams);
+    let headResponse;
+    try {
+      headResponse = await s3Client.send(headCommand);
+    } catch (headError) {
+      console.error("HEAD请求失败:", headError);
+      if (headError.$metadata && headError.$metadata.httpStatusCode === 404) {
+        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+      } else if (headError.$metadata && headError.$metadata.httpStatusCode === 403) {
+        throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问该文件" });
+      }
+      throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `检查文件失败: ${headError.message}` });
+    }
 
-        // 获取S3配置
-        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-        if (!s3Config) {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-        }
+    // 在确认对象存在后再获取内容
+    const getParams = {
+      Bucket: s3Config.bucket_name,
+      Key: s3SubPath,
+    };
 
-        // 创建S3客户端
-        const s3Client = await createS3Client(s3Config, encryptionSecret);
+    const getCommand = new GetObjectCommand(getParams);
+    let getResponse;
+    try {
+      getResponse = await s3Client.send(getCommand);
+    } catch (getError) {
+      console.error("GET请求失败:", getError);
+      if (getError.$metadata && getError.$metadata.httpStatusCode === 403) {
+        throw new HTTPException(ApiStatus.FORBIDDEN, { message: "无法获取文件内容，权限被拒绝" });
+      }
+      throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `获取文件内容失败: ${getError.message}` });
+    }
 
-        // 规范化S3子路径 (不添加斜杠，因为是文件)
-        const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+    // 构建响应头
+    const headers = {
+      "Content-Type": headResponse.ContentType || getResponse.ContentType || "application/octet-stream",
+      "Content-Disposition": contentDisposition,
+      "Content-Length": String(headResponse.ContentLength || getResponse.ContentLength || 0),
+      "Last-Modified": (headResponse.LastModified || getResponse.LastModified || new Date()).toUTCString(),
+      "Cache-Control": "private, max-age=0",
+    };
 
-        // 更新最后使用时间
-        await updateMountLastUsed(db, mount.id);
-
-        // 获取文件内容
-        try {
-          const getParams = {
-            Bucket: s3Config.bucket_name,
-            Key: s3SubPath,
-          };
-
-          const getCommand = new GetObjectCommand(getParams);
-          const getResponse = await s3Client.send(getCommand);
-
-          // 文件名处理
-          const fileName = path.split("/").filter(Boolean).pop() || "file";
-          const contentDisposition = `attachment; filename="${encodeURIComponent(fileName)}"`;
-
-          // 构建响应头
-          const headers = {
-            "Content-Type": getResponse.ContentType || "application/octet-stream",
-            "Content-Disposition": contentDisposition,
-            "Content-Length": String(getResponse.ContentLength || 0),
-            "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
-            "Cache-Control": "private, max-age=0",
-          };
-
-          // 返回文件内容
-          return new Response(getResponse.Body, {
-            status: 200,
-            headers: headers,
-          });
-        } catch (error) {
-          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
-          }
-          throw error;
-        }
-      },
-      "下载文件",
-      "下载文件失败"
-  );
+    // 返回文件内容
+    return new Response(getResponse.Body, {
+      status: 200,
+      headers: headers,
+    });
+  } catch (error) {
+    const operation = isPreview ? "预览" : "下载";
+    console.error(`${operation}文件出错:`, error);
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+    } else if (error.$metadata && error.$metadata.httpStatusCode === 403) {
+      throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问该文件" });
+    } else if (error.name === "NetworkError") {
+      throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: "网络错误，无法访问存储服务" });
+    }
+    throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `${operation}文件失败: ${error.message}` });
+  }
 }
 
 /**
@@ -581,50 +587,60 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
 
         // 文件名处理
         const fileName = path.split("/").filter(Boolean).pop() || "file";
-        const contentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
 
-        try {
-          // 首先使用HEAD请求检查对象存在性和获取元数据
-          const headParams = {
-            Bucket: s3Config.bucket_name,
-            Key: s3SubPath,
-          };
-
-          const headCommand = new HeadObjectCommand(headParams);
-          const headResponse = await s3Client.send(headCommand);
-
-          // 在确认对象存在后再获取内容
-          const getParams = {
-            Bucket: s3Config.bucket_name,
-            Key: s3SubPath,
-          };
-
-          const getCommand = new GetObjectCommand(getParams);
-          const getResponse = await s3Client.send(getCommand);
-
-          // 构建响应头
-          const headers = {
-            "Content-Type": headResponse.ContentType || getResponse.ContentType || "application/octet-stream",
-            "Content-Disposition": contentDisposition,
-            "Content-Length": String(headResponse.ContentLength || getResponse.ContentLength || 0),
-            "Last-Modified": (headResponse.LastModified || getResponse.LastModified || new Date()).toUTCString(),
-            "Cache-Control": "private, max-age=0",
-          };
-
-          // 返回文件内容
-          return new Response(getResponse.Body, {
-            status: 200,
-            headers: headers,
-          });
-        } catch (error) {
-          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
-          }
-          throw error;
-        }
+        // 使用通用的文件获取函数，设置isPreview为true
+        return await getFileFromS3(s3Client, s3Config, s3SubPath, fileName, true);
       },
       "预览文件",
       "预览文件失败"
+  );
+}
+
+/**
+ * 下载文件
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} path - 文件路径
+ * @param {string} userId - 用户ID
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Promise<Response>} 文件内容响应
+ */
+export async function downloadFile(db, path, userId, userType, encryptionSecret) {
+  return handleFsError(
+      async () => {
+        // 查找挂载点
+        const mountResult = await findMountPointByPath(db, path, userId, userType);
+
+        // 处理错误情况
+        if (mountResult.error) {
+          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
+        }
+
+        const { mount, subPath } = mountResult;
+
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
+
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+        // 规范化S3子路径 (不添加斜杠，因为是文件)
+        const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
+
+        // 文件名处理
+        const fileName = path.split("/").filter(Boolean).pop() || "file";
+
+        // 使用通用的文件获取函数，设置isPreview为false
+        return await getFileFromS3(s3Client, s3Config, s3SubPath, fileName, false);
+      },
+      "下载文件",
+      "下载文件失败"
   );
 }
 
