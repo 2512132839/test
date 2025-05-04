@@ -29,13 +29,22 @@ function setCorsHeaders(c) {
   c.header("Access-Control-Allow-Origin", origin || "*");
 
   c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With, Range");
-  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition");
+  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition, Access-Control-Allow-Origin, Content-Type, Content-Range");
   c.header("Access-Control-Allow-Credentials", "true");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
 
-  // 对于预览和下载请求，添加适当的缓存时间
+  // 对于预览和下载请求，添加更多头部以确保Worker环境正确处理
   if (c.req.path.includes("/preview") || c.req.path.includes("/download")) {
     c.header("Access-Control-Max-Age", "3600"); // 1小时
+    // 添加以下头部以确保Cloudflare不会修改响应内容
+    c.header("CF-No-Compress", "true");
+    c.header("Cache-Control", "private, max-age=0, no-transform");
+
+    // 针对预检请求的特殊处理
+    if (c.req.method === "OPTIONS") {
+      c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With, Range, If-Modified-Since, If-None-Match");
+      c.header("Access-Control-Max-Age", "86400"); // 24小时缓存预检响应
+    }
   }
 }
 
@@ -211,7 +220,7 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-    console.error("预览文件错误:", error, typeof error, error instanceof HTTPException);
+    console.error("预览文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }
@@ -263,7 +272,7 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
-    console.error("预览文件错误:", error, typeof error, error instanceof HTTPException);
+    console.error("预览文件错误:", error);
     if (error instanceof HTTPException) {
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }
