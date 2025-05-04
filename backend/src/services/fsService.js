@@ -502,8 +502,8 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
         // 提取文件名
         const fileName = path.split("/").filter(Boolean).pop() || "file";
 
-        // 使用改进的getFileFromS3函数直接获取内容并返回
-        // 使用代理模式而非重定向，设置isPreview为true表示预览模式
+        // 使用getFileFromS3函数直接获取内容并返回
+        // 设置isPreview为true表示预览模式
         return await getFileFromS3(s3Config, s3SubPath, fileName, true, encryptionSecret);
       },
       "预览文件",
@@ -548,8 +548,8 @@ export async function downloadFile(db, path, userId, userType, encryptionSecret)
         // 提取文件名
         const fileName = path.split("/").filter(Boolean).pop() || "file";
 
-        // 使用改进的getFileFromS3函数直接获取内容并返回
-        // 使用代理模式而非重定向，设置isPreview为false表示下载模式
+        // 使用getFileFromS3函数直接获取内容并返回
+        // 设置isPreview为true表示预览模式
         return await getFileFromS3(s3Config, s3SubPath, fileName, false, encryptionSecret);
       },
       "下载文件",
@@ -1271,19 +1271,53 @@ async function getFileFromS3(s3Config, s3SubPath, fileName, isPreview, encryptio
     const { createS3Client } = await import("../utils/s3Utils.js");
     const s3Client = await createS3Client(s3Config, encryptionSecret);
 
-    // 获取对象内容
-    const getParams = {
+    // 参数设置
+    const params = {
       Bucket: s3Config.bucket_name,
       Key: s3SubPath,
     };
 
+    // 重要：首先执行HEAD请求验证对象存在性和权限
+    // 这在某些S3服务商（特别是在Worker环境中）可能是必需的
+    const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+    const headCommand = new HeadObjectCommand(params);
+    let headResponse;
+    try {
+      headResponse = await s3Client.send(headCommand);
+      console.log("HEAD请求成功，文件存在且有权限访问");
+    } catch (headError) {
+      console.error("HEAD请求失败:", headError);
+      // 处理HEAD请求错误
+      if (headError.$metadata && headError.$metadata.httpStatusCode === 404) {
+        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+      } else if (headError.$metadata && headError.$metadata.httpStatusCode === 403) {
+        throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问该文件" });
+      }
+      throw new HTTPException(ApiStatus.INTERNAL_ERROR, {
+        message: `检查文件失败: ${headError.message || "未知错误"}`,
+      });
+    }
+
+    // 获取对象内容
     const { GetObjectCommand } = await import("@aws-sdk/client-s3");
-    const command = new GetObjectCommand(getParams);
-    const response = await s3Client.send(command);
+    const getCommand = new GetObjectCommand(params);
+    let response;
+    try {
+      response = await s3Client.send(getCommand);
+      console.log("GET请求成功，获取到文件内容");
+    } catch (getError) {
+      console.error("GET请求失败:", getError);
+      if (getError.$metadata && getError.$metadata.httpStatusCode === 403) {
+        throw new HTTPException(ApiStatus.FORBIDDEN, { message: "无法获取文件内容，权限被拒绝" });
+      }
+      throw new HTTPException(ApiStatus.INTERNAL_ERROR, {
+        message: `获取文件内容失败: ${getError.message || "未知错误"}`,
+      });
+    }
 
     // 构建响应头
     const headers = {
-      "Content-Type": response.ContentType || "application/octet-stream",
+      "Content-Type": headResponse.ContentType || response.ContentType || "application/octet-stream",
       "Content-Disposition": contentDisposition,
       "Cache-Control": "private, max-age=0",
       // 添加必要的CORS头部
@@ -1294,18 +1328,22 @@ async function getFileFromS3(s3Config, s3SubPath, fileName, isPreview, encryptio
       "Access-Control-Expose-Headers": "Content-Length, Content-Type, Content-Disposition, ETag",
     };
 
-    // 如果有Content-Length，添加到头部
-    if (response.ContentLength !== undefined) {
+    // 使用HEAD响应中的元数据（如果可用）
+    if (headResponse.ContentLength !== undefined) {
+      headers["Content-Length"] = String(headResponse.ContentLength);
+    } else if (response.ContentLength !== undefined) {
       headers["Content-Length"] = String(response.ContentLength);
     }
 
-    // 如果有Last-Modified，添加到头部
-    if (response.LastModified) {
+    if (headResponse.LastModified) {
+      headers["Last-Modified"] = headResponse.LastModified.toUTCString();
+    } else if (response.LastModified) {
       headers["Last-Modified"] = response.LastModified.toUTCString();
     }
 
-    // 如果有ETag，添加到头部
-    if (response.ETag) {
+    if (headResponse.ETag) {
+      headers["ETag"] = headResponse.ETag;
+    } else if (response.ETag) {
       headers["ETag"] = response.ETag;
     }
 
@@ -1317,7 +1355,12 @@ async function getFileFromS3(s3Config, s3SubPath, fileName, isPreview, encryptio
   } catch (error) {
     console.error(`${isPreview ? "预览" : "下载"}文件出错:`, error);
 
-    // 处理不同类型的错误
+    // HTTPException已在内部处理，直接抛出
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+
+    // 处理其他类型的错误
     if (error.$metadata && error.$metadata.httpStatusCode === 404) {
       throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
     } else if (error.$metadata && error.$metadata.httpStatusCode === 403) {
