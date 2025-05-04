@@ -440,8 +440,29 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
               const getCommand = new GetObjectCommand(getParams);
               const getResponse = await s3Client.send(getCommand);
 
-              // 立即关闭响应流，我们只需要元数据
-              getResponse.Body.destroy();
+              // 安全地关闭响应流，不同环境下Body的实现可能不同
+              try {
+                if (getResponse.Body) {
+                  // 根据响应体类型使用适当的方法关闭
+                  if (typeof getResponse.Body.destroy === "function") {
+                    // Node.js环境
+                    getResponse.Body.destroy();
+                  } else if (typeof getResponse.Body.cancel === "function") {
+                    // 某些浏览器环境
+                    getResponse.Body.cancel();
+                  } else if (typeof getResponse.Body.close === "function") {
+                    // 某些流实现
+                    getResponse.Body.close();
+                  } else if (typeof getResponse.Body.abort === "function") {
+                    // 某些请求实现
+                    getResponse.Body.abort();
+                  }
+                  // 如果以上方法都不存在，让GC处理
+                }
+              } catch (closeError) {
+                // 忽略关闭流时的错误，不影响主流程
+                console.log("关闭响应流时出现错误，已忽略:", closeError);
+              }
 
               // 判断是文件还是目录
               const isDirectory = s3SubPath.endsWith("/") || getResponse.ContentType === "application/x-directory";
