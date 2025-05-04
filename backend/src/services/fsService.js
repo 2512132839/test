@@ -388,7 +388,6 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
         }
 
         // 创建S3客户端
-        const { createS3Client } = await import("../utils/s3Utils.js");
         const s3Client = await createS3Client(s3Config, encryptionSecret);
 
         // 规范化S3子路径 (不添加斜杠，因为可能是文件)
@@ -399,111 +398,134 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
 
         // 获取对象信息
         try {
-          const headParams = {
-            Bucket: s3Config.bucket_name,
-            Key: s3SubPath,
-          };
-
-          // 导入必要的命令
-          const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
-          const headCommand = new HeadObjectCommand(headParams);
-
-          let headResponse;
+          // 尝试使用GET请求代替HEAD请求，Worker环境中HEAD请求可能存在兼容性问题
           try {
-            // 尝试执行HEAD请求
-            headResponse = await s3Client.send(headCommand);
+            // 首先尝试传统的HEAD请求方式
+            const headParams = {
+              Bucket: s3Config.bucket_name,
+              Key: s3SubPath,
+            };
+
+            const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+            const headCommand = new HeadObjectCommand(headParams);
+            const headResponse = await s3Client.send(headCommand);
+
+            // 如果HEAD请求成功，使用其结果
+            const isDirectory = s3SubPath.endsWith("/") || headResponse.ContentType === "application/x-directory";
+
+            // 构建文件/目录信息
+            const result = {
+              path: path,
+              name: path.split("/").filter(Boolean).pop() || "/",
+              isDirectory: isDirectory,
+              size: headResponse.ContentLength,
+              modified: headResponse.LastModified ? headResponse.LastModified.toISOString() : new Date().toISOString(),
+              contentType: headResponse.ContentType || "application/octet-stream",
+              etag: headResponse.ETag ? headResponse.ETag.replace(/"/g, "") : undefined,
+              mount_id: mount.id,
+              storage_type: mount.storage_type,
+            };
+
+            return result;
           } catch (headError) {
-            // 特别处理HEAD请求错误
             console.log("HEAD请求失败:", headError);
 
-            // 如果是404错误，可能是目录
-            if (headError.$metadata && headError.$metadata.httpStatusCode === 404) {
-              // 交给外层catch处理目录检查
-              throw headError;
-            }
+            // 检查是否为403错误或Worker环境中的UnknownError
+            const is403Error = headError.$metadata && headError.$metadata.httpStatusCode === 403;
+            const isWorkerUnknownError = headError.name === "UnknownError" || (headError.message && headError.message.includes("UnknownError"));
 
-            // 如果是403错误，权限不足
-            if (headError.$metadata && headError.$metadata.httpStatusCode === 403) {
-              throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问该文件或目录" });
-            }
+            if (is403Error || isWorkerUnknownError) {
+              console.log("检测到Worker环境中的HEAD请求问题，尝试使用GET请求作为备选方案");
 
-            // 其他错误（包括Worker环境中的UnknownError）
-            throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `检查文件失败: ${headError.name || "未知错误"} - ${headError.message || ""}` });
-          }
-
-          // 判断是文件还是目录
-          const isDirectory = s3SubPath.endsWith("/") || headResponse.ContentType === "application/x-directory";
-
-          // 构建文件/目录信息
-          const result = {
-            path: path,
-            name: path.split("/").filter(Boolean).pop() || "/",
-            isDirectory: isDirectory,
-            size: headResponse.ContentLength,
-            modified: headResponse.LastModified ? headResponse.LastModified.toISOString() : new Date().toISOString(),
-            contentType: headResponse.ContentType || "application/octet-stream",
-            etag: headResponse.ETag ? headResponse.ETag.replace(/"/g, "") : undefined,
-            mount_id: mount.id,
-            storage_type: mount.storage_type,
-          };
-
-          return result;
-        } catch (error) {
-          console.log("处理文件信息错误:", error);
-
-          // 如果是404错误，可能是目录，尝试列出前缀内容来确认
-          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-            try {
-              // 尝试作为目录处理
-              const dirPath = s3SubPath.endsWith("/") ? s3SubPath : s3SubPath + "/";
-
-              const listParams = {
+              // 使用GET请求获取小部分内容以判断文件是否存在
+              const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+              const getParams = {
                 Bucket: s3Config.bucket_name,
-                Prefix: dirPath,
-                MaxKeys: 1,
+                Key: s3SubPath,
+                Range: "bytes=0-0", // 只请求一个字节来减少带宽消耗
               };
 
-              const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
-              const listCommand = new ListObjectsV2Command(listParams);
-              const listResponse = await s3Client.send(listCommand);
+              try {
+                const getCommand = new GetObjectCommand(getParams);
+                const getResponse = await s3Client.send(getCommand);
 
-              // 如果有内容，说明是目录
-              if (listResponse.Contents && listResponse.Contents.length > 0) {
+                // 文件存在，构建文件信息
+                const isDirectory = s3SubPath.endsWith("/") || getResponse.ContentType === "application/x-directory";
+
+                // 构建文件/目录信息
                 const result = {
                   path: path,
                   name: path.split("/").filter(Boolean).pop() || "/",
-                  isDirectory: true,
-                  size: 0,
-                  modified: new Date().toISOString(),
-                  contentType: "application/x-directory",
+                  isDirectory: isDirectory,
+                  size: getResponse.ContentLength,
+                  modified: getResponse.LastModified ? getResponse.LastModified.toISOString() : new Date().toISOString(),
+                  contentType: getResponse.ContentType || "application/octet-stream",
+                  etag: getResponse.ETag ? getResponse.ETag.replace(/"/g, "") : undefined,
                   mount_id: mount.id,
                   storage_type: mount.storage_type,
                 };
+
                 return result;
-              }
+              } catch (getError) {
+                console.log("GET备选方案也失败:", getError);
 
-              // 如果没有内容，可能是文件不存在
-              throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件或目录不存在" });
-            } catch (listError) {
-              // 处理目录列表错误
-              if (listError instanceof HTTPException) {
-                throw listError;
+                // 如果GET请求也失败，依此判断错误类型
+                if (getError.$metadata && getError.$metadata.httpStatusCode === 404) {
+                  // 如果是404错误，可能是目录，继续外层的目录检查逻辑
+                  throw getError;
+                } else if (getError.$metadata && getError.$metadata.httpStatusCode === 403) {
+                  throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问该文件或目录" });
+                } else {
+                  throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `获取文件信息失败: ${getError.name || "未知错误"} - ${getError.message || ""}` });
+                }
               }
-
-              // 特别处理列表错误
-              if (listError.$metadata && listError.$metadata.httpStatusCode === 403) {
-                throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问该目录" });
-              }
-
-              throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `获取目录内容失败: ${listError.name || "未知错误"} - ${listError.message || ""}` });
+            } else if (headError.$metadata && headError.$metadata.httpStatusCode === 404) {
+              // 如果是404错误，可能是目录
+              throw headError;
+            } else {
+              // 其他类型的错误
+              throw headError;
             }
+          }
+        } catch (error) {
+          // 如果是404错误，可能是目录，尝试列出前缀内容来确认
+          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+            // 尝试作为目录处理
+            const dirPath = s3SubPath.endsWith("/") ? s3SubPath : s3SubPath + "/";
+
+            const listParams = {
+              Bucket: s3Config.bucket_name,
+              Prefix: dirPath,
+              MaxKeys: 1,
+            };
+
+            const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+            const listCommand = new ListObjectsV2Command(listParams);
+            const listResponse = await s3Client.send(listCommand);
+
+            // 如果有内容，说明是目录
+            if (listResponse.Contents && listResponse.Contents.length > 0) {
+              const result = {
+                path: path,
+                name: path.split("/").filter(Boolean).pop() || "/",
+                isDirectory: true,
+                size: 0,
+                modified: new Date().toISOString(),
+                contentType: "application/x-directory",
+                mount_id: mount.id,
+                storage_type: mount.storage_type,
+              };
+              return result;
+            }
+
+            // 如果没有内容，可能是文件不存在
+            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件或目录不存在" });
           } else if (error.$metadata && error.$metadata.httpStatusCode === 403) {
             throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问该文件或目录" });
           } else if (error instanceof HTTPException) {
             throw error;
           }
 
-          // 处理其他错误（包括Worker环境中的UnknownError）
           throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `获取文件信息失败: ${error.name || "未知错误"} - ${error.message || ""}` });
         }
       },
