@@ -398,34 +398,76 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
 
         // 获取对象信息
         try {
-          // 直接使用GET请求获取文件信息，兼容所有环境
-          const { GetObjectCommand } = await import("@aws-sdk/client-s3");
-          const getParams = {
-            Bucket: s3Config.bucket_name,
-            Key: s3SubPath,
-            Range: "bytes=0-0", // 只请求一个字节，节省带宽
-          };
+          // 首先尝试使用HeadObjectCommand获取元数据，这是最高效的方式
+          try {
+            const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+            const headParams = {
+              Bucket: s3Config.bucket_name,
+              Key: s3SubPath,
+            };
 
-          const getCommand = new GetObjectCommand(getParams);
-          const getResponse = await s3Client.send(getCommand);
+            const headCommand = new HeadObjectCommand(headParams);
+            const headResponse = await s3Client.send(headCommand);
 
-          // 判断是文件还是目录
-          const isDirectory = s3SubPath.endsWith("/") || getResponse.ContentType === "application/x-directory";
+            // 判断是文件还是目录
+            const isDirectory = s3SubPath.endsWith("/") || headResponse.ContentType === "application/x-directory";
 
-          // 构建文件/目录信息
-          const result = {
-            path: path,
-            name: path.split("/").filter(Boolean).pop() || "/",
-            isDirectory: isDirectory,
-            size: getResponse.ContentLength,
-            modified: getResponse.LastModified ? getResponse.LastModified.toISOString() : new Date().toISOString(),
-            contentType: getResponse.ContentType || "application/octet-stream",
-            etag: getResponse.ETag ? getResponse.ETag.replace(/"/g, "") : undefined,
-            mount_id: mount.id,
-            storage_type: mount.storage_type,
-          };
+            // 构建文件/目录信息
+            const result = {
+              path: path,
+              name: path.split("/").filter(Boolean).pop() || "/",
+              isDirectory: isDirectory,
+              size: headResponse.ContentLength,
+              modified: headResponse.LastModified ? headResponse.LastModified.toISOString() : new Date().toISOString(),
+              contentType: headResponse.ContentType || "application/octet-stream",
+              etag: headResponse.ETag ? headResponse.ETag.replace(/"/g, "") : undefined,
+              mount_id: mount.id,
+              storage_type: mount.storage_type,
+            };
 
-          return result;
+            return result;
+          } catch (headError) {
+            // 如果HEAD请求失败（可能是403 Forbidden或UnknownError），继续尝试GET请求
+            if (headError.$metadata?.httpStatusCode === 403 || headError.name === "UnknownError" || (headError.message && headError.message.includes("UnknownError"))) {
+              // 使用GetObjectCommand但不使用Range参数
+              const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+              const getParams = {
+                Bucket: s3Config.bucket_name,
+                Key: s3SubPath,
+                // 不使用Range头部，避免签名问题
+              };
+
+              const getCommand = new GetObjectCommand(getParams);
+              const getResponse = await s3Client.send(getCommand);
+
+              // 立即关闭响应流，我们只需要元数据
+              getResponse.Body.destroy();
+
+              // 判断是文件还是目录
+              const isDirectory = s3SubPath.endsWith("/") || getResponse.ContentType === "application/x-directory";
+
+              // 构建文件/目录信息
+              const result = {
+                path: path,
+                name: path.split("/").filter(Boolean).pop() || "/",
+                isDirectory: isDirectory,
+                size: getResponse.ContentLength,
+                modified: getResponse.LastModified ? getResponse.LastModified.toISOString() : new Date().toISOString(),
+                contentType: getResponse.ContentType || "application/octet-stream",
+                etag: getResponse.ETag ? getResponse.ETag.replace(/"/g, "") : undefined,
+                mount_id: mount.id,
+                storage_type: mount.storage_type,
+              };
+
+              return result;
+            } else if (headError.$metadata?.httpStatusCode === 404) {
+              // 如果是404错误，可能是目录，继续下面的目录处理逻辑
+              throw headError;
+            } else {
+              // 其他类型的错误直接抛出
+              throw headError;
+            }
+          }
         } catch (error) {
           // 如果是404错误，可能是目录，尝试列出前缀内容来确认
           if (error.$metadata && error.$metadata.httpStatusCode === 404) {
