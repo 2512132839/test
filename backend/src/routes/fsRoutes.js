@@ -29,22 +29,13 @@ function setCorsHeaders(c) {
   c.header("Access-Control-Allow-Origin", origin || "*");
 
   c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With, Range");
-  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition, Access-Control-Allow-Origin, Content-Type, Content-Range");
+  c.header("Access-Control-Expose-Headers", "ETag, Content-Length, Content-Disposition");
   c.header("Access-Control-Allow-Credentials", "true");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
 
-  // 对于预览和下载请求，添加更多头部以确保Worker环境正确处理
+  // 对于预览和下载请求，添加适当的缓存时间
   if (c.req.path.includes("/preview") || c.req.path.includes("/download")) {
     c.header("Access-Control-Max-Age", "3600"); // 1小时
-    // 添加以下头部以确保Cloudflare不会修改响应内容
-    c.header("CF-No-Compress", "true");
-    c.header("Cache-Control", "private, max-age=0, no-transform");
-
-    // 针对预检请求的特殊处理
-    if (c.req.method === "OPTIONS") {
-      c.header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Authorization, X-Requested-With, Range, If-Modified-Since, If-None-Match");
-      c.header("Access-Control-Max-Age", "86400"); // 24小时缓存预检响应
-    }
   }
 }
 
@@ -190,7 +181,16 @@ fsRoutes.get("/api/admin/fs/download", async (c) => {
   }
 
   try {
-    return await downloadFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
+    // 直接返回downloadFile的响应，文件内容会直接从服务器流式传输
+    const response = await downloadFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
+
+    // 替换Access-Control-Allow-Origin头部为实际的Origin
+    const origin = c.req.header("Origin");
+    if (origin) {
+      response.headers.set("Access-Control-Allow-Origin", origin);
+    }
+
+    return response;
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
@@ -216,7 +216,16 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
   }
 
   try {
-    return await previewFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
+    // 直接返回previewFile的响应，文件内容会直接从服务器流式传输
+    const response = await previewFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
+
+    // 替换Access-Control-Allow-Origin头部为实际的Origin
+    const origin = c.req.header("Origin");
+    if (origin) {
+      response.headers.set("Access-Control-Allow-Origin", origin);
+    }
+
+    return response;
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
@@ -242,7 +251,16 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
   }
 
   try {
-    return await downloadFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    // 直接返回downloadFile的响应，文件内容会直接从服务器流式传输
+    const response = await downloadFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+
+    // 替换Access-Control-Allow-Origin头部为实际的Origin
+    const origin = c.req.header("Origin");
+    if (origin) {
+      response.headers.set("Access-Control-Allow-Origin", origin);
+    }
+
+    return response;
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
@@ -268,7 +286,16 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
   }
 
   try {
-    return await previewFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    // 直接返回previewFile的响应，文件内容会直接从服务器流式传输
+    const response = await previewFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+
+    // 替换Access-Control-Allow-Origin头部为实际的Origin
+    const origin = c.req.header("Origin");
+    if (origin) {
+      response.headers.set("Access-Control-Allow-Origin", origin);
+    }
+
+    return response;
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
