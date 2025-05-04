@@ -46,16 +46,16 @@ export async function createS3Client(config, encryptionSecret) {
       clientConfig.requestTimeout = 60000;
       maxRetries = 4;
       // 禁用 B2 不支持的校验和功能
-      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
-      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
+      // clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      // clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
 
     case S3ProviderTypes.R2:
       // Cloudflare R2配置
       clientConfig.requestTimeout = 30000;
       // 禁用 R2 不支持的校验和功能
-      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
-      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
+      // clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      // clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
 
     case S3ProviderTypes.AWS:
@@ -64,15 +64,15 @@ export async function createS3Client(config, encryptionSecret) {
       clientConfig.requestTimeout = 30000;
       maxRetries = 3;
       // 禁用校验和功能以保持一致性
-      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
-      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
+      // clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      // clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
 
     case S3ProviderTypes.OTHER:
       clientConfig.signatureVersion = "v4";
       // 禁用可能不兼容的校验和功能
-      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
-      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
+      // clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      // clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
   }
 
