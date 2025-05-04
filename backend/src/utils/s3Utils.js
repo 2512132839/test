@@ -53,6 +53,9 @@ export async function createS3Client(config, encryptionSecret) {
     case S3ProviderTypes.R2:
       // Cloudflare R2配置
       clientConfig.requestTimeout = 30000;
+      // 禁用 R2 不支持的校验和功能
+      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
 
     case S3ProviderTypes.AWS:
@@ -60,10 +63,16 @@ export async function createS3Client(config, encryptionSecret) {
       clientConfig.signatureVersion = "v4";
       clientConfig.requestTimeout = 30000;
       maxRetries = 3;
+      // 禁用校验和功能以保持一致性
+      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
 
     case S3ProviderTypes.OTHER:
       clientConfig.signatureVersion = "v4";
+      // 禁用可能不兼容的校验和功能
+      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
   }
 
@@ -72,9 +81,9 @@ export async function createS3Client(config, encryptionSecret) {
 
   // 日志记录所选服务商和配置
   console.log(
-    `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
-      config.path_style ? "是" : "否"
-    }, maxRetries: ${maxRetries}`
+      `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+          config.path_style ? "是" : "否"
+      }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
   );
 
   // 返回创建的S3客户端
