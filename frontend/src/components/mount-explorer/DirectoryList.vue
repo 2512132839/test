@@ -23,7 +23,7 @@
       <div class="font-medium truncate" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">名称</div>
       <div class="min-w-24 text-center font-medium hidden sm:block" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">大小</div>
       <div class="min-w-36 text-center font-medium hidden sm:block" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">修改时间</div>
-      <div class="min-w-[80px] sm:min-w-24 text-center font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">操作</div>
+      <div class="min-w-[80px] sm:min-w-32 text-center font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">操作</div>
     </div>
 
     <div v-if="loading" class="py-8 flex flex-col items-center justify-center" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
@@ -59,6 +59,7 @@
           @rename="handleRename"
           @delete="handleDelete"
           @select="handleItemSelect"
+          @getLink="handleGetLink"
         />
       </div>
 
@@ -92,12 +93,12 @@
           </div>
 
           <!-- 操作按钮 -->
-          <div class="mt-2 flex space-x-0.5 sm:space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+          <div class="mt-2 flex space-x-0.5 sm:space-x-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             <!-- 下载按钮 (仅文件) -->
             <button
               v-if="!item.isDirectory"
               @click.stop="handleDownload(item)"
-              class="p-1 sm:p-1.5 rounded-full"
+              class="p-1 sm:p-1 rounded-full"
               :class="darkMode ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-200 text-gray-600'"
             >
               <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -105,11 +106,24 @@
               </svg>
             </button>
 
+            <!-- 直链按钮 (仅文件) -->
+            <button
+              v-if="!item.isDirectory"
+              @click.stop="handleGetLink(item)"
+              class="p-1 sm:p-1 rounded-full"
+              :class="darkMode ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-200 text-gray-600'"
+            >
+              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
+              </svg>
+            </button>
+
             <!-- 重命名按钮 - 只对文件显示，文件夹暂时不显示重命名按钮 -->
             <button
               v-if="!item.isDirectory"
               @click.stop="handleRename(item)"
-              class="p-1 sm:p-1.5 rounded-full"
+              class="p-1 sm:p-1 rounded-full"
               :class="darkMode ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-200 text-gray-600'"
             >
               <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -123,7 +137,7 @@
             </button>
 
             <!-- 删除按钮 -->
-            <button @click.stop="handleDelete(item)" class="p-1 sm:p-1.5 rounded-full" :class="darkMode ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-200 text-gray-600'">
+            <button @click.stop="handleDelete(item)" class="p-1 sm:p-1 rounded-full" :class="darkMode ? 'hover:bg-gray-600 text-gray-300' : 'hover:bg-gray-200 text-gray-600'">
               <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   stroke-linecap="round"
@@ -207,13 +221,29 @@
         </div>
       </div>
     </div>
+
+    <!-- 链接复制成功通知 -->
+    <div v-if="showLinkCopiedNotification" class="fixed bottom-4 right-4 z-50">
+      <div
+        class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md transition-all duration-300"
+        :class="{ 'opacity-100': showLinkCopiedNotification, 'opacity-0': !showLinkCopiedNotification }"
+      >
+        <div class="flex items-center">
+          <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <p>文件直链已复制到剪贴板</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from "vue";
+import { ref, computed, nextTick, inject } from "vue";
 import FileItem from "./FileItem.vue";
 import { getFileIcon } from "../../utils/fileTypeIcons";
+import { getAdminFileLink, getUserFileLink } from "../../api/fsService.js";
 
 const props = defineProps({
   items: {
@@ -373,5 +403,40 @@ const confirmDelete = () => {
 // 处理项目选择
 const handleItemSelect = (item, selected) => {
   emit("item-select", item, selected);
+};
+
+// 处理文件直链获取
+const showLinkCopiedNotification = ref(false);
+
+// 判断当前用户类型（是管理员还是普通用户）
+const isAdmin = inject("isAdmin", true); // 默认为管理员
+
+const handleGetLink = async (item) => {
+  if (item.isDirectory) return; // 文件夹不提供直链
+
+  try {
+    let response;
+    const getFileLink = isAdmin ? getAdminFileLink : getUserFileLink;
+    response = await getFileLink(item.path, 86400, true);
+
+    if (response.success && response.data?.presignedUrl) {
+      // 复制链接到剪贴板
+      await navigator.clipboard.writeText(response.data.presignedUrl);
+
+      // 显示通知
+      showLinkCopiedNotification.value = true;
+
+      // 3秒后隐藏通知
+      setTimeout(() => {
+        showLinkCopiedNotification.value = false;
+      }, 3000);
+    } else {
+      console.error("获取文件直链失败:", response);
+      alert("获取文件直链失败: " + (response.message || "未知错误"));
+    }
+  } catch (error) {
+    console.error("获取文件直链错误:", error);
+    alert("获取文件直链错误: " + (error.message || "未知错误"));
+  }
 };
 </script>

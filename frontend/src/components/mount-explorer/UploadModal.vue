@@ -5,9 +5,9 @@
       <div class="p-4 flex justify-between items-center border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">上传文件</h3>
         <button
-            @click="closeModal"
-            class="p-1 rounded-full transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+          @click="closeModal"
+          class="p-1 rounded-full transition-colors"
+          :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -24,12 +24,12 @@
             <div class="flex space-x-4">
               <label class="flex items-center cursor-pointer">
                 <input
-                    type="radio"
-                    name="uploadMethod"
-                    value="presigned"
-                    v-model="uploadMethod"
-                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
-                    :disabled="isUploading"
+                  type="radio"
+                  name="uploadMethod"
+                  value="presigned"
+                  v-model="uploadMethod"
+                  class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+                  :disabled="isUploading"
                 />
                 <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">
                   预签名直传
@@ -38,23 +38,23 @@
               </label>
               <label class="flex items-center cursor-pointer">
                 <input
-                    type="radio"
-                    name="uploadMethod"
-                    value="direct"
-                    v-model="uploadMethod"
-                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
-                    :disabled="isUploading"
+                  type="radio"
+                  name="uploadMethod"
+                  value="direct"
+                  v-model="uploadMethod"
+                  class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+                  :disabled="isUploading"
                 />
                 <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">直接上传</span>
               </label>
               <label class="flex items-center cursor-pointer">
                 <input
-                    type="radio"
-                    name="uploadMethod"
-                    value="multipart"
-                    v-model="uploadMethod"
-                    class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
-                    :disabled="isUploading"
+                  type="radio"
+                  name="uploadMethod"
+                  value="multipart"
+                  v-model="uploadMethod"
+                  class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+                  :disabled="isUploading"
                 />
                 <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">分片上传</span>
               </label>
@@ -62,8 +62,8 @@
           </div>
           <div>
             <span
-                class="text-xs px-2 py-1 rounded-full cursor-help"
-                :class="
+              class="text-xs px-2 py-1 rounded-full cursor-help"
+              :class="
                 uploadMethod === 'direct'
                   ? darkMode
                     ? 'bg-green-900/30 text-green-300'
@@ -76,7 +76,7 @@
                   ? 'bg-amber-900/30 text-amber-300'
                   : 'bg-amber-100 text-amber-700'
               "
-                :title="
+              :title="
                 uploadMethod === 'direct'
                   ? '通过服务器直接上传，不显示进度条，适合小文件'
                   : uploadMethod === 'presigned'
@@ -91,33 +91,33 @@
 
         <!-- 文件拖放区域 -->
         <div
-            class="drop-zone mb-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-8 px-4 cursor-pointer transition-all duration-300"
-            :class="[
+          class="drop-zone mb-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-8 px-4 cursor-pointer transition-all duration-300"
+          :class="[
             darkMode ? 'border-gray-600 hover:border-gray-500 bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 bg-gray-50',
             isDragging ? (darkMode ? 'border-blue-500 bg-blue-500/10 pulsing-border' : 'border-blue-500 bg-blue-50 pulsing-border') : '',
           ]"
-            @dragenter.prevent="onDragOver"
-            @dragover.prevent="onDragOver"
-            @dragleave.prevent="onDragLeave"
-            @drop.prevent="onDrop"
-            @click="triggerFileInput"
+          @dragenter.prevent="onDragOver"
+          @dragover.prevent="onDragOver"
+          @dragleave.prevent="onDragLeave"
+          @drop.prevent="onDrop"
+          @click="triggerFileInput"
         >
           <div class="icon-container mb-3">
             <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-12 w-12 transition-colors duration-300"
-                :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-400' : 'text-blue-500') : '']"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-12 w-12 transition-colors duration-300"
+              :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-400' : 'text-blue-500') : '']"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
           </div>
           <div class="text-center">
             <p
-                class="text-base font-medium transition-colors duration-300"
-                :class="[darkMode ? 'text-gray-300' : 'text-gray-700', isDragging ? (darkMode ? 'text-blue-300' : 'text-blue-700') : '']"
+              class="text-base font-medium transition-colors duration-300"
+              :class="[darkMode ? 'text-gray-300' : 'text-gray-700', isDragging ? (darkMode ? 'text-blue-300' : 'text-blue-700') : '']"
             >
               {{ isDragging ? "拖放文件到这里" : "点击或拖动文件到这里上传" }}
             </p>
@@ -128,10 +128,10 @@
               <span class="inline-flex items-center">
                 <svg class="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                   />
                 </svg>
                 支持 Ctrl+V 粘贴文件
@@ -146,18 +146,18 @@
           <div class="files-header flex justify-between items-center mb-3">
             <h3 class="text-base font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">已选择 {{ selectedFiles.length }} 个文件</h3>
             <button
-                type="button"
-                @click="clearAllFiles"
-                class="text-sm px-2 py-1 rounded transition-colors flex items-center"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'"
-                :disabled="isUploading"
+              type="button"
+              @click="clearAllFiles"
+              class="text-sm px-2 py-1 rounded transition-colors flex items-center"
+              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'"
+              :disabled="isUploading"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                 />
               </svg>
               清除全部
@@ -165,10 +165,10 @@
           </div>
           <div class="files-list max-h-60 overflow-y-auto">
             <div
-                v-for="(file, index) in selectedFiles"
-                :key="index"
-                class="selected-file mb-3 flex items-center p-3 rounded-md"
-                :class="[
+              v-for="(file, index) in selectedFiles"
+              :key="index"
+              class="selected-file mb-3 flex items-center p-3 rounded-md"
+              :class="[
                 darkMode ? 'bg-gray-700/50' : 'bg-gray-100',
                 fileItems[index]?.status === 'error' ? (darkMode ? 'border-l-4 border-red-500' : 'border-l-4 border-red-500') : '',
                 fileItems[index]?.status === 'success' ? (darkMode ? 'border-l-4 border-green-500' : 'border-l-4 border-green-500') : '',
@@ -178,10 +178,10 @@
               <div class="file-icon mr-3">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" :class="darkMode ? 'text-gray-300' : 'text-gray-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
               </div>
@@ -196,9 +196,9 @@
 
                   <!-- 文件状态显示 -->
                   <span
-                      v-if="fileItems[index]"
-                      class="text-xs ml-2 px-2 py-0.5 rounded-full"
-                      :class="{
+                    v-if="fileItems[index]"
+                    class="text-xs ml-2 px-2 py-0.5 rounded-full"
+                    :class="{
                       'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': fileItems[index].status === 'pending',
                       'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': fileItems[index].status === 'uploading',
                       'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': fileItems[index].status === 'success',
@@ -207,14 +207,14 @@
                   >
                     {{
                       fileItems[index].status === "pending"
-                          ? "待上传"
-                          : fileItems[index].status === "uploading"
-                              ? `${fileItems[index].progress}%`
-                              : fileItems[index].status === "success"
-                                  ? "上传成功"
-                                  : fileItems[index].status === "error"
-                                      ? "上传失败"
-                                      : ""
+                        ? "待上传"
+                        : fileItems[index].status === "uploading"
+                        ? `${fileItems[index].progress}%`
+                        : fileItems[index].status === "success"
+                        ? "上传成功"
+                        : fileItems[index].status === "error"
+                        ? "上传失败"
+                        : ""
                     }}
                   </span>
                 </div>
@@ -222,9 +222,9 @@
                 <!-- 单个文件进度条 -->
                 <div v-if="fileItems[index]?.status === 'uploading'" class="w-full bg-gray-200 rounded-full h-1.5 mt-1 dark:bg-gray-700">
                   <div
-                      class="h-1.5 rounded-full transition-all duration-200"
-                      :class="fileItems[index].progress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
-                      :style="{ width: `${fileItems[index].progress}%` }"
+                    class="h-1.5 rounded-full transition-all duration-200"
+                    :class="fileItems[index].progress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
+                    :style="{ width: `${fileItems[index].progress}%` }"
                   ></div>
                 </div>
                 <!-- 错误信息 -->
@@ -234,12 +234,12 @@
               </div>
               <!-- 取消上传按钮，仅在上传状态显示 -->
               <button
-                  v-if="fileItems[index]?.status === 'uploading'"
-                  type="button"
-                  @click="cancelSingleUpload(index)"
-                  class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
-                  :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
-                  title="取消上传"
+                v-if="fileItems[index]?.status === 'uploading'"
+                type="button"
+                @click="cancelSingleUpload(index)"
+                class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
+                :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
+                title="取消上传"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5M5 12l7-7 7 7" />
@@ -248,30 +248,30 @@
               </button>
               <!-- 重试按钮，仅在错误状态显示 -->
               <button
-                  v-if="fileItems[index]?.status === 'error'"
-                  type="button"
-                  @click="retryUpload(index)"
-                  class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
-                  :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-                  title="重试"
+                v-if="fileItems[index]?.status === 'error'"
+                type="button"
+                @click="retryUpload(index)"
+                class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
+                :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
+                title="重试"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
                 </svg>
               </button>
               <!-- 删除按钮 -->
               <button
-                  type="button"
-                  @click="clearSelectedFile(index)"
-                  class="p-1 rounded-full hover:bg-opacity-20 transition-colors"
-                  :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-                  title="移除"
-                  :disabled="fileItems[index]?.status === 'uploading'"
+                type="button"
+                @click="clearSelectedFile(index)"
+                class="p-1 rounded-full hover:bg-opacity-20 transition-colors"
+                :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
+                title="移除"
+                :disabled="fileItems[index]?.status === 'uploading'"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -289,9 +289,9 @@
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
             <div
-                class="h-2.5 rounded-full transition-all duration-200 progress-stripes animate-progress-stripes"
-                :class="totalProgress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
-                :style="{ width: `${totalProgress}%` }"
+              class="h-2.5 rounded-full transition-all duration-200 progress-stripes animate-progress-stripes"
+              :class="totalProgress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
+              :style="{ width: `${totalProgress}%` }"
             ></div>
           </div>
           <div class="flex justify-between items-center mt-1">
@@ -304,9 +304,9 @@
 
         <!-- 上传消息 -->
         <div
-            v-if="message && message.content"
-            class="mb-4 p-3 rounded-md text-sm"
-            :class="
+          v-if="message && message.content"
+          class="mb-4 p-3 rounded-md text-sm"
+          :class="
             message.type === 'error'
               ? darkMode
                 ? 'bg-red-900/40 border border-red-800 text-red-200'
@@ -323,24 +323,24 @@
           <div class="flex items-center">
             <!-- 成功图标 -->
             <svg
-                v-if="message.type === 'success'"
-                class="h-5 w-5 mr-2"
-                :class="darkMode ? 'text-green-300' : 'text-green-500'"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              v-if="message.type === 'success'"
+              class="h-5 w-5 mr-2"
+              :class="darkMode ? 'text-green-300' : 'text-green-500'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
 
             <!-- 信息图标 -->
             <svg
-                v-else-if="message.type === 'info'"
-                class="h-5 w-5 mr-2"
-                :class="darkMode ? 'text-blue-300' : 'text-blue-500'"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              v-else-if="message.type === 'info'"
+              class="h-5 w-5 mr-2"
+              :class="darkMode ? 'text-blue-300' : 'text-blue-500'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -358,20 +358,20 @@
       <!-- 弹窗底部按钮 -->
       <div class="p-4 flex justify-end items-center gap-3 border-t" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <button
-            @click="closeModal"
-            class="px-4 py-2 rounded-md transition-colors"
-            :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
-            :disabled="isUploading"
+          @click="closeModal"
+          class="px-4 py-2 rounded-md transition-colors"
+          :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
+          :disabled="isUploading"
         >
           取消
         </button>
         <button v-if="isUploading" @click="cancelUpload" class="px-4 py-2 rounded-md text-white transition-colors bg-red-500 hover:bg-red-600">取消上传</button>
         <button
-            v-else
-            @click="submitUpload"
-            class="px-4 py-2 rounded-md text-white transition-colors"
-            :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
-            :disabled="!hasFilesToUpload"
+          v-else
+          @click="submitUpload"
+          class="px-4 py-2 rounded-md text-white transition-colors"
+          :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
+          :disabled="!hasFilesToUpload"
         >
           开始上传
         </button>
@@ -599,9 +599,9 @@ const clearSelectedFile = (index) => {
 const clearAllFiles = () => {
   // 过滤出非上传中的文件索引
   const indicesToRemove = fileItems.value
-      .map((item, index) => (item.status !== "uploading" ? index : -1))
-      .filter((index) => index !== -1)
-      .sort((a, b) => b - a); // 倒序排列以便从后向前删除
+    .map((item, index) => (item.status !== "uploading" ? index : -1))
+    .filter((index) => index !== -1)
+    .sort((a, b) => b - a); // 倒序排列以便从后向前删除
 
   // 从后向前删除文件
   for (const index of indicesToRemove) {
@@ -619,9 +619,9 @@ const clearAllFiles = () => {
 const clearSuccessfulFiles = () => {
   // 过滤出上传成功的文件索引
   const indicesToRemove = fileItems.value
-      .map((item, index) => (item.status === "success" ? index : -1))
-      .filter((index) => index !== -1)
-      .sort((a, b) => b - a); // 倒序排列以便从后向前删除
+    .map((item, index) => (item.status === "success" ? index : -1))
+    .filter((index) => index !== -1)
+    .sort((a, b) => b - a); // 倒序排列以便从后向前删除
 
   // 从后向前删除文件
   for (const index of indicesToRemove) {
@@ -1225,14 +1225,14 @@ const retryUpload = async (index) => {
 /* 进度条条纹样式 */
 .progress-stripes {
   background-image: linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.15) 25%,
-      transparent 25%,
-      transparent 50%,
-      rgba(255, 255, 255, 0.15) 50%,
-      rgba(255, 255, 255, 0.15) 75%,
-      transparent 75%,
-      transparent
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
   );
   background-size: 30px 30px;
 }

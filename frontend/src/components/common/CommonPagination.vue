@@ -85,9 +85,9 @@ const handlePageChange = (targetPage) => {
     <div class="w-full flex justify-between items-center mb-2 sm:mb-3 sm:hidden">
       <!-- 上一页按钮 -->
       <button
-          @click="handlePageChange(currentPage - 1)"
-          :disabled="currentPage <= 1"
-          :class="[
+        @click="handlePageChange(currentPage - 1)"
+        :disabled="currentPage <= 1"
+        :class="[
           currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700',
           'flex-grow flex justify-center items-center px-2 py-1.5 xs:px-3 xs:py-2 border border-gray-300 dark:border-gray-600 text-xs xs:text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 mr-1 xs:mr-2',
         ]"
@@ -103,9 +103,9 @@ const handlePageChange = (targetPage) => {
 
       <!-- 下一页按钮 -->
       <button
-          @click="handlePageChange(currentPage + 1)"
-          :disabled="!hasNextPage"
-          :class="[
+        @click="handlePageChange(currentPage + 1)"
+        :disabled="!hasNextPage"
+        :class="[
           !hasNextPage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700',
           'flex-grow flex justify-center items-center px-2 py-1.5 xs:px-3 xs:py-2 border border-gray-300 dark:border-gray-600 text-xs xs:text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 ml-1 xs:ml-2',
         ]"
@@ -137,9 +137,9 @@ const handlePageChange = (targetPage) => {
         <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
           <!-- 第一页按钮 -->
           <button
-              @click="handlePageChange(1)"
-              :disabled="currentPage <= 1"
-              :class="[
+            @click="handlePageChange(1)"
+            :disabled="currentPage <= 1"
+            :class="[
               currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700',
               'relative inline-flex items-center px-1 py-1 md:px-2 md:py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs md:text-sm font-medium text-gray-500 dark:text-gray-300',
             ]"
@@ -152,9 +152,9 @@ const handlePageChange = (targetPage) => {
 
           <!-- 上一页按钮 -->
           <button
-              @click="handlePageChange(currentPage - 1)"
-              :disabled="currentPage <= 1"
-              :class="[
+            @click="handlePageChange(currentPage - 1)"
+            :disabled="currentPage <= 1"
+            :class="[
               currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700',
               'relative inline-flex items-center px-1 py-1 md:px-2 md:py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs md:text-sm font-medium text-gray-500 dark:text-gray-300',
             ]"
@@ -169,10 +169,10 @@ const handlePageChange = (targetPage) => {
           <template v-for="pageNum in totalPages">
             <!-- 页码按钮 - 显示首尾页和当前页附近的页码 -->
             <button
-                v-if="pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)"
-                :key="pageNum"
-                @click="handlePageChange(pageNum)"
-                :class="[
+              v-if="pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)"
+              :key="pageNum"
+              @click="handlePageChange(pageNum)"
+              :class="[
                 'relative inline-flex items-center px-2 py-1 md:px-4 md:py-2 border text-xs md:text-sm font-medium',
                 pageNum === currentPage
                   ? 'z-10 bg-primary-50 dark:bg-primary-900 border-primary-500 dark:border-primary-500 text-primary-600 dark:text-primary-200'
@@ -184,9 +184,9 @@ const handlePageChange = (targetPage) => {
 
             <!-- 省略号 - 当页码较多时显示 -->
             <span
-                v-else-if="(pageNum === 2 && currentPage > 3) || (pageNum === totalPages - 1 && currentPage < totalPages - 2)"
-                :key="`ellipsis-${pageNum}`"
-                class="relative inline-flex items-center px-2 py-1 md:px-4 md:py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300"
+              v-else-if="(pageNum === 2 && currentPage > 3) || (pageNum === totalPages - 1 && currentPage < totalPages - 2)"
+              :key="`ellipsis-${pageNum}`"
+              class="relative inline-flex items-center px-2 py-1 md:px-4 md:py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs md:text-sm font-medium text-gray-700 dark:text-gray-300"
             >
               ...
             </span>
@@ -194,9 +194,9 @@ const handlePageChange = (targetPage) => {
 
           <!-- 下一页按钮 -->
           <button
-              @click="handlePageChange(currentPage + 1)"
-              :disabled="!hasNextPage"
-              :class="[
+            @click="handlePageChange(currentPage + 1)"
+            :disabled="!hasNextPage"
+            :class="[
               !hasNextPage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700',
               'relative inline-flex items-center px-1 py-1 md:px-2 md:py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs md:text-sm font-medium text-gray-500 dark:text-gray-300',
             ]"
@@ -209,9 +209,9 @@ const handlePageChange = (targetPage) => {
 
           <!-- 最后一页按钮 -->
           <button
-              @click="handlePageChange(totalPages)"
-              :disabled="!hasNextPage"
-              :class="[
+            @click="handlePageChange(totalPages)"
+            :disabled="!hasNextPage"
+            :class="[
               !hasNextPage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700',
               'relative inline-flex items-center px-1 py-1 md:px-2 md:py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs md:text-sm font-medium text-gray-500 dark:text-gray-300',
             ]"

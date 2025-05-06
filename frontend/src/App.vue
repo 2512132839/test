@@ -621,8 +621,8 @@ updateTheme();
       </div>
     </footer>
 
-    <!-- 添加环境切换器组件 (在开发环境或管理员登录状态下显示) -->
-    <EnvSwitcher v-if="showEnvSwitcher" />
+    <!-- 添加环境切换器组件 (在开发环境或管理员登录状态下显示)
+    <EnvSwitcher v-if="showEnvSwitcher" /> -->
   </div>
 </template>
 

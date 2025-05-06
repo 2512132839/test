@@ -8,7 +8,18 @@ import { apiKeyFileMiddleware } from "../middlewares/apiKeyMiddleware.js";
 import { createErrorResponse, generateFileId } from "../utils/common.js";
 import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
-import { listDirectory, getFileInfo, downloadFile, createDirectory, uploadFile, removeItem, renameItem, previewFile, batchRemoveItems } from "../services/fsService.js";
+import {
+  listDirectory,
+  getFileInfo,
+  downloadFile,
+  createDirectory,
+  uploadFile,
+  removeItem,
+  renameItem,
+  previewFile,
+  batchRemoveItems,
+  getFilePresignedUrl,
+} from "../services/fsService.js";
 import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
 import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
 import { directoryCacheManager, clearCacheForFilePath } from "../utils/DirectoryCache.js";
@@ -1296,6 +1307,64 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }
     return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "提交上传信息失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 获取文件直链(预签名URL) - 管理员版本
+fsRoutes.get("/api/admin/fs/file-link", async (c) => {
+  const db = c.env.DB;
+  const path = c.req.query("path");
+  const adminId = c.get("adminId");
+  const expiresIn = parseInt(c.req.query("expires_in") || "604800"); // 默认7天
+  const forceDownload = c.req.query("force_download") === "true";
+
+  if (!path) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    const result = await getFilePresignedUrl(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET, expiresIn, forceDownload);
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "获取文件直链成功",
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("获取文件直链错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件直链失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 获取文件直链(预签名URL) - API密钥用户版本
+fsRoutes.get("/api/user/fs/file-link", async (c) => {
+  const db = c.env.DB;
+  const path = c.req.query("path");
+  const apiKeyId = c.get("apiKeyId");
+  const expiresIn = parseInt(c.req.query("expires_in") || "604800"); // 默认7天
+  const forceDownload = c.req.query("force_download") === "true";
+
+  if (!path) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    const result = await getFilePresignedUrl(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET, expiresIn, forceDownload);
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "获取文件直链成功",
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("获取文件直链错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件直链失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 

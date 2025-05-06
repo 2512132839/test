@@ -1398,3 +1398,73 @@ async function getFileFromS3(s3Config, s3SubPath, fileName, isPreview, encryptio
     throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: `${isPreview ? "预览" : "下载"}文件失败: ${error.message || "未知错误"}` });
   }
 }
+
+/**
+ * 获取文件预签名下载URL
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} path - 文件路径
+ * @param {string} userId - 用户ID
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} encryptionSecret - 加密密钥
+ * @param {number} expiresIn - URL过期时间（秒），默认为7天
+ * @param {boolean} forceDownload - 是否强制下载（而非预览）
+ * @returns {Promise<Object>} 包含预签名URL的对象
+ */
+export async function getFilePresignedUrl(db, path, userId, userType, encryptionSecret, expiresIn = 604800, forceDownload = false) {
+  return handleFsError(
+    async () => {
+      // 查找挂载点
+      const mountResult = await findMountPointByPath(db, path, userId, userType);
+
+      // 处理错误情况
+      if (mountResult.error) {
+        throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
+      }
+
+      const { mount, subPath } = mountResult;
+
+      // 仅允许S3类型的挂载点
+      if (mount.storage_type !== "S3") {
+        throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "当前路径不支持生成预签名URL" });
+      }
+
+      // 获取S3配置
+      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+      if (!s3Config) {
+        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+      }
+
+      // 确保路径指向文件而非目录
+      if (path.endsWith("/")) {
+        throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "无法为目录生成预签名URL" });
+      }
+
+      // 规范化S3子路径 (不添加斜杠，因为是文件)
+      const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+
+      // 更新最后使用时间
+      await updateMountLastUsed(db, mount.id);
+
+      // 获取文件名
+      const fileName = path.split("/").filter(Boolean).pop() || "file";
+
+      // 生成预签名URL
+      const { generatePresignedUrl } = await import("../utils/s3Utils.js");
+      const presignedUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, expiresIn, forceDownload);
+
+      // 构建响应对象
+      return {
+        path: path,
+        name: fileName,
+        presignedUrl: presignedUrl,
+        expiresIn: expiresIn,
+        expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+        forceDownload: forceDownload,
+        mount_id: mount.id,
+        storage_type: mount.storage_type,
+      };
+    },
+    "获取文件预签名URL",
+    "获取文件预签名URL失败"
+  );
+}

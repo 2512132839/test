@@ -67,11 +67,11 @@ const filteredMounts = computed(() => {
 
   const query = searchQuery.value.toLowerCase();
   return mounts.value.filter(
-      (mount) =>
-          mount.name.toLowerCase().includes(query) ||
-          mount.mount_path.toLowerCase().includes(query) ||
-          mount.storage_type.toLowerCase().includes(query) ||
-          (mount.remark && mount.remark.toLowerCase().includes(query))
+    (mount) =>
+      mount.name.toLowerCase().includes(query) ||
+      mount.mount_path.toLowerCase().includes(query) ||
+      mount.storage_type.toLowerCase().includes(query) ||
+      (mount.remark && mount.remark.toLowerCase().includes(query))
   );
 });
 
@@ -330,7 +330,7 @@ const loadMounts = async () => {
 
       // 检查是否需要加载API密钥信息
       const needsApiKeys = mounts.value.some(
-          (mount) => mount.created_by && (mount.created_by.startsWith("apikey:") || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mount.created_by))
+        (mount) => mount.created_by && (mount.created_by.startsWith("apikey:") || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mount.created_by))
       );
 
       if (needsApiKeys) {
@@ -473,10 +473,10 @@ onMounted(() => {
       </div>
       <div class="flex flex-wrap gap-2">
         <button
-            @click="openCreateForm"
-            class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow"
-            :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'"
-            :disabled="loading"
+          @click="openCreateForm"
+          class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow"
+          :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'"
+          :disabled="loading"
         >
           <span class="flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -486,17 +486,17 @@ onMounted(() => {
           </span>
         </button>
         <button
-            @click="loadMounts"
-            class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow"
-            :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'"
+          @click="loadMounts"
+          class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow"
+          :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'"
         >
           <span class="flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
             刷新
@@ -528,11 +528,11 @@ onMounted(() => {
       <div class="max-w-md">
         <div class="relative rounded-md shadow-sm">
           <input
-              type="text"
-              v-model="searchQuery"
-              placeholder="搜索挂载点..."
-              class="w-full px-3 py-1.5 rounded-md focus:outline-none focus:ring-2"
-              :class="
+            type="text"
+            v-model="searchQuery"
+            placeholder="搜索挂载点..."
+            class="w-full px-3 py-1.5 rounded-md focus:outline-none focus:ring-2"
+            :class="
               darkMode
                 ? 'bg-gray-700 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 border border-gray-600'
                 : 'bg-white text-gray-700 placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 border border-gray-300'
@@ -559,12 +559,12 @@ onMounted(() => {
     <div v-else-if="filteredMounts.length === 0" class="flex-grow flex items-center justify-center p-6">
       <div class="text-center">
         <svg
-            class="mx-auto h-12 w-12 mb-4"
-            :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+          class="mx-auto h-12 w-12 mb-4"
+          :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12H3v8h18v-8H5zm0 0a2 2 0 100-4h14a2 2 0 100 4M5 8a2 2 0 100-4h14a2 2 0 100 4" />
         </svg>
@@ -575,10 +575,10 @@ onMounted(() => {
           {{ searchQuery ? "尝试使用不同的搜索条件" : '点击"添加挂载点"按钮创建第一个挂载点' }}
         </p>
         <button
-            v-if="searchQuery"
-            @click="searchQuery = ''"
-            class="inline-flex items-center px-3 py-2 border rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200"
-            :class="
+          v-if="searchQuery"
+          @click="searchQuery = ''"
+          class="inline-flex items-center px-3 py-2 border rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200"
+          :class="
             darkMode
               ? 'border-gray-600 bg-gray-700 text-gray-200 hover:bg-gray-600 focus:ring-blue-500 focus:ring-offset-gray-800'
               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500'
@@ -594,10 +594,10 @@ onMounted(() => {
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <!-- 分页显示的挂载点 -->
         <div
-            v-for="mount in filteredMounts.slice(pagination.offset, pagination.offset + pagination.limit)"
-            :key="mount.id"
-            class="rounded-lg shadow-md overflow-hidden transition-all duration-200 hover:shadow-lg flex flex-col"
-            :class="darkMode ? 'bg-gray-700 border border-gray-600 hover:border-blue-500/50' : 'bg-white border border-gray-200 hover:border-blue-400/50'"
+          v-for="mount in filteredMounts.slice(pagination.offset, pagination.offset + pagination.limit)"
+          :key="mount.id"
+          class="rounded-lg shadow-md overflow-hidden transition-all duration-200 hover:shadow-lg flex flex-col"
+          :class="darkMode ? 'bg-gray-700 border border-gray-600 hover:border-blue-500/50' : 'bg-white border border-gray-200 hover:border-blue-400/50'"
         >
           <!-- 卡片内容区域 - 使用flex-col布局 -->
           <div class="px-4 py-4 flex-1 flex flex-col justify-between">
@@ -609,8 +609,8 @@ onMounted(() => {
                   {{ mount.name }}
                 </h3>
                 <span
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors duration-200"
-                    :class="
+                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors duration-200"
+                  :class="
                     mount.is_active
                       ? darkMode
                         ? 'bg-green-900/50 text-green-200 border border-green-800/50'
@@ -631,12 +631,12 @@ onMounted(() => {
               <div class="mb-3">
                 <div class="flex items-center">
                   <svg
-                      class="flex-shrink-0 mr-1.5 h-4 w-4"
-                      :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    class="flex-shrink-0 mr-1.5 h-4 w-4"
+                    :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
@@ -650,12 +650,12 @@ onMounted(() => {
               <div class="mb-3">
                 <div class="flex items-center text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">
                   <svg
-                      class="flex-shrink-0 mr-1.5 h-4 w-4"
-                      :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    class="flex-shrink-0 mr-1.5 h-4 w-4"
+                    :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12H3v8h18v-8H5zm0 0a2 2 0 100-4h14a2 2 0 100 4M5 8a2 2 0 100-4h14a2 2 0 100 4" />
                   </svg>
@@ -667,18 +667,18 @@ onMounted(() => {
               <div class="mb-3 min-h-[24px]">
                 <div v-if="mount.remark" class="flex items-start">
                   <svg
-                      class="flex-shrink-0 mr-1.5 h-4 w-4 mt-0.5"
-                      :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    class="flex-shrink-0 mr-1.5 h-4 w-4 mt-0.5"
+                    :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
                     />
                   </svg>
                   <p class="text-sm truncate" :class="darkMode ? 'text-gray-400' : 'text-gray-500'" :title="mount.remark">
@@ -694,18 +694,18 @@ onMounted(() => {
               <div class="text-xs mb-3" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 <div class="flex items-center">
                   <svg
-                      class="flex-shrink-0 mr-1.5 h-3.5 w-3.5"
-                      :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    class="flex-shrink-0 mr-1.5 h-3.5 w-3.5"
+                    :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                     />
                   </svg>
                   <span>创建: {{ formatDate(mount.created_at) }}</span>
@@ -716,12 +716,12 @@ onMounted(() => {
               <div class="text-xs mb-3" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 <div class="flex items-center">
                   <svg
-                      class="flex-shrink-0 mr-1.5 h-3.5 w-3.5"
-                      :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    class="flex-shrink-0 mr-1.5 h-3.5 w-3.5"
+                    :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
@@ -735,9 +735,9 @@ onMounted(() => {
               <!-- 操作按钮组 - 完全重新设计 -->
               <div class="flex justify-end space-x-2">
                 <button
-                    @click="openEditForm(mount)"
-                    class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1"
-                    :class="
+                  @click="openEditForm(mount)"
+                  class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1"
+                  :class="
                     darkMode
                       ? 'bg-gray-600 hover:bg-gray-500 text-gray-200 focus:ring-blue-500 focus:ring-offset-gray-800'
                       : 'bg-gray-100 hover:bg-gray-200 text-gray-700 focus:ring-blue-500 focus:ring-offset-white'
@@ -745,19 +745,19 @@ onMounted(() => {
                 >
                   <svg class="h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                     />
                   </svg>
                   编辑
                 </button>
                 <!-- 启用/禁用切换按钮 -->
                 <button
-                    @click="toggleActive(mount)"
-                    class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1"
-                    :class="
+                  @click="toggleActive(mount)"
+                  class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1"
+                  :class="
                     darkMode
                       ? mount.is_active
                         ? 'bg-yellow-700 hover:bg-yellow-600 text-yellow-100 focus:ring-yellow-500 focus:ring-offset-gray-800'
@@ -769,10 +769,10 @@ onMounted(() => {
                 >
                   <svg v-if="mount.is_active" class="h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
                     />
                   </svg>
                   <svg v-else class="h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -781,9 +781,9 @@ onMounted(() => {
                   {{ mount.is_active ? "禁用" : "启用" }}
                 </button>
                 <button
-                    @click="confirmDelete(mount.id)"
-                    class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1"
-                    :class="
+                  @click="confirmDelete(mount.id)"
+                  class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1"
+                  :class="
                     darkMode
                       ? 'bg-red-700 hover:bg-red-600 text-red-100 focus:ring-red-500 focus:ring-offset-gray-800'
                       : 'bg-red-100 hover:bg-red-200 text-red-800 focus:ring-red-500 focus:ring-offset-white'
@@ -791,10 +791,10 @@ onMounted(() => {
                 >
                   <svg class="h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                     />
                   </svg>
                   删除

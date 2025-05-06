@@ -182,6 +182,28 @@ export async function renameUserItem(oldPath, newPath) {
 }
 
 /**
+ * 管理员API - 获取文件直链
+ * @param {string} path 文件路径
+ * @param {number} expiresIn 过期时间（秒），默认7天
+ * @param {boolean} forceDownload 是否强制下载而非预览
+ * @returns {Promise<Object>} 包含预签名URL的响应对象
+ */
+export async function getAdminFileLink(path, expiresIn = 604800, forceDownload = false) {
+  return get(`/admin/fs/file-link?path=${encodeURIComponent(path)}&expires_in=${expiresIn}&force_download=${forceDownload}`);
+}
+
+/**
+ * API密钥用户API - 获取文件直链
+ * @param {string} path 文件路径
+ * @param {number} expiresIn 过期时间（秒），默认7天
+ * @param {boolean} forceDownload 是否强制下载而非预览
+ * @returns {Promise<Object>} 包含预签名URL的响应对象
+ */
+export async function getUserFileLink(path, expiresIn = 604800, forceDownload = false) {
+  return get(`/user/fs/file-link?path=${encodeURIComponent(path)}&expires_in=${expiresIn}&force_download=${forceDownload}`);
+}
+
+/**
  * 根据用户类型获取合适的API函数
  * @param {boolean} isAdmin 是否为管理员
  * @returns {Object} API函数对象
@@ -193,6 +215,7 @@ export function getFsApiByUserType(isAdmin) {
         getFileInfo: getAdminFileInfo,
         getFileDownloadUrl: getAdminFileDownloadUrl,
         getFilePreviewUrl: getAdminFilePreviewUrl,
+        getFileLink: getAdminFileLink,
         createDirectory: createAdminDirectory,
         uploadFile: uploadAdminFile,
         deleteItem: deleteAdminItem,
@@ -214,6 +237,7 @@ export function getFsApiByUserType(isAdmin) {
         getFileInfo: getUserFileInfo,
         getFileDownloadUrl: getUserFileDownloadUrl,
         getFilePreviewUrl: getUserFilePreviewUrl,
+        getFileLink: getUserFileLink,
         createDirectory: createUserDirectory,
         uploadFile: uploadUserFile,
         deleteItem: deleteUserItem,

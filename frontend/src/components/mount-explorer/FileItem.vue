@@ -40,13 +40,13 @@
       </div>
 
       <!-- 操作按钮 - 移动端下减少按钮大小和间距 -->
-      <div class="min-w-[80px] sm:min-w-24 text-center">
-        <div class="flex justify-end sm:justify-center space-x-0.5 sm:space-x-1">
+      <div class="min-w-[80px] sm:min-w-32 text-center">
+        <div class="flex justify-end sm:justify-center space-x-0.5 sm:space-x-0.5">
           <!-- 下载按钮（只对文件显示）-->
           <button
             v-if="!item.isDirectory"
             @click.stop="$emit('download', item)"
-            class="p-1 sm:p-1.5 rounded-full"
+            class="p-1 sm:p-1 rounded-full"
             :class="darkMode ? 'hover:bg-gray-600 text-blue-400 hover:text-blue-300' : 'hover:bg-gray-200 text-blue-600 hover:text-blue-700'"
             title="下载"
           >
@@ -55,11 +55,25 @@
             </svg>
           </button>
 
+          <!-- 直链按钮（只对文件显示）-->
+          <button
+            v-if="!item.isDirectory"
+            @click.stop="$emit('getLink', item)"
+            class="p-1 sm:p-1 rounded-full"
+            :class="darkMode ? 'hover:bg-gray-600 text-green-400 hover:text-green-300' : 'hover:bg-gray-200 text-green-600 hover:text-green-700'"
+            title="获取直链"
+          >
+            <svg class="w-4 h-4 sm:w-5 sm:h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
+            </svg>
+          </button>
+
           <!-- 重命名按钮 - 只对文件显示，文件夹暂时不显示重命名按钮 -->
           <button
             v-if="!item.isDirectory"
             @click.stop="$emit('rename', item)"
-            class="p-1 sm:p-1.5 rounded-full"
+            class="p-1 sm:p-1 rounded-full"
             :class="darkMode ? 'hover:bg-gray-600 text-yellow-400 hover:text-yellow-300' : 'hover:bg-gray-200 text-yellow-600 hover:text-yellow-700'"
             title="重命名"
           >
@@ -76,7 +90,7 @@
           <!-- 删除按钮 -->
           <button
             @click.stop="$emit('delete', item)"
-            class="p-1 sm:p-1.5 rounded-full"
+            class="p-1 sm:p-1 rounded-full"
             :class="darkMode ? 'hover:bg-gray-600 text-red-400 hover:text-red-300' : 'hover:bg-gray-200 text-red-600 hover:text-red-700'"
             title="删除"
           >
@@ -117,7 +131,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["click", "download", "rename", "delete", "select"]);
+const emit = defineEmits(["click", "download", "rename", "delete", "select", "getLink"]);
 
 // 处理点击事件
 const handleClick = () => {
