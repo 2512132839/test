@@ -103,8 +103,8 @@ function fetchFromUrl(url, onProgress, setXhr, phaseType) {
     // 进度事件
     xhr.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
-        // 下载过程占总进度的50%
-        const progress = Math.round((event.loaded / event.total) * 50);
+        // 下载过程占总进度的49%，保留1%给最终确认步骤
+        const progress = Math.round((event.loaded / event.total) * 49);
         onProgress(progress, event.loaded, event.total, "downloading", phaseType);
       }
     };
@@ -195,8 +195,8 @@ export async function uploadFromUrlToS3(options) {
       // 上传进度事件
       uploadXhr.upload.onprogress = (event) => {
         if (event.lengthComputable && options.onProgress) {
-          // 上传占总进度的50%，从50%开始计算
-          const progress = 50 + Math.round((event.loaded / event.total) * 50);
+          // 上传占总进度的49%，从50%开始计算到99%，保留最后1%给完成阶段
+          const progress = 50 + Math.round((event.loaded / event.total) * 49);
           options.onProgress(progress, event.loaded, event.total, "uploading");
         }
       };
