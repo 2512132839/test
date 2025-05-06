@@ -4,7 +4,7 @@
  */
 
 // 获取文件扩展名（小写形式）
-const getFileExtension = (fileName) => {
+export const getFileExtension = (fileName) => {
   if (!fileName) return "";
   const parts = fileName.split(".");
   if (parts.length === 1) return "";
@@ -186,7 +186,7 @@ const fileIconsMap = {
 };
 
 // 文件扩展名到图标类型的映射
-const extensionToTypeMap = {
+export const extensionToTypeMap = {
   // 图片文件
   jpg: "image",
   jpeg: "image",

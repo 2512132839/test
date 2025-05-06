@@ -1,424 +1,492 @@
 <template>
   <div class="file-uploader">
-    <!-- 文件拖放区域 -->
-    <div
-      class="drop-zone mb-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-6 px-4 cursor-pointer transition-all duration-300"
-      :class="[
-        darkMode ? 'border-gray-600 hover:border-gray-500 bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 bg-gray-50',
-        isDragging ? (darkMode ? 'border-blue-500 bg-blue-500/10 pulsing-border' : 'border-blue-500 bg-blue-50 pulsing-border') : '',
-      ]"
-      @dragenter.prevent="onDragOver"
-      @dragover.prevent="onDragOver"
-      @dragleave.prevent="onDragLeave"
-      @drop.prevent="onDrop"
-      @click="triggerFileInput"
-    >
-      <div class="icon-container mb-3">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          class="h-12 w-12 transition-colors duration-300"
-          :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-400' : 'text-blue-500') : '']"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-        </svg>
-      </div>
-      <div class="text-center">
-        <p
-          class="text-base font-medium transition-colors duration-300"
-          :class="[darkMode ? 'text-gray-300' : 'text-gray-700', isDragging ? (darkMode ? 'text-blue-300' : 'text-blue-700') : '']"
-        >
-          {{ isDragging ? t("file.drag") : t("file.select") }}
-        </p>
-        <p
-          class="text-sm mt-1 transition-colors duration-300"
-          :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-300/80' : 'text-blue-600/80') : '']"
-        >
-          {{ t("file.maxSizeExceeded", { size: formatMaxFileSize() }) }}
-        </p>
-        <p
-          class="text-sm mt-1 transition-colors duration-300"
-          :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-300/80' : 'text-blue-600/80') : '']"
-        >
-          <span class="px-1.5 py-0.5 rounded text-xs" :class="darkMode ? 'bg-gray-700 text-blue-300' : 'bg-gray-200 text-blue-600'">
-            {{ t("file.multipleFilesSupported") }}
-          </span>
-        </p>
-      </div>
-      <input ref="fileInput" type="file" class="hidden" multiple @change="onFileSelected" />
-    </div>
-
-    <!-- 已选文件预览 -->
-    <div v-if="selectedFiles.length > 0" class="selected-files mb-6">
-      <div class="files-header flex justify-between items-center mb-3">
-        <h3 class="text-base font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">
-          {{ t("file.selectedFiles", { count: selectedFiles.length }) }}
-        </h3>
+    <!-- 上传类型选项卡 -->
+    <div class="upload-tabs mb-4">
+      <div class="flex border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <button
-          type="button"
-          @click="clearAllFiles"
-          class="text-sm px-2 py-1 rounded transition-colors flex items-center"
-          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-            />
-          </svg>
-          {{ t("file.clearAll") }}
-        </button>
-      </div>
-      <div class="files-list max-h-60 overflow-y-auto">
-        <div
-          v-for="(file, index) in selectedFiles"
-          :key="index"
-          class="selected-file mb-3 flex items-center p-3 rounded-md"
+          @click="activeTab = 'file'"
+          class="py-2 px-4 font-medium text-sm focus:outline-none transition-colors duration-200"
           :class="[
-            darkMode ? 'bg-gray-700/50' : 'bg-gray-100',
-            fileItems[index]?.status === 'error' ? (darkMode ? 'border-l-4 border-red-500' : 'border-l-4 border-red-500') : '',
-            fileItems[index]?.status === 'success' ? (darkMode ? 'border-l-4 border-green-500' : 'border-l-4 border-green-500') : '',
-            fileItems[index]?.status === 'uploading' ? (darkMode ? 'border-l-4 border-blue-500' : 'border-l-4 border-blue-500') : '',
+            activeTab === 'file'
+              ? darkMode
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-blue-600 border-b-2 border-blue-600'
+              : darkMode
+              ? 'text-gray-400 hover:text-gray-300'
+              : 'text-gray-500 hover:text-gray-700',
           ]"
         >
-          <div class="file-icon mr-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" :class="darkMode ? 'text-gray-300' : 'text-gray-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div class="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h7.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
+            {{ t("file.fileUpload") }}
           </div>
-          <div class="file-info flex-grow mr-3">
-            <div class="font-medium truncate" :class="darkMode ? 'text-white' : 'text-gray-900'">
-              {{ file.name }}
-            </div>
-            <div class="flex justify-between">
-              <span class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-                {{ formatFileSize(file.size) }}
-              </span>
-
-              <!-- 文件状态显示 -->
-              <span
-                v-if="fileItems[index]"
-                class="text-xs ml-2 px-2 py-0.5 rounded-full"
-                :class="{
-                  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': fileItems[index].status === 'pending',
-                  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': fileItems[index].status === 'uploading',
-                  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': fileItems[index].status === 'success',
-                  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': fileItems[index].status === 'error',
-                }"
-              >
-                {{
-                  fileItems[index].status === "pending"
-                    ? t("file.pending")
-                    : fileItems[index].status === "uploading"
-                    ? `${fileItems[index].progress}%`
-                    : fileItems[index].status === "success"
-                    ? t("file.success")
-                    : fileItems[index].status === "error"
-                    ? t("file.error")
-                    : ""
-                }}
-              </span>
-            </div>
-
-            <!-- 单个文件进度条 -->
-            <div v-if="fileItems[index]?.status === 'uploading'" class="w-full bg-gray-200 rounded-full h-1.5 mt-1 dark:bg-gray-700">
-              <div
-                class="h-1.5 rounded-full transition-all duration-200"
-                :class="fileItems[index].progress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
-                :style="{ width: `${fileItems[index].progress}%` }"
-              ></div>
-            </div>
+        </button>
+        <button
+          @click="activeTab = 'url'"
+          class="py-2 px-4 font-medium text-sm focus:outline-none transition-colors duration-200"
+          :class="[
+            activeTab === 'url'
+              ? darkMode
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-blue-600 border-b-2 border-blue-600'
+              : darkMode
+              ? 'text-gray-400 hover:text-gray-300'
+              : 'text-gray-500 hover:text-gray-700',
+          ]"
+        >
+          <div class="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
+            </svg>
+            {{ t("file.urlUpload") }}
           </div>
-          <!-- 取消上传按钮，仅在上传状态显示 -->
-          <button
-            v-if="fileItems[index]?.status === 'uploading'"
-            type="button"
-            @click="cancelSingleUpload(index)"
-            class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
-            :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
-            :title="t('file.cancelUpload')"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5M5 12l7-7 7 7" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4L20 20" stroke="red" />
-            </svg>
-          </button>
-          <!-- 重试按钮，仅在错误状态显示 -->
-          <button
-            v-if="fileItems[index]?.status === 'error'"
-            type="button"
-            @click="retryUpload(index)"
-            class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
-            :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-            :title="t('file.retry')"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            @click="clearSelectedFile(index)"
-            class="p-1 rounded-full hover:bg-opacity-20 transition-colors"
-            :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-            :title="t('file.clearSelected')"
-            :disabled="fileItems[index]?.status === 'uploading'"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        </button>
       </div>
     </div>
 
-    <!-- 上传选项表单 -->
-    <div class="upload-form">
-      <form @submit.prevent="submitUpload">
-        <!-- S3配置选择 -->
-        <div class="mb-6">
-          <h3 class="text-lg font-medium mb-4" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("file.storage") }}</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="form-group flex flex-col">
-              <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.storage") }}</label>
-              <div class="relative">
-                <select
-                  v-model="formData.s3_config_id"
-                  class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent appearance-none"
+    <!-- 文件上传界面 -->
+    <div v-if="activeTab === 'file'">
+      <!-- 文件拖放区域 -->
+      <div
+        class="drop-zone mb-4 border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-6 px-4 cursor-pointer transition-all duration-300"
+        :class="[
+          darkMode ? 'border-gray-600 hover:border-gray-500 bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 bg-gray-50',
+          isDragging ? (darkMode ? 'border-blue-500 bg-blue-500/10 pulsing-border' : 'border-blue-500 bg-blue-50 pulsing-border') : '',
+        ]"
+        @dragenter.prevent="onDragOver"
+        @dragover.prevent="onDragOver"
+        @dragleave.prevent="onDragLeave"
+        @drop.prevent="onDrop"
+        @click="triggerFileInput"
+      >
+        <div class="icon-container mb-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-12 w-12 transition-colors duration-300"
+            :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-400' : 'text-blue-500') : '']"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+        </div>
+        <div class="text-center">
+          <p
+            class="text-base font-medium transition-colors duration-300"
+            :class="[darkMode ? 'text-gray-300' : 'text-gray-700', isDragging ? (darkMode ? 'text-blue-300' : 'text-blue-700') : '']"
+          >
+            {{ isDragging ? t("file.drag") : t("file.select") }}
+          </p>
+          <p
+            class="text-sm mt-1 transition-colors duration-300"
+            :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-300/80' : 'text-blue-600/80') : '']"
+          >
+            {{ t("file.maxSizeExceeded", { size: formatMaxFileSize() }) }}
+          </p>
+          <p
+            class="text-sm mt-1 transition-colors duration-300"
+            :class="[darkMode ? 'text-gray-400' : 'text-gray-500', isDragging ? (darkMode ? 'text-blue-300/80' : 'text-blue-600/80') : '']"
+          >
+            <span class="px-1.5 py-0.5 rounded text-xs" :class="darkMode ? 'bg-gray-700 text-blue-300' : 'bg-gray-200 text-blue-600'">
+              {{ t("file.multipleFilesSupported") }}
+            </span>
+          </p>
+        </div>
+        <input ref="fileInput" type="file" class="hidden" multiple @change="onFileSelected" />
+      </div>
+
+      <!-- 已选文件预览 -->
+      <div v-if="selectedFiles.length > 0" class="selected-files mb-6">
+        <div class="files-header flex justify-between items-center mb-3">
+          <h3 class="text-base font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">
+            {{ t("file.selectedFiles", { count: selectedFiles.length }) }}
+          </h3>
+          <button
+            type="button"
+            @click="clearAllFiles"
+            class="text-sm px-2 py-1 rounded transition-colors flex items-center"
+            :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+            {{ t("file.clearAll") }}
+          </button>
+        </div>
+        <div class="files-list max-h-60 overflow-y-auto">
+          <div
+            v-for="(file, index) in selectedFiles"
+            :key="index"
+            class="selected-file mb-3 flex items-center p-3 rounded-md"
+            :class="[
+              darkMode ? 'bg-gray-700/50' : 'bg-gray-100',
+              fileItems[index]?.status === 'error' ? (darkMode ? 'border-l-4 border-red-500' : 'border-l-4 border-red-500') : '',
+              fileItems[index]?.status === 'success' ? (darkMode ? 'border-l-4 border-green-500' : 'border-l-4 border-green-500') : '',
+              fileItems[index]?.status === 'uploading' ? (darkMode ? 'border-l-4 border-blue-500' : 'border-l-4 border-blue-500') : '',
+            ]"
+          >
+            <div class="file-icon mr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" :class="darkMode ? 'text-gray-300' : 'text-gray-600'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <div class="file-info flex-grow mr-3">
+              <div class="font-medium truncate" :class="darkMode ? 'text-white' : 'text-gray-900'">
+                {{ file.name }}
+              </div>
+              <div class="flex justify-between">
+                <span class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+                  {{ formatFileSize(file.size) }}
+                </span>
+
+                <!-- 文件状态显示 -->
+                <span
+                  v-if="fileItems[index]"
+                  class="text-xs ml-2 px-2 py-0.5 rounded-full"
+                  :class="{
+                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': fileItems[index].status === 'pending',
+                    'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300': fileItems[index].status === 'uploading',
+                    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': fileItems[index].status === 'success',
+                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': fileItems[index].status === 'error',
+                  }"
+                >
+                  {{
+                    fileItems[index].status === "pending"
+                      ? t("file.pending")
+                      : fileItems[index].status === "uploading"
+                      ? `${fileItems[index].progress}%`
+                      : fileItems[index].status === "success"
+                      ? t("file.success")
+                      : fileItems[index].status === "error"
+                      ? t("file.error")
+                      : ""
+                  }}
+                </span>
+              </div>
+
+              <!-- 单个文件进度条 -->
+              <div v-if="fileItems[index]?.status === 'uploading'" class="w-full bg-gray-200 rounded-full h-1.5 mt-1 dark:bg-gray-700">
+                <div
+                  class="h-1.5 rounded-full transition-all duration-200"
+                  :class="fileItems[index].progress >= 95 ? 'bg-green-500' : 'bg-blue-500'"
+                  :style="{ width: `${fileItems[index].progress}%` }"
+                ></div>
+              </div>
+            </div>
+            <!-- 取消上传按钮，仅在上传状态显示 -->
+            <button
+              v-if="fileItems[index]?.status === 'uploading'"
+              type="button"
+              @click="cancelSingleUpload(index)"
+              class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
+              :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
+              :title="t('file.cancelUpload')"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5M5 12l7-7 7 7" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4L20 20" stroke="red" />
+              </svg>
+            </button>
+            <!-- 重试按钮，仅在错误状态显示 -->
+            <button
+              v-if="fileItems[index]?.status === 'error'"
+              type="button"
+              @click="retryUpload(index)"
+              class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
+              :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
+              :title="t('file.retry')"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              @click="clearSelectedFile(index)"
+              class="p-1 rounded-full hover:bg-opacity-20 transition-colors"
+              :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
+              :title="t('file.clearSelected')"
+              :disabled="fileItems[index]?.status === 'uploading'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 上传选项表单 -->
+      <div class="upload-form">
+        <form @submit.prevent="submitUpload">
+          <!-- S3配置选择 -->
+          <div class="mb-6">
+            <h3 class="text-lg font-medium mb-4" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("file.storage") }}</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="form-group flex flex-col">
+                <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.storage") }}</label>
+                <div class="relative">
+                  <select
+                    v-model="formData.s3_config_id"
+                    class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent appearance-none"
+                    :class="[
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
+                        : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
+                    ]"
+                    :disabled="!s3Configs.length || loading || isUploading"
+                    required
+                  >
+                    <option value="" disabled selected>{{ s3Configs.length ? t("file.selectStorage") : t("file.noStorage") }}</option>
+                    <option v-for="config in s3Configs" :key="config.id" :value="config.id">{{ config.name }} ({{ config.provider_type }})</option>
+                  </select>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5"
+                      :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 存储路径 -->
+              <div class="form-group flex flex-col">
+                <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.path") }}</label>
+                <input
+                  type="text"
+                  v-model="formData.path"
+                  class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
                   :class="[
                     darkMode
                       ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
                       : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
                   ]"
-                  :disabled="!s3Configs.length || loading || isUploading"
-                  required
+                  :placeholder="t('file.pathPlaceholder')"
+                  :disabled="isUploading"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 分享设置表单 -->
+          <div class="mt-6 border-t pt-4 w-full overflow-hidden" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
+            <h3 class="text-lg font-medium mb-4" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("file.shareSettings") }}</h3>
+
+            <!-- 更改这里的布局，使用更灵活的网格系统，每个栏位使用相同的模式 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <!-- 每个表单组都使用一致的结构，增强布局的一致性 -->
+
+              <!-- 备注 -->
+              <div class="form-group flex flex-col">
+                <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.remark") }}</label>
+                <input
+                  type="text"
+                  v-model="formData.remark"
+                  class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
+                  :class="[
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
+                      : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
+                  ]"
+                  :placeholder="t('file.remarkPlaceholder')"
+                  :disabled="isUploading"
+                />
+              </div>
+
+              <!-- 自定义链接 -->
+              <div class="form-group flex flex-col">
+                <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.customLink") }}</label>
+                <input
+                  type="text"
+                  v-model="formData.slug"
+                  class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
+                  :class="[
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
+                      : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
+                    slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '',
+                  ]"
+                  :placeholder="t('file.customLinkPlaceholder')"
+                  :disabled="isUploading"
+                  @input="validateCustomLink"
+                />
+                <p v-if="slugError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ slugError }}</p>
+                <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("file.onlyAllowedChars") }}</p>
+              </div>
+
+              <!-- 密码保护 -->
+              <div class="form-group flex flex-col">
+                <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.passwordProtection") }}</label>
+                <input
+                  type="text"
+                  v-model="formData.password"
+                  class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
+                  :class="[
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
+                      : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
+                  ]"
+                  :placeholder="t('file.passwordPlaceholder')"
+                  :disabled="isUploading"
+                />
+              </div>
+
+              <!-- 过期时间 -->
+              <div class="form-group flex flex-col">
+                <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.expireTime") }}</label>
+                <select
+                  v-model="formData.expires_in"
+                  class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
+                  :class="[
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
+                      : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
+                  ]"
+                  :disabled="isUploading"
                 >
-                  <option value="" disabled selected>{{ s3Configs.length ? t("file.selectStorage") : t("file.noStorage") }}</option>
-                  <option v-for="config in s3Configs" :key="config.id" :value="config.id">{{ config.name }} ({{ config.provider_type }})</option>
+                  <option value="1">{{ t("file.expireOptions.hour1") }}</option>
+                  <option value="24">{{ t("file.expireOptions.day1") }}</option>
+                  <option value="168">{{ t("file.expireOptions.day7") }}</option>
+                  <option value="720">{{ t("file.expireOptions.day30") }}</option>
+                  <option value="0">{{ t("file.expireOptions.never") }}</option>
                 </select>
-                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5"
-                    :class="darkMode ? 'text-gray-400' : 'text-gray-500'"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
+              </div>
+
+              <!-- 最大查看次数 -->
+              <div class="form-group flex flex-col">
+                <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.maxViews") }}</label>
+                <input
+                  type="number"
+                  v-model.number="formData.max_views"
+                  min="0"
+                  step="1"
+                  pattern="\d*"
+                  class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
+                  :class="[
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
+                      : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
+                  ]"
+                  :placeholder="t('file.maxViewsPlaceholder')"
+                  :disabled="isUploading"
+                  @input="validateMaxViews"
+                />
+              </div>
+            </div>
+
+            <!-- 上传进度 -->
+            <div v-if="totalProgress > 0 && isUploading" class="mt-4">
+              <div class="flex justify-between items-center mb-1">
+                <div class="flex items-center">
+                  <span class="text-sm mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.uploadProgress") }}</span>
+                  <span v-if="uploadSpeed" class="text-xs px-2 py-0.5 rounded" :class="darkMode ? 'bg-blue-900/30 text-blue-200' : 'bg-blue-100 text-blue-700'">
+                    {{ uploadSpeed }}
+                  </span>
+                </div>
+                <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ totalProgress }}%</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
+                <div
+                  class="h-2.5 rounded-full transition-all duration-200 ease-out relative overflow-hidden"
+                  :class="totalProgress >= 95 ? 'bg-green-600' : 'bg-blue-600'"
+                  :style="{ width: `${totalProgress}%` }"
+                >
+                  <div class="progress-stripes absolute inset-0 w-full h-full" :class="totalProgress < 100 ? 'animate-progress-stripes' : ''"></div>
                 </div>
               </div>
             </div>
 
-            <!-- 存储路径 -->
-            <div class="form-group flex flex-col">
-              <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.path") }}</label>
-              <input
-                type="text"
-                v-model="formData.path"
-                class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
+            <!-- 表单按钮 -->
+            <div class="submit-section mt-6 flex flex-row items-center gap-3">
+              <button
+                type="submit"
+                :disabled="selectedFiles.length === 0 || !formData.s3_config_id || isUploading || loading"
+                class="btn-primary px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center justify-center min-w-[120px]"
                 :class="[
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
-                    : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
+                  selectedFiles.length === 0 || !formData.s3_config_id || isUploading || loading
+                    ? darkMode
+                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : darkMode
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 focus:ring-offset-white',
                 ]"
-                :placeholder="t('file.pathPlaceholder')"
-                :disabled="isUploading"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- 分享设置表单 -->
-        <div class="mt-6 border-t pt-4 w-full overflow-hidden" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
-          <h3 class="text-lg font-medium mb-4" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("file.shareSettings") }}</h3>
-
-          <!-- 更改这里的布局，使用更灵活的网格系统，每个栏位使用相同的模式 -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <!-- 每个表单组都使用一致的结构，增强布局的一致性 -->
-
-            <!-- 备注 -->
-            <div class="form-group flex flex-col">
-              <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.remark") }}</label>
-              <input
-                type="text"
-                v-model="formData.remark"
-                class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
-                :class="[
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
-                    : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
-                ]"
-                :placeholder="t('file.remarkPlaceholder')"
-                :disabled="isUploading"
-              />
-            </div>
-
-            <!-- 自定义链接 -->
-            <div class="form-group flex flex-col">
-              <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.customLink") }}</label>
-              <input
-                type="text"
-                v-model="formData.slug"
-                class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
-                :class="[
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
-                    : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
-                  slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '',
-                ]"
-                :placeholder="t('file.customLinkPlaceholder')"
-                :disabled="isUploading"
-                @input="validateCustomLink"
-              />
-              <p v-if="slugError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ slugError }}</p>
-              <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("file.onlyAllowedChars") }}</p>
-            </div>
-
-            <!-- 密码保护 -->
-            <div class="form-group flex flex-col">
-              <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.passwordProtection") }}</label>
-              <input
-                type="text"
-                v-model="formData.password"
-                class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
-                :class="[
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
-                    : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
-                ]"
-                :placeholder="t('file.passwordPlaceholder')"
-                :disabled="isUploading"
-              />
-            </div>
-
-            <!-- 过期时间 -->
-            <div class="form-group flex flex-col">
-              <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.expireTime") }}</label>
-              <select
-                v-model="formData.expires_in"
-                class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
-                :class="[
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
-                    : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
-                ]"
-                :disabled="isUploading"
               >
-                <option value="1">{{ t("file.expireOptions.hour1") }}</option>
-                <option value="24">{{ t("file.expireOptions.day1") }}</option>
-                <option value="168">{{ t("file.expireOptions.day7") }}</option>
-                <option value="720">{{ t("file.expireOptions.day30") }}</option>
-                <option value="0">{{ t("file.expireOptions.never") }}</option>
-              </select>
-            </div>
+                <svg v-if="isUploading" class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                {{ isUploading ? t("file.loading") : t("file.upload") }}
+              </button>
 
-            <!-- 最大查看次数 -->
-            <div class="form-group flex flex-col">
-              <label class="form-label text-sm font-medium mb-1.5" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.maxViews") }}</label>
-              <input
-                type="number"
-                v-model.number="formData.max_views"
-                min="0"
-                step="1"
-                pattern="\d*"
-                class="form-input w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-1 focus:border-transparent"
-                :class="[
+              <!-- 将取消按钮放在上传按钮右侧 -->
+              <button
+                v-if="isUploading"
+                type="button"
+                @click="cancelUpload"
+                class="px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center justify-center border"
+                :class="
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
-                    : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
-                ]"
-                :placeholder="t('file.maxViewsPlaceholder')"
-                :disabled="isUploading"
-                @input="validateMaxViews"
-              />
-            </div>
-          </div>
-
-          <!-- 上传进度 -->
-          <div v-if="totalProgress > 0 && isUploading" class="mt-4">
-            <div class="flex justify-between items-center mb-1">
-              <div class="flex items-center">
-                <span class="text-sm mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("file.uploadProgress") }}</span>
-                <span v-if="uploadSpeed" class="text-xs px-2 py-0.5 rounded" :class="darkMode ? 'bg-blue-900/30 text-blue-200' : 'bg-blue-100 text-blue-700'">
-                  {{ uploadSpeed }}
-                </span>
-              </div>
-              <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ totalProgress }}%</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
-              <div
-                class="h-2.5 rounded-full transition-all duration-200 ease-out relative overflow-hidden"
-                :class="totalProgress >= 95 ? 'bg-green-600' : 'bg-blue-600'"
-                :style="{ width: `${totalProgress}%` }"
+                    ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-red-900/60 hover:text-red-200 hover:border-red-800 focus:ring-gray-500 focus:ring-offset-gray-800'
+                    : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-300 focus:ring-gray-300 focus:ring-offset-white'
+                "
               >
-                <div class="progress-stripes absolute inset-0 w-full h-full" :class="totalProgress < 100 ? 'animate-progress-stripes' : ''"></div>
-              </div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                {{ t("file.cancel") }}
+              </button>
             </div>
           </div>
+        </form>
+      </div>
+    </div>
 
-          <!-- 表单按钮 -->
-          <div class="submit-section mt-6 flex flex-row items-center gap-3">
-            <button
-              type="submit"
-              :disabled="selectedFiles.length === 0 || !formData.s3_config_id || isUploading || loading"
-              class="btn-primary px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center justify-center min-w-[120px]"
-              :class="[
-                selectedFiles.length === 0 || !formData.s3_config_id || isUploading || loading
-                  ? darkMode
-                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : darkMode
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 focus:ring-offset-white',
-              ]"
-            >
-              <svg v-if="isUploading" class="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              {{ isUploading ? t("file.loading") : t("file.upload") }}
-            </button>
-
-            <!-- 将取消按钮放在上传按钮右侧 -->
-            <button
-              v-if="isUploading"
-              type="button"
-              @click="cancelUpload"
-              class="px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors flex items-center justify-center border"
-              :class="
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-red-900/60 hover:text-red-200 hover:border-red-800 focus:ring-gray-500 focus:ring-offset-gray-800'
-                  : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-300 focus:ring-gray-300 focus:ring-offset-white'
-              "
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              {{ t("file.cancel") }}
-            </button>
-          </div>
-        </div>
-      </form>
+    <!-- URL上传界面 -->
+    <div v-else>
+      <UrlUploader
+        :darkMode="darkMode"
+        :s3Configs="s3Configs"
+        :loading="loading"
+        :isAdmin="isAdmin"
+        @upload-success="$emit('upload-success', $event)"
+        @upload-error="$emit('upload-error', $event)"
+        @refresh-files="$emit('refresh-files')"
+      />
     </div>
   </div>
 </template>
@@ -430,8 +498,12 @@ import { API_BASE_URL } from "../../api/config"; // 导入API_BASE_URL
 import { directUploadFile } from "../../api/fileService"; // 导入新的直接上传函数
 import { getMaxUploadSize, deleteFile, deleteUserFile } from "../../api/fileService"; // 导入获取最大上传大小函数和删除文件函数
 import { useI18n } from "vue-i18n"; // 导入i18n
+import UrlUploader from "./UrlUploader.vue"; // 导入URL上传组件
 
 const { t } = useI18n(); // 初始化i18n
+
+// 添加选项卡状态
+const activeTab = ref("file"); // 默认选择文件上传
 
 const props = defineProps({
   darkMode: {

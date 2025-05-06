@@ -35,8 +35,8 @@
                 <dd class="col-span-2" :class="darkMode ? 'text-white' : 'text-gray-900'">{{ formatFileSize(file.size) }}</dd>
 
                 <dt :class="darkMode ? 'text-gray-400' : 'text-gray-500'">备注</dt>
-                <dd class="col-span-2">
-                  <span v-if="file.remark" :class="darkMode ? 'text-blue-400' : 'text-blue-600'">{{ file.remark }}</span>
+                <dd class="col-span-2 max-h-24 overflow-y-auto">
+                  <span v-if="file.remark" :class="darkMode ? 'text-blue-400' : 'text-blue-600'" class="block break-words whitespace-pre-wrap">{{ file.remark }}</span>
                   <span v-else class="text-gray-400">无备注</span>
                 </dd>
 
@@ -116,9 +116,9 @@
             </div>
 
             <button
-              @click="$emit('close')"
-              class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+                @click="$emit('close')"
+                class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
             >
               关闭
             </button>
