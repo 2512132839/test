@@ -10,7 +10,7 @@
  */
 
 // 导入MimeTypeUtils中的函数和常量
-import { getFileExtension, getFileTypeFromExtension, getMimeTypeGroup, MIME_GROUPS } from "./mimeTypeUtils";
+import { getFileExtension, getFileTypeFromExtension, getMimeTypeGroup, MIME_GROUPS } from "./mimeTypeUtils.js";
 
 // 文件类型图标映射
 const fileIconsMap = {

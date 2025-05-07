@@ -410,7 +410,7 @@
 
 <script setup>
 import { defineProps, defineEmits, ref, reactive, computed } from "vue";
-import * as MimeTypeUtils from "../../../utils/mimeTypeUtils";
+import * as MimeTypeUtils from "../../../utils/mimeTypeUtils.js";
 
 const props = defineProps({
   files: {
