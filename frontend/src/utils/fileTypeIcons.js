@@ -1,15 +1,16 @@
 /**
  * 文件类型图标工具
- * 根据文件扩展名返回相应的 SVG 图标
+ * 提供根据文件类型返回相应SVG图标的功能
+ *
+ * 此模块专注于图标渲染，使用MimeTypeUtils.js来进行文件类型判断
+ * 提供了三种方式获取图标：
+ * 1. getFileIcon: 基于文件项对象获取图标
+ * 2. getFileIconByMimeType: 基于MIME类型获取图标
+ * 3. getFileIconByFilename: 基于文件名获取图标
  */
 
-// 获取文件扩展名（小写形式）
-export const getFileExtension = (fileName) => {
-  if (!fileName) return "";
-  const parts = fileName.split(".");
-  if (parts.length === 1) return "";
-  return parts[parts.length - 1].toLowerCase();
-};
+// 导入MimeTypeUtils中的函数和常量
+import { getFileExtension, getFileTypeFromExtension, getMimeTypeGroup, MIME_GROUPS } from "./mimeTypeUtils";
 
 // 文件类型图标映射
 const fileIconsMap = {
@@ -45,9 +46,9 @@ const fileIconsMap = {
     darkMode ? "0.1" : "0.2"
   }"/>
       <path d="M14 2V8H20" stroke="${darkMode ? "#ef4444" : "#b91c1c"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M8 12.5H9V11.5H10V15.5H9V13.5H8V12.5Z" fill="${darkMode ? "#ef4444" : "#b91c1c"}"/>
-      <path d="M11 11.5H14V12.5H12V13H14V15.5H11V14.5H13V14H11V11.5Z" fill="${darkMode ? "#ef4444" : "#b91c1c"}"/>
-      <path d="M15 11.5H16V14.5H17V11.5H18V14.5V15.5H17H16H15V14.5V11.5Z" fill="${darkMode ? "#ef4444" : "#b91c1c"}"/>
+      
+      <!-- PDF 文字 -->
+      <text x="12" y="15" font-family="Arial, sans-serif" font-size="6" font-weight="bold" text-anchor="middle" fill="${darkMode ? "#ef4444" : "#b91c1c"}">PDF</text>
     </svg>
   `,
 
@@ -112,6 +113,123 @@ const fileIconsMap = {
   }"/>
       <path d="M12 7L12 13" stroke="${darkMode ? "#10b981" : "#059669"}" stroke-width="2" stroke-linecap="round"/>
       <circle cx="12" cy="16" r="1" fill="${darkMode ? "#10b981" : "#059669"}"/>
+    </svg>
+  `,
+
+  // 电子表格文件
+  spreadsheet: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <!-- 文档基本形状 -->
+      <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+        stroke="${darkMode ? "#22c55e" : "#16a34a"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="${darkMode ? "#22c55e" : "#16a34a"}" fill-opacity="${
+    darkMode ? "0.25" : "0.35"
+  }"/>
+      
+      <!-- 文档折角 -->
+      <path d="M14 2V8H20" stroke="${darkMode ? "#22c55e" : "#16a34a"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      
+      <!-- Excel "X" 标识 - 更居中且在任何模式下都是白色 -->
+      <path d="M8.5 10.5L15.5 17.5M15.5 10.5L8.5 17.5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `,
+
+  // 演示文稿文件 (PPT)
+  presentation: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <!-- 文档基本形状 -->
+      <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+        stroke="${darkMode ? "#f97316" : "#ea580c"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="${darkMode ? "#f97316" : "#ea580c"}" fill-opacity="${
+    darkMode ? "0.25" : "0.35"
+  }"/>
+      
+      <!-- 文档折角 -->
+      <path d="M14 2V8H20" stroke="${darkMode ? "#f97316" : "#ea580c"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      
+      <!-- PPT "P" 标识 - 白色 -->
+      <text x="12" y="15" font-family="Arial, sans-serif" font-size="9" font-weight="bold" text-anchor="middle" fill="white">P</text>
+    </svg>
+  `,
+
+  // Markdown文件
+  markdown: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <!-- 文档基本形状 -->
+      <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+        stroke="${darkMode ? "#4ade80" : "#22c55e"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="${darkMode ? "#4ade80" : "#22c55e"}" fill-opacity="${
+    darkMode ? "0.25" : "0.35"
+  }"/>
+      
+      <!-- 文档折角 -->
+      <path d="M14 2V8H20" stroke="${darkMode ? "#4ade80" : "#22c55e"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      
+      <!-- Markdown "MD" 标识 - 白色 -->
+      <text x="12" y="15" font-family="Arial, sans-serif" font-size="6" font-weight="bold" text-anchor="middle" fill="white">MD</text>
+    </svg>
+  `,
+
+  // 配置文件
+  config: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="3" width="18" height="18" rx="2" stroke="${darkMode ? "#84cc16" : "#65a30d"}" stroke-width="2" fill="${darkMode ? "#84cc16" : "#65a30d"}" fill-opacity="${
+    darkMode ? "0.1" : "0.1"
+  }"/>
+      <!-- 大型居中齿轮 -->
+      <path d="M12 7.5V6.5M12 17.5V16.5M7.5 12H6.5M17.5 12H16.5M8.4 8.4L7.7 7.7M16.3 16.3L15.6 15.6M8.4 15.6L7.7 16.3M16.3 7.7L15.6 8.4" 
+        stroke="${darkMode ? "#84cc16" : "#65a30d"}" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="4.5" stroke="${darkMode ? "#84cc16" : "#65a30d"}" stroke-width="1.8"/>
+      <circle cx="12" cy="12" r="2" stroke="${darkMode ? "#84cc16" : "#65a30d"}" stroke-width="1.5" fill="${darkMode ? "#84cc16" : "#65a30d"}" fill-opacity="${
+    darkMode ? "0.3" : "0.3"
+  }"/>
+    </svg>
+  `,
+
+  // Word文档文件
+  word: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <!-- 文档基本形状 -->
+      <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+        stroke="${darkMode ? "#2563eb" : "#1d4ed8"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="${darkMode ? "#2563eb" : "#1d4ed8"}" fill-opacity="${
+    darkMode ? "0.25" : "0.35"
+  }"/>
+      
+      <!-- 文档折角 -->
+      <path d="M14 2V8H20" stroke="${darkMode ? "#2563eb" : "#1d4ed8"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      
+      <!-- Word "W" 标识 - 白色 -->
+      <path d="M8 10.5L10 17.5M10 17.5L12 10.5M12 10.5L14 17.5M14 17.5L16 10.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `,
+
+  // 数据库文件
+  database: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <ellipse cx="12" cy="6" rx="8" ry="3" stroke="${darkMode ? "#06b6d4" : "#0891b2"}" stroke-width="2" fill="${darkMode ? "#06b6d4" : "#0891b2"}" fill-opacity="${
+    darkMode ? "0.1" : "0.1"
+  }"/>
+      <path d="M20 6V12" stroke="${darkMode ? "#06b6d4" : "#0891b2"}" stroke-width="2" stroke-linecap="round"/>
+      <path d="M4 6V12" stroke="${darkMode ? "#06b6d4" : "#0891b2"}" stroke-width="2" stroke-linecap="round"/>
+      <ellipse cx="12" cy="12" rx="8" ry="3" stroke="${darkMode ? "#06b6d4" : "#0891b2"}" stroke-width="2" fill="${darkMode ? "#06b6d4" : "#0891b2"}" fill-opacity="${
+    darkMode ? "0.1" : "0.1"
+  }"/>
+      <path d="M20 12V18" stroke="${darkMode ? "#06b6d4" : "#0891b2"}" stroke-width="2" stroke-linecap="round"/>
+      <path d="M4 12V18" stroke="${darkMode ? "#06b6d4" : "#0891b2"}" stroke-width="2" stroke-linecap="round"/>
+      <ellipse cx="12" cy="18" rx="8" ry="3" stroke="${darkMode ? "#06b6d4" : "#0891b2"}" stroke-width="2" fill="${darkMode ? "#06b6d4" : "#0891b2"}" fill-opacity="${
+    darkMode ? "0.1" : "0.1"
+  }"/>
+    </svg>
+  `,
+
+  // 纯文本文件
+  text: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+        stroke="${darkMode ? "#94a3b8" : "#64748b"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="${darkMode ? "#94a3b8" : "#64748b"}" fill-opacity="${
+    darkMode ? "0.1" : "0.1"
+  }"/>
+      <path d="M14 2V8H20" stroke="${darkMode ? "#94a3b8" : "#64748b"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 13H8" stroke="${darkMode ? "#94a3b8" : "#64748b"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 17H8" stroke="${darkMode ? "#94a3b8" : "#64748b"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10 9H9H8" stroke="${darkMode ? "#94a3b8" : "#64748b"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `,
 
@@ -185,82 +303,26 @@ const fileIconsMap = {
   `,
 };
 
-// 文件扩展名到图标类型的映射
-export const extensionToTypeMap = {
-  // 图片文件
-  jpg: "image",
-  jpeg: "image",
-  png: "image",
-  gif: "image",
-  svg: "image",
-  webp: "image",
-  bmp: "image",
-  ico: "image",
-
-  // 文档文件
-  doc: "document",
-  docx: "document",
-  txt: "document",
-  rtf: "document",
-  odt: "document",
-  pages: "document",
-
-  // PDF文件
-  pdf: "pdf",
-
-  // 代码文件
-  js: "code",
-  ts: "code",
-  jsx: "code",
-  tsx: "code",
-  vue: "code",
-  html: "code",
-  css: "code",
-  scss: "code",
-  less: "code",
-  json: "code",
-  xml: "code",
-  yaml: "code",
-  yml: "code",
-  py: "code",
-  java: "code",
-  c: "code",
-  cpp: "code",
-  cs: "code",
-  go: "code",
-  rs: "code",
-  php: "code",
-  rb: "code",
-  sh: "code",
-
-  // 压缩文件
-  zip: "archive",
-  rar: "archive",
-  "7z": "archive",
-  tar: "archive",
-  gz: "archive",
-
-  // 音频文件
-  mp3: "audio",
-  wav: "audio",
-  ogg: "audio",
-  flac: "audio",
-  aac: "audio",
-
-  // 视频文件
-  mp4: "video",
-  avi: "video",
-  mov: "video",
-  wmv: "video",
-  mkv: "video",
-  webm: "video",
-
-  // 可执行文件
-  exe: "executable",
-  msi: "executable",
-  app: "executable",
-  dmg: "executable",
-  apk: "executable",
+// MIME分组到图标类型的映射
+const mimeGroupToIconType = {
+  [MIME_GROUPS.IMAGE]: "image",
+  [MIME_GROUPS.VIDEO]: "video",
+  [MIME_GROUPS.AUDIO]: "audio",
+  [MIME_GROUPS.DOCUMENT]: "document",
+  [MIME_GROUPS.SPREADSHEET]: "spreadsheet",
+  [MIME_GROUPS.PRESENTATION]: "presentation",
+  [MIME_GROUPS.PDF]: "pdf",
+  [MIME_GROUPS.MARKDOWN]: "markdown",
+  [MIME_GROUPS.ARCHIVE]: "archive",
+  [MIME_GROUPS.CODE]: "code",
+  [MIME_GROUPS.CONFIG]: "config",
+  [MIME_GROUPS.TEXT]: "text",
+  [MIME_GROUPS.DATABASE]: "database",
+  [MIME_GROUPS.FONT]: "code",
+  [MIME_GROUPS.EXECUTABLE]: "executable",
+  [MIME_GROUPS.DESIGN]: "image",
+  [MIME_GROUPS.EBOOK]: "document",
+  [MIME_GROUPS.UNKNOWN]: "default",
 };
 
 /**
@@ -277,7 +339,94 @@ export const getFileIcon = (item, darkMode = false) => {
 
   // 如果是文件，根据扩展名确定图标类型
   const extension = getFileExtension(item.name);
-  const iconType = extensionToTypeMap[extension] || "default";
+  const fileType = getFileTypeFromExtension(extension);
 
-  return fileIconsMap[iconType](darkMode);
+  // Word文档特殊处理（doc, docx, rtf）
+  if (extension && ["doc", "docx", "rtf"].includes(extension.toLowerCase())) {
+    return fileIconsMap.word(darkMode);
+  }
+
+  // 有些文件类型可以直接映射到图标类型，否则尝试使用MIME分组映射
+  let iconType = "default";
+
+  // 如果fileType存在并且与图标类型直接对应
+  if (fileType && fileIconsMap[fileType]) {
+    iconType = fileType;
+  }
+  // 否则尝试通过MIME分组获取图标类型
+  else if (fileType) {
+    // 使用伪MIME类型（"fileType/"）来获取MIME分组
+    // 这样getMimeTypeGroup可以至少通过前缀进行匹配
+    const pseudoMimeType = `${fileType}/`;
+    const mimeGroup = getMimeTypeGroup(pseudoMimeType);
+    iconType = mimeGroupToIconType[mimeGroup] || "default";
+  }
+
+  return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
+};
+
+/**
+ * 根据MIME类型获取文件图标
+ * @param {string} mimeType - 文件的MIME类型
+ * @param {boolean} isDirectory - 是否为目录
+ * @param {boolean} isMount - 是否为挂载点
+ * @param {boolean} darkMode - 是否为暗色模式
+ * @returns {string} SVG图标字符串
+ */
+export const getFileIconByMimeType = (mimeType, isDirectory = false, isMount = false, darkMode = false) => {
+  // 如果是文件夹
+  if (isDirectory) {
+    return isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
+  }
+
+  // Word文档特殊处理
+  if (mimeType === "application/msword" || mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || mimeType === "application/rtf") {
+    return fileIconsMap.word(darkMode);
+  }
+
+  // 从MIME类型获取文件类型分组
+  const mimeGroup = getMimeTypeGroup(mimeType);
+
+  // 使用MIME分组映射到图标类型
+  const iconType = mimeGroupToIconType[mimeGroup] || "default";
+
+  return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
+};
+
+/**
+ * 根据文件名获取文件图标
+ * @param {string} filename - 文件名
+ * @param {boolean} isDirectory - 是否为目录
+ * @param {boolean} isMount - 是否为挂载点
+ * @param {boolean} darkMode - 是否为暗色模式
+ * @returns {string} SVG图标字符串
+ */
+export const getFileIconByFilename = (filename, isDirectory = false, isMount = false, darkMode = false) => {
+  // 如果是文件夹
+  if (isDirectory) {
+    return isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
+  }
+
+  // 获取扩展名并根据扩展名确定文件类型
+  const extension = getFileExtension(filename);
+
+  // Word文档特殊处理（doc, docx, rtf）
+  if (extension && ["doc", "docx", "rtf"].includes(extension.toLowerCase())) {
+    return fileIconsMap.word(darkMode);
+  }
+
+  const fileType = getFileTypeFromExtension(extension);
+
+  // 有些文件类型可以直接映射到图标类型，否则尝试使用MIME分组映射
+  let iconType = "default";
+
+  if (fileType && fileIconsMap[fileType]) {
+    iconType = fileType;
+  } else if (fileType) {
+    const pseudoMimeType = `${fileType}/`;
+    const mimeGroup = getMimeTypeGroup(pseudoMimeType);
+    iconType = mimeGroupToIconType[mimeGroup] || "default";
+  }
+
+  return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
 };

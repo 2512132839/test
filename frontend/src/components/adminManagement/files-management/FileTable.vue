@@ -84,8 +84,8 @@
             </div>
           </td>
           <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden md:table-cell">
-            <span class="px-2 py-1 text-xs rounded" :class="getMimeTypeClass(file.mimetype)">
-              {{ getSimpleMimeType(file.mimetype) }}
+            <span class="px-2 py-1 text-xs rounded" :class="getMimeTypeClass(file.mimetype, file.filename)">
+              {{ getSimpleMimeType(file.mimetype, file.filename) }}
             </span>
           </td>
           <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden sm:table-cell">
@@ -282,8 +282,8 @@
           <div>
             <div class="text-xs font-medium uppercase" :class="darkMode ? 'text-gray-500' : 'text-gray-500'">类型</div>
             <div>
-              <span class="px-2 py-0.5 text-xs rounded" :class="getMimeTypeClass(file.mimetype)">
-                {{ getSimpleMimeType(file.mimetype) }}
+              <span class="px-2 py-0.5 text-xs rounded" :class="getMimeTypeClass(file.mimetype, file.filename)">
+                {{ getSimpleMimeType(file.mimetype, file.filename) }}
               </span>
             </div>
           </div>
@@ -410,6 +410,7 @@
 
 <script setup>
 import { defineProps, defineEmits, ref, reactive, computed } from "vue";
+import * as MimeTypeUtils from "../../../utils/mimeTypeUtils";
 
 const props = defineProps({
   files: {
@@ -484,111 +485,21 @@ const formatFileSize = (bytes) => {
 /**
  * 简化MIME类型显示
  * @param {string} mimeType - 完整MIME类型
+ * @param {string} filename - 文件名（可选）
  * @returns {string} 简化的MIME类型
  */
-const getSimpleMimeType = (mimeType) => {
-  if (!mimeType) return "未知";
-
-  if (mimeType === "text/markdown") {
-    return "Markdown";
-  }
-  if (mimeType.startsWith("image/")) {
-    return "图像";
-  } else if (mimeType.startsWith("video/")) {
-    return "视频";
-  } else if (mimeType.startsWith("audio/")) {
-    return "音频";
-  } else if (mimeType.startsWith("text/")) {
-    return "文本";
-  } else if (mimeType.includes("pdf")) {
-    return "PDF";
-  } else if (mimeType.includes("zip") || mimeType.includes("rar") || mimeType.includes("tar") || mimeType.includes("gz") || mimeType.includes("7z")) {
-    return "压缩";
-  } else if (mimeType.includes("word") || mimeType.includes("document")) {
-    return "文档";
-  } else if (mimeType.includes("excel") || mimeType.includes("sheet")) {
-    return "表格";
-  } else if (mimeType.includes("powerpoint") || mimeType.includes("presentation")) {
-    return "演示";
-  }
-
-  return mimeType.split("/")[1] || mimeType;
+const getSimpleMimeType = (mimeType, filename) => {
+  return MimeTypeUtils.getSimpleMimeType(mimeType, filename);
 };
 
 /**
  * 根据MIME类型获取样式类
  * @param {string} mimeType - 完整MIME类型
+ * @param {string} filename - 文件名（可选）
  * @returns {string} 样式类名
  */
-const getMimeTypeClass = (mimeType) => {
-  if (!mimeType) return props.darkMode ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-700";
-
-  // Markdown 文件 - 特别处理
-  if (mimeType === "text/markdown") {
-    return props.darkMode ? "bg-emerald-900 text-emerald-200" : "bg-emerald-100 text-emerald-800";
-  }
-  // 图片文件
-  else if (mimeType.startsWith("image/")) {
-    return props.darkMode ? "bg-blue-900 text-blue-200" : "bg-blue-100 text-blue-800";
-  }
-  // 视频文件
-  else if (mimeType.startsWith("video/")) {
-    return props.darkMode ? "bg-purple-900 text-purple-200" : "bg-purple-100 text-purple-800";
-  }
-  // 音频文件
-  else if (mimeType.startsWith("audio/")) {
-    return props.darkMode ? "bg-pink-900 text-pink-200" : "bg-pink-100 text-pink-800";
-  }
-  // 文本文件
-  else if (mimeType.startsWith("text/")) {
-    return props.darkMode ? "bg-green-900 text-green-200" : "bg-green-100 text-green-800";
-  }
-  // PDF文件
-  else if (mimeType.includes("pdf")) {
-    return props.darkMode ? "bg-red-900 text-red-200" : "bg-red-100 text-red-800";
-  }
-  // 压缩文件
-  else if (
-    mimeType.includes("zip") ||
-    mimeType.includes("rar") ||
-    mimeType.includes("tar") ||
-    mimeType.includes("gz") ||
-    mimeType.includes("7z") ||
-    mimeType.includes("compress")
-  ) {
-    return props.darkMode ? "bg-yellow-900 text-yellow-200" : "bg-yellow-100 text-yellow-800";
-  }
-  // 文档文件
-  else if (mimeType.includes("word") || mimeType.includes("document") || mimeType.includes("rtf")) {
-    return props.darkMode ? "bg-indigo-900 text-indigo-200" : "bg-indigo-100 text-indigo-800";
-  }
-  // 表格文件
-  else if (mimeType.includes("excel") || mimeType.includes("spreadsheet") || mimeType.includes("csv")) {
-    return props.darkMode ? "bg-emerald-900 text-emerald-200" : "bg-emerald-100 text-emerald-800";
-  }
-  // 数据库文件
-  else if (mimeType.includes("sqlite") || mimeType.includes("db")) {
-    return props.darkMode ? "bg-cyan-900 text-cyan-200" : "bg-cyan-100 text-cyan-800";
-  }
-  // 可执行文件和应用
-  else if (mimeType.includes("msdownload") || mimeType.includes("android") || mimeType.includes("executable")) {
-    return props.darkMode ? "bg-slate-900 text-slate-200" : "bg-slate-100 text-slate-800";
-  }
-  // 字体文件
-  else if (mimeType.includes("font") || mimeType.includes("woff") || mimeType.includes("ttf") || mimeType.includes("otf")) {
-    return props.darkMode ? "bg-rose-900 text-rose-200" : "bg-rose-100 text-rose-800";
-  }
-  // 电子书
-  else if (mimeType.includes("epub")) {
-    return props.darkMode ? "bg-fuchsia-900 text-fuchsia-200" : "bg-fuchsia-100 text-fuchsia-800";
-  }
-  // 设计文件
-  else if (mimeType.includes("photoshop") || mimeType.includes("postscript")) {
-    return props.darkMode ? "bg-sky-900 text-sky-200" : "bg-sky-100 text-sky-800";
-  }
-
-  // 默认
-  return props.darkMode ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-700";
+const getMimeTypeClass = (mimeType, filename) => {
+  return MimeTypeUtils.getMimeTypeClass(mimeType, props.darkMode, filename);
 };
 
 /**

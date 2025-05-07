@@ -116,7 +116,7 @@
 
 <script setup>
 import { ref, defineProps, defineEmits, computed, onMounted } from "vue";
-import { getAuthStatus } from "./FileViewUtils";
+import { getAuthStatus, isOfficeFileType } from "./FileViewUtils";
 import { api } from "../../api";
 import { ApiStatus } from "../../api/ApiStatus";
 import { getFullApiUrl } from "../../api/config";
@@ -264,12 +264,74 @@ const getFilePassword = () => {
 
 /**
  * 预览文件
- * 在新窗口中打开预览链接
+ * 在新窗口中打开预览链接，为Office文件使用在线预览服务
  */
-const previewFile = () => {
+const previewFile = async () => {
   if (!props.fileUrls.previewUrl) return;
 
   try {
+    // 首先判断是否是Office文件
+    const isOffice = isOfficeFileType(props.fileInfo.mimetype, props.fileInfo.filename);
+
+    // 如果是Office文件，需要特殊处理
+    if (isOffice) {
+      let officePreviewUrl;
+
+      // 判断是代理URL还是S3直链
+      if (props.fileUrls.previewUrl.includes("/api/file-view/")) {
+        // Worker代理模式：文件需要通过我们的API获取直接URL
+        console.log("Office文件预览 - Worker代理模式");
+
+        // 从URL中提取slug
+        const urlParts = props.fileUrls.previewUrl.split("/");
+        const slugWithParams = urlParts[urlParts.length - 1];
+        const slug = slugWithParams.split("?")[0];
+
+        // 获取文件密码
+        const filePassword = getFilePassword();
+
+        // 构建API URL
+        let apiUrl = `/api/office-preview/${slug}`;
+        if (filePassword) {
+          apiUrl += `?password=${encodeURIComponent(filePassword)}`;
+        }
+
+        // 请求获取直接URL
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`获取Office预览URL失败: ${errorData.error || response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (!data.url) {
+          throw new Error("获取Office预览URL失败: 返回数据中没有URL");
+        }
+
+        officePreviewUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(data.url)}`;
+      } else {
+        // S3直链模式：直接使用previewUrl
+        console.log("Office文件预览 - S3直链模式");
+
+        let previewUrl = props.fileUrls.previewUrl;
+
+        // 确保URL是完整的绝对URL
+        if (!previewUrl.startsWith("http://") && !previewUrl.startsWith("https://")) {
+          const baseUrl = window.location.origin;
+          previewUrl = previewUrl.startsWith("/") ? `${baseUrl}${previewUrl}` : `${baseUrl}/${previewUrl}`;
+        }
+
+        // 将S3 URL包装到Office在线预览服务中
+        officePreviewUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(previewUrl)}`;
+      }
+
+      // 打开Office在线预览
+      console.log("正在打开Office在线预览:", officePreviewUrl);
+      window.open(officePreviewUrl, "_blank");
+      return;
+    }
+
+    // 非Office文件使用原有逻辑
     // 检查是否是代理URL并添加密码参数
     let previewUrl = props.fileUrls.previewUrl;
 
@@ -287,7 +349,7 @@ const previewFile = () => {
       }
     }
 
-    // 在新窗口打开带有密码的预览链接
+    // 在新窗口打开预览链接
     window.open(previewUrl, "_blank");
   } catch (err) {
     console.error("预览文件失败:", err);

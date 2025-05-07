@@ -1,6 +1,17 @@
 import { DbTables } from "../constants/index.js";
 import { verifyPassword } from "../utils/crypto.js";
 import { generatePresignedUrl, deleteFileFromS3 } from "../utils/s3Utils.js";
+import {
+  getMimeTypeGroup,
+  MIME_GROUPS,
+  isImageType,
+  isVideoType,
+  isAudioType,
+  isDocumentType,
+  isConfigType,
+  getMimeTypeAndGroupFromFile,
+  shouldUseTextPlainForPreview,
+} from "../utils/fileUtils.js";
 
 /**
  * 从数据库获取文件信息
@@ -152,6 +163,35 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 }
 
 /**
+ * 检查文件是否为Office文件类型
+ * @param {string} mimetype - MIME类型
+ * @param {string} filename - 文件名
+ * @returns {boolean} 是否为Office文件
+ */
+function isOfficeFile(mimetype, filename) {
+  const mime = (mimetype || "").toLowerCase();
+  const name = (filename || "").toLowerCase();
+
+  return (
+    mime.includes("wordprocessing") ||
+    mime.includes("spreadsheet") ||
+    mime.includes("presentation") ||
+    mime === "application/msword" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.ms-powerpoint" ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx") ||
+    name.endsWith(".xls") ||
+    name.endsWith(".xlsx") ||
+    name.endsWith(".ppt") ||
+    name.endsWith(".pptx") ||
+    name.endsWith(".odt") ||
+    name.endsWith(".ods") ||
+    name.endsWith(".odp")
+  );
+}
+
+/**
  * 处理文件下载请求
  * @param {string} slug - 文件slug
  * @param {Object} env - 环境变量
@@ -231,30 +271,140 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
     }
 
     try {
-      // 生成预签名URL，有效期1小时
-      const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, 3600, forceDownload);
-
-      // 准备文件名和内容类型
+      // 获取文件名
       const filename = result.file.filename;
-      const contentType = result.file.mimetype || "application/octet-stream";
+
+      // 使用fileUtils中的getMimeTypeAndGroupFromFile函数获取正确的MIME类型和分组
+      const {
+        mimeType: contentType,
+        mimeGroup,
+        wasRefined,
+      } = getMimeTypeAndGroupFromFile({
+        filename,
+        mimetype: result.file.mimetype,
+      });
+
+      // 判断文件是否为Office文件类型
+      const isOffice = isOfficeFile(contentType, filename);
+
+      // Office文件特殊处理：如果是预览请求（非强制下载），重定向到Office在线预览服务
+      if (isOffice && !forceDownload) {
+        // 获取URL中的密码参数（如果有）
+        const url = new URL(request.url);
+        const passwordParam = url.searchParams.get("password");
+
+        // 构建Office预览API调用的URL参数
+        let apiUrl = `/api/office-preview/${slug}`;
+        if (passwordParam) {
+          apiUrl += `?password=${encodeURIComponent(passwordParam)}`;
+        }
+
+        // 创建内部请求以获取Office预览URL
+        const internalRequest = new Request(`${url.origin}${apiUrl}`);
+        const response = await fetch(internalRequest);
+
+        // 如果请求失败，返回错误
+        if (!response.ok) {
+          const errorData = await response.json();
+          return new Response(errorData.error || "获取Office预览URL失败", { status: response.status });
+        }
+
+        // 解析响应获取直接URL
+        const data = await response.json();
+        if (!data.url) {
+          return new Response("无法获取Office预览URL", { status: 500 });
+        }
+
+        // 生成Microsoft Office在线预览URL
+        const encodedUrl = encodeURIComponent(data.url);
+        const officePreviewUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
+
+        // 返回重定向到Microsoft预览服务
+        return new Response(null, {
+          status: 302, // 临时重定向
+          headers: {
+            Location: officePreviewUrl,
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+
+      // 判断文件是否需要特殊处理
+      const isPdf = contentType === "application/pdf";
+      const isTextBased = mimeGroup === MIME_GROUPS.TEXT || mimeGroup === MIME_GROUPS.CODE || mimeGroup === MIME_GROUPS.CONFIG || mimeGroup === MIME_GROUPS.MARKDOWN;
+      const isMarkdown = mimeGroup === MIME_GROUPS.MARKDOWN;
+      const isConfig = mimeGroup === MIME_GROUPS.CONFIG || isConfigType(contentType, filename);
+      const isHtml = contentType === "text/html";
+      const isMedia = mimeGroup === MIME_GROUPS.IMAGE || mimeGroup === MIME_GROUPS.VIDEO || mimeGroup === MIME_GROUPS.AUDIO;
+
+      // 检查文件是否应该使用text/plain预览
+      const shouldUseTextPlain = shouldUseTextPlainForPreview(contentType, filename);
+
+      // 生成预签名URL，传递MIME类型以确保正确的Content-Type
+      const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, 3600, forceDownload, contentType);
 
       // 代理请求到实际的文件URL
       const fileRequest = new Request(presignedUrl);
       const response = await fetch(fileRequest);
 
       // 创建一个新的响应，包含正确的文件名和Content-Type
-      const headers = new Headers(response.headers);
+      const headers = new Headers();
+
+      // 复制原始响应的所有头信息
+      for (const [key, value] of response.headers.entries()) {
+        // 排除我们将要自定义的头
+        if (!["content-disposition", "content-type", "access-control-allow-origin"].includes(key.toLowerCase())) {
+          headers.set(key, value);
+        }
+      }
+
+      // 设置CORS头，允许所有源访问
+      headers.set("Access-Control-Allow-Origin", "*");
+      headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+      headers.set("Access-Control-Allow-Headers", "Content-Type, Content-Disposition");
+      headers.set("Access-Control-Expose-Headers", "Content-Type, Content-Disposition, Content-Length");
 
       // 根据是否强制下载设置Content-Disposition
       if (forceDownload) {
         headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
       } else {
-        // 对于预览，我们不设置Content-Disposition或设置为inline
+        // 对于预览，始终使用inline而不是不设置，确保worker代理和浏览器都能正确处理
         headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
       }
 
-      // 确保设置正确的内容类型
-      headers.set("Content-Type", contentType);
+      // 基于MIME类型设置正确的Content-Type和charset
+      if ((isTextBased || isConfig || shouldUseTextPlain) && !forceDownload) {
+        // 对于应该使用text/plain预览的文件进行特殊处理
+        if (shouldUseTextPlain) {
+          headers.set("Content-Type", `text/plain; charset=UTF-8`);
+        } else {
+          // 文本类型和配置文件添加charset=UTF-8
+          headers.set("Content-Type", `${contentType}; charset=UTF-8`);
+        }
+
+        // 对Markdown和配置文件特别处理，确保inline预览
+        if (isMarkdown || isConfig || shouldUseTextPlain) {
+          headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+        }
+
+        // 对HTML文件添加安全头部
+        if (isHtml) {
+          headers.set("X-XSS-Protection", "1; mode=block");
+          headers.set("X-Content-Type-Options", "nosniff");
+          headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
+        }
+      } else if (isPdf && !forceDownload) {
+        // PDF文件特别处理，确保内联预览
+        headers.set("Content-Type", "application/pdf");
+        headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+      } else if (isMedia && !forceDownload) {
+        // 媒体文件特别处理
+        headers.set("Content-Type", contentType);
+        headers.set("Accept-Ranges", "bytes"); // 支持范围请求，有助于视频/音频流媒体
+      } else {
+        // 其他类型保持原始Content-Type
+        headers.set("Content-Type", contentType);
+      }
 
       // 返回响应
       return new Response(response.body, {
@@ -286,6 +436,95 @@ export function registerFileViewRoutes(app) {
   app.get("/api/file-view/:slug", async (c) => {
     const slug = c.req.param("slug");
     return await handleFileDownload(slug, c.env, c.req.raw, false); // 预览
+  });
+
+  // 处理Office文件直接预览URL请求 /api/office-preview/:slug
+  app.get("/api/office-preview/:slug", async (c) => {
+    const slug = c.req.param("slug");
+    const db = c.env.DB;
+    const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+
+    try {
+      // 查询文件详情
+      const file = await getFileBySlug(db, slug);
+
+      // 检查文件是否存在
+      if (!file) {
+        return c.json({ error: "文件不存在" }, 404);
+      }
+
+      // 检查文件是否受密码保护
+      if (file.password) {
+        // 如果有密码，检查URL中是否包含密码参数
+        const url = new URL(c.req.url);
+        const passwordParam = url.searchParams.get("password");
+
+        if (!passwordParam) {
+          return c.json({ error: "需要密码访问此文件" }, 401);
+        }
+
+        // 验证密码
+        const passwordValid = await verifyPassword(passwordParam, file.password);
+        if (!passwordValid) {
+          return c.json({ error: "密码错误" }, 403);
+        }
+      }
+
+      // 检查文件是否可访问
+      const accessCheck = await isFileAccessible(db, file, encryptionSecret);
+      if (!accessCheck.accessible) {
+        if (accessCheck.reason === "expired") {
+          return c.json({ error: "文件已过期" }, 410);
+        }
+        return c.json({ error: "文件不可访问" }, 403);
+      }
+
+      // 检查文件是否为Office文件
+      const isOffice = isOfficeFile(file.mimetype, file.filename);
+      if (!isOffice) {
+        return c.json({ error: "不是Office文件类型" }, 400);
+      }
+
+      // 如果没有S3配置或存储路径，则返回404
+      if (!file.s3_config_id || !file.storage_path) {
+        return c.json({ error: "文件存储信息不完整" }, 404);
+      }
+
+      // 获取S3配置
+      const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+      if (!s3Config) {
+        return c.json({ error: "无法获取存储配置信息" }, 500);
+      }
+
+      // 计算访问次数（暂不增加计数器，因为这只是获取URL）
+      // 但需要考虑已有的访问次数
+      if (file.max_views && file.max_views > 0 && file.views >= file.max_views) {
+        return c.json({ error: "文件已达到最大查看次数" }, 410);
+      }
+
+      try {
+        // 设置特殊的安全参数：较短的过期时间（60分钟）和正确的内容类型
+        const expiresIn = 60 * 60; // 60分钟，单位为秒
+
+        // 生成临时预签名URL，适用于Office预览
+        const presignedUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, expiresIn, false, file.mimetype);
+
+        // 返回直接访问URL
+        return c.json({
+          url: presignedUrl,
+          filename: file.filename,
+          mimetype: file.mimetype,
+          expires_in: expiresIn,
+          is_temporary: true,
+        });
+      } catch (error) {
+        console.error("生成Office预览URL出错:", error);
+        return c.json({ error: "生成预览URL失败: " + error.message }, 500);
+      }
+    } catch (error) {
+      console.error("处理Office预览URL请求错误:", error);
+      return c.json({ error: "服务器处理错误: " + error.message }, 500);
+    }
   });
 }
 

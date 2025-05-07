@@ -319,31 +319,31 @@ server.use((req, res, next) => {
 
 // 处理原始请求体（XML、二进制等）
 server.use(
-    express.raw({
-      type: ["application/xml", "text/xml", "application/octet-stream"],
-      limit: "1gb", // 设置合理的大小限制
-      verify: (req, res, buf, encoding) => {
-        // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
-        if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 10 * 1024 * 1024) {
-          logMessage("debug", `大型WebDAV ${req.method} 请求体:`, {
+  express.raw({
+    type: ["application/xml", "text/xml", "application/octet-stream"],
+    limit: "1gb", // 设置合理的大小限制
+    verify: (req, res, buf, encoding) => {
+      // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
+      if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 10 * 1024 * 1024) {
+        logMessage("debug", `大型WebDAV ${req.method} 请求体:`, {
+          contentType: req.headers["content-type"],
+          size: buf ? buf.length : 0,
+        });
+      }
+
+      // 安全检查：检测潜在的异常XML或二进制内容
+      if (buf && req.path.startsWith("/dav") && (req.headers["content-type"] || "").includes("xml") && buf.length > 0) {
+        // 检查是否为有效的XML开头标记，简单验证
+        const xmlStart = buf.slice(0, Math.min(50, buf.length)).toString();
+        if (!xmlStart.trim().startsWith("<?xml") && !xmlStart.trim().startsWith("<")) {
+          logMessage("warn", `可疑的XML请求体: ${req.method} ${req.path} - 内容不以XML标记开头`, {
             contentType: req.headers["content-type"],
-            size: buf ? buf.length : 0,
+            bodyPreview: xmlStart.replace(/[\x00-\x1F\x7F-\xFF]/g, ".").substring(0, 30),
           });
         }
-
-        // 安全检查：检测潜在的异常XML或二进制内容
-        if (buf && req.path.startsWith("/dav") && (req.headers["content-type"] || "").includes("xml") && buf.length > 0) {
-          // 检查是否为有效的XML开头标记，简单验证
-          const xmlStart = buf.slice(0, Math.min(50, buf.length)).toString();
-          if (!xmlStart.trim().startsWith("<?xml") && !xmlStart.trim().startsWith("<")) {
-            logMessage("warn", `可疑的XML请求体: ${req.method} ${req.path} - 内容不以XML标记开头`, {
-              contentType: req.headers["content-type"],
-              bodyPreview: xmlStart.replace(/[\x00-\x1F\x7F-\xFF]/g, ".").substring(0, 30),
-            });
-          }
-        }
-      },
-    })
+      }
+    },
+  })
 );
 
 // 处理请求体大小限制错误
@@ -364,8 +364,8 @@ server.use((err, req, res, next) => {
 
   // 处理multipart/form-data解析错误
   if (
-      err.message &&
-      (err.message.includes("Unexpected end of form") || err.message.includes("Unexpected end of multipart data") || err.message.includes("Multipart: Boundary not found"))
+    err.message &&
+    (err.message.includes("Unexpected end of form") || err.message.includes("Unexpected end of multipart data") || err.message.includes("Multipart: Boundary not found"))
   ) {
     logMessage("error", `Multipart解析错误:`, {
       method: req.method,
@@ -398,18 +398,18 @@ server.use((err, req, res, next) => {
 
 // 处理表单数据
 server.use(
-    express.urlencoded({
-      extended: true,
-      limit: "1gb",
-    })
+  express.urlencoded({
+    extended: true,
+    limit: "1gb",
+  })
 );
 
 // 处理JSON请求体
 server.use(
-    express.json({
-      type: ["application/json", "application/json; charset=utf-8", "+json", "*/json"],
-      limit: "1gb",
-    })
+  express.json({
+    type: ["application/json", "application/json; charset=utf-8", "+json", "*/json"],
+    limit: "1gb",
+  })
 );
 
 // 3. WebDAV专用中间件
@@ -502,6 +502,16 @@ server.get("/api/file-view/:slug", async (req, res) => {
   }
 });
 
+server.get("/api/office-preview/:slug", async (req, res) => {
+  try {
+    const response = await app.fetch(createAdaptedRequest(req), req.env, {});
+    await convertWorkerResponseToExpress(response, res);
+  } catch (error) {
+    logMessage("error", "Office预览URL生成错误:", { error });
+    res.status(ApiStatus.INTERNAL_ERROR).json(createErrorResponse(error, ApiStatus.INTERNAL_ERROR, "Office预览URL生成失败"));
+  }
+});
+
 // 通配符路由 - 处理所有其他API请求
 server.use("*", async (req, res) => {
   try {
@@ -579,8 +589,8 @@ function createAdaptedRequest(expressReq) {
       }
       // 如果是XML或二进制数据，使用Buffer
       else if (
-          (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
-          Buffer.isBuffer(expressReq.body)
+        (contentType.includes("application/xml") || contentType.includes("text/xml") || contentType.includes("application/octet-stream")) &&
+        Buffer.isBuffer(expressReq.body)
       ) {
         body = expressReq.body;
       }
@@ -730,10 +740,10 @@ function startMemoryMonitoring(interval = 60000) {
     // 当内存使用率高于阈值时，尝试手动触发垃圾回收
     // 增加对外部内存和ArrayBuffers的检查，以便在文件上传后更好地触发内存回收
     if (
-        global.gc &&
-        (memUsage.heapUsed / memUsage.heapTotal > 0.85 ||
-            memUsage.external > 30 * 1024 * 1024 || // 外部内存超过30MB
-            (memUsage.arrayBuffers && memUsage.arrayBuffers > 50 * 1024 * 1024)) // ArrayBuffers超过50MB
+      global.gc &&
+      (memUsage.heapUsed / memUsage.heapTotal > 0.85 ||
+        memUsage.external > 30 * 1024 * 1024 || // 外部内存超过30MB
+        (memUsage.arrayBuffers && memUsage.arrayBuffers > 50 * 1024 * 1024)) // ArrayBuffers超过50MB
     ) {
       logMessage("info", "检测到内存使用较高，尝试手动垃圾回收");
       global.gc();

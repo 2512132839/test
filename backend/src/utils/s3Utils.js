@@ -7,6 +7,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ConfiguredRetryStrategy } from "@smithy/util-retry";
 import { decryptValue } from "./crypto.js";
 import { S3ProviderTypes } from "../constants/index.js";
+import { getMimeTypeGroup, MIME_GROUPS, getMimeTypeFromFilename, getFileExtension, shouldUseTextPlainForPreview } from "./fileUtils.js";
 
 /**
  * 创建S3客户端
@@ -181,9 +182,10 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
  * @param {string} encryptionSecret - 用于解密凭证的密钥
  * @param {number} expiresIn - URL过期时间（秒），默认为1小时
  * @param {boolean} forceDownload - 是否强制下载（而非预览）
+ * @param {string} mimetype - 文件的MIME类型（可选）
  * @returns {Promise<string>} 预签名URL
  */
-export async function generatePresignedUrl(s3Config, storagePath, encryptionSecret, expiresIn = 3600, forceDownload = false) {
+export async function generatePresignedUrl(s3Config, storagePath, encryptionSecret, expiresIn = 3600, forceDownload = false, mimetype = null) {
   try {
     // 创建S3客户端
     const s3Client = await createS3Client(s3Config, encryptionSecret);
@@ -194,15 +196,57 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
     // 提取文件名，用于Content-Disposition头
     const fileName = normalizedPath.split("/").pop();
 
+    // 检查文件是否应该使用text/plain预览
+    const shouldUseTextPlain = shouldUseTextPlainForPreview(mimetype, fileName);
+
+    // 如果未提供MIME类型，从文件名推断
+    let effectiveMimetype = mimetype;
+    if (!effectiveMimetype || effectiveMimetype === "application/octet-stream") {
+      effectiveMimetype = getMimeTypeFromFilename(fileName);
+      console.log(`未提供MIME类型或为通用类型，从文件名[${fileName}]推断MIME类型: ${effectiveMimetype}`);
+    }
+
     // 创建GetObjectCommand
     const commandParams = {
       Bucket: s3Config.bucket_name,
       Key: normalizedPath,
     };
 
-    // 如果需要强制下载，添加相应的响应头
+    // 处理Content-Disposition头
     if (forceDownload) {
+      // 强制下载模式设置为attachment
       commandParams.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(fileName)}"`;
+    } else {
+      // 预览模式设置为inline
+      commandParams.ResponseContentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
+    }
+
+    // 判断MIME类型分组
+    const mimeGroup = getMimeTypeGroup(effectiveMimetype);
+
+    // 对于应该使用text/plain预览的文件进行特殊处理
+    if (shouldUseTextPlain && !forceDownload) {
+      commandParams.ResponseContentType = `text/plain; charset=UTF-8`;
+    } else {
+      // 其他文件类型正常处理
+      // 设置Content-Type，对所有文本类内容都添加charset=UTF-8
+      const needsCharset =
+        mimeGroup === MIME_GROUPS.TEXT ||
+        mimeGroup === MIME_GROUPS.CODE ||
+        mimeGroup === MIME_GROUPS.CONFIG ||
+        mimeGroup === MIME_GROUPS.MARKDOWN ||
+        effectiveMimetype === "application/json" ||
+        effectiveMimetype === "application/xml" ||
+        effectiveMimetype === "application/javascript" ||
+        effectiveMimetype === "application/typescript";
+
+      if (needsCharset) {
+        commandParams.ResponseContentType = `${effectiveMimetype}; charset=UTF-8`;
+        console.log(`为文件[${fileName}]设置内容类型: ${effectiveMimetype}; charset=UTF-8 (分组: ${mimeGroup})`);
+      } else {
+        commandParams.ResponseContentType = effectiveMimetype;
+        console.log(`为文件[${fileName}]设置内容类型: ${effectiveMimetype} (分组: ${mimeGroup})`);
+      }
     }
 
     // 针对特定服务商添加额外参数

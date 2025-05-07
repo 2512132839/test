@@ -126,9 +126,9 @@
           <div class="file-icon mr-3 p-1.5 rounded-lg" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
             <div class="h-8 w-8" v-html="getFileIconHtml(fileInfo.filename)"></div>
           </div>
-          <div class="file-info flex-grow mr-3">
+          <div class="file-info w-0 flex-grow mr-3">
             <div class="font-medium text-base truncate" :class="darkMode ? 'text-white' : 'text-gray-900'">
-              {{ fileInfo.filename || "Unknown File" }}
+              {{ displayFilename }}
             </div>
             <div class="flex justify-between mt-0.5">
               <span class="text-xs font-medium px-1.5 py-0.5 rounded-full" :class="darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'">
@@ -155,7 +155,7 @@
                 ? 'bg-gray-700 border-gray-600 text-white focus:ring-blue-600 focus:ring-offset-gray-800'
                 : 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:ring-offset-white',
             ]"
-            :placeholder="fileInfo.filename || t('file.customFilename')"
+            :placeholder="displayFilename || t('file.customFilename')"
             :disabled="isUploading"
           />
         </div>
@@ -473,7 +473,8 @@ import {
   fetchUrlContent,
 } from "../../api/urlUploadService";
 // 导入文件类型工具
-import { getFileExtension, extensionToTypeMap, getFileIcon } from "../../utils/fileTypeIcons";
+import { getFileIcon } from "../../utils/fileTypeIcons";
+import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
 
 const { t } = useI18n(); // 初始化i18n
 
@@ -542,6 +543,47 @@ const displayFileSize = computed(() => {
   return t("file.unknownSize") || "未知大小";
 });
 
+// 计算属性：显示友好的MIME类型
+const displayMimeType = computed(() => {
+  if (!fileInfo.value) return null;
+
+  // 如果有明确的MIME类型且不是默认的application/octet-stream，使用它
+  if (fileInfo.value.contentType && fileInfo.value.contentType !== "application/octet-stream") {
+    return MimeTypeUtils.getMimeTypeDisplay(fileInfo.value.contentType, fileInfo.value.filename);
+  }
+
+  // 否则，尝试从文件名猜测MIME类型
+  if (fileInfo.value.filename) {
+    const ext = MimeTypeUtils.getFileExtension(fileInfo.value.filename);
+    // 使用 MimeTypeUtils 的方法获取文件类型和MIME类型
+    const fileType = MimeTypeUtils.getFileTypeFromExtension(ext);
+    if (fileType) {
+      const mimeType = MimeTypeUtils.fileTypeToMimeType(fileType);
+      if (mimeType) {
+        return MimeTypeUtils.getMimeTypeDisplay(mimeType, fileInfo.value.filename);
+      }
+    }
+  }
+
+  // 如果无法猜测，不显示类型信息（返回null而不是"Unknown Type"）
+  return null;
+});
+
+// 计算属性：解码并显示文件名
+const displayFilename = computed(() => {
+  if (!fileInfo.value || !fileInfo.value.filename) {
+    return "Unknown File";
+  }
+
+  try {
+    // 尝试URL解码文件名
+    return decodeURIComponent(fileInfo.value.filename);
+  } catch (e) {
+    console.warn("解码文件名失败:", e);
+    return fileInfo.value.filename; // 如果解码失败，返回原始文件名
+  }
+});
+
 // 监听s3Configs变化，自动选择默认配置
 watch(
   () => props.s3Configs,
@@ -561,32 +603,6 @@ watch(
   { immediate: true } // 页面加载时立即执行
 );
 
-// 计算属性：显示友好的MIME类型
-const displayMimeType = computed(() => {
-  if (!fileInfo.value) return null;
-
-  // 如果有明确的MIME类型且不是默认的application/octet-stream，使用它
-  if (fileInfo.value.contentType && fileInfo.value.contentType !== "application/octet-stream") {
-    return getMimeTypeDisplay(fileInfo.value.contentType);
-  }
-
-  // 否则，尝试从文件名猜测MIME类型
-  if (fileInfo.value.filename) {
-    const ext = getFileExtension(fileInfo.value.filename);
-    // 使用extensionToTypeMap获取文件类型，然后转换为对应的MIME类型
-    if (ext && extensionToTypeMap[ext]) {
-      const fileType = extensionToTypeMap[ext];
-      const mimeType = fileTypeToMimeType(fileType);
-      if (mimeType) {
-        return getMimeTypeDisplay(mimeType);
-      }
-    }
-  }
-
-  // 如果无法猜测，不显示类型信息（返回null而不是"Unknown Type"）
-  return null;
-});
-
 /**
  * 获取与文件类型匹配的SVG图标
  * @param {string} filename - 文件名
@@ -595,7 +611,11 @@ const displayMimeType = computed(() => {
 const getFileIconHtml = (filename) => {
   if (!filename) return getDefaultFileIcon();
 
-  // 为了使用getFileIcon函数，需要构造一个模拟的文件项对象
+  // 使用 MimeTypeUtils 获取文件类型
+  const ext = MimeTypeUtils.getFileExtension(filename);
+  const fileType = MimeTypeUtils.getFileTypeFromExtension(ext);
+
+  // 为了使用 getFileIcon 函数，需要构造一个模拟的文件项对象
   const mockFileItem = {
     name: filename,
     isDirectory: false,
@@ -616,89 +636,6 @@ const getDefaultFileIcon = () => {
   }" fill-opacity="${props.darkMode ? "0.1" : "0.1"}"/>
     <path d="M14 2V8H20" stroke="${props.darkMode ? "#93c5fd" : "#3b82f6"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
-};
-
-/**
- * 将文件类型转换为MIME类型
- * @param {string} fileType - 文件类型（如"image", "document", "pdf"等）
- * @returns {string|null} MIME类型
- */
-const fileTypeToMimeType = (fileType) => {
-  const typeToMimeMap = {
-    image: "image/jpeg",
-    document: "application/msword",
-    pdf: "application/pdf",
-    code: "text/plain",
-    archive: "application/zip",
-    audio: "audio/mpeg",
-    video: "video/mp4",
-    executable: "application/octet-stream",
-  };
-
-  return typeToMimeMap[fileType] || null;
-};
-
-/**
- * 将MIME类型转换为更友好的显示格式
- * @param {string} mimeType - MIME类型
- * @returns {string} 友好的显示格式
- */
-const getMimeTypeDisplay = (mimeType) => {
-  if (!mimeType) return null;
-
-  // 简化MIME类型显示
-  const mimeMap = {
-    "image/jpeg": "图片 (JPG)",
-    "image/png": "图片 (PNG)",
-    "image/gif": "图片 (GIF)",
-    "image/webp": "图片 (WebP)",
-    "image/svg+xml": "图片 (SVG)",
-    "application/pdf": "PDF 文档",
-    "application/msword": "Word 文档",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word 文档",
-    "application/vnd.ms-excel": "Excel 文档",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel 文档",
-    "application/vnd.ms-powerpoint": "PowerPoint 文档",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint 文档",
-    "application/zip": "压缩文件 (ZIP)",
-    "application/x-rar-compressed": "压缩文件 (RAR)",
-    "audio/mpeg": "音频文件 (MP3)",
-    "audio/wav": "音频文件 (WAV)",
-    "video/mp4": "视频文件 (MP4)",
-    "video/x-msvideo": "视频文件 (AVI)",
-    "text/html": "HTML 文件",
-    "text/plain": "文本文件",
-    "text/css": "CSS 文件",
-    "text/javascript": "JS 文件",
-    "application/json": "JSON 文件",
-  };
-
-  // 如果有映射就使用映射，否则尝试简化显示
-  if (mimeMap[mimeType]) {
-    return mimeMap[mimeType];
-  }
-
-  // 对于没有映射的类型，尝试生成通用格式
-  const parts = mimeType.split("/");
-  if (parts.length === 2) {
-    const mainType = parts[0];
-    const subType = parts[1];
-
-    const mainTypeMap = {
-      image: "图片",
-      audio: "音频",
-      video: "视频",
-      text: "文本",
-      application: "应用",
-    };
-
-    if (mainTypeMap[mainType]) {
-      return `${mainTypeMap[mainType]} (${subType.toUpperCase()})`;
-    }
-  }
-
-  // 如果都无法识别，显示原始MIME类型
-  return mimeType;
 };
 
 /**
@@ -730,8 +667,17 @@ const analyzeUrl = async () => {
       };
 
       fileInfo.value = data;
-      // 复位定制文件名
-      customFilename.value = fileInfo.value.filename || "";
+      // 复位定制文件名，解码URL编码的文件名
+      if (fileInfo.value.filename) {
+        try {
+          customFilename.value = decodeURIComponent(fileInfo.value.filename);
+        } catch (e) {
+          console.warn("解码文件名失败:", e);
+          customFilename.value = fileInfo.value.filename || "";
+        }
+      } else {
+        customFilename.value = "";
+      }
     } else {
       urlError.value = t("file.urlAnalysisFailed");
     }
@@ -772,13 +718,7 @@ const isValidUrl = (url) => {
  * @returns {string} 格式化后的文件大小
  */
 const formatFileSize = (bytes) => {
-  if (bytes === 0 || bytes === undefined || bytes === null) return "0 B";
-
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  return MimeTypeUtils.formatFileSize(bytes);
 };
 
 /**

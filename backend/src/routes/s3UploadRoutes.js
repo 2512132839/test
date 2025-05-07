@@ -1,7 +1,7 @@
 import { DbTables } from "../constants/index.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse, generateFileId, generateShortId, getSafeFileName, getFileNameAndExt, formatFileSize, getLocalTimeString } from "../utils/common.js";
-import { getMimeType } from "../utils/fileUtils.js";
+import { getMimeType, getMimeTypeFromFilename, getFileExtension } from "../utils/fileUtils.js";
 import { generatePresignedPutUrl, buildS3Url, deleteFileFromS3, generatePresignedUrl, createS3Client } from "../utils/s3Utils.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
@@ -288,7 +288,7 @@ export function registerS3UploadRoutes(app) {
       const storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
 
       // 获取内容类型
-      const mimetype = body.mimetype || getMimeType(body.filename);
+      const mimetype = body.mimetype || getMimeTypeFromFilename(body.filename);
 
       // 获取加密密钥
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -950,7 +950,7 @@ export function registerS3UploadRoutes(app) {
 
       // 如果没有Content-Type或者是通用类型，则根据文件扩展名推断
       if (!contentType || contentType === "application/octet-stream") {
-        contentType = getMimeType(filename);
+        contentType = getMimeTypeFromFilename(filename);
       }
 
       console.log(`文件上传 - 文件名: ${filename}, Content-Type: ${contentType}`);
@@ -1130,9 +1130,9 @@ export function registerS3UploadRoutes(app) {
       // 清除与文件相关的缓存
       await clearCacheForFilePath(db, storagePath, s3ConfigId);
 
-      // 生成预签名URL (有效期1小时)
-      const previewDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, 3600, false);
-      const downloadDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, 3600, true);
+      // 生成预签名URL (有效期1小时)，传递MIME类型以确保正确的Content-Type
+      const previewDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, 3600, false, contentType);
+      const downloadDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, 3600, true, contentType);
 
       // 构建API路径URL
       const baseUrl = c.req.url.split("/api/")[0];
