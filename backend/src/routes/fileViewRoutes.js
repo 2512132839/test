@@ -22,19 +22,19 @@ import {
  */
 async function getFileBySlug(db, slug, includePassword = true) {
   const fields = includePassword
-    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
-    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
+      ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
+      : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
 
   return await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT ${fields}
       FROM ${DbTables.FILES} f
       WHERE f.slug = ?
     `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 }
 
 /**
@@ -132,8 +132,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取更新后的文件信息
   const updatedFile = await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT 
         f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
         f.remark, f.password, f.max_views, f.views, f.created_by,
@@ -141,9 +141,9 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
       FROM ${DbTables.FILES} f
       WHERE f.id = ?
     `
-    )
-    .bind(file.id)
-    .first();
+      )
+      .bind(file.id)
+      .first();
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -173,21 +173,21 @@ function isOfficeFile(mimetype, filename) {
   const name = (filename || "").toLowerCase();
 
   return (
-    mime.includes("wordprocessing") ||
-    mime.includes("spreadsheet") ||
-    mime.includes("presentation") ||
-    mime === "application/msword" ||
-    mime === "application/vnd.ms-excel" ||
-    mime === "application/vnd.ms-powerpoint" ||
-    name.endsWith(".doc") ||
-    name.endsWith(".docx") ||
-    name.endsWith(".xls") ||
-    name.endsWith(".xlsx") ||
-    name.endsWith(".ppt") ||
-    name.endsWith(".pptx") ||
-    name.endsWith(".odt") ||
-    name.endsWith(".ods") ||
-    name.endsWith(".odp")
+      mime.includes("wordprocessing") ||
+      mime.includes("spreadsheet") ||
+      mime.includes("presentation") ||
+      mime === "application/msword" ||
+      mime === "application/vnd.ms-excel" ||
+      mime === "application/vnd.ms-powerpoint" ||
+      name.endsWith(".doc") ||
+      name.endsWith(".docx") ||
+      name.endsWith(".xls") ||
+      name.endsWith(".xlsx") ||
+      name.endsWith(".ppt") ||
+      name.endsWith(".pptx") ||
+      name.endsWith(".odt") ||
+      name.endsWith(".ods") ||
+      name.endsWith(".odp")
   );
 }
 
@@ -289,44 +289,35 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
 
       // Office文件特殊处理：如果是预览请求（非强制下载），重定向到Office在线预览服务
       if (isOffice && !forceDownload) {
-        // 获取URL中的密码参数（如果有）
-        const url = new URL(request.url);
-        const passwordParam = url.searchParams.get("password");
+        try {
+          // 获取URL中的密码参数（如果有）- 仅用于日志记录，不再需要传递
+          const url = new URL(request.url);
+          const passwordParam = url.searchParams.get("password");
+          // 设置特殊的安全参数：较短的过期时间（60分钟）
+          const expiresIn = 60 * 60; // 60分钟，单位为秒
 
-        // 构建Office预览API调用的URL参数
-        let apiUrl = `/api/office-preview/${slug}`;
-        if (passwordParam) {
-          apiUrl += `?password=${encodeURIComponent(passwordParam)}`;
+          // 直接生成临时预签名URL，适用于Office预览
+          console.log(`为Office文件生成预签名URL: ${result.file.storage_path}`);
+          const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, expiresIn, false, contentType);
+
+          // 生成Microsoft Office在线预览URL
+          const encodedUrl = encodeURIComponent(presignedUrl);
+          const officePreviewUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
+
+          console.log(`重定向到Microsoft Office在线预览服务`);
+
+          // 返回重定向到Microsoft预览服务
+          return new Response(null, {
+            status: 302, // 临时重定向
+            headers: {
+              Location: officePreviewUrl,
+              "Access-Control-Allow-Origin": "*",
+            },
+          });
+        } catch (error) {
+          console.error("Office文件处理出错:", error);
+          return new Response("处理Office文件预览失败: " + error.message, { status: 500 });
         }
-
-        // 创建内部请求以获取Office预览URL
-        const internalRequest = new Request(`${url.origin}${apiUrl}`);
-        const response = await fetch(internalRequest);
-
-        // 如果请求失败，返回错误
-        if (!response.ok) {
-          const errorData = await response.json();
-          return new Response(errorData.error || "获取Office预览URL失败", { status: response.status });
-        }
-
-        // 解析响应获取直接URL
-        const data = await response.json();
-        if (!data.url) {
-          return new Response("无法获取Office预览URL", { status: 500 });
-        }
-
-        // 生成Microsoft Office在线预览URL
-        const encodedUrl = encodeURIComponent(data.url);
-        const officePreviewUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
-
-        // 返回重定向到Microsoft预览服务
-        return new Response(null, {
-          status: 302, // 临时重定向
-          headers: {
-            Location: officePreviewUrl,
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
       }
 
       // 判断文件是否需要特殊处理
