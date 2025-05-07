@@ -19,11 +19,11 @@ function getClientIp(request) {
   // 获取请求头中的IP信息，按优先级检查
   const headers = request.headers;
   const ip =
-      headers.get("cf-connecting-ip") || // Cloudflare特有
-      headers.get("x-real-ip") || // 常用代理头
-      headers.get("x-forwarded-for") || // 标准代理头
-      headers.get("true-client-ip") || // Akamai等CDN
-      "0.0.0.0"; // 未知IP的默认值
+    headers.get("cf-connecting-ip") || // Cloudflare特有
+    headers.get("x-real-ip") || // 常用代理头
+    headers.get("x-forwarded-for") || // 标准代理头
+    headers.get("true-client-ip") || // Akamai等CDN
+    "0.0.0.0"; // 未知IP的默认值
 
   // 如果x-forwarded-for包含多个IP，提取第一个（客户端原始IP）
   if (ip && ip.includes(",")) {
@@ -82,8 +82,8 @@ export default {
         responseHeaders.set("Access-Control-Allow-Methods", WEBDAV_METHODS.join(","));
         responseHeaders.set("Access-Control-Allow-Origin", "*");
         responseHeaders.set(
-            "Access-Control-Allow-Headers",
-            "Authorization, Content-Type, Depth, If-Match, If-Modified-Since, If-None-Match, Lock-Token, Timeout, X-Requested-With"
+          "Access-Control-Allow-Headers",
+          "Authorization, Content-Type, Depth, If-Match, If-Modified-Since, If-None-Match, Lock-Token, Timeout, X-Requested-With"
         );
         responseHeaders.set("Access-Control-Expose-Headers", "ETag, Content-Type, Content-Length, Last-Modified");
         responseHeaders.set("Access-Control-Max-Age", "86400"); // 24小时
@@ -140,6 +140,13 @@ export default {
         return await handleFileDownload(slug, env, request, false); // 预览
       }
 
+      // 处理Office预览URL请求 /api/office-preview/:slug
+      if (pathParts.length >= 4 && pathParts[1] === "api" && pathParts[2] === "office-preview") {
+        const slug = pathParts[3];
+        // 将请求转发到API应用，它会路由到fileViewRoutes中的/api/office-preview/:slug处理器
+        return app.fetch(request, bindings, ctx);
+      }
+
       // 处理原始文本内容请求 /api/raw/:slug
       if (pathParts.length >= 4 && pathParts[1] === "api" && pathParts[2] === "raw") {
         // 将请求转发到API应用，它会路由到userPasteRoutes中的/api/raw/:slug处理器
@@ -153,17 +160,17 @@ export default {
 
       // 兼容前端期望的错误格式
       return new Response(
-          JSON.stringify({
-            code: ApiStatus.INTERNAL_ERROR,
-            message: "服务器内部错误",
-            error: error.message,
-            success: false,
-            data: null,
-          }),
-          {
-            status: ApiStatus.INTERNAL_ERROR,
-            headers: { "Content-Type": "application/json" },
-          }
+        JSON.stringify({
+          code: ApiStatus.INTERNAL_ERROR,
+          message: "服务器内部错误",
+          error: error.message,
+          success: false,
+          data: null,
+        }),
+        {
+          status: ApiStatus.INTERNAL_ERROR,
+          headers: { "Content-Type": "application/json" },
+        }
       );
     }
   },
