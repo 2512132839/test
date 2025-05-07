@@ -392,6 +392,8 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
           headers.set("X-XSS-Protection", "1; mode=block");
           headers.set("X-Content-Type-Options", "nosniff");
           headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
+          // 明确设置HTML文件为内联渲染
+          headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
         }
       } else if (isPdf && !forceDownload) {
         // PDF文件特别处理，确保内联预览
