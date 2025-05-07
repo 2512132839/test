@@ -372,8 +372,19 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
       }
 
+      // HTML文件特殊处理 - 单独处理以确保不受其他条件影响
+      if (isHtml && !forceDownload) {
+        // 设置正确的Content-Type，确保包含charset
+        headers.set("Content-Type", `text/html; charset=UTF-8`);
+        // 确保使用inline展示
+        headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+        // 添加安全头部
+        headers.set("X-XSS-Protection", "1; mode=block");
+        headers.set("X-Content-Type-Options", "nosniff");
+        headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
+      }
       // 基于MIME类型设置正确的Content-Type和charset
-      if ((isTextBased || isConfig || shouldUseTextPlain) && !forceDownload) {
+      else if ((isTextBased || isConfig || shouldUseTextPlain) && !forceDownload) {
         // 对于应该使用text/plain预览的文件进行特殊处理
         if (shouldUseTextPlain) {
           headers.set("Content-Type", `text/plain; charset=UTF-8`);
@@ -384,15 +395,6 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
 
         // 对Markdown和配置文件特别处理，确保inline预览
         if (isMarkdown || isConfig || shouldUseTextPlain) {
-          headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
-        }
-
-        // 对HTML文件添加安全头部
-        if (isHtml) {
-          headers.set("X-XSS-Protection", "1; mode=block");
-          headers.set("X-Content-Type-Options", "nosniff");
-          headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
-          // 明确设置HTML文件为内联渲染
           headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
         }
       } else if (isPdf && !forceDownload) {
