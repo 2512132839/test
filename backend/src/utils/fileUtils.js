@@ -666,3 +666,67 @@ export function getMimeTypeAndGroupFromFile(fileInfo) {
     wasRefined: resultMimeType !== originalMimeType,
   };
 }
+
+/**
+ * 获取文件的内容类型和内容处置信息
+ * @param {Object} options - 配置选项
+ * @param {string} options.filename - 文件名
+ * @param {string} options.mimetype - MIME类型
+ * @param {boolean} options.forceDownload - 是否强制下载
+ * @returns {Object} 包含contentType和contentDisposition的对象
+ */
+export function getContentTypeAndDisposition(options) {
+  const { filename, mimetype = "application/octet-stream", forceDownload = false } = options;
+
+  // 获取文件扩展名
+  const ext = getFileExtension(filename);
+
+  // 判断是否为HTML文件
+  const isHtmlFile = ext === "html" || ext === "htm" || mimetype === "text/html";
+
+  // 检查是否应该使用text/plain预览
+  const shouldUseTextPlain = shouldUseTextPlainForPreview(mimetype, filename) && !isHtmlFile;
+
+  // 获取MIME分组
+  const mimeGroup = getMimeTypeGroup(mimetype);
+
+  // 判断其他特殊文件类型
+  const isPdf = mimetype === "application/pdf";
+  const isTextBased = mimeGroup === MIME_GROUPS.TEXT || mimeGroup === MIME_GROUPS.CODE || mimeGroup === MIME_GROUPS.MARKDOWN;
+  const isMedia = mimeGroup === MIME_GROUPS.IMAGE || mimeGroup === MIME_GROUPS.VIDEO || mimeGroup === MIME_GROUPS.AUDIO;
+
+  let contentType;
+  let contentDisposition;
+
+  // 如果强制下载，设置为attachment
+  if (forceDownload) {
+    contentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+    contentType = mimetype;
+  } else {
+    // 非强制下载模式（预览模式）
+    contentDisposition = `inline; filename="${encodeURIComponent(filename)}"`;
+
+    // 根据文件类型设置不同的Content-Type
+    if (isHtmlFile) {
+      // HTML文件特殊处理，确保使用text/html
+      contentType = "text/html; charset=UTF-8";
+      console.log(`getContentTypeAndDisposition: HTML文件[${filename}]使用内容类型[${contentType}]`);
+    } else if (shouldUseTextPlain) {
+      // 对于应该使用text/plain预览的文件
+      contentType = "text/plain; charset=UTF-8";
+      console.log(`getContentTypeAndDisposition: 文件[${filename}]使用text/plain预览`);
+    } else if (isTextBased) {
+      // 文本类型添加charset=UTF-8
+      contentType = `${mimetype}; charset=UTF-8`;
+      console.log(`getContentTypeAndDisposition: 文本文件[${filename}]添加charset`);
+    } else {
+      // 其他类型保持原始Content-Type
+      contentType = mimetype;
+    }
+  }
+
+  return {
+    contentType,
+    contentDisposition,
+  };
+}

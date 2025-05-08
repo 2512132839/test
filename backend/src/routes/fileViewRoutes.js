@@ -11,6 +11,7 @@ import {
   isConfigType,
   getMimeTypeAndGroupFromFile,
   shouldUseTextPlainForPreview,
+  getContentTypeAndDisposition,
 } from "../utils/fileUtils.js";
 
 /**
@@ -329,17 +330,6 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         });
       }
 
-      // 判断文件是否需要特殊处理
-      const isPdf = contentType === "application/pdf";
-      const isTextBased = mimeGroup === MIME_GROUPS.TEXT || mimeGroup === MIME_GROUPS.CODE || mimeGroup === MIME_GROUPS.CONFIG || mimeGroup === MIME_GROUPS.MARKDOWN;
-      const isMarkdown = mimeGroup === MIME_GROUPS.MARKDOWN;
-      const isConfig = mimeGroup === MIME_GROUPS.CONFIG || isConfigType(contentType, filename);
-      const isHtml = contentType === "text/html";
-      const isMedia = mimeGroup === MIME_GROUPS.IMAGE || mimeGroup === MIME_GROUPS.VIDEO || mimeGroup === MIME_GROUPS.AUDIO;
-
-      // 检查文件是否应该使用text/plain预览
-      const shouldUseTextPlain = shouldUseTextPlainForPreview(contentType, filename);
-
       // 生成预签名URL，传递MIME类型以确保正确的Content-Type
       const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, 3600, forceDownload, contentType);
 
@@ -364,47 +354,26 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       headers.set("Access-Control-Allow-Headers", "Content-Type, Content-Disposition");
       headers.set("Access-Control-Expose-Headers", "Content-Type, Content-Disposition, Content-Length");
 
-      // 根据是否强制下载设置Content-Disposition
-      if (forceDownload) {
-        headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
-      } else {
-        // 对于预览，始终使用inline而不是不设置，确保worker代理和浏览器都能正确处理
-        headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+      // 使用统一的内容类型和处置方式函数
+      const { contentType: finalContentType, contentDisposition } = getContentTypeAndDisposition({
+        filename,
+        mimetype: contentType,
+        forceDownload,
+      });
+
+      // 设置Content-Type和Content-Disposition
+      headers.set("Content-Type", finalContentType);
+      headers.set("Content-Disposition", contentDisposition);
+
+      // 对HTML文件添加安全头部
+      if (finalContentType.includes("text/html")) {
+        headers.set("X-XSS-Protection", "1; mode=block");
+        headers.set("X-Content-Type-Options", "nosniff");
+        headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
       }
 
-      // 基于MIME类型设置正确的Content-Type和charset
-      if ((isTextBased || isConfig || shouldUseTextPlain) && !forceDownload) {
-        // 对于应该使用text/plain预览的文件进行特殊处理
-        if (shouldUseTextPlain) {
-          headers.set("Content-Type", `text/plain; charset=UTF-8`);
-        } else {
-          // 文本类型和配置文件添加charset=UTF-8
-          headers.set("Content-Type", `${contentType}; charset=UTF-8`);
-        }
-
-        // 对Markdown和配置文件特别处理，确保inline预览
-        if (isMarkdown || isConfig || shouldUseTextPlain) {
-          headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
-        }
-
-        // 对HTML文件添加安全头部
-        if (isHtml) {
-          headers.set("X-XSS-Protection", "1; mode=block");
-          headers.set("X-Content-Type-Options", "nosniff");
-          headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
-        }
-      } else if (isPdf && !forceDownload) {
-        // PDF文件特别处理，确保内联预览
-        headers.set("Content-Type", "application/pdf");
-        headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
-      } else if (isMedia && !forceDownload) {
-        // 媒体文件特别处理
-        headers.set("Content-Type", contentType);
-        headers.set("Accept-Ranges", "bytes"); // 支持范围请求，有助于视频/音频流媒体
-      } else {
-        // 其他类型保持原始Content-Type
-        headers.set("Content-Type", contentType);
-      }
+      // 打印日志，便于调试
+      console.log(`Worker代理模式：文件[${filename}]，最终内容类型[${finalContentType}]，内容处置[${contentDisposition}]`);
 
       // 返回响应
       return new Response(response.body, {
