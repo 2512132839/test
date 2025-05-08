@@ -1,5 +1,5 @@
 // 文件预览页面的公共工具函数
-import * as MimeTypeUtils from "../../utils/mimeTypeUtils.js";
+import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
 
 /**
  * 格式化文件大小

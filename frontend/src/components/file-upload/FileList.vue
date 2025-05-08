@@ -411,7 +411,7 @@ import { ref, defineProps, defineEmits, watch, onUnmounted } from "vue";
 import { api } from "../../api";
 import { useI18n } from "vue-i18n";
 import { getFile, getUserFile } from "../../api/fileService";
-import * as MimeTypeUtils from "../../utils/mimeTypeUtils.js";
+import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
 
 const { t } = useI18n();
 

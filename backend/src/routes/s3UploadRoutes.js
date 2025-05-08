@@ -880,6 +880,8 @@ export function registerS3UploadRoutes(app) {
       const maxViews = c.req.query("max_views") ? parseInt(c.req.query("max_views")) : 0;
       // 添加 override 参数
       const override = c.req.query("override") === "true";
+      // 添加 original_filename 参数，控制是否使用原始文件名
+      const useOriginalFilename = c.req.query("original_filename") === "true";
 
       // 生成文件ID和唯一Slug
       const fileId = generateFileId();
@@ -953,7 +955,7 @@ export function registerS3UploadRoutes(app) {
         contentType = getMimeTypeFromFilename(filename);
       }
 
-      console.log(`文件上传 - 文件名: ${filename}, Content-Type: ${contentType}`);
+      console.log(`文件上传 - 文件名: ${filename}, Content-Type: ${contentType}, 使用原始文件名: ${useOriginalFilename}`);
 
       // 处理文件名
       const { name: fileName, ext: fileExt } = getFileNameAndExt(filename);
@@ -965,8 +967,8 @@ export function registerS3UploadRoutes(app) {
       // 获取默认文件夹路径
       const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
 
-      // 组合最终路径
-      const storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
+      // 组合最终路径 - 根据useOriginalFilename决定是否添加随机ID
+      const storagePath = folderPath + customPath + (useOriginalFilename ? "" : shortId + "-") + safeFileName + fileExt;
 
       // 获取加密密钥
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -1171,6 +1173,8 @@ export function registerS3UploadRoutes(app) {
           // 其他信息
           use_proxy: useProxy,
           created_by: authorizedBy === "admin" ? adminId : authorizedBy === "apikey" ? `apikey:${apiKeyId}` : null,
+          // 是否使用了原始文件名
+          used_original_filename: useOriginalFilename,
         },
         success: true,
       });

@@ -474,7 +474,7 @@ import {
 } from "../../api/urlUploadService";
 // 导入文件类型工具
 import { getFileIcon } from "../../utils/fileTypeIcons";
-import * as MimeTypeUtils from "../../utils/mimeTypeUtils.js";
+import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
 
 const { t } = useI18n(); // 初始化i18n
 
