@@ -130,7 +130,9 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, computed } from "vue";
+import { defineProps, defineEmits, computed, ref } from "vue";
+import { getFullApiUrl } from "../../../api/config.js";
+import { isOfficeFileType } from "../../file-view/FileViewUtils.js";
 
 const props = defineProps({
   file: {
@@ -185,6 +187,55 @@ const getFilePassword = () => {
   }
 
   return null;
+};
+
+// 检查是否为Office文件
+const isOfficeFile = computed(() => {
+  return isOfficeFileType(props.file.mimetype, props.file.filename);
+});
+
+/**
+ * 获取Office文件预览URL
+ * @returns {Promise<string|null>} Office预览URL或null
+ */
+const getOfficePreviewUrl = async () => {
+  if (!props.file.slug) return null;
+
+  try {
+    // 构建API请求URL
+    let apiUrl = getFullApiUrl(`office-preview/${props.file.slug}`);
+
+    // 获取文件密码
+    const filePassword = getFilePassword();
+
+    // 添加密码参数(如果需要)
+    if (props.file.has_password && filePassword) {
+      apiUrl += `?password=${encodeURIComponent(filePassword)}`;
+    }
+
+    console.log("正在请求Office预览URL:", apiUrl);
+
+    // 发送请求获取直接URL
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "获取Office预览URL失败");
+    }
+
+    // 解析响应
+    const data = await response.json();
+    if (!data.url) {
+      throw new Error("无法获取Office预览URL");
+    }
+
+    // 生成Microsoft Office在线预览URL
+    const encodedUrl = encodeURIComponent(data.url);
+    return `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
+  } catch (error) {
+    console.error("获取Office预览URL出错:", error);
+    alert(`预览失败: ${error.message}`);
+    return null;
+  }
 };
 
 /**
@@ -275,18 +326,8 @@ const getPermanentViewUrl = computed(() => {
     return url;
   }
 
-  // 检查是否为Office文件类型
-  const isOfficeFile = checkIsOfficeFile(props.file.mimetype, props.file.filename);
-
-  // 根据文件类型决定使用哪种API端点
-  let url;
-  if (isOfficeFile) {
-    // 对于Office文件使用专门的预览API
-    url = `${baseUrl.value}/api/office-preview/${props.file.slug}`;
-  } else {
-    // 其他文件使用普通预览API
-    url = `${baseUrl.value}/api/file-view/${props.file.slug}`;
-  }
+  // 如果没有urls对象，则回退到前端构建URL
+  let url = `${baseUrl.value}/api/file-view/${props.file.slug}`;
 
   // 如果有密码保护，则添加密码参数
   if (props.file.has_password && filePassword) {
@@ -297,53 +338,32 @@ const getPermanentViewUrl = computed(() => {
 });
 
 /**
- * 检查是否为Office文件类型
- * @param {string} mimetype - 文件的MIME类型
- * @param {string} filename - 文件名
- * @returns {boolean} 是否为Office文件类型
- */
-const checkIsOfficeFile = (mimetype, filename) => {
-  if (!mimetype && !filename) return false;
-
-  // 通过MIME类型判断
-  if (mimetype) {
-    const mime = mimetype.toLowerCase();
-    if (
-        mime.includes("wordprocessing") ||
-        mime.includes("spreadsheet") ||
-        mime.includes("presentation") ||
-        mime === "application/msword" ||
-        mime === "application/vnd.ms-excel" ||
-        mime === "application/vnd.ms-powerpoint" ||
-        mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-        mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-        mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    ) {
-      return true;
-    }
-  }
-
-  // 通过文件扩展名判断
-  if (filename) {
-    const ext = filename.split(".").pop().toLowerCase();
-    return ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"].includes(ext);
-  }
-
-  return false;
-};
-
-/**
  * 预览文件
  * 在新窗口中打开预览链接
  */
-const previewFile = () => {
-  // 使用永久预览链接
+const previewFile = async () => {
   if (!props.file.slug) {
     alert("无法预览：文件没有设置短链接");
     return;
   }
 
   try {
+    // 检查是否为Office文件
+    if (isOfficeFile.value) {
+      console.log("检测到Office文件，使用专用预览", {
+        filename: props.file.filename,
+        mimetype: props.file.mimetype,
+      });
+
+      // 获取Office预览URL
+      const officePreviewUrl = await getOfficePreviewUrl();
+      if (officePreviewUrl) {
+        window.open(officePreviewUrl, "_blank");
+      }
+      return;
+    }
+
+    // 非Office文件使用普通预览方式
     window.open(getPermanentViewUrl.value, "_blank");
   } catch (err) {
     console.error("预览文件失败:", err);
