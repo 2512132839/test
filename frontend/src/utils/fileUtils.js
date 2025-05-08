@@ -20,8 +20,159 @@ export function getFileExtension(filename) {
 export function getMimeType(filename) {
   if (!filename) return "application/octet-stream";
 
-  // 直接调用getMimeTypeFromFilename获取MIME类型
-  return getMimeTypeFromFilename(filename);
+  const ext = getFileExtension(filename);
+
+  const mimeMap = {
+    // 图片
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+    ico: "image/x-icon",
+    bmp: "image/bmp",
+    tiff: "image/tiff",
+    tif: "image/tiff",
+    heic: "image/heic",
+    avif: "image/avif",
+
+    // 文档
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    odt: "application/vnd.oasis.opendocument.text",
+    ods: "application/vnd.oasis.opendocument.spreadsheet",
+    odp: "application/vnd.oasis.opendocument.presentation",
+    rtf: "application/rtf",
+
+    // 文本
+    txt: "text/plain",
+    html: "text/html",
+    htm: "text/html",
+    css: "text/css",
+    csv: "text/csv",
+    js: "text/javascript",
+    jsx: "text/javascript",
+    ts: "text/typescript",
+    tsx: "text/typescript",
+    json: "application/json",
+    xml: "application/xml",
+    md: "text/markdown",
+    markdown: "text/markdown",
+
+    // 配置文件
+    yml: "text/yaml",
+    yaml: "text/yaml",
+    toml: "application/toml",
+    ini: "text/plain",
+    conf: "text/plain",
+    env: "text/plain",
+
+    // 音频
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    flac: "audio/flac",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+
+    // 视频
+    mp4: "video/mp4",
+    webm: "video/webm",
+    avi: "video/x-msvideo",
+    mov: "video/quicktime",
+    wmv: "video/x-ms-wmv",
+    flv: "video/x-flv",
+    mkv: "video/x-matroska",
+    "3gp": "video/3gpp",
+
+    // 压缩
+    zip: "application/zip",
+    rar: "application/vnd.rar",
+    tar: "application/x-tar",
+    gz: "application/gzip",
+    "7z": "application/x-7z-compressed",
+    bz2: "application/x-bzip2",
+    xz: "application/x-xz",
+
+    // 可执行文件
+    exe: "application/x-msdownload",
+    dll: "application/x-msdownload",
+    apk: "application/vnd.android.package-archive",
+    dmg: "application/x-apple-diskimage",
+    deb: "application/vnd.debian.binary-package",
+    rpm: "application/x-rpm",
+    msi: "application/x-msi",
+
+    // 字体
+    ttf: "font/ttf",
+    otf: "font/otf",
+    woff: "font/woff",
+    woff2: "font/woff2",
+    eot: "application/vnd.ms-fontobject",
+
+    // 3D模型
+    obj: "model/obj",
+    stl: "model/stl",
+    gltf: "model/gltf+json",
+    glb: "model/gltf-binary",
+
+    // 设计文件
+    psd: "image/vnd.adobe.photoshop",
+    ai: "application/postscript",
+    xd: "application/vnd.adobe.xd",
+    sketch: "application/octet-stream",
+    fig: "application/octet-stream",
+
+    // 电子书
+    epub: "application/epub+zip",
+    mobi: "application/x-mobipocket-ebook",
+    azw3: "application/vnd.amazon.ebook",
+
+    // 数据库
+    db: "application/x-sqlite3",
+    sqlite: "application/x-sqlite3",
+    sql: "application/sql",
+    mdb: "application/x-msaccess",
+    accdb: "application/x-msaccess",
+
+    // 代码文件
+    go: "text/x-go",
+    rs: "text/x-rust",
+    rb: "text/x-ruby",
+    py: "text/x-python",
+    java: "text/x-java",
+    c: "text/x-c",
+    cpp: "text/x-c++",
+    cs: "text/x-csharp",
+    php: "text/x-php",
+    swift: "text/x-swift",
+    kt: "text/x-kotlin",
+    dart: "text/x-dart",
+    scala: "text/x-scala",
+    clj: "text/x-clojure",
+    lua: "text/x-lua",
+    r: "text/x-r",
+    pl: "text/x-perl",
+    sh: "text/x-sh",
+    bash: "text/x-bash",
+    zsh: "text/x-zsh",
+    fish: "text/x-fish",
+    vue: "text/x-vue",
+
+    // 其他
+    bin: "application/octet-stream",
+    dat: "application/octet-stream",
+    log: "text/plain",
+    iso: "application/x-iso9660-image",
+  };
+
+  return mimeMap[ext] || "application/octet-stream";
 }
 
 /**
@@ -50,174 +201,196 @@ export const MIME_GROUPS = {
 };
 
 /**
- * 统一的扩展名到MIME类型的映射表
- * 整合了多个现有映射表，简化MIME类型判断逻辑
+ * 文件扩展名到文件类型的映射
  * @type {Object}
  */
-export const UNIFIED_MIME_MAP = {
+export const EXTENSION_TO_TYPE_MAP = {
   // 图片
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-  ico: "image/x-icon",
-  bmp: "image/bmp",
-  tiff: "image/tiff",
-  tif: "image/tiff",
-  heic: "image/heic",
-  avif: "image/avif",
+  jpg: "image",
+  jpeg: "image",
+  png: "image",
+  gif: "image",
+  webp: "image",
+  svg: "image",
+  bmp: "image",
+  ico: "image",
+  heic: "image",
+  avif: "image",
 
   // 文档
-  pdf: "application/pdf",
-  doc: "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  xls: "application/vnd.ms-excel",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ppt: "application/vnd.ms-powerpoint",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  odt: "application/vnd.oasis.opendocument.text",
-  ods: "application/vnd.oasis.opendocument.spreadsheet",
-  odp: "application/vnd.oasis.opendocument.presentation",
-  rtf: "application/rtf",
+  doc: "document",
+  docx: "document",
+  rtf: "document",
+  txt: "text",
+  odt: "document", // OpenDocument文本
 
-  // 文本
-  txt: "text/plain",
-  html: "text/html",
-  htm: "text/html",
-  css: "text/css",
-  csv: "text/csv",
-  js: "text/javascript",
-  jsx: "text/javascript",
-  ts: "text/typescript",
-  tsx: "text/typescript",
-  json: "application/json",
-  xml: "application/xml",
-  md: "text/markdown",
-  markdown: "text/markdown",
+  // 表格
+  xls: "spreadsheet",
+  xlsx: "spreadsheet",
+  csv: "spreadsheet",
+  ods: "spreadsheet", // OpenDocument表格
+
+  // 演示文稿
+  ppt: "presentation",
+  pptx: "presentation",
+  odp: "presentation", // OpenDocument演示
+
+  // PDF
+  pdf: "pdf",
+
+  // Markdown
+  md: "markdown",
+  markdown: "markdown",
+
+  // 压缩文件
+  zip: "archive",
+  rar: "archive",
+  "7z": "archive",
+  tar: "archive",
+  gz: "archive",
+  bz2: "archive",
+  xz: "archive",
 
   // 配置文件
-  yml: "text/yaml",
-  yaml: "text/yaml",
-  toml: "application/toml",
-  ini: "text/plain",
-  conf: "text/plain",
-  env: "text/plain",
-  properties: "text/plain",
-  cfg: "text/plain",
-  config: "text/plain",
-  rc: "text/plain",
-  cnf: "text/plain",
-  settings: "text/plain",
-  jsonc: "application/json",
-  json5: "application/json",
-  eslintrc: "text/plain",
-  prettierrc: "text/plain",
-  babelrc: "text/plain",
-  stylelintrc: "text/plain",
-  lock: "text/plain",
-  manifest: "text/plain",
-  plist: "text/plain",
-
-  // 音频
-  mp3: "audio/mpeg",
-  wav: "audio/wav",
-  ogg: "audio/ogg",
-  flac: "audio/flac",
-  m4a: "audio/mp4",
-  aac: "audio/aac",
-
-  // 视频
-  mp4: "video/mp4",
-  webm: "video/webm",
-  avi: "video/x-msvideo",
-  mov: "video/quicktime",
-  wmv: "video/x-ms-wmv",
-  flv: "video/x-flv",
-  mkv: "video/x-matroska",
-  "3gp": "video/3gpp",
-
-  // 压缩
-  zip: "application/zip",
-  rar: "application/vnd.rar",
-  tar: "application/x-tar",
-  gz: "application/gzip",
-  "7z": "application/x-7z-compressed",
-  bz2: "application/x-bzip2",
-  xz: "application/x-xz",
-
-  // 可执行文件
-  exe: "application/x-msdownload",
-  dll: "application/x-msdownload",
-  apk: "application/vnd.android.package-archive",
-  dmg: "application/x-apple-diskimage",
-  deb: "application/vnd.debian.binary-package",
-  rpm: "application/x-rpm",
-  msi: "application/x-msi",
-
-  // 字体
-  ttf: "font/ttf",
-  otf: "font/otf",
-  woff: "font/woff",
-  woff2: "font/woff2",
-  eot: "application/vnd.ms-fontobject",
-
-  // 3D模型
-  obj: "model/obj",
-  stl: "model/stl",
-  gltf: "model/gltf+json",
-  glb: "model/gltf-binary",
-
-  // 设计文件
-  psd: "image/vnd.adobe.photoshop",
-  ai: "application/postscript",
-  xd: "application/vnd.adobe.xd",
-  sketch: "application/octet-stream",
-  fig: "application/octet-stream",
-
-  // 电子书
-  epub: "application/epub+zip",
-  mobi: "application/x-mobipocket-ebook",
-  azw3: "application/vnd.amazon.ebook",
-
-  // 数据库
-  db: "application/x-sqlite3",
-  sqlite: "application/x-sqlite3",
-  sql: "application/sql",
-  mdb: "application/x-msaccess",
-  accdb: "application/x-msaccess",
+  yml: "config",
+  yaml: "config",
+  toml: "config",
+  ini: "config",
+  conf: "config",
+  env: "config",
+  json: "config",
+  xml: "config",
 
   // 代码文件
-  go: "text/x-go",
-  rs: "text/x-rust",
-  rb: "text/x-ruby",
-  py: "text/x-python",
-  java: "text/x-java",
-  c: "text/x-c",
-  cpp: "text/x-c++",
-  cs: "text/x-csharp",
-  php: "text/x-php",
-  swift: "text/x-swift",
-  kt: "text/x-kotlin",
-  dart: "text/x-dart",
-  scala: "text/x-scala",
-  clj: "text/x-clojure",
-  lua: "text/x-lua",
-  r: "text/x-r",
-  pl: "text/x-perl",
-  sh: "text/x-sh",
-  bash: "text/x-bash",
-  zsh: "text/x-zsh",
-  fish: "text/x-fish",
-  vue: "text/x-vue",
+  html: "code",
+  css: "code",
+  js: "code",
+  jsx: "code",
+  ts: "code",
+  tsx: "code",
+  go: "code",
+  rs: "code", // Rust
+  rb: "code", // Ruby
+  py: "code", // Python
+  java: "code",
+  c: "code",
+  cpp: "code", // C++
+  cs: "code", // C#
+  php: "code",
+  swift: "code",
+  kt: "code", // Kotlin
+  dart: "code",
+  scala: "code",
+  clj: "code", // Clojure
+  lua: "code",
+  r: "code", // R语言
+  pl: "code", // Perl
+  sh: "code", // Shell
+  bash: "code",
+  zsh: "code",
+  fish: "code",
+  vue: "code", // Vue
+
+  // 音频
+  mp3: "audio",
+  wav: "audio",
+  ogg: "audio",
+  flac: "audio",
+  aac: "audio",
+  m4a: "audio",
+
+  // 视频
+  mp4: "video",
+  webm: "video",
+  avi: "video",
+  mov: "video",
+  wmv: "video",
+  mkv: "video",
+  flv: "video",
+  m4v: "video",
+  "3gp": "video",
+
+  // 数据库
+  db: "database",
+  sqlite: "database",
+  sql: "database",
+  mdb: "database", // Microsoft Access
+  accdb: "database", // Microsoft Access
+
+  // 字体
+  ttf: "font",
+  woff: "font",
+  woff2: "font",
+  eot: "font",
+  otf: "font",
+
+  // 可执行文件
+  exe: "executable",
+  msi: "executable",
+  apk: "executable",
+  dmg: "executable", // macOS安装镜像
+  deb: "executable", // Debian软件包
+  rpm: "executable", // RedHat软件包
+
+  // 设计文件
+  psd: "design",
+  ai: "design",
+  xd: "design", // Adobe XD
+  sketch: "design", // Sketch
+  fig: "design", // Figma
+
+  // 电子书
+  epub: "ebook",
+  mobi: "ebook",
+  azw3: "ebook", // Kindle
 
   // 其他
-  bin: "application/octet-stream",
-  dat: "application/octet-stream",
-  log: "text/plain",
-  iso: "application/x-iso9660-image",
+  log: "text", // 日志文件
 };
+
+/**
+ * 文件类型到MIME类型的映射
+ * @type {Object}
+ */
+export const FILE_TYPE_TO_MIME_TYPE_MAP = {
+  image: "image/jpeg",
+  document: "application/msword",
+  pdf: "application/pdf",
+  text: "text/plain",
+  code: "text/plain",
+  archive: "application/zip",
+  audio: "audio/mpeg",
+  video: "video/mp4",
+  spreadsheet: "application/vnd.ms-excel",
+  presentation: "application/vnd.ms-powerpoint",
+  markdown: "text/markdown",
+  config: "application/json",
+  executable: "application/octet-stream",
+  database: "application/x-sqlite3",
+  font: "font/ttf",
+  design: "image/vnd.adobe.photoshop",
+  ebook: "application/epub+zip",
+};
+
+/**
+ * 从文件扩展名推断文件类型
+ * @param {string} extension - 文件扩展名
+ * @returns {string|null} 文件类型或null（未知类型）
+ */
+export function getFileTypeFromExtension(extension) {
+  if (!extension) return null;
+  const ext = extension.toLowerCase();
+  return EXTENSION_TO_TYPE_MAP[ext] || null;
+}
+
+/**
+ * 将文件类型转换为MIME类型
+ * @param {string} fileType - 文件类型（如"image", "document", "pdf"等）
+ * @returns {string|null} MIME类型或null
+ */
+export function fileTypeToMimeType(fileType) {
+  return FILE_TYPE_TO_MIME_TYPE_MAP[fileType] || null;
+}
 
 /**
  * 从文件名推断MIME类型
@@ -225,14 +398,25 @@ export const UNIFIED_MIME_MAP = {
  * @returns {string} 推断的MIME类型
  */
 export function getMimeTypeFromFilename(filename) {
-  // 获取文件扩展名（小写）
   const ext = getFileExtension(filename);
 
-  // 使用统一的MIME类型映射表
-  const mimeType = UNIFIED_MIME_MAP[ext] || "application/octet-stream";
+  // 直接处理特殊扩展名情况，确保返回正确的MIME类型
+  const specialExtensions = {
+    toml: "application/toml",
+    yml: "text/yaml",
+    yaml: "text/yaml",
+    html: "text/html",
+    htm: "text/html",
+  };
 
+  // 如果是特殊扩展名，直接返回对应的MIME类型
+  if (specialExtensions[ext]) {
+    return specialExtensions[ext];
+  }
 
-
+  // 其他情况按原流程处理
+  const fileType = getFileTypeFromExtension(ext);
+  const mimeType = fileType ? fileTypeToMimeType(fileType) || getMimeType(filename) : getMimeType(filename);
   return mimeType;
 }
 
@@ -419,6 +603,71 @@ export function shouldUseTextPlainForPreview(contentType, filename) {
 }
 
 /**
+ * 获取文件的正确MIME类型和分组信息
+ * @param {Object} fileInfo - 文件信息对象
+ * @param {string} fileInfo.filename - 文件名
+ * @param {string} fileInfo.mimetype - MIME类型（可选，如果未提供或为通用类型，会尝试从文件名推断）
+ * @returns {Object} 包含正确MIME类型和分组的对象
+ */
+export function getMimeTypeAndGroupFromFile(fileInfo) {
+  const { filename, mimetype: originalMimeType = "application/octet-stream" } = fileInfo;
+
+  // 记录原始MIME类型
+  let resultMimeType = originalMimeType;
+
+  // 检查是否为通用MIME类型或未指定 (application/octet-stream 或 text/plain)
+  const isGenericMimeType = originalMimeType === "application/octet-stream" || originalMimeType === "text/plain";
+
+  // 如果是通用MIME类型，尝试从文件名推断
+  if (isGenericMimeType && filename) {
+    const inferredMimeType = getMimeType(filename);
+
+    // 仅当推断的MIME类型不是通用类型时才使用推断的类型
+    if (inferredMimeType !== "application/octet-stream") {
+      resultMimeType = inferredMimeType;
+    }
+  }
+
+  // 获取MIME分组
+  const mimeGroup = getMimeTypeGroup(resultMimeType);
+
+  // 如果分组仍是UNKNOWN或EXECUTABLE，且是通用MIME类型，再次检查文件扩展名
+  if ((mimeGroup === MIME_GROUPS.UNKNOWN || mimeGroup === MIME_GROUPS.EXECUTABLE) && filename) {
+    const ext = getFileExtension(filename);
+
+    // 处理特殊类型的配置文件
+    const configMimeTypes = {
+      yml: "text/yaml",
+      yaml: "text/yaml",
+      xml: "application/xml",
+      json: "application/json",
+      toml: "application/toml",
+      ini: "text/plain",
+      conf: "text/plain",
+      env: "text/plain",
+    };
+
+    if (configMimeTypes[ext]) {
+      resultMimeType = configMimeTypes[ext];
+      // 重新获取MIME分组
+      const updatedMimeGroup = getMimeTypeGroup(resultMimeType);
+
+      return {
+        mimeType: resultMimeType,
+        mimeGroup: updatedMimeGroup,
+        wasRefined: resultMimeType !== originalMimeType,
+      };
+    }
+  }
+
+  return {
+    mimeType: resultMimeType,
+    mimeGroup,
+    wasRefined: resultMimeType !== originalMimeType,
+  };
+}
+
+/**
  * 获取文件的内容类型和内容处置信息
  * @param {Object} options - 配置选项
  * @param {string} options.filename - 文件名
@@ -461,12 +710,15 @@ export function getContentTypeAndDisposition(options) {
     if (isHtmlFile) {
       // HTML文件特殊处理，确保使用text/html
       contentType = "text/html; charset=UTF-8";
+      console.log(`getContentTypeAndDisposition: HTML文件[${filename}]使用内容类型[${contentType}]`);
     } else if (shouldUseTextPlain) {
       // 对于应该使用text/plain预览的文件
       contentType = "text/plain; charset=UTF-8";
+      console.log(`getContentTypeAndDisposition: 文件[${filename}]使用text/plain预览`);
     } else if (isTextBased) {
       // 文本类型添加charset=UTF-8
       contentType = `${mimetype}; charset=UTF-8`;
+      console.log(`getContentTypeAndDisposition: 文本文件[${filename}]添加charset`);
     } else {
       // 其他类型保持原始Content-Type
       contentType = mimetype;
@@ -476,61 +728,5 @@ export function getContentTypeAndDisposition(options) {
   return {
     contentType,
     contentDisposition,
-  };
-}
-
-/**
- * 获取文件的正确MIME类型和分组信息
- * @param {Object} fileInfo - 文件信息对象
- * @param {string} fileInfo.filename - 文件名
- * @param {string} fileInfo.mimetype - MIME类型（可选，如果未提供或为通用类型，会尝试从文件名推断）
- * @returns {Object} 包含正确MIME类型和分组的对象
- */
-export function getMimeTypeAndGroupFromFile(fileInfo) {
-  const { filename, mimetype: originalMimeType = "application/octet-stream" } = fileInfo;
-
-  // 记录原始MIME类型
-  let resultMimeType = originalMimeType;
-
-  // 检查是否为通用MIME类型或未指定 (application/octet-stream 或 text/plain)
-  const isGenericMimeType = originalMimeType === "application/octet-stream" || originalMimeType === "text/plain";
-
-  // 如果是通用MIME类型，尝试从文件名推断
-  if (isGenericMimeType && filename) {
-    // 直接使用getMimeTypeFromFilename获取MIME类型
-    const inferredMimeType = getMimeTypeFromFilename(filename);
-
-    // 仅当推断的MIME类型不是通用类型时才使用推断的类型
-    if (inferredMimeType !== "application/octet-stream") {
-      resultMimeType = inferredMimeType;
-    }
-  }
-
-  // 获取MIME分组
-  const mimeGroup = getMimeTypeGroup(resultMimeType);
-
-  // 如果分组仍是UNKNOWN或EXECUTABLE，且有文件名，再次检查文件扩展名
-  if ((mimeGroup === MIME_GROUPS.UNKNOWN || mimeGroup === MIME_GROUPS.EXECUTABLE) && filename) {
-    const ext = getFileExtension(filename);
-
-    // 直接从UNIFIED_MIME_MAP获取MIME类型
-    if (UNIFIED_MIME_MAP[ext]) {
-      resultMimeType = UNIFIED_MIME_MAP[ext];
-
-      // 重新获取MIME分组
-      const updatedMimeGroup = getMimeTypeGroup(resultMimeType);
-
-      return {
-        mimeType: resultMimeType,
-        mimeGroup: updatedMimeGroup,
-        wasRefined: resultMimeType !== originalMimeType,
-      };
-    }
-  }
-
-  return {
-    mimeType: resultMimeType,
-    mimeGroup,
-    wasRefined: resultMimeType !== originalMimeType,
   };
 }
