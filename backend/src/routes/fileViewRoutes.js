@@ -372,7 +372,7 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
       }
 
-      // HTML文件特殊处理 - 单独处理以确保不受其他条件影响
+      // HTML文件特殊处理 - 完全独立，不依赖于其他条件
       if (isHtml && !forceDownload) {
         // 设置正确的Content-Type，确保包含charset
         headers.set("Content-Type", `text/html; charset=UTF-8`);
@@ -383,8 +383,8 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
       }
-      // 基于MIME类型设置正确的Content-Type和charset
-      else if ((isTextBased || isConfig || shouldUseTextPlain) && !forceDownload) {
+      // 基于MIME类型设置正确的Content-Type和charset，明确排除HTML
+      else if ((isTextBased || isConfig || shouldUseTextPlain) && !isHtml && !forceDownload) {
         // 对于应该使用text/plain预览的文件进行特殊处理
         if (shouldUseTextPlain) {
           headers.set("Content-Type", `text/plain; charset=UTF-8`);
