@@ -116,9 +116,9 @@
             </div>
 
             <button
-              @click="$emit('close')"
-              class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+                @click="$emit('close')"
+                class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
             >
               关闭
             </button>
@@ -275,8 +275,18 @@ const getPermanentViewUrl = computed(() => {
     return url;
   }
 
-  // 如果没有urls对象，则回退到前端构建URL
-  let url = `${baseUrl.value}/api/file-view/${props.file.slug}`;
+  // 检查是否为Office文件类型
+  const isOfficeFile = checkIsOfficeFile(props.file.mimetype, props.file.filename);
+
+  // 根据文件类型决定使用哪种API端点
+  let url;
+  if (isOfficeFile) {
+    // 对于Office文件使用专门的预览API
+    url = `${baseUrl.value}/api/office-preview/${props.file.slug}`;
+  } else {
+    // 其他文件使用普通预览API
+    url = `${baseUrl.value}/api/file-view/${props.file.slug}`;
+  }
 
   // 如果有密码保护，则添加密码参数
   if (props.file.has_password && filePassword) {
@@ -285,6 +295,42 @@ const getPermanentViewUrl = computed(() => {
 
   return url;
 });
+
+/**
+ * 检查是否为Office文件类型
+ * @param {string} mimetype - 文件的MIME类型
+ * @param {string} filename - 文件名
+ * @returns {boolean} 是否为Office文件类型
+ */
+const checkIsOfficeFile = (mimetype, filename) => {
+  if (!mimetype && !filename) return false;
+
+  // 通过MIME类型判断
+  if (mimetype) {
+    const mime = mimetype.toLowerCase();
+    if (
+        mime.includes("wordprocessing") ||
+        mime.includes("spreadsheet") ||
+        mime.includes("presentation") ||
+        mime === "application/msword" ||
+        mime === "application/vnd.ms-excel" ||
+        mime === "application/vnd.ms-powerpoint" ||
+        mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    ) {
+      return true;
+    }
+  }
+
+  // 通过文件扩展名判断
+  if (filename) {
+    const ext = filename.split(".").pop().toLowerCase();
+    return ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"].includes(ext);
+  }
+
+  return false;
+};
 
 /**
  * 预览文件

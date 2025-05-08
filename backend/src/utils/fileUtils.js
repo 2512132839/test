@@ -51,7 +51,6 @@ export const MIME_GROUPS = {
 
 /**
  * 统一的扩展名到MIME类型的映射表
- * 整合了多个现有映射表，简化MIME类型判断逻辑
  * @type {Object}
  */
 export const UNIFIED_MIME_MAP = {
