@@ -224,9 +224,16 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
     // 判断MIME类型分组
     const mimeGroup = getMimeTypeGroup(effectiveMimetype);
 
+    // 检查是否为HTML文件
+    const isHtmlFile = fileName.toLowerCase().endsWith(".html") || fileName.toLowerCase().endsWith(".htm") || effectiveMimetype === "text/html";
+
     // 对于应该使用text/plain预览的文件进行特殊处理
-    if (shouldUseTextPlain && !forceDownload) {
+    if (shouldUseTextPlain && !forceDownload && !isHtmlFile) {
       commandParams.ResponseContentType = `text/plain; charset=UTF-8`;
+    } else if (isHtmlFile && !forceDownload) {
+      // HTML文件特殊处理，确保使用text/html MIME类型
+      commandParams.ResponseContentType = `text/html; charset=UTF-8`;
+      commandParams.ResponseContentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
     } else {
       // 其他文件类型正常处理
       // 设置Content-Type，对所有文本类内容都添加charset=UTF-8

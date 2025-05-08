@@ -22,19 +22,19 @@ import {
  */
 async function getFileBySlug(db, slug, includePassword = true) {
   const fields = includePassword
-      ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
-      : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
+    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
+    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
 
   return await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT ${fields}
       FROM ${DbTables.FILES} f
       WHERE f.slug = ?
     `
-      )
-      .bind(slug)
-      .first();
+    )
+    .bind(slug)
+    .first();
 }
 
 /**
@@ -132,8 +132,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取更新后的文件信息
   const updatedFile = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
         f.remark, f.password, f.max_views, f.views, f.created_by,
@@ -141,9 +141,9 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
       FROM ${DbTables.FILES} f
       WHERE f.id = ?
     `
-      )
-      .bind(file.id)
-      .first();
+    )
+    .bind(file.id)
+    .first();
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -173,21 +173,21 @@ function isOfficeFile(mimetype, filename) {
   const name = (filename || "").toLowerCase();
 
   return (
-      mime.includes("wordprocessing") ||
-      mime.includes("spreadsheet") ||
-      mime.includes("presentation") ||
-      mime === "application/msword" ||
-      mime === "application/vnd.ms-excel" ||
-      mime === "application/vnd.ms-powerpoint" ||
-      name.endsWith(".doc") ||
-      name.endsWith(".docx") ||
-      name.endsWith(".xls") ||
-      name.endsWith(".xlsx") ||
-      name.endsWith(".ppt") ||
-      name.endsWith(".pptx") ||
-      name.endsWith(".odt") ||
-      name.endsWith(".ods") ||
-      name.endsWith(".odp")
+    mime.includes("wordprocessing") ||
+    mime.includes("spreadsheet") ||
+    mime.includes("presentation") ||
+    mime === "application/msword" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.ms-powerpoint" ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx") ||
+    name.endsWith(".xls") ||
+    name.endsWith(".xlsx") ||
+    name.endsWith(".ppt") ||
+    name.endsWith(".pptx") ||
+    name.endsWith(".odt") ||
+    name.endsWith(".ods") ||
+    name.endsWith(".odp")
   );
 }
 
@@ -372,19 +372,8 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
       }
 
-      // HTML文件特殊处理 - 完全独立，不依赖于其他条件
-      if (isHtml && !forceDownload) {
-        // 设置正确的Content-Type，确保包含charset
-        headers.set("Content-Type", `text/html; charset=UTF-8`);
-        // 确保使用inline展示
-        headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
-        // 添加安全头部
-        headers.set("X-XSS-Protection", "1; mode=block");
-        headers.set("X-Content-Type-Options", "nosniff");
-        headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
-      }
-      // 基于MIME类型设置正确的Content-Type和charset，明确排除HTML
-      else if ((isTextBased || isConfig || shouldUseTextPlain) && !isHtml && !forceDownload) {
+      // 基于MIME类型设置正确的Content-Type和charset
+      if ((isTextBased || isConfig || shouldUseTextPlain) && !forceDownload) {
         // 对于应该使用text/plain预览的文件进行特殊处理
         if (shouldUseTextPlain) {
           headers.set("Content-Type", `text/plain; charset=UTF-8`);
@@ -396,6 +385,13 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         // 对Markdown和配置文件特别处理，确保inline预览
         if (isMarkdown || isConfig || shouldUseTextPlain) {
           headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(filename)}"`);
+        }
+
+        // 对HTML文件添加安全头部
+        if (isHtml) {
+          headers.set("X-XSS-Protection", "1; mode=block");
+          headers.set("X-Content-Type-Options", "nosniff");
+          headers.set("Content-Security-Policy", "default-src 'self'; img-src * data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';");
         }
       } else if (isPdf && !forceDownload) {
         // PDF文件特别处理，确保内联预览

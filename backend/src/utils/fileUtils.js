@@ -405,6 +405,8 @@ export function getMimeTypeFromFilename(filename) {
     toml: "application/toml",
     yml: "text/yaml",
     yaml: "text/yaml",
+    html: "text/html",
+    htm: "text/html",
   };
 
   // 如果是特殊扩展名，直接返回对应的MIME类型
@@ -414,7 +416,8 @@ export function getMimeTypeFromFilename(filename) {
 
   // 其他情况按原流程处理
   const fileType = getFileTypeFromExtension(ext);
-  return fileType ? fileTypeToMimeType(fileType) || getMimeType(filename) : getMimeType(filename);
+  const mimeType = fileType ? fileTypeToMimeType(fileType) || getMimeType(filename) : getMimeType(filename);
+  return mimeType;
 }
 
 /**
