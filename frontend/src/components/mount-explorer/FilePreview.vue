@@ -4,7 +4,7 @@
     <div class="file-preview mb-6 p-4 rounded-lg" :class="darkMode ? 'bg-gray-800/50' : 'bg-white'">
       <!-- 操作按钮 -->
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ file.name }}</h3>
+        <h3 class="text-lg font-medium flex-1 min-w-0 truncate mr-2" :class="darkMode ? 'text-gray-200' : 'text-gray-700'" :title="file.name">{{ file.name }}</h3>
         <div class="flex space-x-2">
           <button
             @click="handleDownload"

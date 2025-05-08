@@ -25,6 +25,43 @@ const userPermissions = ref({
 // 用于区分登录类型
 const loginType = ref("none"); // 'none', 'admin', 'apikey'
 
+
+// 基于缓存状态初始化登录状态
+const initialLoginStatus = () => {
+  const adminToken = localStorage.getItem("admin_token");
+  const apiKey = localStorage.getItem("api_key");
+  const cachedApiPermissionsData = localStorage.getItem("api_key_permissions");
+
+  if (adminToken && adminToken.length >= 10) {
+    isLoggedIn.value = true;
+    loginType.value = "admin";
+    userPermissions.value = { isAdmin: true, text: true, file: true, mount: true };
+    console.log("Optimistically set to admin login.");
+    return;
+  }
+
+  if (apiKey && apiKey.length > 0) {
+    isLoggedIn.value = true;
+    loginType.value = "apikey";
+    const parsedPermissions = parsePermissions(cachedApiPermissionsData);
+    if (parsedPermissions) {
+      userPermissions.value = {
+        isAdmin: false,
+        text: parsedPermissions.text || false,
+        file: parsedPermissions.file || false,
+        mount: parsedPermissions.mount || false,
+      };
+      console.log("Optimistically set to API key login with cached permissions.");
+    } else {
+      console.log("Optimistically set to API key login, permissions will be fetched/validated.");
+      userPermissions.value = { isAdmin: false, text: false, file: false, mount: false };
+    }
+    return;
+  }
+}
+
+initialLoginStatus();
+
 // 在组件加载时检查是否已登录
 onMounted(() => {
   checkLoginStatus();
@@ -40,6 +77,18 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("admin-token-expired", handleLogout);
 });
+
+// Helper to parse permissions safely
+const parsePermissions = (cachedData) => {
+  if (!cachedData) return null;
+  try {
+    return JSON.parse(cachedData);
+  } catch (e) {
+    console.error("Failed to parse cached permissions:", e);
+    return null;
+  }
+};
+
 
 // 验证管理员令牌有效性
 const validateAdminToken = async (token) => {
@@ -290,6 +339,7 @@ const handleLogout = () => {
   <div class="h-full flex flex-col">
     <!-- 根据登录状态显示登录页面或管理面板 -->
     <AdminLogin v-if="!isLoggedIn" :darkMode="darkMode" @login-success="handleLoginSuccess" class="flex-1" />
-    <AdminPanel v-else :darkMode="darkMode" :loginType="loginType" :permissions="userPermissions" @logout="handleLogout" class="flex-1" />
+    <AdminPanel v-else :darkMode="darkMode" :loginType="loginType" :permissions="userPermissions" @logout="handleLogout"
+      class="flex-1" />
   </div>
 </template>

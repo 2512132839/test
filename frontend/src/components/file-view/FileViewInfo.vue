@@ -1,5 +1,5 @@
 <template>
-  <div class="file-info-container">
+  <div class="file-info-container flex flex-col min-h-0 flex-grow">
     <!-- 文件头部信息 -->
     <div class="file-header mb-6">
       <div class="flex items-center gap-3">
@@ -26,20 +26,20 @@
     </div>
 
     <!-- 文件备注 -->
-    <div v-if="fileInfo.remark" class="file-remark mb-6 px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700">
-      <p class="text-blue-600 dark:text-blue-400">{{ fileInfo.remark }}</p>
+    <div v-if="fileInfo.remark" class="file-remark mb-6 px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-auto max-h-[300px]">
+      <p class="text-blue-600 dark:text-blue-400 break-words whitespace-pre-wrap">{{ fileInfo.remark }}</p>
     </div>
 
     <!-- 文件预览区域 -->
-    <div v-if="fileUrls.previewUrl" class="file-preview mb-6">
+    <div v-if="fileUrls.previewUrl" class="file-preview mb-6 flex-grow flex flex-col">
       <!-- 图片预览 -->
-      <div v-if="isImage" class="image-preview rounded-lg overflow-hidden mb-2">
-        <img :src="processedPreviewUrl" :alt="fileInfo.filename" class="max-w-full h-auto mx-auto" />
+      <div v-if="isImage" class="image-preview rounded-lg overflow-hidden mb-2 flex justify-center">
+        <img :src="processedPreviewUrl" :alt="fileInfo.filename" class="max-w-full max-h-[calc(100vh-350px)] h-auto object-contain" />
       </div>
 
       <!-- 视频预览 -->
-      <div v-else-if="isVideo" class="video-preview rounded-lg overflow-hidden mb-2">
-        <video controls class="max-w-full mx-auto">
+      <div v-else-if="isVideo" class="video-preview rounded-lg overflow-hidden mb-2 flex justify-center">
+        <video controls class="max-w-full max-h-[calc(100vh-350px)]">
           <source :src="processedPreviewUrl" :type="fileInfo.mimetype" />
           您的浏览器不支持视频标签
         </video>
@@ -54,33 +54,36 @@
       </div>
 
       <!-- PDF预览 -->
-      <div v-else-if="isPdf" class="pdf-preview rounded-lg overflow-hidden mb-2 h-[500px]">
-        <iframe :src="processedPreviewUrl" frameborder="0" class="w-full h-full"></iframe>
+      <div v-else-if="isPdf" class="pdf-preview rounded-lg overflow-hidden mb-2 flex-grow">
+        <iframe :src="processedPreviewUrl" frameborder="0" class="w-full h-[calc(100vh-350px)] min-h-[300px]"></iframe>
       </div>
 
       <!-- 文本文件预览 -->
-      <div v-else-if="isText" class="text-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+      <div v-else-if="isText" class="text-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col">
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">文本文件预览</span>
         </div>
-        <div class="p-4 max-h-[500px] overflow-auto">
+        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
           <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
         </div>
       </div>
 
       <!-- Markdown预览 -->
-      <div v-else-if="isMarkdown" class="markdown-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+      <div
+        v-else-if="isMarkdown"
+        class="markdown-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col"
+      >
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Markdown预览</span>
         </div>
-        <div class="p-4 max-h-[500px] overflow-auto">
-          <iframe v-if="processedPreviewUrl" :src="processedPreviewUrl" frameborder="0" class="w-full h-[450px]"></iframe>
+        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
+          <iframe v-if="processedPreviewUrl" :src="processedPreviewUrl" frameborder="0" class="w-full h-full"></iframe>
           <pre v-else class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
         </div>
       </div>
 
       <!-- HTML预览 -->
-      <div v-else-if="isHtml" class="html-preview rounded-lg overflow-hidden mb-2">
+      <div v-else-if="isHtml" class="html-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col">
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">HTML预览</span>
           <div>
@@ -92,38 +95,41 @@
             </button>
           </div>
         </div>
-        <div v-if="showHtmlIframe" class="html-iframe h-[500px]">
+        <div v-if="showHtmlIframe" class="html-iframe flex-grow" style="height: calc(100vh - 350px); min-height: 300px">
           <iframe :src="processedPreviewUrl" sandbox="allow-same-origin allow-scripts" frameborder="0" class="w-full h-full"></iframe>
         </div>
-        <div v-else class="p-4 max-h-[500px] overflow-auto">
+        <div v-else class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
           <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
         </div>
       </div>
 
       <!-- 代码文件预览 -->
-      <div v-else-if="isCode" class="code-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+      <div v-else-if="isCode" class="code-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col">
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">代码预览</span>
           <span class="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{{ getCodeLanguage }}</span>
         </div>
-        <div class="p-4 max-h-[500px] overflow-auto">
+        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
           <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
         </div>
       </div>
 
       <!-- 配置文件预览 -->
-      <div v-else-if="isConfig" class="config-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+      <div
+        v-else-if="isConfig"
+        class="config-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col"
+      >
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">配置文件预览</span>
           <span class="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{{ getConfigLanguage }}</span>
         </div>
-        <div class="p-4 max-h-[500px] overflow-auto">
+        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
           <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
         </div>
       </div>
 
       <!-- Office文档预览 -->
-      <div v-else-if="isOfficeFile" class="office-preview rounded-lg overflow-hidden mb-2">
+      <div v-else-if="isOfficeFile" class="office-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col">
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
             {{ isOfficeDocument ? "Word文档预览" : isSpreadsheet ? "Excel表格预览" : "PowerPoint演示文稿预览" }}
@@ -137,7 +143,7 @@
             </button>
           </div>
         </div>
-        <div class="office-iframe h-[600px] bg-white relative">
+        <div class="office-iframe flex-grow relative" style="height: calc(100vh - 400px); min-height: 300px; background-color: white">
           <iframe
             v-if="currentOfficePreviewUrl"
             :src="currentOfficePreviewUrl"

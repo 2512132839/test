@@ -175,7 +175,5 @@ export function getFileNameAndExt(filename) {
  * @returns {string} 安全的文件名
  */
 export function getSafeFileName(fileName) {
-  return fileName
-    .replace(/[^\w\u4e00-\u9fa5\-\.]/g, "_") // 仅保留字母、数字、中文、下划线、连字符和点
-    .replace(/_{2,}/g, "_"); // 将多个连续下划线替换为单个
+  return fileName.replace(/[^\w\u4e00-\u9fa5\-\. ,!()'"?;:@&+]/g, "_"); // 扩展允许的字符集，包含常用标点符号
 }

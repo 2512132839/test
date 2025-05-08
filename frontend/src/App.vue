@@ -606,7 +606,7 @@ updateTheme();
         class="transition-opacity duration-300 flex-1 flex flex-col"
         :class="{ 'opacity-0': transitioning, dark: isDarkMode }"
       >
-        <FileView :slug="fileSlug" :dark-mode="isDarkMode" />
+        <FileView :slug="fileSlug" :darkMode="isDarkMode" />
       </div>
       <div v-else-if="activePage === 'mount-explorer'" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning }">
         <MountExplorer :dark-mode="isDarkMode" />
@@ -621,8 +621,8 @@ updateTheme();
       </div>
     </footer>
 
-    <!-- 添加环境切换器组件 (在开发环境或管理员登录状态下显示)
-    <EnvSwitcher v-if="showEnvSwitcher" /> -->
+    <!-- 添加环境切换器组件 (在开发环境或管理员登录状态下显示) -->
+    <EnvSwitcher v-if="showEnvSwitcher" />
   </div>
 </template>
 
