@@ -7,6 +7,42 @@ import { createS3Client } from "../../utils/s3Utils.js";
 import { S3Client, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 
 /**
+ * 转义XML特殊字符，确保生成有效的XML
+ * @param {string} text - 需要转义的文本
+ * @returns {string} 转义后的文本
+ */
+function escapeXmlChars(text) {
+  if (typeof text !== "string") return "";
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
+/**
+ * 对URI路径进行编码，确保WebDAV客户端能正确解析
+ * 这个函数特别处理了WebDAV客户端可能不兼容的字符
+ * @param {string} path - 需要编码的URI路径
+ * @returns {string} 编码后的URI路径
+ */
+function encodeUriPath(path) {
+  if (typeof path !== "string") return "";
+
+  // 将路径分割成段，单独编码每一段，然后重新组合
+  // 这样可以保留路径分隔符"/"
+  return path
+      .split("/")
+      .map((segment) => {
+        // 对每个段进行URL编码，但保留某些合法的URI字符
+        return encodeURIComponent(segment)
+            .replace(/%20/g, "%20") // 保留空格的编码
+            .replace(/'/g, "%27") // 单引号编码
+            .replace(/\(/g, "%28") // 左括号编码
+            .replace(/\)/g, "%29") // 右括号编码
+            .replace(/\*/g, "%2A") // 星号编码
+            .replace(/%2F/g, "/"); // 恢复被错误编码的斜杠
+      })
+      .join("/");
+}
+
+/**
  * 从挂载路径列表中获取指定路径下的目录结构
  * @param {Array} mounts - 挂载点列表
  * @param {string} currentPath - 当前路径，以/开头且以/结尾
@@ -193,15 +229,21 @@ async function respondWithMounts(c, userId, userType, db, path = "/") {
   const pathParts = path.split("/").filter(Boolean);
   const displayName = path === "/" ? "/" : pathParts.length > 0 ? pathParts[pathParts.length - 1] : "/";
 
+  // 转义显示名称中的XML特殊字符
+  const escapedDisplayName = escapeXmlChars(displayName);
+
+  // 编码路径
+  const encodedPath = encodeUriPath(path);
+
   // 构建XML响应
-  let xmlBody = `<?xml version="1.0" encoding="utf-8"?>
+  let xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
   <D:multistatus xmlns:D="DAV:">
     <D:response>
-      <D:href>/dav${path}</D:href>
+      <D:href>/dav${encodedPath}</D:href>
       <D:propstat>
         <D:prop>
           <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>${displayName}</D:displayname>
+          <D:displayname>${escapedDisplayName}</D:displayname>
           <D:getlastmodified>${new Date().toUTCString()}</D:getlastmodified>
         </D:prop>
         <D:status>HTTP/1.1 200 OK</D:status>
@@ -210,15 +252,20 @@ async function respondWithMounts(c, userId, userType, db, path = "/") {
 
   // 添加子目录
   for (const dir of structure.directories) {
+    // 转义目录名中的XML特殊字符
+    const escapedDirName = escapeXmlChars(dir);
+
+    // 构建并编码目录路径
     const dirPath = path + dir + "/";
-    const encodedPath = encodeURI(dirPath);
+    const encodedDirPath = encodeUriPath(dirPath);
+
     xmlBody += `
     <D:response>
-      <D:href>/dav${encodedPath}</D:href>
+      <D:href>/dav${encodedDirPath}</D:href>
       <D:propstat>
         <D:prop>
           <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>${dir}</D:displayname>
+          <D:displayname>${escapedDirName}</D:displayname>
           <D:getlastmodified>${new Date().toUTCString()}</D:getlastmodified>
         </D:prop>
         <D:status>HTTP/1.1 200 OK</D:status>
@@ -230,8 +277,14 @@ async function respondWithMounts(c, userId, userType, db, path = "/") {
   for (const mount of structure.mounts) {
     // 获取挂载点的显示名称，优先使用挂载点名称，如果没有则使用路径的最后一部分
     const mountName = mount.name || mount.mount_path.split("/").filter(Boolean).pop() || mount.id;
+
+    // 转义挂载点名称中的XML特殊字符
+    const escapedMountName = escapeXmlChars(mountName);
+
     const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
-    const encodedPath = encodeURI(mountPath + "/");
+
+    // 编码挂载点路径
+    const encodedMountPath = encodeUriPath(mountPath + "/");
 
     // 检查该挂载点是否已经作为子目录显示
     const relativePath = mountPath.substring(path.length);
@@ -240,11 +293,11 @@ async function respondWithMounts(c, userId, userType, db, path = "/") {
     if (!relativePath.includes("/") || relativePath === "") {
       xmlBody += `
       <D:response>
-        <D:href>/dav${encodedPath}</D:href>
+        <D:href>/dav${encodedMountPath}</D:href>
         <D:propstat>
           <D:prop>
             <D:resourcetype><D:collection/></D:resourcetype>
-            <D:displayname>${mountName}</D:displayname>
+            <D:displayname>${escapedMountName}</D:displayname>
             <D:getlastmodified>${new Date(mount.updated_at || mount.created_at).toUTCString()}</D:getlastmodified>
           </D:prop>
           <D:status>HTTP/1.1 200 OK</D:status>
@@ -283,20 +336,28 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
       Bucket: bucketName,
       Prefix: prefix,
       Delimiter: "/",
+      MaxKeys: 1000, // 显式设置每次请求的最大项数
     };
 
     const listCommand = new ListObjectsV2Command(listParams);
     const listResponse = await s3Client.send(listCommand);
 
+    // 获取当前目录的显示名称
+    const displayName = requestPath.split("/").filter(Boolean).pop() || "/";
+    // 转义显示名称中的XML特殊字符
+    const escapedDisplayName = escapeXmlChars(displayName);
+    // 正确编码请求路径
+    const encodedRequestPath = encodeUriPath(requestPath);
+
     // 构建XML响应
-    let xmlBody = `<?xml version="1.0" encoding="utf-8"?>
+    let xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
     <D:multistatus xmlns:D="DAV:">
       <D:response>
-        <D:href>/dav${requestPath}</D:href>
+        <D:href>/dav${encodedRequestPath}</D:href>
         <D:propstat>
           <D:prop>
             <D:resourcetype><D:collection/></D:resourcetype>
-            <D:displayname>${requestPath.split("/").filter(Boolean).pop() || "/"}</D:displayname>
+            <D:displayname>${escapedDisplayName}</D:displayname>
             <D:getlastmodified>${new Date().toUTCString()}</D:getlastmodified>
           </D:prop>
           <D:status>HTTP/1.1 200 OK</D:status>
@@ -309,15 +370,21 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
       if (listResponse.CommonPrefixes) {
         for (const item of listResponse.CommonPrefixes) {
           const folderName = item.Prefix.split("/").filter(Boolean).pop();
-          const folderPath = `/dav${requestPath}${folderName}/`;
+          if (!folderName) continue; // 跳过空文件夹名
+
+          // 转义文件夹名中的XML特殊字符
+          const escapedFolderName = escapeXmlChars(folderName);
+          // 构建并编码文件夹路径
+          const folderPath = `${requestPath}${folderName}/`;
+          const encodedFolderPath = encodeUriPath(folderPath);
 
           xmlBody += `
     <D:response>
-      <D:href>${folderPath}</D:href>
+      <D:href>/dav${encodedFolderPath}</D:href>
       <D:propstat>
         <D:prop>
           <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>${folderName}</D:displayname>
+          <D:displayname>${escapedFolderName}</D:displayname>
           <D:getlastmodified>${new Date().toUTCString()}</D:getlastmodified>
         </D:prop>
         <D:status>HTTP/1.1 200 OK</D:status>
@@ -336,15 +403,21 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
           if (item.Key.endsWith("/")) continue;
 
           const fileName = item.Key.split("/").pop();
-          const filePath = `/dav${requestPath}${fileName}`;
+          if (!fileName) continue; // 跳过空文件名
+
+          // 转义文件名中的XML特殊字符
+          const escapedFileName = escapeXmlChars(fileName);
+          // 构建并编码文件路径
+          const filePath = `${requestPath}${fileName}`;
+          const encodedFilePath = encodeUriPath(filePath);
 
           xmlBody += `
     <D:response>
-      <D:href>${filePath}</D:href>
+      <D:href>/dav${encodedFilePath}</D:href>
       <D:propstat>
         <D:prop>
           <D:resourcetype></D:resourcetype>
-          <D:displayname>${fileName}</D:displayname>
+          <D:displayname>${escapedFileName}</D:displayname>
           <D:getlastmodified>${new Date(item.LastModified).toUTCString()}</D:getlastmodified>
           <D:getcontentlength>${item.Size}</D:getcontentlength>
           <D:getcontenttype>application/octet-stream</D:getcontenttype>
@@ -352,6 +425,82 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
         <D:status>HTTP/1.1 200 OK</D:status>
       </D:propstat>
     </D:response>`;
+        }
+      }
+
+      // 处理分页 - 如果有更多结果，继续获取
+      if (listResponse.IsTruncated && listResponse.NextContinuationToken) {
+        // 递归获取下一页结果
+        let nextToken = listResponse.NextContinuationToken;
+        while (nextToken) {
+          const nextParams = {
+            ...listParams,
+            ContinuationToken: nextToken,
+          };
+
+          const nextCommand = new ListObjectsV2Command(nextParams);
+          const nextResponse = await s3Client.send(nextCommand);
+
+          // 处理额外的目录
+          if (nextResponse.CommonPrefixes) {
+            for (const item of nextResponse.CommonPrefixes) {
+              const folderName = item.Prefix.split("/").filter(Boolean).pop();
+              if (!folderName) continue;
+
+              const escapedFolderName = escapeXmlChars(folderName);
+              const folderPath = `${requestPath}${folderName}/`;
+              const encodedFolderPath = encodeUriPath(folderPath);
+
+              xmlBody += `
+    <D:response>
+      <D:href>/dav${encodedFolderPath}</D:href>
+      <D:propstat>
+        <D:prop>
+          <D:resourcetype><D:collection/></D:resourcetype>
+          <D:displayname>${escapedFolderName}</D:displayname>
+          <D:getlastmodified>${new Date().toUTCString()}</D:getlastmodified>
+        </D:prop>
+        <D:status>HTTP/1.1 200 OK</D:status>
+      </D:propstat>
+    </D:response>`;
+            }
+          }
+
+          // 处理额外的文件
+          if (nextResponse.Contents) {
+            for (const item of nextResponse.Contents) {
+              if (item.Key === prefix || item.Key.endsWith("/")) continue;
+
+              const fileName = item.Key.split("/").pop();
+              if (!fileName) continue;
+
+              const escapedFileName = escapeXmlChars(fileName);
+              const filePath = `${requestPath}${fileName}`;
+              const encodedFilePath = encodeUriPath(filePath);
+
+              xmlBody += `
+    <D:response>
+      <D:href>/dav${encodedFilePath}</D:href>
+      <D:propstat>
+        <D:prop>
+          <D:resourcetype></D:resourcetype>
+          <D:displayname>${escapedFileName}</D:displayname>
+          <D:getlastmodified>${new Date(item.LastModified).toUTCString()}</D:getlastmodified>
+          <D:getcontentlength>${item.Size}</D:getcontentlength>
+          <D:getcontenttype>application/octet-stream</D:getcontenttype>
+        </D:prop>
+        <D:status>HTTP/1.1 200 OK</D:status>
+      </D:propstat>
+    </D:response>`;
+            }
+          }
+
+          // 检查是否还有更多结果
+          if (nextResponse.IsTruncated && nextResponse.NextContinuationToken) {
+            nextToken = nextResponse.NextContinuationToken;
+          } else {
+            nextToken = null; // 结束循环
+          }
         }
       }
     }
