@@ -13,6 +13,7 @@ import { S3ProviderTypes } from "../constants/index.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
 import { deleteFileRecordByStoragePath } from "./fileService.js";
 import { generateFileId, getLocalTimeString } from "../utils/common.js";
+import { getMimeTypeFromFilename, getMimeTypeAndGroupFromFile, getContentTypeAndDisposition, MIME_GROUPS } from "../utils/fileUtils.js";
 
 /**
  * 规范化路径格式
@@ -1466,5 +1467,191 @@ export async function getFilePresignedUrl(db, path, userId, userType, encryption
     },
     "获取文件预签名URL",
     "获取文件预签名URL失败"
+  );
+}
+
+/**
+ * 更新文件内容
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} path - 文件路径
+ * @param {string|ArrayBuffer} content - 新的文件内容
+ * @param {string} userId - 用户ID
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Promise<Object>} 更新结果
+ */
+export async function updateFile(db, path, content, userId, userType, encryptionSecret) {
+  // 设置文件大小限制 (10MB)
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+  return handleFsError(
+    async () => {
+      // 检查内容大小
+      if (typeof content === "string" && content.length > MAX_FILE_SIZE) {
+        throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "文件内容过大，超过最大限制(10MB)" });
+      } else if (content instanceof ArrayBuffer && content.byteLength > MAX_FILE_SIZE) {
+        throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "文件内容过大，超过最大限制(10MB)" });
+      }
+
+      // 查找挂载点
+      const mountResult = await findMountPointByPath(db, path, userId, userType);
+
+      // 处理错误情况
+      if (mountResult.error) {
+        throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
+      }
+
+      const { mount, subPath } = mountResult;
+
+      // 获取S3配置
+      const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+      if (!s3Config) {
+        throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+      }
+
+      // 创建S3客户端
+      const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+      // 规范化S3子路径 (不添加斜杠，因为是文件)
+      const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
+
+      // 更新最后使用时间
+      await updateMountLastUsed(db, mount.id);
+
+      try {
+        // 获取文件名
+        const fileName = path.split("/").pop();
+
+        // 尝试获取原始文件信息
+        let originalMetadata = null;
+        try {
+          const headParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3SubPath,
+          };
+
+          const headCommand = new HeadObjectCommand(headParams);
+          originalMetadata = await s3Client.send(headCommand);
+          console.log("获取到原始文件元数据:", {
+            contentType: originalMetadata.ContentType,
+            contentLength: originalMetadata.ContentLength,
+            lastModified: originalMetadata.LastModified,
+          });
+        } catch (error) {
+          // 如果文件不存在，则记录日志但继续执行
+          if (error.$metadata?.httpStatusCode === 404) {
+            console.log(`文件 ${s3SubPath} 不存在，将创建新文件`);
+          } else {
+            console.warn("获取原始文件元数据失败:", error);
+          }
+        }
+
+        // 准备文件内容
+        let fileContent;
+        let contentType;
+
+        // 检查content类型并使用fileUtils中的函数确定MIME类型
+        if (typeof content === "string") {
+          fileContent = content;
+
+          // 使用现有函数获取MIME类型和分组
+          const { mimeType, mimeGroup } = getMimeTypeAndGroupFromFile({
+            filename: fileName,
+            mimetype: originalMetadata?.ContentType || "text/plain",
+          });
+
+          // 检查是否为可执行文件或危险文件类型
+          if (mimeGroup === MIME_GROUPS.EXECUTABLE) {
+            throw new HTTPException(ApiStatus.FORBIDDEN, { message: "不允许更新可执行文件类型" });
+          }
+
+          contentType = mimeType;
+          console.log(`文件 ${fileName} 的MIME类型确定为: ${contentType}, 分组: ${mimeGroup}`);
+        } else if (content instanceof ArrayBuffer || content instanceof Uint8Array) {
+          fileContent = content;
+
+          // 对于二进制内容，尝试从文件名和原始元数据确定类型
+          const { mimeType, mimeGroup } = getMimeTypeAndGroupFromFile({
+            filename: fileName,
+            mimetype: originalMetadata?.ContentType || "application/octet-stream",
+          });
+
+          // 检查是否为可执行文件或危险文件类型
+          if (mimeGroup === MIME_GROUPS.EXECUTABLE) {
+            throw new HTTPException(ApiStatus.FORBIDDEN, { message: "不允许更新可执行文件类型" });
+          }
+
+          contentType = mimeType;
+          console.log(`二进制文件 ${fileName} 的MIME类型确定为: ${contentType}, 分组: ${mimeGroup}`);
+        } else {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "不支持的内容格式" });
+        }
+
+        // 更新S3对象
+        const putParams = {
+          Bucket: s3Config.bucket_name,
+          Key: s3SubPath,
+          Body: fileContent,
+          ContentType: contentType,
+        };
+
+        // 如果有原始元数据，尝试保留某些元数据
+        if (originalMetadata) {
+          // 可以选择性地保留某些元数据
+          if (originalMetadata.Metadata) {
+            putParams.Metadata = originalMetadata.Metadata;
+          }
+        }
+
+        console.log(`准备更新S3对象: ${s3SubPath}, 内容类型: ${contentType}`);
+        const putCommand = new PutObjectCommand(putParams);
+        const result = await s3Client.send(putCommand);
+
+        // 清除文件缓存
+        if (mount.cache_ttl > 0) {
+          // 清除父目录缓存
+          if (subPath !== "/" && subPath.includes("/")) {
+            const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/") + 1);
+            const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
+            console.log(`更新文件后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+          }
+        }
+
+        // 返回更新结果
+        return {
+          success: true,
+          path: path,
+          etag: result.ETag ? result.ETag.replace(/"/g, "") : undefined,
+          contentType: contentType,
+          message: "文件更新成功",
+          isNewFile: !originalMetadata,
+        };
+      } catch (error) {
+        console.error("更新文件错误:", error);
+
+        // 增强错误处理
+        if (error.$metadata) {
+          if (error.$metadata.httpStatusCode === 404) {
+            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
+          } else if (error.$metadata.httpStatusCode === 403) {
+            throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限更新该文件" });
+          } else if (error.$metadata.httpStatusCode === 413) {
+            throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "文件内容过大" });
+          }
+
+          // 记录详细错误信息
+          console.error("S3错误详情:", {
+            errorName: error.name,
+            errorMessage: error.message,
+            errorCode: error.$metadata?.httpStatusCode,
+            s3Path: s3SubPath,
+          });
+        }
+
+        throw error;
+      }
+    },
+    "更新文件",
+    "更新文件失败"
   );
 }

@@ -19,6 +19,7 @@ import {
   previewFile,
   batchRemoveItems,
   getFilePresignedUrl,
+  updateFile,
 } from "../services/fsService.js";
 import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
 import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
@@ -1365,6 +1366,90 @@ fsRoutes.get("/api/user/fs/file-link", async (c) => {
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }
     return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件直链失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 更新文件内容 - 管理员版本
+fsRoutes.post("/api/admin/fs/update", authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const adminId = c.get("adminId");
+
+  try {
+    // 解析请求体
+    const body = await c.req.json();
+    const { path, content } = body;
+
+    if (!path || content === undefined) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径和内容"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 检查路径是否为目录
+    if (path.endsWith("/")) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "不能更新目录，请提供有效的文件路径"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 调用updateFile函数更新文件内容
+    const result = await updateFile(db, path, content, adminId, "admin", c.env.ENCRYPTION_SECRET);
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: result.isNewFile ? "文件创建成功" : "文件更新成功",
+      data: {
+        path: result.path,
+        etag: result.etag,
+        contentType: result.contentType,
+        isNewFile: result.isNewFile,
+      },
+      success: true,
+    });
+  } catch (error) {
+    console.error("更新文件错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "更新文件失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 更新文件内容 - API密钥用户版本
+fsRoutes.post("/api/user/fs/update", apiKeyFileMiddleware, async (c) => {
+  const db = c.env.DB;
+  const apiKeyId = c.get("apiKeyId");
+
+  try {
+    // 解析请求体
+    const body = await c.req.json();
+    const { path, content } = body;
+
+    if (!path || content === undefined) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径和内容"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 检查路径是否为目录
+    if (path.endsWith("/")) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "不能更新目录，请提供有效的文件路径"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 调用updateFile函数更新文件内容
+    const result = await updateFile(db, path, content, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: result.isNewFile ? "文件创建成功" : "文件更新成功",
+      data: {
+        path: result.path,
+        etag: result.etag,
+        contentType: result.contentType,
+        isNewFile: result.isNewFile,
+      },
+      success: true,
+    });
+  } catch (error) {
+    console.error("更新文件错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "更新文件失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 

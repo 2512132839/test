@@ -567,126 +567,25 @@ export const isType = (mimeType, groupName, filename) => {
   return filename ? getMimeTypeGroupByFileDetails(mimeType, filename) === groupName : getMimeTypeGroup(mimeType) === groupName;
 };
 
-// 常用类型检测函数
-/**
- * 检查是否为图片类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为图片类型
- */
-export const isImageType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.IMAGE, filename);
+// 创建类型检测函数的工厂
+const createTypeChecker = (groupName) => (mimeType, filename) => isType(mimeType, groupName, filename);
 
-/**
- * 检查是否为视频类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为视频类型
- */
-export const isVideoType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.VIDEO, filename);
-
-/**
- * 检查是否为音频类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为音频类型
- */
-export const isAudioType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.AUDIO, filename);
-
-/**
- * 检查是否为PDF类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为PDF类型
- */
-export const isPdfType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.PDF, filename);
-
-/**
- * 检查是否为Markdown类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为Markdown类型
- */
-export const isMarkdownType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.MARKDOWN, filename);
-
-/**
- * 检查是否为文档类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为文档类型
- */
-export const isDocumentType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.DOCUMENT, filename);
-
-/**
- * 检查是否为电子表格类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为电子表格类型
- */
-export const isSpreadsheetType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.SPREADSHEET, filename);
-
-/**
- * 检查是否为演示文稿类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为演示文稿类型
- */
-export const isPresentationType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.PRESENTATION, filename);
-
-/**
- * 检查是否为压缩文件类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为压缩文件类型
- */
-export const isArchiveType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.ARCHIVE, filename);
-
-/**
- * 检查是否为代码文件类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为代码文件类型
- */
-export const isCodeType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.CODE, filename);
-
-/**
- * 检查是否为数据库文件类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为数据库文件类型
- */
-export const isDatabaseType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.DATABASE, filename);
-
-/**
- * 检查是否为字体文件类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为字体文件类型
- */
-export const isFontType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.FONT, filename);
-
-/**
- * 检查是否为可执行文件类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为可执行文件类型
- */
-export const isExecutableType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.EXECUTABLE, filename);
-
-/**
- * 检查是否为文本文件类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为文本文件类型
- */
-export const isTextType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.TEXT, filename);
-
-/**
- * 检查是否为配置文件类型
- * @param {string} mimeType - 文件的MIME类型
- * @param {string} filename - 文件名（可选）
- * @returns {boolean} 是否为配置文件类型
- */
-export const isConfigType = (mimeType, filename) => isType(mimeType, MIME_GROUPS.CONFIG, filename);
+// 使用工厂函数创建类型检测函数
+export const isImageType = createTypeChecker(MIME_GROUPS.IMAGE);
+export const isVideoType = createTypeChecker(MIME_GROUPS.VIDEO);
+export const isAudioType = createTypeChecker(MIME_GROUPS.AUDIO);
+export const isPdfType = createTypeChecker(MIME_GROUPS.PDF);
+export const isMarkdownType = createTypeChecker(MIME_GROUPS.MARKDOWN);
+export const isDocumentType = createTypeChecker(MIME_GROUPS.DOCUMENT);
+export const isSpreadsheetType = createTypeChecker(MIME_GROUPS.SPREADSHEET);
+export const isPresentationType = createTypeChecker(MIME_GROUPS.PRESENTATION);
+export const isArchiveType = createTypeChecker(MIME_GROUPS.ARCHIVE);
+export const isCodeType = createTypeChecker(MIME_GROUPS.CODE);
+export const isDatabaseType = createTypeChecker(MIME_GROUPS.DATABASE);
+export const isFontType = createTypeChecker(MIME_GROUPS.FONT);
+export const isExecutableType = createTypeChecker(MIME_GROUPS.EXECUTABLE);
+export const isTextType = createTypeChecker(MIME_GROUPS.TEXT);
+export const isConfigType = createTypeChecker(MIME_GROUPS.CONFIG);
 
 /**
  * 格式化MIME类型为详细可读的文件类型

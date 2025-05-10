@@ -182,6 +182,26 @@ export async function renameUserItem(oldPath, newPath) {
 }
 
 /**
+ * 管理员API - 更新文件内容
+ * @param {string} path 文件路径
+ * @param {string} content 新的文件内容
+ * @returns {Promise<Object>} 更新结果响应对象
+ */
+export async function updateAdminFile(path, content) {
+  return post(`/admin/fs/update`, { path, content });
+}
+
+/**
+ * API密钥用户API - 更新文件内容
+ * @param {string} path 文件路径
+ * @param {string} content 新的文件内容
+ * @returns {Promise<Object>} 更新结果响应对象
+ */
+export async function updateUserFile(path, content) {
+  return post(`/user/fs/update`, { path, content });
+}
+
+/**
  * 管理员API - 获取文件直链
  * @param {string} path 文件路径
  * @param {number} expiresIn 过期时间（秒），默认7天
@@ -221,6 +241,7 @@ export function getFsApiByUserType(isAdmin) {
         deleteItem: deleteAdminItem,
         batchDeleteItems: batchDeleteAdminItems,
         renameItem: renameAdminItem,
+        updateFile: updateAdminFile,
         // 分片上传相关
         initMultipartUpload: initAdminMultipartUpload,
         uploadPart: uploadAdminPart,
@@ -243,6 +264,7 @@ export function getFsApiByUserType(isAdmin) {
         deleteItem: deleteUserItem,
         batchDeleteItems: batchDeleteUserItems,
         renameItem: renameUserItem,
+        updateFile: updateUserFile,
         // 分片上传相关
         initMultipartUpload: initUserMultipartUpload,
         uploadPart: uploadUserPart,

@@ -28,18 +28,18 @@ function encodeUriPath(path) {
   // 将路径分割成段，单独编码每一段，然后重新组合
   // 这样可以保留路径分隔符"/"
   return path
-      .split("/")
-      .map((segment) => {
-        // 对每个段进行URL编码，但保留某些合法的URI字符
-        return encodeURIComponent(segment)
-            .replace(/%20/g, "%20") // 保留空格的编码
-            .replace(/'/g, "%27") // 单引号编码
-            .replace(/\(/g, "%28") // 左括号编码
-            .replace(/\)/g, "%29") // 右括号编码
-            .replace(/\*/g, "%2A") // 星号编码
-            .replace(/%2F/g, "/"); // 恢复被错误编码的斜杠
-      })
-      .join("/");
+    .split("/")
+    .map((segment) => {
+      // 对每个段进行URL编码，但保留某些合法的URI字符
+      return encodeURIComponent(segment)
+        .replace(/%20/g, "%20") // 保留空格的编码
+        .replace(/'/g, "%27") // 单引号编码
+        .replace(/\(/g, "%28") // 左括号编码
+        .replace(/\)/g, "%29") // 右括号编码
+        .replace(/\*/g, "%2A") // 星号编码
+        .replace(/%2F/g, "/"); // 恢复被错误编码的斜杠
+    })
+    .join("/");
 }
 
 /**
