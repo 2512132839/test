@@ -411,7 +411,7 @@
 <script setup>
 import { defineProps, defineEmits, ref, reactive, computed } from "vue";
 import * as MimeTypeUtils from "../../../utils/mimeTypeUtils";
-import { copyToClipboard } from "@/utils/clipboard"; 
+import { copyToClipboard } from "@/utils/clipboard";
 
 const props = defineProps({
   files: {

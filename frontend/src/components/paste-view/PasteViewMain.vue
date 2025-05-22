@@ -10,6 +10,7 @@ import PasteViewEditor from "./PasteViewEditor.vue";
 import { formatExpiry, debugLog } from "./PasteViewUtils";
 import { api } from "../../api";
 import { ApiStatus } from "../../api/ApiStatus";
+import { copyToClipboard } from "@/utils/clipboard";
 
 // 定义环境变量
 const isDev = import.meta.env.DEV;
@@ -465,51 +466,31 @@ const submitPassword = async () => {
 };
 
 // 复制内容到剪贴板 - 提供两种实现方式以确保兼容性
-const copyContentToClipboard = () => {
+const copyContentToClipboard = async () => {
   if (!paste.value || !paste.value.content) {
     error.value = "没有可复制的内容";
     return;
   }
 
   try {
-    // 优先使用现代Clipboard API
-    navigator.clipboard
-      .writeText(paste.value.content)
-      .then(() => {
-        error.value = "复制成功：内容已复制到剪贴板";
-        setTimeout(() => {
-          error.value = "";
-        }, 3000);
-      })
-      .catch((err) => {
-        console.error("复制失败:", err);
-        error.value = "复制失败，请手动选择内容复制";
-      });
-  } catch (e) {
-    console.error("复制API不可用:", e);
-    // 降级方案：创建临时文本区域
-    const textarea = document.createElement("textarea");
-    textarea.value = paste.value.content;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-      document.execCommand("copy");
+    const success = await copyToClipboard(paste.value.content);
+
+    if (success) {
       error.value = "复制成功：内容已复制到剪贴板";
       setTimeout(() => {
         error.value = "";
       }, 3000);
-    } catch (err) {
-      console.error("复制失败:", err);
-      error.value = "复制失败，请手动选择内容复制";
+    } else {
+      throw new Error("复制失败");
     }
-    document.body.removeChild(textarea);
+  } catch (e) {
+    console.error("复制失败:", e);
+    error.value = "复制失败，请手动选择内容复制";
   }
 };
 
 // 复制原始文本链接到剪贴板
-const copyRawLink = () => {
+const copyRawLink = async () => {
   if (!paste.value || !paste.value.slug) {
     error.value = "没有可复制的原始链接";
     return;
@@ -520,21 +501,19 @@ const copyRawLink = () => {
     const rawLink = getRawPasteUrl(paste.value.slug, paste.value.plain_password || null);
 
     // 复制链接到剪贴板
-    navigator.clipboard
-      .writeText(rawLink)
-      .then(() => {
-        error.value = "复制成功：原始链接已复制到剪贴板";
-        setTimeout(() => {
-          error.value = "";
-        }, 3000);
-      })
-      .catch((err) => {
-        console.error("复制失败:", err);
-        error.value = "复制原始链接失败，请手动复制";
-      });
+    const success = await copyToClipboard(rawLink);
+
+    if (success) {
+      error.value = "复制成功：原始链接已复制到剪贴板";
+      setTimeout(() => {
+        error.value = "";
+      }, 3000);
+    } else {
+      throw new Error("复制失败");
+    }
   } catch (e) {
-    console.error("复制原始链接失败:", e);
-    error.value = "复制原始链接失败，请手动复制";
+    console.error("复制失败:", e);
+    error.value = "复制失败，请手动复制原始链接";
   }
 };
 

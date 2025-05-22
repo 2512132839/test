@@ -279,6 +279,7 @@ import markdownToWord from "../utils/markdownToWord";
 // 导入FileSaver用于下载文件
 import { saveAs } from "file-saver";
 import htmlToImage from "@/utils/htmlToImage";
+import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
 
 // 使用i18n
 const { t } = useI18n();
@@ -1082,25 +1083,28 @@ const startCountdown = () => {
 };
 
 // 复制分享链接到剪贴板
-const copyShareLink = () => {
+const copyShareLink = async () => {
   if (!shareLink.value) return;
 
-  navigator.clipboard
-    .writeText(shareLink.value)
-    .then(() => {
+  try {
+    const success = await clipboardCopy(shareLink.value);
+
+    if (success) {
       savingStatus.value = t("markdown.linkCopied");
       setTimeout(() => {
         savingStatus.value = "";
       }, 2000);
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-      savingStatus.value = t("markdown.copyFailed");
-    });
+    } else {
+      throw new Error("复制失败");
+    }
+  } catch (err) {
+    console.error("复制失败:", err);
+    savingStatus.value = t("markdown.copyFailed");
+  }
 };
 
 // 复制原始文本直链到剪贴板
-const copyRawTextLink = () => {
+const copyRawTextLink = async () => {
   if (!shareLink.value) return;
 
   // 从shareLink中提取slug
@@ -1109,18 +1113,21 @@ const copyRawTextLink = () => {
   // 构建原始文本直链URL，使用当前分享的密码（如果有）
   const rawLink = getRawPasteUrl(slug, currentSharePassword.value || null);
 
-  navigator.clipboard
-    .writeText(rawLink)
-    .then(() => {
+  try {
+    const success = await clipboardCopy(rawLink);
+
+    if (success) {
       savingStatus.value = t("markdown.rawLinkCopied");
       setTimeout(() => {
         savingStatus.value = "";
       }, 2000);
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-      savingStatus.value = t("markdown.copyFailed");
-    });
+    } else {
+      throw new Error("复制失败");
+    }
+  } catch (err) {
+    console.error("复制失败:", err);
+    savingStatus.value = t("markdown.copyFailed");
+  }
 };
 
 // 添加对maxViews的验证函数
@@ -1366,7 +1373,7 @@ const exportWordDocument = async () => {
 };
 
 // 通用复制到剪贴板函数
-const copyToClipboard = (text, successMessage) => {
+const copyToClipboard = async (text, successMessage) => {
   if (!text) {
     savingStatus.value = "没有可复制的内容";
     setTimeout(() => {
@@ -1376,44 +1383,22 @@ const copyToClipboard = (text, successMessage) => {
   }
 
   try {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        savingStatus.value = successMessage;
-        setTimeout(() => {
-          savingStatus.value = "";
-        }, 3000);
-      })
-      .catch((err) => {
-        console.error("复制失败:", err);
-        savingStatus.value = "复制失败，请手动选择内容复制";
-        setTimeout(() => {
-          savingStatus.value = "";
-        }, 3000);
-      });
-  } catch (e) {
-    console.error("复制API不可用:", e);
-    // 降级方案：创建临时文本区域
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-      document.execCommand("copy");
+    const success = await clipboardCopy(text);
+
+    if (success) {
       savingStatus.value = successMessage;
       setTimeout(() => {
         savingStatus.value = "";
       }, 3000);
-    } catch (err) {
-      console.error("复制失败:", err);
-      savingStatus.value = "复制失败，请手动选择内容复制";
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 3000);
+    } else {
+      throw new Error("复制失败");
     }
-    document.body.removeChild(textarea);
+  } catch (e) {
+    console.error("复制失败:", e);
+    savingStatus.value = "复制失败，请手动选择内容复制";
+    setTimeout(() => {
+      savingStatus.value = "";
+    }, 3000);
   }
 };
 

@@ -4,6 +4,7 @@ import { getAllPastes } from "../../api/adminService";
 import api from "../../api";
 import QRCode from "qrcode";
 import { getRawPasteUrl } from "../../api/pasteService";
+import { copyToClipboard } from "@/utils/clipboard";
 
 // 导入子组件
 import PasteTable from "../text-management/PasteTable.vue";
@@ -452,11 +453,12 @@ const goToViewPage = (slug) => {
  * 复制链接到剪贴板
  * @param {string} slug - 文本分享的唯一标识
  */
-const copyLink = (slug) => {
+const copyLink = async (slug) => {
   const link = `${window.location.origin}/paste/${slug}`;
-  navigator.clipboard
-    .writeText(link)
-    .then(() => {
+  try {
+    const success = await copyToClipboard(link);
+
+    if (success) {
       // 找到对应的paste对象
       const paste = pastes.value.find((p) => p.slug === slug);
       // 确保paste和paste.id都存在
@@ -474,11 +476,13 @@ const copyLink = (slug) => {
       } else {
         console.log("复制成功，但无法找到对应的paste对象或ID");
       }
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-      alert("复制失败，请手动复制");
-    });
+    } else {
+      throw new Error("复制失败");
+    }
+  } catch (err) {
+    console.error("复制失败:", err);
+    alert("复制失败，请手动复制");
+  }
 };
 
 /**
@@ -512,32 +516,30 @@ const copyRawLink = async (paste) => {
     // 构建原始文本链接URL，使用paste.plain_password（如果存在）
     const finalLink = getRawPasteUrl(pasteWithPassword.slug, pasteWithPassword.plain_password);
 
-    navigator.clipboard
-      .writeText(finalLink)
-      .then(() => {
-        // 确保paste和paste.id都存在
-        if (paste && paste.id) {
-          // 为特定文本设置复制成功状态
-          copiedRawTexts[paste.id] = true;
+    const success = await copyToClipboard(finalLink);
 
-          // 3秒后清除状态
-          setTimeout(() => {
-            // 再次检查以确保对象和ID仍然存在
-            if (copiedRawTexts && paste && paste.id) {
-              copiedRawTexts[paste.id] = false;
-            }
-          }, 2000);
-        } else {
-          console.log("复制原始链接成功，但无法找到对应的paste对象或ID");
-        }
-      })
-      .catch((err) => {
-        console.error("复制原始链接失败:", err);
-        alert("复制原始链接失败，请手动复制");
-      });
+    if (success) {
+      // 确保paste和paste.id都存在
+      if (paste && paste.id) {
+        // 为特定文本设置复制成功状态
+        copiedRawTexts[paste.id] = true;
+
+        // 3秒后清除状态
+        setTimeout(() => {
+          // 再次检查以确保对象和ID仍然存在
+          if (copiedRawTexts && paste && paste.id) {
+            copiedRawTexts[paste.id] = false;
+          }
+        }, 2000);
+      } else {
+        console.log("复制原始链接成功，但无法找到对应的paste对象或ID");
+      }
+    } else {
+      throw new Error("复制失败");
+    }
   } catch (err) {
-    console.error("获取文本详情失败:", err);
-    alert("获取文本详情失败，无法复制直链");
+    console.error("获取文本详情或复制原始链接失败:", err);
+    alert("复制原始链接失败，请手动复制");
   }
 };
 

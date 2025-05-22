@@ -356,7 +356,7 @@ import {
   isPresentationType,
   isOfficeFileType,
 } from "./FileViewUtils";
-import { copyToClipboard as clipboardCopy } from "@/utils/clipboard"; 
+import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
 
 const props = defineProps({
   fileInfo: {

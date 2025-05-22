@@ -11,6 +11,8 @@ import markdownToWord from "../../utils/markdownToWord";
 import { saveAs } from "file-saver";
 // 导入HTML转图片工具
 import htmlToImage from "../../utils/htmlToImage";
+// 导入clipboard工具
+import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
 
 // 定义组件接收的属性
 const props = defineProps({
@@ -776,54 +778,31 @@ const exportAsPng = async () => {
   }
 };
 
-// 通用复制到剪贴板函数
-const copyToClipboard = (text, successMessage) => {
+// 将原来的copyToClipboard函数替换为以下实现
+const copyToClipboard = async (text, successMessage) => {
   if (!text) {
     emit("update:error", "没有可复制的内容");
     return;
   }
 
   try {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // 使用notification显示成功消息，而非error
-        notification.value = successMessage;
-        setTimeout(() => {
-          notification.value = "";
-        }, 3000);
-      })
-      .catch((err) => {
-        console.error("复制失败:", err);
-        emit("update:error", "复制失败，请手动选择内容复制");
-        setTimeout(() => {
-          emit("update:error", "");
-        }, 3000);
-      });
-  } catch (e) {
-    console.error("复制API不可用:", e);
-    // 降级方案：创建临时文本区域
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-      document.execCommand("copy");
+    const success = await clipboardCopy(text);
+
+    if (success) {
       // 使用notification显示成功消息，而非error
       notification.value = successMessage;
       setTimeout(() => {
         notification.value = "";
       }, 3000);
-    } catch (err) {
-      console.error("复制失败:", err);
-      emit("update:error", "复制失败，请手动选择内容复制");
-      setTimeout(() => {
-        emit("update:error", "");
-      }, 3000);
+    } else {
+      throw new Error("复制失败");
     }
-    document.body.removeChild(textarea);
+  } catch (e) {
+    console.error("复制失败:", e);
+    emit("update:error", "复制失败，请手动选择内容复制");
+    setTimeout(() => {
+      emit("update:error", "");
+    }, 3000);
   }
 };
 
