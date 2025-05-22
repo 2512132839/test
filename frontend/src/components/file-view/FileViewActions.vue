@@ -120,6 +120,7 @@ import { getAuthStatus, isOfficeFileType } from "./FileViewUtils";
 import { api } from "../../api";
 import { ApiStatus } from "../../api/ApiStatus";
 import { getFullApiUrl } from "../../api/config";
+import { copyToClipboard } from "@/utils/clipboard";
 
 const props = defineProps({
   fileInfo: {
@@ -491,13 +492,18 @@ const shareFile = async () => {
  */
 const fallbackShare = async (url) => {
   try {
-    await navigator.clipboard.writeText(url);
-    // 显示复制成功提示
-    showCopyToast.value = true;
-    // 3秒后自动隐藏提示
-    setTimeout(() => {
-      showCopyToast.value = false;
-    }, 3000);
+    const success = await copyToClipboard(url);
+
+    if (success) {
+      // 显示复制成功提示
+      showCopyToast.value = true;
+      // 3秒后自动隐藏提示
+      setTimeout(() => {
+        showCopyToast.value = false;
+      }, 3000);
+    } else {
+      throw new Error("复制失败");
+    }
   } catch (err) {
     console.error("复制失败:", err);
     // 如果复制失败，提示用户手动复制

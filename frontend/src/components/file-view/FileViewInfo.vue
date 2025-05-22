@@ -356,6 +356,7 @@ import {
   isPresentationType,
   isOfficeFileType,
 } from "./FileViewUtils";
+import { copyToClipboard as clipboardCopy } from "@/utils/clipboard"; 
 
 const props = defineProps({
   fileInfo: {
@@ -573,14 +574,19 @@ const isPreviewable = computed(() => {
 // 复制到剪贴板函数
 const copyToClipboard = async (text) => {
   try {
-    await navigator.clipboard.writeText(text);
-    // 显示复制成功提示
-    showCopyToast.value = true;
-    // 3秒后自动隐藏提示
-    setTimeout(() => {
-      showCopyToast.value = false;
-    }, 3000);
-    console.log("复制成功");
+    const success = await clipboardCopy(text);
+
+    if (success) {
+      // 显示复制成功提示
+      showCopyToast.value = true;
+      // 3秒后自动隐藏提示
+      setTimeout(() => {
+        showCopyToast.value = false;
+      }, 3000);
+      console.log("复制成功");
+    } else {
+      throw new Error("复制失败");
+    }
   } catch (err) {
     console.error("复制失败:", err);
     // 复制失败时也显示提示，但内容不同

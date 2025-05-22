@@ -3,6 +3,7 @@ import { ref, onMounted, computed, onBeforeUnmount, reactive } from "vue";
 import { getAllApiKeys, createApiKey, deleteApiKey, updateApiKey } from "../../api/adminService";
 import CommonPagination from "../common/CommonPagination.vue";
 import { useI18n } from "vue-i18n";
+import { copyToClipboard } from "@/utils/clipboard";
 
 // 使用i18n
 const { t } = useI18n();
@@ -316,13 +317,18 @@ const handleDeleteKey = async (keyId) => {
 // 复制密钥到剪贴板
 const copyKeyToClipboard = async (key) => {
   try {
-    await navigator.clipboard.writeText(key);
-    successMessage.value = t("admin.keyManagement.success.copied");
+    const success = await copyToClipboard(key);
 
-    // 3秒后清除成功消息
-    setTimeout(() => {
-      successMessage.value = null;
-    }, 3000);
+    if (success) {
+      successMessage.value = t("admin.keyManagement.success.copied");
+
+      // 3秒后清除成功消息
+      setTimeout(() => {
+        successMessage.value = null;
+      }, 3000);
+    } else {
+      throw new Error("复制失败");
+    }
   } catch (e) {
     console.error("复制到剪贴板失败:", e);
     error.value = t("admin.keyManagement.error.copyFailed");

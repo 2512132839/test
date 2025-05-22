@@ -247,9 +247,9 @@ const validateApiKey = async (apiKey) => {
       // 触发storage事件，通知其他组件权限已更新
       // localStorage事件只在其他窗口触发，这里我们手动触发一个自定义事件
       window.dispatchEvent(
-          new CustomEvent("api-key-permissions-updated", {
-            detail: { permissions },
-          })
+        new CustomEvent("api-key-permissions-updated", {
+          detail: { permissions },
+        })
       );
 
       console.log("API密钥验证成功，权限已更新:", permissions);
@@ -272,9 +272,9 @@ const validateApiKey = async (apiKey) => {
 
     // 通知其他组件权限已清除
     window.dispatchEvent(
-        new CustomEvent("api-key-permissions-updated", {
-          detail: { permissions: null },
-        })
+      new CustomEvent("api-key-permissions-updated", {
+        detail: { permissions: null },
+      })
     );
   }
 };

@@ -412,6 +412,7 @@ import { api } from "../../api";
 import { useI18n } from "vue-i18n";
 import { getFile, getUserFile } from "../../api/fileService";
 import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
+import { copyToClipboard } from "@/utils/clipboard";
 
 const { t } = useI18n();
 
@@ -513,14 +514,18 @@ const deleteFile = async () => {
 };
 
 // 复制文件链接
-const copyFileUrl = (file) => {
+const copyFileUrl = async (file) => {
   // 构建文件URL
   const baseUrl = window.location.origin;
   const fileUrl = `${baseUrl}/file/${file.slug}`;
 
   try {
-    navigator.clipboard.writeText(fileUrl);
-    showMessage("success", t("file.linkCopied"));
+    const success = await copyToClipboard(fileUrl);
+    if (success) {
+      showMessage("success", t("file.linkCopied"));
+    } else {
+      throw new Error(t("file.copyFailed"));
+    }
   } catch (error) {
     console.error("复制链接失败:", error);
     showMessage("error", t("file.copyFailed"));
@@ -702,18 +707,22 @@ const copyPermanentLink = async (file) => {
         permanentDownloadUrl += permanentDownloadUrl.includes("?") ? `&password=${encodeURIComponent(filePassword)}` : `?password=${encodeURIComponent(filePassword)}`;
       }
 
-      await navigator.clipboard.writeText(permanentDownloadUrl);
+      const success = await copyToClipboard(permanentDownloadUrl);
 
-      // 为特定文件设置复制成功状态
-      copiedPermanentFiles.value[file.id] = true;
+      if (success) {
+        // 为特定文件设置复制成功状态
+        copiedPermanentFiles.value[file.id] = true;
 
-      // 3秒后清除状态
-      setTimeout(() => {
-        copiedPermanentFiles.value[file.id] = false;
-      }, 2000);
+        // 3秒后清除状态
+        setTimeout(() => {
+          copiedPermanentFiles.value[file.id] = false;
+        }, 2000);
 
-      // 显示成功消息
-      showMessage("success", t("file.directLinkCopied"));
+        // 显示成功消息
+        showMessage("success", t("file.directLinkCopied"));
+      } else {
+        throw new Error(t("file.copyFailed"));
+      }
     } else {
       throw new Error(t("file.cannotGetProxyLink"));
     }

@@ -411,6 +411,7 @@
 <script setup>
 import { defineProps, defineEmits, ref, reactive, computed } from "vue";
 import * as MimeTypeUtils from "../../../utils/mimeTypeUtils";
+import { copyToClipboard } from "@/utils/clipboard"; 
 
 const props = defineProps({
   files: {
@@ -580,7 +581,7 @@ const formatExpiry = (expiresAt) => {
 };
 
 /**
- * 复制文件链接到剪贴板
+ * 复制文件分享链接
  * @param {Object} file - 文件对象
  */
 const copyFileLink = async (file) => {
@@ -593,15 +594,19 @@ const copyFileLink = async (file) => {
     const baseUrl = window.location.origin;
     const fileUrl = `${baseUrl}/file/${file.slug}`;
 
-    await navigator.clipboard.writeText(fileUrl);
+    const success = await copyToClipboard(fileUrl);
 
-    // 为特定文件设置复制成功状态
-    copiedFiles[file.id] = true;
+    if (success) {
+      // 为特定文件设置复制成功状态
+      copiedFiles[file.id] = true;
 
-    // 3秒后清除状态
-    setTimeout(() => {
-      copiedFiles[file.id] = false;
-    }, 2000);
+      // 3秒后清除状态
+      setTimeout(() => {
+        copiedFiles[file.id] = false;
+      }, 2000);
+    } else {
+      throw new Error("复制失败");
+    }
   } catch (err) {
     console.error("复制链接失败:", err);
     alert("复制链接失败，请手动复制");
@@ -726,15 +731,19 @@ const copyPermanentLink = async (file) => {
         permanentDownloadUrl += permanentDownloadUrl.includes("?") ? `&password=${encodeURIComponent(filePassword)}` : `?password=${encodeURIComponent(filePassword)}`;
       }
 
-      await navigator.clipboard.writeText(permanentDownloadUrl);
+      const success = await copyToClipboard(permanentDownloadUrl);
 
-      // 为特定文件设置复制成功状态
-      copiedPermanentFiles[file.id] = true;
+      if (success) {
+        // 为特定文件设置复制成功状态
+        copiedPermanentFiles[file.id] = true;
 
-      // 3秒后清除状态
-      setTimeout(() => {
-        copiedPermanentFiles[file.id] = false;
-      }, 2000);
+        // 3秒后清除状态
+        setTimeout(() => {
+          copiedPermanentFiles[file.id] = false;
+        }, 2000);
+      } else {
+        throw new Error("复制失败");
+      }
     } else {
       throw new Error("无法获取文件代理链接");
     }

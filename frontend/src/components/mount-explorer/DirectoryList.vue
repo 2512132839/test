@@ -244,6 +244,7 @@ import { ref, computed, nextTick, inject } from "vue";
 import FileItem from "./FileItem.vue";
 import { getFileIcon } from "../../utils/fileTypeIcons";
 import { getAdminFileLink, getUserFileLink } from "../../api/fsService.js";
+import { copyToClipboard } from "@/utils/clipboard";
 
 const props = defineProps({
   items: {
@@ -415,21 +416,24 @@ const handleGetLink = async (item) => {
   if (item.isDirectory) return; // 文件夹不提供直链
 
   try {
-    let response;
     const getFileLink = isAdmin ? getAdminFileLink : getUserFileLink;
-    response = await getFileLink(item.path, 86400, true);
+    const response = await getFileLink(item.path, 86400, true);
 
     if (response.success && response.data?.presignedUrl) {
       // 复制链接到剪贴板
-      await navigator.clipboard.writeText(response.data.presignedUrl);
+      const success = await copyToClipboard(response.data.presignedUrl);
 
-      // 显示通知
-      showLinkCopiedNotification.value = true;
+      if (success) {
+        // 显示通知
+        showLinkCopiedNotification.value = true;
 
-      // 3秒后隐藏通知
-      setTimeout(() => {
-        showLinkCopiedNotification.value = false;
-      }, 3000);
+        // 3秒后隐藏通知
+        setTimeout(() => {
+          showLinkCopiedNotification.value = false;
+        }, 3000);
+      } else {
+        throw new Error("复制失败");
+      }
     } else {
       console.error("获取文件直链失败:", response);
       alert("获取文件直链失败: " + (response.message || "未知错误"));
