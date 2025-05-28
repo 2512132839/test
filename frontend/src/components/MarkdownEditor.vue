@@ -458,7 +458,7 @@ const initEditor = () => {
     theme: theme,
     // JS 文件使用 CDN，CSS 文件使用本地
     // 如后续需要升级Vditor版本，需要同时更新预览页中的CDN版本号
-    cdn: "https://fastly.jsdelivr.net/npm/vditor@3.11.0",
+    cdn: "/assets/vditor",
     resize: {
       enable: true,
       position: "bottom", // 只允许底部拖动
@@ -478,7 +478,7 @@ const initEditor = () => {
         lineNumber: true, // 显示行号
         style: props.darkMode ? "vs2015" : "github",
         // ：JS 文件使用 CDN，CSS 文件使用本地
-        js: "https://fastly.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js",
+        js: "/assets/vditor/dist/js/highlight.js/third-languages.js",
         css: (style) => `/assets/vditor/dist/js/highlight.js/styles/${style}.min.css`,
       },
       actions: ["desktop", "tablet", "mobile", "mp-wechat", "zhihu"],
