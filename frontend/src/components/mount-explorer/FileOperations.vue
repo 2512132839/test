@@ -33,6 +33,23 @@
 
       <!-- 右侧视图操作按钮组 -->
       <div class="flex items-center space-x-2">
+        <!-- 任务管理按钮 -->
+        <button
+          @click="$emit('openTasksModal')"
+          class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium mr-2"
+          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
+        >
+          <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            />
+          </svg>
+          <span>任务</span>
+        </button>
+
         <!-- 视图切换按钮组 -->
         <div class="flex rounded-md overflow-hidden border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
           <!-- 列表视图按钮 -->
@@ -145,9 +162,13 @@ const props = defineProps({
     type: String,
     default: "list", // 'list' 或 'grid'
   },
+  selectedItems: {
+    type: Array,
+    default: () => [],
+  },
 });
 
-const emit = defineEmits(["upload", "createFolder", "refresh", "changeViewMode", "openUploadModal"]);
+const emit = defineEmits(["upload", "createFolder", "refresh", "changeViewMode", "openUploadModal", "openCopyModal", "openTasksModal"]);
 
 // 视图模式切换
 const changeViewMode = (mode) => {
@@ -173,6 +194,11 @@ const handleFileChange = (event) => {
   }
   // 清空文件输入，允许选择相同文件
   event.target.value = "";
+};
+
+// 打开复制对话框
+const openCopyModal = () => {
+  emit("openCopyModal");
 };
 
 // 新建文件夹相关

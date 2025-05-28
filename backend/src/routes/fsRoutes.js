@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { apiKeyFileMiddleware } from "../middlewares/apiKeyMiddleware.js";
-import { createErrorResponse, generateFileId } from "../utils/common.js";
+import { createErrorResponse } from "../utils/common.js";
 import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
 import {
@@ -20,12 +20,13 @@ import {
   batchRemoveItems,
   getFilePresignedUrl,
   updateFile,
+  copyItem,
+  batchCopyItems,
 } from "../services/fsService.js";
 import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
-import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
-import { directoryCacheManager, clearCacheForFilePath } from "../utils/DirectoryCache.js";
+import { generatePresignedPutUrl } from "../utils/s3Utils.js";
+import { directoryCacheManager, clearCacheForFilePath, clearCacheForPath } from "../utils/DirectoryCache.js";
 import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
-import { getLocalTimeString } from "../utils/common.js";
 
 // 创建文件系统路由处理程序
 const fsRoutes = new Hono();
@@ -650,21 +651,21 @@ fsRoutes.post("/api/admin/fs/multipart/init", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "初始化分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "初始化分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -685,22 +686,22 @@ fsRoutes.post("/api/admin/fs/multipart/part", authMiddleware, async (c) => {
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
 
     return c.json(
-        {
-          success: false,
-          message: error.message || "上传分片失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "上传分片失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -714,21 +715,21 @@ fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "完成分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "完成分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -742,21 +743,21 @@ fsRoutes.post("/api/admin/fs/multipart/abort", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "中止分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "中止分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -786,21 +787,21 @@ fsRoutes.post("/api/user/fs/multipart/init", apiKeyFileMiddleware, async (c) => 
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "初始化分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "初始化分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -821,22 +822,22 @@ fsRoutes.post("/api/user/fs/multipart/part", apiKeyFileMiddleware, async (c) => 
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
 
     return c.json(
-        {
-          success: false,
-          message: error.message || "上传分片失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "上传分片失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -850,21 +851,21 @@ fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c)
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "完成分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "完成分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -878,21 +879,21 @@ fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) =>
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "中止分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "中止分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -1159,23 +1160,22 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
 
     // 记录文件上传成功
     await db
-        .prepare(
-            `
+      .prepare(
+        `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-        )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
-        .run();
+      )
+      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
+      .run();
 
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
 
     // 刷新目录缓存
     if (mountId && parentPath) {
-      const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mountId, parentPath);
-      console.log(`缓存已刷新（包含所有父路径）：挂载点=${mountId}, 路径=${parentPath}, 清理了${invalidatedCount}个缓存条目`);
+      clearCacheForPath(mountId, parentPath, false, "预签名上传完成");
     } else {
       console.warn(`跳过缓存刷新，参数不完整: mountId=${mountId}, parentPath=${parentPath}`);
     }
@@ -1260,23 +1260,22 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
 
     // 记录文件上传成功
     await db
-        .prepare(
-            `
+      .prepare(
+        `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-        )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyId}`, now, now)
-        .run();
+      )
+      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyId}`, now, now)
+      .run();
 
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
 
     // 刷新目录缓存
     if (mountId && parentPath) {
-      const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mountId, parentPath);
-      console.log(`缓存已刷新（包含所有父路径）：挂载点=${mountId}, 路径=${parentPath}, 清理了${invalidatedCount}个缓存条目`);
+      clearCacheForPath(mountId, parentPath, false, "预签名上传完成");
     } else {
       console.warn(`跳过缓存刷新，参数不完整: mountId=${mountId}, parentPath=${parentPath}`);
     }
@@ -1450,6 +1449,290 @@ fsRoutes.post("/api/user/fs/update", apiKeyFileMiddleware, async (c) => {
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }
     return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "更新文件失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 批量复制文件或目录 - 管理员版本
+fsRoutes.post("/api/admin/fs/batch-copy", authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const adminId = c.get("adminId");
+  const body = await c.req.json();
+  const items = body.items;
+  const skipExisting = body.skipExisting !== false; // 默认为true
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的复制项数组"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    const result = await batchCopyItems(db, items, adminId, "admin", c.env.ENCRYPTION_SECRET, skipExisting);
+
+    // 检查是否有跨存储复制操作
+    if (result.hasCrossStorageOperations) {
+      return c.json({
+        code: ApiStatus.SUCCESS,
+        message: `批量复制请求处理完成，包含跨存储操作`,
+        data: {
+          crossStorage: true,
+          requiresClientSideCopy: true,
+          standardCopyResults: {
+            success: result.success,
+            skipped: result.skipped,
+            failed: result.failed.length,
+          },
+          crossStorageResults: result.crossStorageResults,
+          failed: result.failed,
+          details: result.details,
+        },
+        success: true,
+      });
+    }
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`,
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("批量复制错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "批量复制失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 批量复制文件或目录 - API密钥用户版本
+fsRoutes.post("/api/user/fs/batch-copy", apiKeyFileMiddleware, async (c) => {
+  const db = c.env.DB;
+  const apiKeyId = c.get("apiKeyId");
+  const body = await c.req.json();
+  const items = body.items;
+  const skipExisting = body.skipExisting !== false; // 默认为true
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的复制项数组"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    const result = await batchCopyItems(db, items, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET, skipExisting);
+
+    // 检查是否有跨存储复制操作
+    if (result.hasCrossStorageOperations) {
+      return c.json({
+        code: ApiStatus.SUCCESS,
+        message: `批量复制请求处理完成，包含跨存储操作`,
+        data: {
+          crossStorage: true,
+          requiresClientSideCopy: true,
+          standardCopyResults: {
+            success: result.success,
+            skipped: result.skipped,
+            failed: result.failed.length,
+          },
+          crossStorageResults: result.crossStorageResults,
+          failed: result.failed,
+          details: result.details,
+        },
+        success: true,
+      });
+    }
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`,
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("批量复制错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "批量复制失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 提交批量跨存储复制完成 - 管理员版本
+fsRoutes.post("/api/admin/fs/batch-copy-commit", authMiddleware, async (c) => {
+  const db = c.env.DB;
+  const adminId = c.get("adminId");
+  const body = await c.req.json();
+  const { targetMountId, files } = body;
+
+  if (!targetMountId || !Array.isArray(files) || files.length === 0) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的目标挂载点ID和文件列表"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    // 获取挂载点信息
+    const mount = await db.prepare("SELECT * FROM storage_mounts WHERE id = ?").bind(targetMountId).first();
+    if (!mount) {
+      return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "目标挂载点不存在"), ApiStatus.NOT_FOUND);
+    }
+
+    // 获取S3配置
+    const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+    if (!s3Config) {
+      return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "存储配置不存在"), ApiStatus.NOT_FOUND);
+    }
+
+    // 用于存储结果
+    const results = {
+      success: [],
+      failed: [],
+    };
+
+    // 处理每个文件
+    for (const file of files) {
+      try {
+        const { targetPath, s3Path, contentType, fileSize, etag } = file;
+
+        if (!targetPath || !s3Path) {
+          results.failed.push({
+            targetPath: targetPath || "未指定",
+            error: "目标路径或S3路径不能为空",
+          });
+          continue;
+        }
+
+        // 提取文件名
+        const fileName = targetPath.split("/").filter(Boolean).pop();
+
+        results.success.push({
+          targetPath,
+          fileName,
+        });
+      } catch (fileError) {
+        console.error("处理单个文件复制提交时出错:", fileError);
+        results.failed.push({
+          targetPath: file.targetPath || "未知路径",
+          error: fileError.message || "处理文件时出错",
+        });
+      }
+    }
+
+    // 执行缓存清理
+    try {
+      // 1. 清理根目录缓存（作为保底措施）
+      clearCacheForPath(mount.id, "/", true, "批量复制完成-根目录");
+
+      // 2. 对每个成功的文件执行彻底的缓存清理
+      for (const file of results.success) {
+        if (file.targetPath) {
+          await clearCacheForFilePath(db, file.targetPath, mount.storage_config_id);
+        }
+      }
+      console.log(`批量复制完成后缓存已刷新：挂载点=${mount.id}, 共处理了${results.success.length}个文件`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+      // 缓存清理失败不应影响整体操作
+    }
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`,
+      data: results,
+      success: true,
+    });
+  } catch (error) {
+    console.error("提交批量复制完成错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "提交批量复制完成失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 提交批量跨存储复制完成 - API密钥用户版本
+fsRoutes.post("/api/user/fs/batch-copy-commit", apiKeyFileMiddleware, async (c) => {
+  const db = c.env.DB;
+  const apiKeyId = c.get("apiKeyId");
+  const body = await c.req.json();
+  const { targetMountId, files } = body;
+
+  if (!targetMountId || !Array.isArray(files) || files.length === 0) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的目标挂载点ID和文件列表"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    // 获取挂载点信息
+    const mount = await db.prepare("SELECT * FROM storage_mounts WHERE id = ?").bind(targetMountId).first();
+    if (!mount) {
+      return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "目标挂载点不存在"), ApiStatus.NOT_FOUND);
+    }
+
+    // 获取S3配置
+    const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+    if (!s3Config) {
+      return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "存储配置不存在"), ApiStatus.NOT_FOUND);
+    }
+
+    // 用于存储结果
+    const results = {
+      success: [],
+      failed: [],
+    };
+
+    // 处理每个文件
+    for (const file of files) {
+      try {
+        const { targetPath, s3Path, contentType, fileSize, etag } = file;
+
+        if (!targetPath || !s3Path) {
+          results.failed.push({
+            targetPath: targetPath || "未指定",
+            error: "目标路径或S3路径不能为空",
+          });
+          continue;
+        }
+
+        // 提取文件名
+        const fileName = targetPath.split("/").filter(Boolean).pop();
+
+        results.success.push({
+          targetPath,
+          fileName,
+        });
+      } catch (fileError) {
+        console.error("处理单个文件复制提交时出错:", fileError);
+        results.failed.push({
+          targetPath: file.targetPath || "未知路径",
+          error: fileError.message || "处理文件时出错",
+        });
+      }
+    }
+
+    // 执行缓存清理
+    try {
+      // 1. 清理根目录缓存（作为保底措施）
+      clearCacheForPath(mount.id, "/", true, "批量复制完成-根目录");
+
+      // 2. 对每个成功的文件执行彻底的缓存清理
+      for (const file of results.success) {
+        if (file.targetPath) {
+          await clearCacheForFilePath(db, file.targetPath, mount.storage_config_id);
+        }
+      }
+      console.log(`批量复制完成后缓存已刷新：挂载点=${mount.id}, 共处理了${results.success.length}个文件`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+      // 缓存清理失败不应影响整体操作
+    }
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`,
+      data: results,
+      success: true,
+    });
+  } catch (error) {
+    console.error("提交批量复制完成错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "提交批量复制完成失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 

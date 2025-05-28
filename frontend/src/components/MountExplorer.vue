@@ -6,8 +6,8 @@
 
     <!-- 权限提示 -->
     <div
-      v-if="!hasPermission"
-      class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
+        v-if="!hasPermission"
+        class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
     >
       <div class="flex items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -26,49 +26,67 @@
       <div class="card mb-4" :class="darkMode ? 'bg-gray-800/50' : 'bg-white'">
         <div class="p-3">
           <FileOperations
-            :current-path="currentPath"
-            :is-virtual="directoryData?.isVirtual"
-            :dark-mode="darkMode"
-            :view-mode="viewMode"
-            @upload="handleUpload"
-            @create-folder="handleCreateFolder"
-            @refresh="loadDirectoryContents"
-            @change-view-mode="handleViewModeChange"
-            @openUploadModal="handleOpenUploadModal"
+              :current-path="currentPath"
+              :is-virtual="directoryData?.isVirtual"
+              :dark-mode="darkMode"
+              :view-mode="viewMode"
+              :selected-items="selectedItems"
+              @upload="handleUpload"
+              @create-folder="handleCreateFolder"
+              @refresh="loadDirectoryContents"
+              @change-view-mode="handleViewModeChange"
+              @openUploadModal="handleOpenUploadModal"
+              @openCopyModal="handleBatchCopy"
+              @openTasksModal="handleOpenTasksModal"
           />
         </div>
       </div>
 
       <!-- 上传弹窗 -->
       <UploadModal
-        :is-open="showUploadModal"
-        :dark-mode="darkMode"
-        :current-path="currentPath"
-        :is-admin="isAdmin"
-        @close="handleCloseUploadModal"
-        @upload-success="handleUploadSuccess"
-        @upload-error="handleUploadError"
+          :is-open="showUploadModal"
+          :dark-mode="darkMode"
+          :current-path="currentPath"
+          :is-admin="isAdmin"
+          @close="handleCloseUploadModal"
+          @upload-success="handleUploadSuccess"
+          @upload-error="handleUploadError"
       />
+
+      <!-- 复制模态窗口 -->
+      <CopyModal
+          :is-open="showCopyModal"
+          :dark-mode="darkMode"
+          :selected-items="selectedItems"
+          :source-path="currentPath"
+          :is-admin="isAdmin"
+          @close="handleCloseCopyModal"
+          @copy-complete="handleCopyComplete"
+      />
+
+      <!-- 任务管理弹窗 -->
+      <TasksModal :is-open="showTasksModal" :dark-mode="darkMode" @close="handleCloseTasksModal" />
 
       <!-- 面包屑导航 -->
       <div class="mb-4">
         <BreadcrumbNav
-          :current-path="currentPath"
-          :dark-mode="darkMode"
-          :preview-file="isPreviewMode ? previewFile : null"
-          @navigate="navigateTo"
-          :is-checkbox-mode="isCheckboxMode"
-          :selected-count="selectedCount"
-          @toggle-checkbox-mode="toggleCheckboxMode"
-          @batch-delete="batchDelete"
+            :current-path="currentPath"
+            :dark-mode="darkMode"
+            :preview-file="isPreviewMode ? previewFile : null"
+            @navigate="navigateTo"
+            :is-checkbox-mode="isCheckboxMode"
+            :selected-count="selectedCount"
+            @toggle-checkbox-mode="toggleCheckboxMode"
+            @batch-delete="batchDelete"
+            @batch-copy="handleBatchCopy"
         />
       </div>
 
       <!-- 消息提示 -->
       <div
-        v-if="message"
-        class="mb-4 p-3 rounded-md"
-        :class="
+          v-if="message"
+          class="mb-4 p-3 rounded-md"
+          :class="
           message.type === 'error'
             ? darkMode
               ? 'bg-red-900/40 border border-red-800 text-red-200'
@@ -90,42 +108,42 @@
           <div class="flex items-center">
             <!-- 成功图标 -->
             <svg
-              v-if="message.type === 'success'"
-              class="h-5 w-5 mr-2"
-              :class="darkMode ? 'text-green-300' : 'text-green-500'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+                v-if="message.type === 'success'"
+                class="h-5 w-5 mr-2"
+                :class="darkMode ? 'text-green-300' : 'text-green-500'"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
 
             <!-- 信息图标 -->
             <svg
-              v-else-if="message.type === 'info'"
-              class="h-5 w-5 mr-2"
-              :class="darkMode ? 'text-blue-300' : 'text-blue-500'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+                v-else-if="message.type === 'info'"
+                class="h-5 w-5 mr-2"
+                :class="darkMode ? 'text-blue-300' : 'text-blue-500'"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
 
             <!-- 警告图标 -->
             <svg
-              v-else-if="message.type === 'warning'"
-              class="h-5 w-5 mr-2"
-              :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+                v-else-if="message.type === 'warning'"
+                class="h-5 w-5 mr-2"
+                :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
             >
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
 
@@ -139,10 +157,10 @@
 
           <!-- 上传操作时显示取消按钮 -->
           <button
-            v-if="isUploading && message.type === 'info'"
-            @click="cancelUpload"
-            class="ml-2 inline-flex items-center px-2 py-1 rounded text-xs font-medium"
-            :class="darkMode ? 'bg-red-800/50 hover:bg-red-700/60 text-red-200' : 'bg-red-100 hover:bg-red-200 text-red-700'"
+              v-if="isUploading && message.type === 'info'"
+              @click="cancelUpload"
+              class="ml-2 inline-flex items-center px-2 py-1 rounded text-xs font-medium"
+              :class="darkMode ? 'bg-red-800/50 hover:bg-red-700/60 text-red-200' : 'bg-red-100 hover:bg-red-200 text-red-700'"
           >
             <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -164,20 +182,20 @@
         <!-- 文件列表模式 -->
         <div v-if="!isPreviewMode">
           <DirectoryList
-            :items="directoryData?.items || []"
-            :loading="loading"
-            :is-virtual="directoryData?.isVirtual"
-            :dark-mode="darkMode"
-            :view-mode="viewMode"
-            :is-checkbox-mode="isCheckboxMode"
-            :selected-items="selectedItems"
-            @navigate="navigateTo"
-            @download="handleDownload"
-            @rename="handleRename"
-            @delete="handleDelete"
-            @preview="handlePreview"
-            @item-select="handleItemSelect"
-            @toggle-select-all="toggleSelectAll"
+              :items="directoryData?.items || []"
+              :loading="loading"
+              :is-virtual="directoryData?.isVirtual"
+              :dark-mode="darkMode"
+              :view-mode="viewMode"
+              :is-checkbox-mode="isCheckboxMode"
+              :selected-items="selectedItems"
+              @navigate="navigateTo"
+              @download="handleDownload"
+              @rename="handleRename"
+              @delete="handleDelete"
+              @preview="handlePreview"
+              @item-select="handleItemSelect"
+              @toggle-select-all="toggleSelectAll"
           />
         </div>
 
@@ -187,9 +205,9 @@
             <!-- 返回按钮 -->
             <div class="mb-4">
               <button
-                @click="closePreview"
-                class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+                  @click="closePreview"
+                  class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+                  :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
               >
                 <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -200,13 +218,13 @@
 
             <!-- 文件预览内容 -->
             <FilePreview
-              :file="previewFile"
-              :dark-mode="darkMode"
-              :is-admin="isAdmin"
-              :is-loading="isPreviewLoading"
-              @download="handleDownload"
-              @loaded="handlePreviewLoaded"
-              @error="handlePreviewError"
+                :file="previewFile"
+                :dark-mode="darkMode"
+                :is-admin="isAdmin"
+                :is-loading="isPreviewLoading"
+                @download="handleDownload"
+                @loaded="handlePreviewLoaded"
+                @error="handlePreviewError"
             />
           </div>
         </div>
@@ -233,9 +251,9 @@
 
         <div class="flex justify-end space-x-2">
           <button
-            @click="cancelBatchDelete"
-            class="px-4 py-2 rounded-md transition-colors"
-            :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
+              @click="cancelBatchDelete"
+              class="px-4 py-2 rounded-md transition-colors"
+              :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
           >
             取消
           </button>
@@ -254,6 +272,8 @@ import DirectoryList from "./mount-explorer/DirectoryList.vue";
 import FileOperations from "./mount-explorer/FileOperations.vue";
 import FilePreview from "./mount-explorer/FilePreview.vue";
 import UploadModal from "./mount-explorer/UploadModal.vue";
+import CopyModal from "./mount-explorer/CopyModal.vue";
+import TasksModal from "./mount-explorer/TasksModal.vue";
 import { downloadFileWithAuth } from "../utils/fileUtils";
 
 const props = defineProps({
@@ -297,6 +317,12 @@ const selectedItems = ref([]); // 已选中的文件/文件夹
 // 批量删除对话框相关变量
 const showBatchDeleteDialog = ref(false);
 const itemsToDelete = ref([]);
+
+// 复制模态窗口相关变量
+const showCopyModal = ref(false);
+
+// 任务管理弹窗相关变量
+const showTasksModal = ref(false);
 
 // 计算已选中项数量
 const selectedCount = computed(() => selectedItems.value.length);
@@ -645,12 +671,12 @@ const handlePreview = async (item) => {
 
     // 对于文本文件，预加载内容
     if (
-      fileInfo.contentType &&
-      (fileInfo.contentType.startsWith("text/") ||
-        fileInfo.contentType === "application/json" ||
-        fileInfo.contentType === "application/xml" ||
-        fileInfo.contentType === "application/javascript" ||
-        fileInfo.contentType === "application/typescript")
+        fileInfo.contentType &&
+        (fileInfo.contentType.startsWith("text/") ||
+            fileInfo.contentType === "application/json" ||
+            fileInfo.contentType === "application/xml" ||
+            fileInfo.contentType === "application/javascript" ||
+            fileInfo.contentType === "application/typescript")
     ) {
       // 获取预览URL
       const previewUrl = isAdmin.value ? api.fs.getAdminFilePreviewUrl(fileInfo.path) : api.fs.getUserFilePreviewUrl(fileInfo.path);
@@ -846,5 +872,47 @@ const toggleSelectAll = (select) => {
     // 取消全选
     selectedItems.value = [];
   }
+};
+
+// 处理批量复制
+const handleBatchCopy = () => {
+  if (selectedItems.value.length === 0) return;
+
+  // 打开复制模态窗口
+  showCopyModal.value = true;
+};
+
+// 处理复制完成
+const handleCopyComplete = (result) => {
+  // 关闭复制模态窗口
+  showCopyModal.value = false;
+
+  if (result.success) {
+    // 显示成功消息
+    showMessage("success", result.message);
+
+    // 如果复制到当前目录，刷新目录列表
+    if (result.targetPath === currentPath.value) {
+      loadDirectoryContents();
+    }
+  } else {
+    // 显示错误消息
+    showMessage("error", `复制失败: ${result.message}`);
+  }
+};
+
+// 处理关闭复制模态窗口
+const handleCloseCopyModal = () => {
+  showCopyModal.value = false;
+};
+
+// 处理打开任务管理弹窗
+const handleOpenTasksModal = () => {
+  showTasksModal.value = true;
+};
+
+// 处理关闭任务管理弹窗
+const handleCloseTasksModal = () => {
+  showTasksModal.value = false;
 };
 </script>

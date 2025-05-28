@@ -75,6 +75,23 @@
         <span>{{ isCheckboxMode ? "退出勾选" : "启用勾选" }}</span>
       </button>
 
+      <!-- 复制按钮 (在勾选模式且有选中项时显示) -->
+      <button
+        v-if="isCheckboxMode && selectedCount > 0"
+        @click="$emit('batch-copy')"
+        class="inline-flex items-center px-2 sm:px-3 py-1.5 rounded-md transition-colors text-xs sm:text-sm font-medium mr-2 bg-blue-600 hover:bg-blue-700 text-white"
+      >
+        <svg class="w-4 h-4 mr-1 sm:mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
+        <span class="whitespace-nowrap">复制选中项 ({{ selectedCount }})</span>
+      </button>
+
       <!-- 批量删除按钮 (在勾选模式且有选中项时显示) -->
       <button
         v-if="isCheckboxMode && selectedCount > 0"
@@ -122,7 +139,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["navigate", "toggle-checkbox-mode", "batch-delete"]);
+const emit = defineEmits(["navigate", "toggle-checkbox-mode", "batch-delete", "batch-copy"]);
 
 // 计算路径段
 const pathSegments = computed(() => {

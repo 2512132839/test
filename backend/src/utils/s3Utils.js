@@ -2,7 +2,7 @@
  * S3存储操作相关工具函数
  */
 
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ConfiguredRetryStrategy } from "@smithy/util-retry";
 import { decryptValue } from "./crypto.js";
@@ -82,9 +82,9 @@ export async function createS3Client(config, encryptionSecret) {
 
   // 日志记录所选服务商和配置
   console.log(
-      `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
-          config.path_style ? "是" : "否"
-      }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
+    `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+      config.path_style ? "是" : "否"
+    }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
   );
 
   // 返回创建的S3客户端
@@ -262,4 +262,158 @@ export async function deleteFileFromS3(s3Config, storagePath, encryptionSecret) 
     console.error(`从S3删除文件错误: ${error.message || error}`);
     return false;
   }
+}
+
+/**
+ * 检查S3对象是否存在
+ * @param {S3Client} s3Client - S3客户端实例
+ * @param {string} bucketName - 存储桶名称
+ * @param {string} key - 对象键名
+ * @returns {Promise<boolean>} 对象是否存在
+ */
+export async function checkS3ObjectExists(s3Client, bucketName, key) {
+  try {
+    const headParams = {
+      Bucket: bucketName,
+      Key: key,
+    };
+
+    const headCommand = new HeadObjectCommand(headParams);
+    await s3Client.send(headCommand);
+    return true;
+  } catch (error) {
+    if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * 获取S3对象元数据
+ * @param {S3Client} s3Client - S3客户端实例
+ * @param {string} bucketName - 存储桶名称
+ * @param {string} key - 对象键名
+ * @returns {Promise<Object|null>} 对象元数据，不存在时返回null
+ */
+export async function getS3ObjectMetadata(s3Client, bucketName, key) {
+  try {
+    const headParams = {
+      Bucket: bucketName,
+      Key: key,
+    };
+
+    const headCommand = new HeadObjectCommand(headParams);
+    return await s3Client.send(headCommand);
+  } catch (error) {
+    if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * 列出S3目录内容
+ * @param {S3Client} s3Client - S3客户端实例
+ * @param {string} bucketName - 存储桶名称
+ * @param {string} prefix - 目录前缀
+ * @param {string} delimiter - 分隔符，默认为'/'
+ * @param {string} continuationToken - 分页令牌
+ * @returns {Promise<Object>} 目录内容
+ */
+export async function listS3Directory(s3Client, bucketName, prefix, delimiter = "/", continuationToken = undefined) {
+  const listParams = {
+    Bucket: bucketName,
+    Prefix: prefix,
+    Delimiter: delimiter,
+    ContinuationToken: continuationToken,
+  };
+
+  const command = new ListObjectsV2Command(listParams);
+  return await s3Client.send(command);
+}
+
+/**
+ * 递归获取目录中所有文件的预签名URL
+ * @param {S3Client} s3Client - 源S3客户端
+ * @param {Object} sourceS3Config - 源S3配置
+ * @param {Object} targetS3Config - 目标S3配置
+ * @param {string} sourcePath - 源目录路径
+ * @param {string} targetPath - 目标目录路径
+ * @param {string} encryptionSecret - 加密密钥
+ * @param {number} expiresIn - URL过期时间（秒）
+ * @returns {Promise<Array>} 包含文件预签名URL的数组
+ */
+export async function getDirectoryPresignedUrls(s3Client, sourceS3Config, targetS3Config, sourcePath, targetPath, encryptionSecret, expiresIn = 3600) {
+  // 确保目录路径以斜杠结尾
+  const sourcePrefix = sourcePath.endsWith("/") ? sourcePath : sourcePath + "/";
+  const targetPrefix = targetPath.endsWith("/") ? targetPath : targetPath + "/";
+
+  // 存储结果
+  const items = [];
+
+  // 递归列出目录中的所有文件
+  let continuationToken = undefined;
+
+  do {
+    // 列出源目录内容
+    const listResponse = await listS3Directory(s3Client, sourceS3Config.bucket_name, sourcePrefix, "/", continuationToken);
+
+    // 检查是否有内容
+    if (listResponse.Contents && listResponse.Contents.length > 0) {
+      // 处理每个对象
+      for (const item of listResponse.Contents) {
+        const sourceKey = item.Key;
+
+        // 跳过目录标记（与前缀完全匹配的对象）
+        if (sourceKey === sourcePrefix) {
+          continue;
+        }
+
+        // 计算相对路径和目标路径
+        const relativePath = sourceKey.substring(sourcePrefix.length);
+        const targetKey = targetPrefix + relativePath;
+
+        // 为每个文件生成下载和上传的预签名URL
+        const downloadUrl = await generatePresignedUrl(sourceS3Config, sourceKey, encryptionSecret, expiresIn);
+
+        // 获取文件的content-type
+        let contentType = "application/octet-stream";
+        try {
+          const headResponse = await getS3ObjectMetadata(s3Client, sourceS3Config.bucket_name, sourceKey);
+          if (headResponse) {
+            contentType = headResponse.ContentType || contentType;
+          }
+        } catch (error) {
+          console.warn(`获取文件元数据失败，使用默认content-type: ${error.message}`);
+        }
+
+        // 生成上传预签名URL
+        const uploadUrl = await generatePresignedPutUrl(targetS3Config, targetKey, contentType, encryptionSecret, expiresIn);
+
+        // 计算相对路径信息（用于前端构建目录结构）
+        const pathParts = relativePath.split("/");
+        const fileName = pathParts.pop();
+        const relativeDir = pathParts.join("/");
+
+        // 添加到结果集
+        items.push({
+          sourceKey,
+          targetKey,
+          fileName,
+          relativeDir,
+          contentType,
+          size: item.Size,
+          downloadUrl,
+          uploadUrl,
+        });
+      }
+    }
+
+    // 更新令牌用于下一次循环
+    continuationToken = listResponse.IsTruncated ? listResponse.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return items;
 }

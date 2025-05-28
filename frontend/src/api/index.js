@@ -31,7 +31,6 @@ export const api = {
     getUrlUploadPresignedUrl: urlUploadService.getUrlUploadPresignedUrl,
     uploadFromUrlToS3: urlUploadService.uploadFromUrlToS3,
     commitUrlUpload: urlUploadService.commitUrlUpload,
-    serverProxyUpload: urlUploadService.serverProxyUpload,
   },
   user: {
     // 添加API密钥用户的文本服务
@@ -69,7 +68,6 @@ export const api = {
       getUrlUploadPresignedUrl: urlUploadService.getUrlUploadPresignedUrl,
       uploadFromUrlToS3: urlUploadService.uploadFromUrlToS3,
       commitUrlUpload: urlUploadService.commitUrlUpload,
-      serverProxyUpload: urlUploadService.serverProxyUpload,
     },
   },
 };
