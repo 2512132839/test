@@ -1,7 +1,7 @@
 <script setup>
 // PasteViewEditor组件 - 提供Markdown编辑及相关配置功能
 // 该组件使用Vditor作为编辑器，允许用户修改内容并设置过期时间等元数据
-import { ref, onMounted, watch, onBeforeUnmount } from "vue";
+import { ref, onMounted, watch, onBeforeUnmount, nextTick } from "vue";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import { getInputClasses, debugLog } from "./PasteViewUtils";
@@ -51,10 +51,15 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // 是否为纯文本模式
+  isPlainTextMode: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // 定义组件可触发的事件
-const emit = defineEmits(["save", "cancel", "update:error"]);
+const emit = defineEmits(["save", "cancel", "update:error", "update:isPlainTextMode"]);
 
 // 编辑器实例引用
 const vditorInstance = ref(null);
@@ -68,6 +73,13 @@ const editForm = ref({
   clearPassword: false, // 新增是否清除密码的标志
 });
 
+// 纯文本模式变量
+const isPlainTextMode = ref(props.isPlainTextMode);
+// 纯文本内容
+const plainTextContent = ref("");
+// 原始纯文本内容（保留格式）
+const originalPlainTextContent = ref("");
+
 // 密码可见性控制
 const showPassword = ref(false);
 
@@ -80,6 +92,107 @@ const notification = ref("");
 const lastCopyFormatsBtnElement = ref(null);
 // 添加markdownImporter的ref引用
 const markdownImporter = ref(null);
+
+// 监听父组件传入的isPlainTextMode变化
+watch(
+  () => props.isPlainTextMode,
+  (newMode) => {
+    if (newMode !== isPlainTextMode.value) {
+      isPlainTextMode.value = newMode;
+    }
+  }
+);
+
+// 同步isPlainTextMode变化到父组件
+watch(
+  () => isPlainTextMode.value,
+  (newMode) => {
+    emit("update:isPlainTextMode", newMode);
+  }
+);
+
+// 切换编辑器模式
+const toggleEditorMode = () => {
+  // 保存当前内容
+  let currentContent = "";
+
+  if (isPlainTextMode.value) {
+    // 从纯文本切换到Markdown模式
+    currentContent = plainTextContent.value;
+
+    // 保存原始纯文本内容，以便切换回来时恢复
+    originalPlainTextContent.value = plainTextContent.value;
+
+    // 先切换模式标志
+    isPlainTextMode.value = false;
+
+    // 使用nextTick确保DOM已更新
+    nextTick(() => {
+      console.log("开始初始化Markdown编辑器...");
+
+      // 强制销毁和重新初始化编辑器
+      if (vditorInstance.value) {
+        try {
+          if (vditorInstance.value.destroy) {
+            vditorInstance.value.destroy();
+          }
+        } catch (e) {
+          console.error("销毁编辑器时出错:", e);
+        }
+        vditorInstance.value = null;
+      }
+
+      // 等待DOM更新后初始化编辑器
+      setTimeout(() => {
+        initEditor();
+
+        // 初始化完成后设置内容
+        setTimeout(() => {
+          if (vditorInstance.value && vditorInstance.value.setValue) {
+            console.log("设置Markdown编辑器内容");
+            vditorInstance.value.setValue(currentContent || "");
+          } else {
+            console.error("编辑器初始化失败或未找到setValue方法");
+          }
+        }, 200);
+      }, 100);
+    });
+  } else {
+    // 从Markdown切换到纯文本模式
+    if (vditorInstance.value && vditorInstance.value.getValue) {
+      try {
+        currentContent = vditorInstance.value.getValue();
+
+        // 如果有保存的原始纯文本内容，优先使用它
+        if (originalPlainTextContent.value) {
+          console.log("恢复原始纯文本内容");
+          plainTextContent.value = originalPlainTextContent.value;
+        } else {
+          // 否则使用编辑器的当前内容
+          console.log("使用编辑器当前内容作为纯文本");
+          plainTextContent.value = currentContent;
+        }
+      } catch (e) {
+        console.error("获取编辑器内容时出错:", e);
+        // 出错时保留当前纯文本内容
+      }
+    }
+
+    // 切换模式标志
+    isPlainTextMode.value = true;
+  }
+};
+
+// 同步纯文本内容到编辑器
+const syncContentFromPlainText = () => {
+  // 同时更新原始纯文本内容，保留格式
+  originalPlainTextContent.value = plainTextContent.value;
+
+  if (vditorInstance.value && vditorInstance.value.setValue) {
+    // 只有在编辑器实例存在时才更新
+    vditorInstance.value.setValue(plainTextContent.value);
+  }
+};
 
 // 切换密码可见性
 const togglePasswordVisibility = () => {
@@ -417,12 +530,22 @@ watch(
 
 // 保存编辑内容，收集所有表单数据并触发保存事件
 const saveEdit = async () => {
-  if (!vditorInstance.value) return;
+  // 根据当前模式获取内容
+  let newContent;
 
-  // 获取编辑器当前内容
-  const newContent = vditorInstance.value.getValue();
+  if (isPlainTextMode.value) {
+    // 纯文本模式下，使用plainTextContent或originalPlainTextContent
+    newContent = originalPlainTextContent.value || plainTextContent.value;
+  } else if (vditorInstance.value) {
+    // Markdown模式下，从编辑器获取内容
+    newContent = vditorInstance.value.getValue();
+  } else {
+    emit("update:error", "编辑器未初始化");
+    return;
+  }
+
   // 检查文本内容是否为空
-  if (!newContent.trim()) {
+  if (!newContent || !newContent.trim()) {
     emit("update:error", "内容不能为空");
     return;
   }
@@ -481,7 +604,9 @@ const validateMaxViews = (event) => {
 
 // 获取当前编辑内容的辅助方法
 const getCurrentContent = () => {
-  if (vditorInstance.value) {
+  if (isPlainTextMode.value) {
+    return originalPlainTextContent.value || plainTextContent.value;
+  } else if (vditorInstance.value) {
     return vditorInstance.value.getValue();
   }
   return props.content;
@@ -490,11 +615,19 @@ const getCurrentContent = () => {
 // 暴露方法供父组件调用
 defineExpose({
   getCurrentContent,
+  toggleEditorMode,
 });
 
-// 组件挂载时初始化编辑器
+// 组件挂载时初始化编辑器或纯文本内容
 onMounted(() => {
-  initEditor();
+  // 初始化纯文本内容
+  plainTextContent.value = props.content || "";
+  originalPlainTextContent.value = props.content || "";
+
+  // 根据模式初始化编辑器
+  if (!isPlainTextMode.value) {
+    initEditor();
+  }
 
   // 添加全局点击事件监听器
   document.addEventListener("click", handleGlobalClick);
@@ -513,7 +646,8 @@ onMounted(() => {
 
 // 组件卸载时销毁编辑器实例，避免内存泄漏
 onBeforeUnmount(() => {
-  if (vditorInstance.value) {
+  // 只有在非纯文本模式下才需要销毁编辑器实例
+  if (!isPlainTextMode.value && vditorInstance.value) {
     vditorInstance.value.destroy();
     vditorInstance.value = null;
   }
@@ -934,11 +1068,38 @@ const clearEditorContent = () => {
     <!-- 添加隐藏的文件输入控件用于导入Markdown文件 -->
     <input type="file" ref="markdownImporter" accept=".md,.markdown,.mdown,.mkd" style="display: none" @change="importMarkdownFile" />
 
+    <!-- 编辑器模式切换按钮 -->
+    <div class="mb-1 flex justify-end">
+      <button
+        class="px-1.5 py-0.5 text-xs rounded-md border transition-colors"
+        :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600' : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'"
+        @click="toggleEditorMode"
+        :title="isPlainTextMode ? '切换到Markdown模式' : '切换到纯文本模式'"
+      >
+        <span class="inline-flex items-center">
+          <svg class="w-3 h-3 mr-0.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H8l4-8v4h3l-4 8z" fill="currentColor" />
+          </svg>
+          {{ isPlainTextMode ? "切换MD" : "切换TXT" }}
+        </span>
+      </button>
+    </div>
+
     <div class="editor-wrapper">
-      <!-- 编辑器区域 - Vditor实例将挂载到这个div -->
-      <div class="flex flex-col gap-4">
-        <!-- Markdown编辑器容器 -->
-        <div id="vditor-editor" class="w-full"></div>
+      <!-- 编辑器区域 -->
+      <div class="flex flex-col gap-2">
+        <!-- 纯文本编辑器 (在纯文本模式下显示) -->
+        <textarea
+          v-if="isPlainTextMode"
+          class="w-full h-[500px] p-4 font-mono text-base border rounded-lg resize-y focus:outline-none focus:ring-2"
+          :class="darkMode ? 'bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600' : 'bg-white border-gray-300 text-gray-900 focus:ring-primary-500'"
+          v-model="plainTextContent"
+          placeholder="在此输入纯文本内容..."
+          @input="syncContentFromPlainText"
+        ></textarea>
+
+        <!-- Markdown编辑器容器 (在Markdown模式下显示) -->
+        <div v-else id="vditor-editor" class="w-full"></div>
       </div>
     </div>
 
@@ -1131,6 +1292,14 @@ const clearEditorContent = () => {
   border-radius: 0.5rem;
   margin-bottom: 1rem;
   overflow: hidden;
+}
+
+/* 纯文本编辑区样式 */
+textarea.w-full {
+  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+  line-height: 1.5;
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 
 /* 工具栏样式调整，适应明暗主题 */

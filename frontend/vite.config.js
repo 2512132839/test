@@ -51,6 +51,18 @@ export default defineConfig(({ command, mode }) => {
           },
         },
       },
+      // 添加历史模式回退配置，确保所有路径都能正确路由到 index.html
+      historyApiFallback: {
+        rewrites: [
+          { from: /^\/$/, to: "/index.html" },
+          { from: /^\/paste\/.*$/, to: "/index.html" },
+          { from: /^\/file\/.*$/, to: "/index.html" },
+          { from: /^\/admin$/, to: "/index.html" },
+          { from: /^\/upload$/, to: "/index.html" },
+          { from: /^\/mount-explorer$/, to: "/index.html" },
+          { from: /./, to: "/index.html" },
+        ],
+      },
     },
     optimizeDeps: {
       include: ["vue-i18n"],

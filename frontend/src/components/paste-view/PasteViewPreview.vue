@@ -29,6 +29,11 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // 是否为纯文本模式（不渲染Markdown）
+  isPlainTextMode: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // HTML 预览相关的状态变量
@@ -100,8 +105,30 @@ watch(
   }
 );
 
+// 监听纯文本模式变化
+watch(
+  () => props.isPlainTextMode,
+  (newMode) => {
+    // 如果从纯文本模式切换到Markdown模式，需要重新渲染
+    if (!newMode && props.content) {
+      contentRendered.value = false;
+      nextTick(() => {
+        renderContent(props.content);
+      });
+    }
+    debugLog(props.enableDebug, props.isDev, `显示模式切换: ${newMode ? "纯文本模式" : "Markdown渲染模式"}`);
+  }
+);
+
 // 渲染内容的方法，处理DOM可用性和兼容性问题
 const renderContent = (content) => {
+  // 如果是纯文本模式，不需要渲染
+  if (props.isPlainTextMode) {
+    contentRendered.value = true; // 标记为已渲染，避免显示加载动画
+    emit("rendered"); // 触发渲染完成事件
+    return;
+  }
+
   if (!content) {
     console.warn("没有内容可渲染");
     return;
@@ -595,7 +622,7 @@ const openSvgInExternalBrowser = (svgContent) => {
 <template>
   <div class="paste-view-preview">
     <!-- 内容渲染中的加载动画 -->
-    <div v-if="props.content && !contentRendered" class="py-10 flex justify-center items-center">
+    <div v-if="props.content && !contentRendered && !props.isPlainTextMode" class="py-10 flex justify-center items-center">
       <svg class="animate-spin h-8 w-8" :class="props.darkMode ? 'text-blue-400' : 'text-primary-500'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -603,19 +630,27 @@ const openSvgInExternalBrowser = (svgContent) => {
       <span class="ml-3 text-sm" :class="props.darkMode ? 'text-gray-300' : 'text-gray-500'">正在渲染内容...</span>
     </div>
 
-    <!-- Vditor 预览容器 - 这里是实际的Markdown渲染区域 -->
-    <div ref="previewElement" class="vditor-reset markdown-body min-h-[300px]" :class="{ 'opacity-0': !contentRendered }"></div>
+    <!-- 纯文本模式显示 -->
+    <div v-if="props.isPlainTextMode && props.content" class="plain-text-container">
+      <pre class="whitespace-pre-wrap p-4 font-mono text-base overflow-auto min-h-[300px]" :class="props.darkMode ? 'text-gray-200' : 'text-gray-800'">{{ props.content }}</pre>
+    </div>
 
-    <!-- 后备内容显示 - 当预览元素为空或渲染失败时显示原始Markdown -->
-    <div
-      v-if="props.content && !isContentRendered() && previewElement && contentRendered === false"
-      class="mt-4 p-3 border rounded"
-      :class="props.darkMode ? 'border-yellow-600 bg-yellow-900/20' : 'border-yellow-500 bg-yellow-50'"
-    >
-      <p class="text-sm mb-2" :class="props.darkMode ? 'text-yellow-300' : 'text-yellow-700'">Markdown 渲染失败，显示原始内容：</p>
-      <pre class="whitespace-pre-wrap overflow-auto max-h-[600px] p-3 rounded" :class="props.darkMode ? 'text-gray-200 bg-gray-800' : 'text-gray-800 bg-gray-100'">{{
-        props.content
-      }}</pre>
+    <!-- Markdown渲染模式显示 -->
+    <div v-else>
+      <!-- Vditor 预览容器 - 这里是实际的Markdown渲染区域 -->
+      <div ref="previewElement" class="vditor-reset markdown-body min-h-[300px]" :class="{ 'opacity-0': !contentRendered }"></div>
+
+      <!-- 后备内容显示 - 当预览元素为空或渲染失败时显示原始Markdown -->
+      <div
+        v-if="props.content && !isContentRendered() && previewElement && contentRendered === false"
+        class="mt-4 p-3 border rounded"
+        :class="props.darkMode ? 'border-yellow-600 bg-yellow-900/20' : 'border-yellow-500 bg-yellow-50'"
+      >
+        <p class="text-sm mb-2" :class="props.darkMode ? 'text-yellow-300' : 'text-yellow-700'">Markdown 渲染失败，显示原始内容：</p>
+        <pre class="whitespace-pre-wrap overflow-auto max-h-[600px] p-3 rounded" :class="props.darkMode ? 'text-gray-200 bg-gray-800' : 'text-gray-800 bg-gray-100'">{{
+          props.content
+        }}</pre>
+      </div>
     </div>
 
     <!-- 无内容提示 -->
@@ -1091,6 +1126,37 @@ const openSvgInExternalBrowser = (svgContent) => {
   :deep(.code-block-collapse-hint svg) {
     width: 14px;
     height: 14px;
+  }
+}
+
+/* 纯文本容器样式 - 与Markdown渲染风格保持一致 */
+.plain-text-container pre {
+  font-size: 16px;
+  line-height: 1.7;
+  transition: all 0.3s ease;
+  background-color: transparent;
+}
+
+/* 针对手机屏幕的响应式调整 */
+@media (max-width: 640px) {
+  .plain-text-container pre {
+    font-size: 15px;
+    padding: 0.25rem;
+  }
+}
+
+/* 中等屏幕 */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .plain-text-container pre {
+    padding: 0.75rem;
+  }
+}
+
+/* 大屏幕额外优化 */
+@media (min-width: 1280px) {
+  .plain-text-container pre {
+    font-size: 17px;
+    padding: 1rem;
   }
 }
 </style>
