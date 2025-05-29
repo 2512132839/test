@@ -30,14 +30,28 @@ import { storeAuthInfo, getAuthInfo, isWebDAVClient, isGraphicalClient } from ".
  * @return {Response} 401响应对象
  */
 function createUnauthorizedResponse(message = "Unauthorized", userAgent = "") {
-  // 为各类WebDAV客户端返回标准的401响应，始终包含WWW-Authenticate头
+  // 创建响应头
+  const headers = {
+    "Content-Type": "text/plain",
+  };
+
+  // 根据客户端类型设置不同的WWW-Authenticate头
+  if (userAgent.includes("Dart/") && userAgent.includes("dart:io")) {
+    // Dart客户端需要更简单的认证头格式
+    console.log("WebDAV认证: 为Dart客户端提供简化的认证头");
+    headers["WWW-Authenticate"] = 'Basic realm="WebDAV"';
+  } else if (userAgent.includes("Microsoft-WebDAV-MiniRedir") || (userAgent.includes("Windows") && userAgent.includes("WebDAV"))) {
+    // Windows WebDAV客户端需要标准格式
+    headers["WWW-Authenticate"] = 'Basic realm="WebDAV", Bearer realm="WebDAV"';
+  } else {
+    // 默认格式，支持Basic和Bearer认证
+    headers["WWW-Authenticate"] = 'Basic realm="WebDAV", Bearer realm="WebDAV"';
+  }
+
+  // 返回401响应
   return new Response(message, {
     status: ApiStatus.UNAUTHORIZED,
-    headers: {
-      // 同时支持Basic和Bearer认证方式
-      "WWW-Authenticate": 'Basic realm="WebDAV", Bearer realm="WebDAV"',
-      "Content-Type": "text/plain",
-    },
+    headers: headers,
   });
 }
 
