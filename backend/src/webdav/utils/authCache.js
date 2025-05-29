@@ -1,6 +1,6 @@
 /**
  * WebDAV认证缓存工具
- * 为Windows WebDAV客户端提供认证信息缓存，解决映射网络驱动器的认证问题
+ * 为所有WebDAV客户端提供认证信息缓存，解决认证问题
  */
 
 // 内存缓存，存储认证信息
@@ -39,10 +39,6 @@ function generateCacheKey(clientIp, userAgent) {
  * @param {Object} authInfo - 认证信息
  */
 export function storeAuthInfo(clientIp, userAgent, authInfo) {
-  // 只为Windows客户端缓存认证信息
-  if (!isWindowsClient(userAgent)) {
-    return;
-  }
 
   const key = generateCacheKey(clientIp, userAgent);
   authCache.set(key, {
@@ -50,7 +46,7 @@ export function storeAuthInfo(clientIp, userAgent, authInfo) {
     timestamp: Date.now(),
   });
 
-  console.log(`WebDAV认证缓存: 已存储 (${clientIp.substring(0, 10)}, Windows客户端)`);
+  console.log(`WebDAV认证缓存: 已存储 (${clientIp.substring(0, 10)})`);
 
   // 定期清理过期缓存
   cleanExpiredCache();
@@ -63,23 +59,19 @@ export function storeAuthInfo(clientIp, userAgent, authInfo) {
  * @returns {Object|null} 认证信息或null
  */
 export function getAuthInfo(clientIp, userAgent) {
-  // 只为Windows客户端使用认证缓存
-  if (!isWindowsClient(userAgent)) {
-    return null;
-  }
 
   const key = generateCacheKey(clientIp, userAgent);
   const cached = authCache.get(key);
 
   // 检查缓存是否存在且未过期
   if (cached && Date.now() - cached.timestamp < CACHE_EXPIRATION) {
-    console.log(`WebDAV认证缓存: 命中 (${clientIp.substring(0, 10)}, Windows客户端)`);
+    console.log(`WebDAV认证缓存: 命中 (${clientIp.substring(0, 10)})`);
     return cached.authInfo;
   }
 
   // 如果过期，删除缓存
   if (cached) {
-    console.log(`WebDAV认证缓存: 已过期 (${clientIp.substring(0, 10)}, Windows客户端)`);
+    console.log(`WebDAV认证缓存: 已过期 (${clientIp.substring(0, 10)})`);
     authCache.delete(key);
   }
 
