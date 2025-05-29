@@ -546,8 +546,17 @@ server.use("/dav", (req, res, next) => {
   if (!req.headers.authorization && isWebDAVClient(userAgent)) {
     logMessage("info", `WebDAV请求: 检测到无认证WebDAV客户端，发送认证挑战: ${userAgent.substring(0, 30)}...`);
 
-    // 返回401状态码和WWW-Authenticate头，符合WebDAV标准
-    res.setHeader("WWW-Authenticate", 'Basic realm="WebDAV", Bearer realm="WebDAV"');
+    // 根据客户端类型设置不同的WWW-Authenticate头
+    if (userAgent.includes("Dart/") && userAgent.includes("dart:io")) {
+      // Dart客户端需要更简单的认证头格式
+      logMessage("debug", "WebDAV认证: 为Dart客户端提供简化的认证头");
+      res.setHeader("WWW-Authenticate", 'Basic realm="WebDAV"');
+    } else {
+      // 默认格式，支持Basic和Bearer认证
+      res.setHeader("WWW-Authenticate", 'Basic realm="WebDAV", Bearer realm="WebDAV"');
+    }
+
+    // 返回401状态码，符合WebDAV标准
     res.status(401).send("Authentication required for WebDAV access");
     return;
   }
