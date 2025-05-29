@@ -49,7 +49,8 @@ export const webdavAuthMiddleware = async (c, next) => {
   const userAgent = c.req.header("User-Agent") || "未知";
 
   // 获取客户端IP地址
-  const clientIp = c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || c.req.header("X-Real-IP") || "unknown";
+  // 添加对X-Client-IP头的检查
+  const clientIp = c.req.header("X-Client-IP") || c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || c.req.header("X-Real-IP") || "unknown";
 
   // 记录请求信息，包括用户代理
   console.log(`WebDAV认证请求: ${c.req.method} ${c.req.path}, 用户代理: ${userAgent.substring(0, 50)}${userAgent.length > 50 ? "..." : ""}`);
