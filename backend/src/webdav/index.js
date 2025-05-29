@@ -21,14 +21,16 @@ import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import { getLocalTimeString } from "../utils/common.js";
-import { storeAuthInfo, getAuthInfo } from "./utils/authCache.js";
+import { storeAuthInfo, getAuthInfo, isWebDAVClient, isGraphicalClient } from "./utils/authCache.js";
 
 /**
  * 创建未授权响应
  * @param {string} message - 响应消息
+ * @param {string} userAgent - 用户代理字符串，用于判断客户端类型
  * @return {Response} 401响应对象
  */
-function createUnauthorizedResponse(message = "Unauthorized") {
+function createUnauthorizedResponse(message = "Unauthorized", userAgent = "") {
+  // 为各类WebDAV客户端返回标准的401响应，始终包含WWW-Authenticate头
   return new Response(message, {
     status: ApiStatus.UNAUTHORIZED,
     headers: {
@@ -49,8 +51,7 @@ export const webdavAuthMiddleware = async (c, next) => {
   const userAgent = c.req.header("User-Agent") || "未知";
 
   // 获取客户端IP地址
-  // 添加对X-Client-IP头的检查
-  const clientIp = c.req.header("X-Client-IP") || c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || c.req.header("X-Real-IP") || "unknown";
+  const clientIp = c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || c.req.header("X-Real-IP") || "unknown";
 
   // 记录请求信息，包括用户代理
   console.log(`WebDAV认证请求: ${c.req.method} ${c.req.path}, 用户代理: ${userAgent.substring(0, 50)}${userAgent.length > 50 ? "..." : ""}`);
@@ -78,9 +79,15 @@ export const webdavAuthMiddleware = async (c, next) => {
       }
     }
 
-    // 如果没有缓存或缓存无效，返回401
+    // 检测到WebDAV客户端但没有认证缓存，需要提供认证挑战
+    if (isWebDAVClient(userAgent)) {
+      console.log(`WebDAV认证: 检测到WebDAV客户端 (${userAgent.substring(0, 30)}...)，发送认证挑战`);
+      return createUnauthorizedResponse(`Authentication required for WebDAV access`, userAgent);
+    }
+
+    // 非WebDAV客户端，通用错误响应
     console.log("WebDAV认证失败: 缺少认证头");
-    return createUnauthorizedResponse("Unauthorized: Missing authentication header");
+    return createUnauthorizedResponse("Unauthorized: Missing authentication header", userAgent);
   }
 
   // 1. 尝试Basic认证
@@ -97,7 +104,7 @@ export const webdavAuthMiddleware = async (c, next) => {
 
   // 3. 不支持的认证方式
   console.log(`WebDAV认证失败: 不支持的认证方式 "${authHeader.split(" ")[0]}"`);
-  return createUnauthorizedResponse("Unauthorized: Unsupported authentication method");
+  return createUnauthorizedResponse("Unauthorized: Unsupported authentication method", userAgent);
 };
 
 /**
@@ -120,14 +127,14 @@ async function handleBasicAuth(c, next, authHeader, db, clientIp, userAgent) {
       credentials = atob(base64Credentials);
     } catch (decodeError) {
       console.error("WebDAV认证: Base64解码失败");
-      return createUnauthorizedResponse("Unauthorized: Invalid Base64 encoding");
+      return createUnauthorizedResponse("Unauthorized: Invalid Base64 encoding", userAgent);
     }
 
     // 使用indexOf查找分隔符，因为密码中可能包含冒号
     const separatorIndex = credentials.indexOf(":");
     if (separatorIndex === -1) {
       console.log("WebDAV认证失败: 无效的认证格式");
-      return createUnauthorizedResponse("Unauthorized: Invalid credentials format");
+      return createUnauthorizedResponse("Unauthorized: Invalid credentials format", userAgent);
     }
 
     const username = credentials.substring(0, separatorIndex);
@@ -225,10 +232,10 @@ async function handleBasicAuth(c, next, authHeader, db, clientIp, userAgent) {
 
     // 认证失败，返回401
     console.log("WebDAV认证: Basic认证失败");
-    return createUnauthorizedResponse("Unauthorized: Invalid username or password");
+    return createUnauthorizedResponse("Unauthorized: Invalid username or password", userAgent);
   } catch (error) {
     console.error("WebDAV认证: Basic认证处理过程出错");
-    return createUnauthorizedResponse("Unauthorized: Authentication error");
+    return createUnauthorizedResponse("Unauthorized: Authentication error", userAgent);
   }
 }
 
@@ -249,7 +256,7 @@ async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
     // 验证令牌不为空
     if (!token || token.trim() === "") {
       console.log("WebDAV认证: Bearer令牌为空");
-      return createUnauthorizedResponse("Unauthorized: Empty Bearer token");
+      return createUnauthorizedResponse("Unauthorized: Empty Bearer token", userAgent);
     }
 
     // 尝试验证管理员令牌
@@ -297,7 +304,7 @@ async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
         try {
           if (await checkAndDeleteExpiredApiKey(db, apiKey)) {
             console.log("WebDAV认证: API密钥已过期");
-            return createUnauthorizedResponse("Unauthorized: API key expired");
+            return createUnauthorizedResponse("Unauthorized: API key expired", userAgent);
           }
 
           // 简化mount_permission检查，D1数据库可能返回数字字段为字符串
@@ -347,10 +354,10 @@ async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
 
     // 所有认证方式均失败
     console.log("WebDAV认证: Bearer令牌认证失败");
-    return createUnauthorizedResponse("Unauthorized: Invalid token");
+    return createUnauthorizedResponse("Unauthorized: Invalid token", userAgent);
   } catch (error) {
     console.error("WebDAV认证: Bearer认证处理过程出错", error);
-    return createUnauthorizedResponse("Unauthorized: Bearer authentication error");
+    return createUnauthorizedResponse("Unauthorized: Bearer authentication error", userAgent);
   }
 }
 
@@ -419,7 +426,7 @@ export async function handleWebDAV(c) {
 
         if (!hasMountPermission) {
           console.log(`WebDAV请求拒绝: ${method} ${path}, 挂载权限不足（Basic认证）`);
-          return createUnauthorizedResponse("Unauthorized: Mount permission revoked");
+          return createUnauthorizedResponse("Unauthorized: Mount permission revoked", c.req.header("User-Agent") || "");
         }
       }
       // 处理Bearer认证类型的API密钥
@@ -428,7 +435,7 @@ export async function handleWebDAV(c) {
 
         if (!hasMountPermission) {
           console.log(`WebDAV请求拒绝: ${method} ${path}, 挂载权限不足（Bearer认证）`);
-          return createUnauthorizedResponse("Unauthorized: Mount permission revoked");
+          return createUnauthorizedResponse("Unauthorized: Mount permission revoked", c.req.header("User-Agent") || "");
         }
       }
       // 未来可以添加其他认证类型的权限验证

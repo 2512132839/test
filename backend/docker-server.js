@@ -241,6 +241,53 @@ let isDbInitialized = false;
 // WebDAV支持的HTTP方法
 const WEBDAV_METHODS = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"];
 
+/**
+ * 判断是否为WebDAV客户端
+ * @param {string} userAgent - 用户代理字符串
+ * @returns {boolean} 是否为WebDAV客户端
+ */
+function isWebDAVClient(userAgent) {
+  // Windows WebDAV客户端
+  if (userAgent.includes("Microsoft-WebDAV-MiniRedir") || (userAgent.includes("Windows") && userAgent.includes("WebDAV"))) {
+    return true;
+  }
+
+  // Dart WebDAV客户端 (AuthPass等)
+  if (userAgent.includes("Dart/") && userAgent.includes("dart:io")) {
+    return true;
+  }
+
+  // 常见WebDAV客户端
+  if (userAgent.includes("WebDAVLib") || userAgent.includes("WebDAVFS") || userAgent.includes("davfs") || userAgent.includes("gvfs") || userAgent.includes("WinSCP")) {
+    return true;
+  }
+
+  // MacOS客户端
+  if ((userAgent.includes("Darwin") || userAgent.includes("Mac")) && (userAgent.includes("WebDAV") || userAgent.includes("Finder"))) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 判断是否为图形界面客户端（与WebDAV客户端区分）
+ * @param {string} userAgent - 用户代理字符串
+ * @returns {boolean} 是否为图形界面客户端
+ */
+function isGraphicalClient(userAgent) {
+  // 主流浏览器
+  return (
+      userAgent.includes("Mozilla/") ||
+      userAgent.includes("Chrome") ||
+      userAgent.includes("Safari") ||
+      userAgent.includes("Firefox") ||
+      userAgent.includes("Edge") ||
+      userAgent.includes("MSIE") ||
+      userAgent.includes("Trident")
+  );
+}
+
 // CORS配置 - WebDAV方法支持
 const corsOptions = {
   origin: "*", // 允许的域名，如果未设置则允许所有
@@ -492,6 +539,17 @@ server.use("/dav", (req, res, next) => {
     if ((req.headers["user-agent"] || "").includes("Microsoft") || (req.headers["user-agent"] || "").includes("Windows")) {
       logMessage("debug", `Windows客户端的MKCOL请求: ${req.path}`);
     }
+  }
+
+  // 处理无认证的WebDAV客户端请求
+  const userAgent = req.headers["user-agent"] || "";
+  if (!req.headers.authorization && isWebDAVClient(userAgent)) {
+    logMessage("info", `WebDAV请求: 检测到无认证WebDAV客户端，发送认证挑战: ${userAgent.substring(0, 30)}...`);
+
+    // 返回401状态码和WWW-Authenticate头，符合WebDAV标准
+    res.setHeader("WWW-Authenticate", 'Basic realm="WebDAV", Bearer realm="WebDAV"');
+    res.status(401).send("Authentication required for WebDAV access");
+    return;
   }
 
   next();
