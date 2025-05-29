@@ -21,7 +21,7 @@ import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import { getLocalTimeString } from "../utils/common.js";
-import { storeAuthInfo, getAuthInfo, isWebDAVClient, isGraphicalClient } from "./utils/authCache.js";
+import { storeAuthInfo, getAuthInfo, isWebDAVClient  } from "./utils/authCache.js";
 
 /**
  * 创建未授权响应

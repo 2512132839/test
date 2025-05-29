@@ -62,24 +62,6 @@ function isWebDAVClient(userAgent) {
   return false;
 }
 
-/**
- * 判断是否为图形界面客户端（与WebDAV客户端区分）
- * @param {string} userAgent - 用户代理字符串
- * @returns {boolean} 是否为图形界面客户端
- */
-function isGraphicalClient(userAgent) {
-  // 主流浏览器
-  return (
-      userAgent.includes("Mozilla/") ||
-      userAgent.includes("Chrome") ||
-      userAgent.includes("Safari") ||
-      userAgent.includes("Firefox") ||
-      userAgent.includes("Edge") ||
-      userAgent.includes("MSIE") ||
-      userAgent.includes("Trident")
-  );
-}
-
 // 导出Cloudflare Workers请求处理函数
 export default {
   async fetch(request, env, ctx) {
