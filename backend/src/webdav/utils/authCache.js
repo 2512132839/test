@@ -27,6 +27,13 @@ function shouldCacheAuth(userAgent) {
  * @returns {string} 缓存键
  */
 function generateCacheKey(clientIp, userAgent) {
+  // 检测是否是Dart客户端
+  if (userAgent.startsWith("Dart/")) {
+    // 对Dart客户端使用特殊的键格式，避免与其他客户端冲突
+    return `dart_client_${clientIp}`;
+  }
+
+  // 对其他客户端使用原有的哈希方法
   // 简单哈希，不需要加密级别的安全性
   const uaHash = userAgent.split("").reduce((a, c) => (a + c.charCodeAt(0)) % 9973, 0);
   return `${clientIp}|${uaHash}`;
