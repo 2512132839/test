@@ -354,13 +354,13 @@ export async function clearCache(options = {}) {
     if (db && s3ConfigId) {
       // 获取与S3配置相关的所有挂载点
       const mounts = await db
-          .prepare(
-              `SELECT m.id 
+        .prepare(
+          `SELECT m.id 
            FROM storage_mounts m
            WHERE m.storage_type = 'S3' AND m.storage_config_id = ?`
-          )
-          .bind(s3ConfigId)
-          .all();
+        )
+        .bind(s3ConfigId)
+        .all();
 
       if (!mounts?.results?.length) {
         console.log(`未找到与S3配置 ${s3ConfigId} 关联的挂载点`);
