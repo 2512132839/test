@@ -472,6 +472,12 @@ fsRoutes.delete("/api/admin/fs/remove", async (c) => {
 
   try {
     await removeItem(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
+
+    // 添加防缓存头部，确保前端能获取到最新状态
+    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    c.header("Pragma", "no-cache");
+    c.header("Expires", "0");
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "删除成功",
@@ -498,6 +504,12 @@ fsRoutes.delete("/api/user/fs/remove", async (c) => {
 
   try {
     await removeItem(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+
+    // 添加防缓存头部，确保前端能获取到最新状态
+    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    c.header("Pragma", "no-cache");
+    c.header("Expires", "0");
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "删除成功",

@@ -956,9 +956,6 @@ export async function removeItem(db, path, userId, userType, encryptionSecret) {
         if (isDirectory) {
           // 对于目录，需要递归删除所有内容
           await deleteDirectory(s3Client, s3Config.bucket_name, s3SubPath, db, mount.storage_config_id);
-
-          // 清除缓存 - 使用统一的clearCache函数
-          await clearCache({ mountId: mount.id });
         } else {
           // 对于文件，直接删除
           const deleteParams = {
@@ -993,6 +990,10 @@ export async function removeItem(db, path, userId, userType, encryptionSecret) {
 
         // 清除缓存 - 使用统一的clearCache函数
         await clearCache({ mountId: mount.id });
+        console.log(`删除操作完成后缓存已清理 - 挂载点=${mount.id}, 路径=${path}`);
+
+        // 额外等待一小段时间，确保缓存清理完全生效
+        await new Promise((resolve) => setTimeout(resolve, 100));
       },
       "删除文件或目录",
       "删除失败"
