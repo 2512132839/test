@@ -13,25 +13,16 @@ import { clearCache } from "../../utils/DirectoryCache.js";
  */
 export async function clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, isDirectory = false) {
   try {
-    if (!db || !s3SubPath || !s3Config || !s3Config.id) {
+    if (!db || !s3Config || !s3Config.id) {
       console.warn("无法清理缓存，参数不完整");
       return;
     }
 
-    // 对于目录操作，直接使用目录路径
-    // 对于文件操作，需要获取文件的父目录路径
-    let storagePath = s3SubPath;
-
-    // 如果S3配置有默认文件夹，需要添加到存储路径前
-    if (s3Config.default_folder) {
-      const defaultFolder = s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/";
-      storagePath = defaultFolder + storagePath;
-    }
-
     // 调用统一的clearCache函数清理缓存
+    // 对于WebDAV操作，清理整个挂载点的缓存以确保一致性
     await clearCache({ db, s3ConfigId: s3Config.id });
 
-    console.log(`WebDAV操作后缓存已清理 - S3配置ID: ${s3Config.id}`);
+    console.log(`WebDAV操作后缓存已清理 - S3配置ID: ${s3Config.id}, 路径: ${s3SubPath}`);
   } catch (error) {
     // 记录错误但不抛出，避免影响主要操作
     console.error("WebDAV缓存清理错误:", error);
