@@ -9,7 +9,7 @@ import { hashPassword } from "../utils/crypto.js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { S3ProviderTypes } from "../constants/index.js";
 import { ConfiguredRetryStrategy } from "@smithy/util-retry";
-import { directoryCacheManager, clearCacheForFilePath } from "../utils/DirectoryCache.js";
+import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
 
 // 默认最大上传限制（MB）
 const DEFAULT_MAX_UPLOAD_SIZE_MB = 100;
@@ -262,8 +262,8 @@ export function registerS3UploadRoutes(app) {
             // 删除关联的密码记录（如果有）
             await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(existingFile.id).run();
 
-            // 清除与文件相关的缓存
-            await clearCacheForFilePath(db, existingFile.storage_path, existingFile.s3_config_id);
+            // 清除与文件相关的缓存 - 使用统一的clearCache函数
+            await clearCache({ db, s3ConfigId: existingFile.s3_config_id });
           } catch (deleteError) {
             console.error(`删除旧文件记录时出错: ${deleteError.message}`);
             // 继续流程，不中断上传
@@ -272,7 +272,15 @@ export function registerS3UploadRoutes(app) {
       }
 
       // 处理文件路径
-      const customPath = body.path || "";
+      let customPath = body.path || "";
+
+      // 如果提供了自定义路径，确保它作为目录路径处理（以斜杠结尾）
+      if (customPath && customPath.trim() !== "") {
+        customPath = customPath.trim();
+        if (!customPath.endsWith("/")) {
+          customPath += "/";
+        }
+      }
 
       // 处理文件名
       const { name: fileName, ext: fileExt } = getFileNameAndExt(body.filename);
@@ -599,8 +607,8 @@ export function registerS3UploadRoutes(app) {
         }
       }
 
-      // 清除与文件相关的缓存
-      await clearCacheForFilePath(db, file.storage_path, file.s3_config_id);
+      // 清除与文件相关的缓存 - 使用统一的clearCache函数
+      await clearCache({ db, s3ConfigId: file.s3_config_id });
 
       // 获取更新后的文件记录
       const updatedFile = await db
@@ -873,7 +881,16 @@ export function registerS3UploadRoutes(app) {
 
       // 从查询参数获取其他选项
       const customSlug = c.req.query("slug");
-      const customPath = c.req.query("path") || "";
+      let customPath = c.req.query("path") || "";
+
+      // 如果提供了自定义路径，确保它作为目录路径处理（以斜杠结尾）
+      if (customPath && customPath.trim() !== "") {
+        customPath = customPath.trim();
+        if (!customPath.endsWith("/")) {
+          customPath += "/";
+        }
+      }
+
       const remark = c.req.query("remark") || "";
       const password = c.req.query("password");
       const expiresInHours = c.req.query("expires_in") ? parseInt(c.req.query("expires_in")) : 0;
@@ -933,8 +950,8 @@ export function registerS3UploadRoutes(app) {
             // 删除关联的密码记录（如果有）
             await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(existingFile.id).run();
 
-            // 清除与文件相关的缓存
-            await clearCacheForFilePath(db, existingFile.storage_path, existingFile.s3_config_id);
+            // 清除与文件相关的缓存 - 使用统一的clearCache函数
+            await clearCache({ db, s3ConfigId: existingFile.s3_config_id });
           } catch (deleteError) {
             console.error(`删除旧文件记录时出错: ${deleteError.message}`);
             // 继续流程，不中断上传
@@ -1129,8 +1146,8 @@ export function registerS3UploadRoutes(app) {
         await db.prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`).bind(fileId, password, now, now).run();
       }
 
-      // 清除与文件相关的缓存
-      await clearCacheForFilePath(db, storagePath, s3ConfigId);
+      // 清除与文件相关的缓存 - 使用统一的clearCache函数
+      await clearCache({ db, s3ConfigId });
 
       // 生成预签名URL (有效期1小时)，传递MIME类型以确保正确的Content-Type
       const previewDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, 3600, false, contentType);

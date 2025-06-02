@@ -37,8 +37,8 @@ adminStorageMountRoutes.get("/api/admin/mounts", authMiddleware, async (c) => {
   const adminId = c.get("adminId"); // 从中间件获取adminId
 
   try {
-    // 管理员获取所有挂载点
-    const mounts = await getAllMounts(db);
+    // 管理员获取所有挂载点（包括禁用的，用于管理界面）
+    const mounts = await getAllMounts(db, true);
 
     return c.json({
       code: ApiStatus.SUCCESS,

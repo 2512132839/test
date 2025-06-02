@@ -9,19 +9,22 @@ import { getLocalTimeString, generateUUID } from "../utils/common.js";
  * 获取管理员的挂载点列表
  * @param {D1Database} db - D1数据库实例
  * @param {string} adminId - 管理员ID
+ * @param {boolean} includeInactive - 是否包含禁用的挂载点，默认为false
  * @returns {Promise<Array>} 挂载点列表
  * @throws {Error} 数据库操作错误
  */
-export async function getMountsByAdmin(db, adminId) {
+export async function getMountsByAdmin(db, adminId, includeInactive = false) {
+  const whereClause = includeInactive ? "WHERE created_by = ?" : "WHERE created_by = ? AND is_active = 1";
+
   const mounts = await db
       .prepare(
           `
-      SELECT 
-        id, name, storage_type, storage_config_id, mount_path, 
+      SELECT
+        id, name, storage_type, storage_config_id, mount_path,
         remark, is_active, created_by, sort_order, cache_ttl,
         created_at, updated_at, last_used
       FROM ${DbTables.STORAGE_MOUNTS}
-      WHERE created_by = ?
+      ${whereClause}
       ORDER BY sort_order ASC, name ASC
       `
       )
@@ -34,18 +37,22 @@ export async function getMountsByAdmin(db, adminId) {
 /**
  * 获取所有挂载点列表（管理员专用）
  * @param {D1Database} db - D1数据库实例
+ * @param {boolean} includeInactive - 是否包含禁用的挂载点，默认为true（管理员界面需要看到所有挂载点）
  * @returns {Promise<Array>} 所有挂载点列表
  * @throws {Error} 数据库操作错误
  */
-export async function getAllMounts(db) {
+export async function getAllMounts(db, includeInactive = true) {
+  const whereClause = includeInactive ? "" : "WHERE is_active = 1";
+
   const mounts = await db
       .prepare(
           `
-      SELECT 
-        id, name, storage_type, storage_config_id, mount_path, 
+      SELECT
+        id, name, storage_type, storage_config_id, mount_path,
         remark, is_active, created_by, sort_order, cache_ttl,
         created_at, updated_at, last_used
       FROM ${DbTables.STORAGE_MOUNTS}
+      ${whereClause}
       ORDER BY sort_order ASC, name ASC
       `
       )

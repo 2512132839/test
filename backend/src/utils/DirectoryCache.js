@@ -331,121 +331,91 @@ class DirectoryCacheManager {
 const directoryCacheManager = new DirectoryCacheManager();
 
 /**
- * 清除与文件路径相关的所有缓存
- * @param {D1Database} db - D1数据库实例
- * @param {string} storagePath - 文件的存储路径
- * @param {string} s3ConfigId - S3配置ID
+ * 统一的缓存清理函数 - 可根据挂载点ID或S3配置ID清理缓存
+ * @param {Object} options - 清理选项
+ * @param {string} [options.mountId] - 要清理的挂载点ID
+ * @param {D1Database} [options.db] - 数据库连接（当使用s3ConfigId时必需）
+ * @param {string} [options.s3ConfigId] - S3配置ID，将清理所有关联的挂载点
+ * @returns {Promise<number>} 清除的缓存项数量
  */
-export async function clearCacheForFilePath(db, storagePath, s3ConfigId) {
+export async function clearCache(options = {}) {
+  const { mountId, db, s3ConfigId } = options;
+  let totalCleared = 0;
+
   try {
-    // 如果参数不完整则直接返回
-    if (!db || !storagePath || !s3ConfigId) {
-      console.warn(`无法清除缓存，参数不完整: db=${!!db}, storagePath=${storagePath}, s3ConfigId=${s3ConfigId}`);
-      return;
+    // 场景1: 直接提供挂载点ID - 清理单个挂载点
+    if (mountId) {
+      const clearedCount = directoryCacheManager.invalidateMount(mountId);
+      console.log(`已清理挂载点 ${mountId} 的所有缓存，共 ${clearedCount} 项`);
+      return clearedCount;
     }
 
-    // 获取与S3配置相关的挂载点
-    const mounts = await db
-      .prepare(
-        `SELECT m.id, m.mount_path
-         FROM storage_mounts m
-         WHERE m.storage_type = 'S3' AND m.storage_config_id = ?`
-      )
-      .bind(s3ConfigId)
-      .all();
+    // 场景2: 提供S3配置ID - 查找并清理所有关联挂载点
+    if (db && s3ConfigId) {
+      // 获取与S3配置相关的所有挂载点
+      const mounts = await db
+          .prepare(
+              `SELECT m.id 
+           FROM storage_mounts m
+           WHERE m.storage_type = 'S3' AND m.storage_config_id = ?`
+          )
+          .bind(s3ConfigId)
+          .all();
 
-    if (!mounts || !mounts.results || mounts.results.length === 0) {
-      console.log(`没有找到与S3配置 ${s3ConfigId} 相关的挂载点，不需要清除缓存`);
-      return;
-    }
-
-    // 获取S3配置信息，用于确定文件在S3存储中的子路径
-    const s3Config = await db.prepare(`SELECT * FROM s3_configs WHERE id = ?`).bind(s3ConfigId).first();
-    if (!s3Config) {
-      console.warn(`未找到S3配置: ${s3ConfigId}`);
-      return;
-    }
-
-    // 确定文件在挂载点中的子路径
-    let subPath = storagePath;
-    // 如果S3配置有默认文件夹，从存储路径中剥离掉它
-    if (s3Config.default_folder) {
-      const defaultFolder = s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/";
-      if (storagePath.startsWith(defaultFolder)) {
-        subPath = storagePath.substring(defaultFolder.length);
-      }
-    }
-
-    // 为每个相关的挂载点清除缓存
-    for (const mount of mounts.results) {
-      // 构建文件对应的挂载子路径
-      const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
-      const mountId = mount.id;
-
-      // 获取文件所在的目录路径
-      let dirPath = subPath.substring(0, subPath.lastIndexOf("/") + 1);
-      if (!dirPath.startsWith("/")) {
-        dirPath = "/" + dirPath;
+      if (!mounts?.results?.length) {
+        console.log(`未找到与S3配置 ${s3ConfigId} 关联的挂载点`);
+        return 0;
       }
 
-      // 使用辅助函数使目录及其所有父目录的缓存失效
-      const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mountId, dirPath);
-
-      if (invalidatedCount > 0) {
-        console.log(`文件操作后已清除挂载点 ${mountId} 的缓存，路径: ${dirPath}, 清除了 ${invalidatedCount} 个缓存项`);
+      // 清理每个关联挂载点的缓存
+      for (const mount of mounts.results) {
+        const clearedCount = directoryCacheManager.invalidateMount(mount.id);
+        totalCleared += clearedCount;
       }
+
+      if (totalCleared > 0) {
+        console.log(`已清理 ${mounts.results.length} 个挂载点的缓存，共 ${totalCleared} 项`);
+      }
+
+      return totalCleared;
     }
+
+    // 如果没有提供有效参数
+    console.warn("缓存清理失败：未提供有效的挂载点ID或S3配置信息");
+    return 0;
   } catch (error) {
-    console.error("清除文件缓存时出错:", error);
-    // 即使缓存清除失败，不要中断主要操作
+    console.error("清理缓存时出错:", error);
+    return 0;
   }
 }
+
+// /**
+//  * 为文件路径清除相关缓存 - 兼容性函数，内部调用clearCache
+//  * @param {D1Database} db - 数据库连接
+//  * @param {string} filePath - 文件路径
+//  * @param {string} s3ConfigId - S3配置ID
+//  * @returns {Promise<number>} 清除的缓存项数量
+//  * @deprecated 请直接使用 clearCache 函数
+//  */
+// export async function clearCacheForFilePath(db, filePath, s3ConfigId) {
+//   console.warn("clearCacheForFilePath 已废弃，请使用 clearCache 函数");
+//   return await clearCache({ db, s3ConfigId });
+// }
+
+// /**
+//  * 为指定路径清除缓存 - 兼容性函数，内部调用clearCache
+//  * @param {string} mountId - 挂载点ID
+//  * @param {string} path - 路径
+//  * @param {boolean} recursive - 是否递归清除（已忽略）
+//  * @param {string} reason - 清除原因（已忽略）
+//  * @param {Object} s3Config - S3配置（已忽略）
+//  * @returns {number} 清除的缓存项数量
+//  * @deprecated 请直接使用 clearCache 函数
+//  */
+// export function clearCacheForPath(mountId, path, recursive, reason, s3Config) {
+//   console.warn("clearCacheForPath 已废弃，请使用 clearCache 函数");
+//   return directoryCacheManager.invalidateMount(mountId);
+// }
 
 // 导出单例实例和类 (单例用于实际应用，类用于测试和特殊场景)
 export { directoryCacheManager, DirectoryCacheManager };
-
-/**
- * 清除操作路径相关的缓存
- * @param {string} mountId - 挂载点ID
- * @param {string} path - 操作的路径
- * @param {boolean} isDirectory - 是否为目录路径
- * @param {string} operationType - 操作类型，用于日志记录
- * @returns {number} 清除的缓存项数量
- */
-export function clearCacheForPath(mountId, path, isDirectory = false, operationType = "操作") {
-  let clearedCount = 0;
-
-  // 1. 清除路径自身的缓存（如果是目录）
-  if (isDirectory && directoryCacheManager.invalidate(mountId, path)) {
-    clearedCount++;
-    console.log(`${operationType}后目录自身缓存已刷新：挂载点=${mountId}, 路径=${path}`);
-  }
-
-  // 2. 计算并清除父目录路径缓存
-  if (path !== "/" && path.includes("/")) {
-    let parentPath;
-    if (isDirectory) {
-      // 对于目录，获取其父目录
-      parentPath = path.substring(0, path.lastIndexOf("/", path.length - 2) + 1);
-    } else {
-      // 对于文件，获取其所在目录
-      parentPath = path.substring(0, path.lastIndexOf("/") + 1);
-    }
-
-    // 清除父路径及祖先路径的缓存
-    const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mountId, parentPath);
-    clearedCount += invalidatedCount;
-
-    if (invalidatedCount > 0) {
-      console.log(`${operationType}后父路径缓存已刷新（包含所有父路径）：挂载点=${mountId}, 路径=${parentPath}, 清理了${invalidatedCount}个缓存条目`);
-    }
-  } else if (!isDirectory) {
-    // 如果是根目录下的文件，清除根目录缓存
-    if (directoryCacheManager.invalidate(mountId, "/")) {
-      clearedCount++;
-      console.log(`${operationType}后根目录缓存已刷新：挂载点=${mountId}`);
-    }
-  }
-
-  return clearedCount;
-}
