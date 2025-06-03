@@ -695,21 +695,21 @@ fsRoutes.post("/api/admin/fs/multipart/init", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "初始化分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "初始化分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -730,22 +730,22 @@ fsRoutes.post("/api/admin/fs/multipart/part", authMiddleware, async (c) => {
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
 
     return c.json(
-      {
-        success: false,
-        message: error.message || "上传分片失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "上传分片失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -759,21 +759,21 @@ fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "完成分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "完成分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -787,21 +787,21 @@ fsRoutes.post("/api/admin/fs/multipart/abort", authMiddleware, async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "中止分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "中止分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -831,21 +831,21 @@ fsRoutes.post("/api/user/fs/multipart/init", apiKeyFileMiddleware, async (c) => 
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "初始化分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "初始化分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -866,22 +866,22 @@ fsRoutes.post("/api/user/fs/multipart/part", apiKeyFileMiddleware, async (c) => 
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
 
     return c.json(
-      {
-        success: false,
-        message: error.message || "上传分片失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "上传分片失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -895,21 +895,21 @@ fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c)
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "完成分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "完成分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -923,21 +923,21 @@ fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) =>
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
+          {
+            success: false,
+            message: error.message,
+            code: error.status,
+          },
+          error.status
       );
     }
     return c.json(
-      {
-        success: false,
-        message: error.message || "中止分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
+        {
+          success: false,
+          message: error.message || "中止分片上传失败",
+          code: ApiStatus.INTERNAL_ERROR,
+        },
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -1199,15 +1199,15 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
 
     // 记录文件上传成功
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-      )
-      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
-      .run();
+        )
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
+        .run();
 
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
@@ -1297,15 +1297,15 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
 
     // 记录文件上传成功
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-      )
-      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`, now, now)
-      .run();
+        )
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`, now, now)
+        .run();
 
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
@@ -1523,11 +1523,28 @@ fsRoutes.post("/api/admin/fs/batch-copy", authMiddleware, async (c) => {
       });
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = result.failed.length > 0;
+    const hasSuccessOrSkipped = result.success > 0 || result.skipped > 0;
+
+    // 如果有失败且没有任何成功或跳过的项目，则认为完全失败
+    const overallSuccess = hasSuccessOrSkipped;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccessOrSkipped) {
+      message = `批量复制部分完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: result,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("批量复制错误:", error);
@@ -1584,11 +1601,28 @@ fsRoutes.post("/api/user/fs/batch-copy", apiKeyFileMiddleware, async (c) => {
       });
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = result.failed.length > 0;
+    const hasSuccessOrSkipped = result.success > 0 || result.skipped > 0;
+
+    // 如果有失败且没有任何成功或跳过的项目，则认为完全失败
+    const overallSuccess = hasSuccessOrSkipped;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccessOrSkipped) {
+      message = `批量复制部分完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: result,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("批量复制错误:", error);
@@ -1667,11 +1701,28 @@ fsRoutes.post("/api/admin/fs/batch-copy-commit", authMiddleware, async (c) => {
       // 缓存清理失败不应影响整体操作
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = results.failed.length > 0;
+    const hasSuccess = results.success.length > 0;
+
+    // 如果有失败且没有任何成功的项目，则认为完全失败
+    const overallSuccess = hasSuccess;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccess) {
+      message = `批量复制部分完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: results,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("提交批量复制完成错误:", error);
@@ -1750,11 +1801,28 @@ fsRoutes.post("/api/user/fs/batch-copy-commit", apiKeyFileMiddleware, async (c) 
       // 缓存清理失败不应影响整体操作
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = results.failed.length > 0;
+    const hasSuccess = results.success.length > 0;
+
+    // 如果有失败且没有任何成功的项目，则认为完全失败
+    const overallSuccess = hasSuccess;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccess) {
+      message = `批量复制部分完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: results,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("提交批量复制完成错误:", error);

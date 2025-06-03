@@ -204,8 +204,8 @@ export async function fetchApi(endpoint, options = {}) {
     if (responseData && typeof responseData === "object") {
       // 如果响应包含code字段
       if ("code" in responseData) {
-        // 成功响应，code应该是200或201(创建成功)
-        if (responseData.code !== ApiStatus.SUCCESS && responseData.code !== ApiStatus.CREATED) {
+        // 成功响应，code应该是200、201(创建成功)或202(部分成功)
+        if (responseData.code !== ApiStatus.SUCCESS && responseData.code !== ApiStatus.CREATED && responseData.code !== ApiStatus.ACCEPTED) {
           console.error(`❌ API业务错误(${url}):`, responseData);
           throw new Error(responseData.message || "请求失败");
         }

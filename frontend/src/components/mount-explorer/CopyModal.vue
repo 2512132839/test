@@ -153,7 +153,7 @@ const DirectoryItemVue = {
     },
   },
   emits: ["select"],
-  setup(props, { emit, slots }) {
+  setup(props, { emit }) {
     const expanded = ref(false);
     const children = shallowRef([]);
     const loading = ref(false);
@@ -524,10 +524,13 @@ const selectDestination = (path) => {
     const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
     const normalizedSelectedPath = formattedPath.replace(/\/+$/, "") || "/";
 
-    // 检查选择的路径是否在基本路径范围内
-    if (normalizedSelectedPath !== normalizedBasicPath && !normalizedSelectedPath.startsWith(normalizedBasicPath + "/")) {
-      // 如果选择的路径不在基本路径范围内，重置为基本路径
-      formattedPath = basicPath.endsWith("/") ? basicPath : basicPath + "/";
+    // 特殊处理：如果基本路径是根目录，允许选择任何路径
+    if (normalizedBasicPath !== "/") {
+      // 检查选择的路径是否在基本路径范围内
+      if (normalizedSelectedPath !== normalizedBasicPath && !normalizedSelectedPath.startsWith(normalizedBasicPath + "/")) {
+        // 如果选择的路径不在基本路径范围内，重置为基本路径
+        formattedPath = basicPath.endsWith("/") ? basicPath : basicPath + "/";
+      }
     }
   }
 
@@ -653,24 +656,42 @@ const createCancelCallback = (taskManager, taskId) => {
 
 // 处理复制完成
 const handleCopyCompletion = (taskManager, taskId, response) => {
-  if (response.success) {
-    // 更新任务状态为已完成
-    taskManager.completeTask(taskId, {
-      total: props.selectedItems.length,
-      processed: props.selectedItems.length,
-    });
+  // 检查响应数据
+  const data = response.data || {};
+  const successCount = data.success || 0;
+  const skippedCount = data.skipped || 0;
+  const failedCount = (data.failed && data.failed.length) || 0;
+  const totalProcessed = successCount + skippedCount + failedCount;
 
-    // 如果是跨S3复制完成，添加相关信息
-    if (response.data && response.data.requiresClientSideCopy) {
-      taskManager.updateTaskProgress(taskId, 100, {
-        crossStorage: true,
-        successCount: response.data.success || 0,
-        failedCount: (response.data.failed && response.data.failed.length) || 0,
-      });
-    }
+  // 准备任务详情
+  const taskDetails = {
+    total: props.selectedItems.length,
+    processed: totalProcessed,
+    successCount,
+    skippedCount,
+    failedCount,
+    message: response.message,
+  };
+
+  // 如果是跨S3复制，添加相关信息
+  if (data.requiresClientSideCopy) {
+    taskDetails.crossStorage = true;
+  }
+
+  // 根据结果状态决定任务状态
+  if (response.success) {
+    // 完全成功 - 没有失败项
+    taskManager.completeTask(taskId, taskDetails);
+  } else if (successCount > 0 || skippedCount > 0) {
+    // 部分成功 - 有成功或跳过的项目，但也有失败的
+    taskManager.completeTask(taskId, {
+      ...taskDetails,
+      partialSuccess: true,
+      status: "部分完成",
+    });
   } else {
-    // 更新任务状态为失败
-    taskManager.failTask(taskId, response.message);
+    // 完全失败 - 没有成功或跳过的项目
+    taskManager.failTask(taskId, response.message, taskDetails);
   }
 };
 
