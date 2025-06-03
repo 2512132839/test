@@ -1257,22 +1257,6 @@ export async function renameItem(db, oldPath, newPath, userIdOrInfo, userType, e
           await clearCache({ mountId: mount.id });
         } else {
           // 对于文件，使用复制然后删除
-          // 先检查源文件是否存在（某些S3提供商需要先HEAD请求来验证权限）
-          try {
-            const headParams = {
-              Bucket: s3Config.bucket_name,
-              Key: s3OldPath,
-            };
-            const headCommand = new HeadObjectCommand(headParams);
-            await s3Client.send(headCommand);
-            console.log(`文件重命名: 源文件 ${s3OldPath} 存在性验证通过`);
-          } catch (error) {
-            if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-              throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源文件不存在" });
-            }
-            console.warn(`文件重命名: HEAD请求失败，但继续尝试复制: ${error.message}`);
-          }
-
           // 复制对象
           const copyParams = {
             Bucket: s3Config.bucket_name,
@@ -1340,23 +1324,6 @@ async function renameDirectory(s3Client, bucketName, oldPath, newPath) {
         for (const object of listResponse.Contents) {
           const sourceKey = object.Key;
           const targetKey = sourceKey.replace(oldPrefix, newPrefix);
-
-          // 先检查源对象是否存在（某些S3提供商需要先HEAD请求来验证权限）
-          try {
-            const headParams = {
-              Bucket: bucketName,
-              Key: sourceKey,
-            };
-            const headCommand = new HeadObjectCommand(headParams);
-            await s3Client.send(headCommand);
-            console.log(`目录重命名: 源对象 ${sourceKey} 存在性验证通过`);
-          } catch (error) {
-            if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-              console.warn(`目录重命名: 源对象 ${sourceKey} 不存在，跳过`);
-              continue;
-            }
-            console.warn(`目录重命名: HEAD请求失败，但继续尝试复制 ${sourceKey}: ${error.message}`);
-          }
 
           const copyParams = {
             Bucket: bucketName,
