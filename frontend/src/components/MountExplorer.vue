@@ -33,7 +33,7 @@
               :selected-items="selectedItems"
               @upload="handleUpload"
               @create-folder="handleCreateFolder"
-              @refresh="loadDirectoryContents"
+              @refresh="handleRefresh"
               @change-view-mode="handleViewModeChange"
               @openUploadModal="handleOpenUploadModal"
               @openCopyModal="handleBatchCopy"
@@ -60,6 +60,7 @@
           :selected-items="selectedItems"
           :source-path="currentPath"
           :is-admin="isAdmin"
+          :api-key-info="apiKeyInfo"
           @close="handleCloseCopyModal"
           @copy-complete="handleCopyComplete"
       />
@@ -79,6 +80,8 @@
             @toggle-checkbox-mode="toggleCheckboxMode"
             @batch-delete="batchDelete"
             @batch-copy="handleBatchCopy"
+            :basic-path="apiKeyInfo?.basic_path || '/'"
+            :user-type="isAdmin ? 'admin' : 'user'"
         />
       </div>
 
@@ -181,7 +184,22 @@
       <div class="card" :class="darkMode ? 'bg-gray-800/50' : 'bg-white'">
         <!-- 文件列表模式 -->
         <div v-if="!isPreviewMode">
+          <!-- 权限提示 -->
+          <div v-if="!hasPermissionForCurrentPath" class="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg m-4">
+            <div class="flex items-center">
+              <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                    fill-rule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clip-rule="evenodd"
+                ></path>
+              </svg>
+              <span class="text-yellow-800 dark:text-yellow-200"> 您没有权限访问此目录的内容。您只能访问 {{ apiKeyInfo?.basic_path || "/" }} 及其子目录。 </span>
+            </div>
+          </div>
+
           <DirectoryList
+              v-else
               :items="directoryData?.items || []"
               :loading="loading"
               :is-virtual="directoryData?.isVirtual"
@@ -305,6 +323,9 @@ const hasFilePermission = ref(false);
 const hasMountPermission = ref(false); // 挂载权限状态变量
 const hasPermission = ref(false);
 
+// API密钥信息
+const apiKeyInfo = ref(null);
+
 // 添加上传状态管理
 const isUploading = ref(false);
 const uploadProgress = ref(0);
@@ -327,6 +348,59 @@ const showTasksModal = ref(false);
 // 计算已选中项数量
 const selectedCount = computed(() => selectedItems.value.length);
 
+// 计算当前路径是否有权限
+const hasPermissionForCurrentPath = computed(() => {
+  if (isAdmin.value) {
+    return true; // 管理员总是有权限
+  }
+
+  if (!apiKeyInfo.value) {
+    return true; // 如果没有API密钥信息，默认有权限
+  }
+
+  const basicPath = apiKeyInfo.value.basic_path || "/";
+  const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+  const normalizedCurrentPath = currentPath.value.replace(/\/+$/, "") || "/";
+
+  // 如果基本路径是根路径，允许访问所有路径
+  if (normalizedBasicPath === "/") {
+    return true;
+  }
+
+  // 只有当前路径是基本路径或其子路径时才有权限
+  return normalizedCurrentPath === normalizedBasicPath || normalizedCurrentPath.startsWith(normalizedBasicPath + "/");
+});
+
+// 重新获取API密钥信息
+const refreshApiKeyInfo = async () => {
+  const apiKey = localStorage.getItem("api_key");
+  if (!apiKey) return false;
+
+  try {
+    console.log("正在重新获取API密钥信息...");
+    const response = await api.test.verifyApiKey();
+
+    if (response.success && response.data) {
+      // 更新权限信息
+      if (response.data.permissions) {
+        localStorage.setItem("api_key_permissions", JSON.stringify(response.data.permissions));
+      }
+
+      // 更新密钥信息
+      if (response.data.key_info) {
+        localStorage.setItem("api_key_info", JSON.stringify(response.data.key_info));
+      }
+
+      console.log("API密钥信息更新成功");
+      return true;
+    }
+  } catch (error) {
+    console.error("重新获取API密钥信息失败:", error);
+  }
+
+  return false;
+};
+
 // 检查权限
 const checkPermissions = () => {
   // 获取管理员token或API密钥
@@ -339,10 +413,16 @@ const checkPermissions = () => {
   if (apiKey) {
     try {
       const permissionsStr = localStorage.getItem("api_key_permissions");
+      const keyInfoStr = localStorage.getItem("api_key_info");
+
       if (permissionsStr) {
         const permissions = JSON.parse(permissionsStr);
         filePermission = !!permissions.file;
         mountPermission = !!permissions.mount; // 获取挂载权限
+      }
+
+      if (keyInfoStr) {
+        apiKeyInfo.value = JSON.parse(keyInfoStr);
       }
     } catch (e) {
       console.error("解析API密钥权限失败:", e);
@@ -365,6 +445,38 @@ const checkPermissions = () => {
     hasMountPermission: hasMountPermission.value, // 挂载权限日志
     hasPermission: hasPermission.value,
   });
+};
+
+// 处理刷新操作
+const handleRefresh = async () => {
+  try {
+    // 对于API密钥用户，先刷新API密钥信息
+    if (!isAdmin.value && hasApiKey.value) {
+      const refreshed = await refreshApiKeyInfo();
+      if (refreshed) {
+        // 重新检查权限
+        checkPermissions();
+
+        // 检查基本路径是否发生变化，如果是则导航到新的基本路径
+        const newBasicPath = apiKeyInfo.value?.basic_path || "/";
+        const currentBasicPath = currentPath.value.replace(/\/+$/, "") || "/";
+
+        // 如果当前路径不在新的基本路径范围内，导航到新的基本路径
+        if (newBasicPath !== "/" && !currentBasicPath.startsWith(newBasicPath.replace(/\/+$/, ""))) {
+          console.log("检测到基本路径变化，导航到新的基本路径:", newBasicPath);
+          currentPath.value = newBasicPath;
+        }
+
+        showMessage("success", "已更新API密钥信息");
+      }
+    }
+
+    // 加载目录内容
+    await loadDirectoryContents();
+  } catch (error) {
+    console.error("刷新操作失败:", error);
+    showMessage("error", "刷新失败，请重试");
+  }
 };
 
 // 加载目录内容
@@ -391,6 +503,19 @@ const loadDirectoryContents = async () => {
     showMessage("error", `获取目录内容失败: ${error.message || "未知错误"}`);
   } finally {
     loading.value = false;
+  }
+};
+
+// 初始化路径 - 对于API密钥用户，如果有基本路径限制，则导航到基本路径
+const initializePath = () => {
+  if (!isAdmin.value && apiKeyInfo.value) {
+    const basicPath = apiKeyInfo.value.basic_path || "/";
+    // 只有当基本路径不是根路径时，才需要导航到基本路径
+    if (basicPath !== "/") {
+      console.log("API密钥用户有基本路径限制，导航到:", basicPath);
+      currentPath.value = basicPath;
+    }
+    // 如果基本路径是根路径，保持默认的根路径 "/"
   }
 };
 
@@ -760,8 +885,11 @@ onMounted(() => {
     viewMode.value = savedViewMode;
   }
 
-  // 如果有权限，加载初始目录内容
+  // 如果有权限，初始化路径并加载目录内容
   if (hasPermission.value) {
+    // 对于API密钥用户，如果有基本路径限制，则导航到基本路径
+    initializePath();
+    // 加载目录内容
     loadDirectoryContents();
   }
 });

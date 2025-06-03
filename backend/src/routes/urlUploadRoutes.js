@@ -140,11 +140,11 @@ export function registerUrlUploadRoutes(app) {
             .prepare(
               `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
+              SET last_used = ?
               WHERE id = ?
             `
             )
-            .bind(keyRecord.id)
+            .bind(getLocalTimeString(), keyRecord.id)
             .run();
         }
       }
@@ -290,11 +290,11 @@ export function registerUrlUploadRoutes(app) {
             .prepare(
               `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
+              SET last_used = ?
               WHERE id = ?
             `
             )
-            .bind(keyRecord.id)
+            .bind(getLocalTimeString(), keyRecord.id)
             .run();
         }
       }
@@ -614,11 +614,11 @@ export function registerUrlUploadRoutes(app) {
             .prepare(
               `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
+              SET last_used = ?
               WHERE id = ?
             `
             )
-            .bind(keyRecord.id)
+            .bind(getLocalTimeString(), keyRecord.id)
             .run();
         }
       }
@@ -772,11 +772,11 @@ export function registerUrlUploadRoutes(app) {
             .prepare(
               `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
+              SET last_used = ?
               WHERE id = ?
             `
             )
-            .bind(keyRecord.id)
+            .bind(getLocalTimeString(), keyRecord.id)
             .run();
         }
       }
@@ -908,11 +908,11 @@ export function registerUrlUploadRoutes(app) {
             .prepare(
               `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
+              SET last_used = ?
               WHERE id = ?
             `
             )
-            .bind(keyRecord.id)
+            .bind(getLocalTimeString(), keyRecord.id)
             .run();
         }
       }
@@ -935,7 +935,7 @@ export function registerUrlUploadRoutes(app) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "缺少上传ID参数"), ApiStatus.BAD_REQUEST);
       }
 
-      // a查询文件记录
+      // 查询文件记录
       const file = await db
         .prepare(
           `
@@ -1038,11 +1038,11 @@ export function registerUrlUploadRoutes(app) {
             .prepare(
               `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
+              SET last_used = ?
               WHERE id = ?
             `
             )
-            .bind(keyRecord.id)
+            .bind(getLocalTimeString(), keyRecord.id)
             .run();
         }
       }

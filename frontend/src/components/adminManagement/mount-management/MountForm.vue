@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
-import { createAdminMount, updateAdminMount, createUserMount, updateUserMount } from "../../../api/mountService";
+import { createAdminMount, updateAdminMount } from "../../../api/mountService";
 import { getAllS3Configs as getS3ConfigsList } from "../../../api/adminService";
 import { useI18n } from "vue-i18n";
 
@@ -227,22 +227,20 @@ const submitForm = async () => {
     formPayload.sort_order = Number(formPayload.sort_order);
     formPayload.cache_ttl = Number(formPayload.cache_ttl);
 
+    // 只有管理员可以创建和更新挂载点
+    if (isApiKeyUser.value) {
+      globalError.value = "API密钥用户无权限管理挂载点";
+      return;
+    }
+
     let response;
 
     if (isEditMode.value) {
-      // 更新挂载点，根据用户类型选择不同的API函数
-      if (isApiKeyUser.value) {
-        response = await updateUserMount(props.mount.id, formPayload);
-      } else {
-        response = await updateAdminMount(props.mount.id, formPayload);
-      }
+      // 更新挂载点
+      response = await updateAdminMount(props.mount.id, formPayload);
     } else {
-      // 创建挂载点，根据用户类型选择不同的API函数
-      if (isApiKeyUser.value) {
-        response = await createUserMount(formPayload);
-      } else {
-        response = await createAdminMount(formPayload);
-      }
+      // 创建挂载点
+      response = await createAdminMount(formPayload);
     }
 
     if (response.code === 200 || response.code === 201) {
@@ -301,21 +299,21 @@ onMounted(async () => {
 
 // 添加watch钩子监视props.mount的变化
 watch(
-  () => props.mount,
-  (newMount) => {
-    if (newMount) {
-      initializeFormData();
-    } else {
-      // 如果mount为null，重置表单数据为默认值
-      resetFormData();
-    }
+    () => props.mount,
+    (newMount) => {
+      if (newMount) {
+        initializeFormData();
+      } else {
+        // 如果mount为null，重置表单数据为默认值
+        resetFormData();
+      }
 
-    // 重置表单提交状态
-    formSubmitted.value = false;
-    globalError.value = "";
-    errors.value = {};
-  },
-  { deep: true }
+      // 重置表单提交状态
+      formSubmitted.value = false;
+      globalError.value = "";
+      errors.value = {};
+    },
+    { deep: true }
 );
 
 // 初始化表单数据的函数
@@ -383,17 +381,17 @@ const resetFormData = () => {
               {{ t("admin.mount.form.name") }} <span class="text-red-500">*</span>
             </label>
             <input
-              type="text"
-              id="name"
-              v-model="formData.name"
-              @input="handleFieldChange('name')"
-              @blur="validateField('name')"
-              class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
-              :class="[
+                type="text"
+                id="name"
+                v-model="formData.name"
+                @input="handleFieldChange('name')"
+                @blur="validateField('name')"
+                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+                :class="[
                 darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500',
                 errors.name ? 'border-red-500' : '',
               ]"
-              :placeholder="t('admin.mount.form.namePlaceholder')"
+                :placeholder="t('admin.mount.form.namePlaceholder')"
             />
             <p v-if="errors.name" class="mt-1 text-sm text-red-500">{{ errors.name }}</p>
           </div>
@@ -404,12 +402,12 @@ const resetFormData = () => {
               {{ t("admin.mount.form.storageType") }} <span class="text-red-500">*</span>
             </label>
             <select
-              id="storage_type"
-              v-model="formData.storage_type"
-              @change="handleStorageTypeChange"
-              @blur="validateField('storage_type')"
-              class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
-              :class="[darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900', errors.storage_type ? 'border-red-500' : '']"
+                id="storage_type"
+                v-model="formData.storage_type"
+                @change="handleStorageTypeChange"
+                @blur="validateField('storage_type')"
+                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+                :class="[darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900', errors.storage_type ? 'border-red-500' : '']"
             >
               <option v-for="option in storageTypeOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
@@ -424,13 +422,13 @@ const resetFormData = () => {
               {{ t("admin.mount.form.s3Config") }} <span class="text-red-500">*</span>
             </label>
             <select
-              id="storage_config_id"
-              v-model="formData.storage_config_id"
-              @change="handleFieldChange('storage_config_id')"
-              @blur="validateField('storage_config_id')"
-              class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
-              :class="[darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900', errors.storage_config_id ? 'border-red-500' : '']"
-              :disabled="loading"
+                id="storage_config_id"
+                v-model="formData.storage_config_id"
+                @change="handleFieldChange('storage_config_id')"
+                @blur="validateField('storage_config_id')"
+                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+                :class="[darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900', errors.storage_config_id ? 'border-red-500' : '']"
+                :disabled="loading"
             >
               <option value="">{{ t("admin.mount.form.selectS3Config") }}</option>
               <option v-for="config in s3Configs" :key="config.id" :value="config.id">{{ config.name }} ({{ config.provider_type }})</option>
@@ -445,17 +443,17 @@ const resetFormData = () => {
               {{ t("admin.mount.form.mountPath") }} <span class="text-red-500">*</span>
             </label>
             <input
-              type="text"
-              id="mount_path"
-              v-model="formData.mount_path"
-              @input="handleFieldChange('mount_path')"
-              @blur="validateField('mount_path')"
-              class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
-              :class="[
+                type="text"
+                id="mount_path"
+                v-model="formData.mount_path"
+                @input="handleFieldChange('mount_path')"
+                @blur="validateField('mount_path')"
+                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+                :class="[
                 darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500',
                 errors.mount_path ? 'border-red-500' : '',
               ]"
-              :placeholder="t('admin.mount.form.mountPathPlaceholder')"
+                :placeholder="t('admin.mount.form.mountPathPlaceholder')"
             />
             <p v-if="errors.mount_path" class="mt-1 text-sm text-red-500">{{ errors.mount_path }}</p>
             <p class="mt-0.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.mountPathHint") }}</p>
@@ -465,12 +463,12 @@ const resetFormData = () => {
           <div>
             <label for="remark" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.remark") }}</label>
             <textarea
-              id="remark"
-              v-model="formData.remark"
-              rows="2"
-              class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
-              :class="[darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500']"
-              :placeholder="t('admin.mount.form.remarkPlaceholder')"
+                id="remark"
+                v-model="formData.remark"
+                rows="2"
+                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+                :class="[darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500']"
+                :placeholder="t('admin.mount.form.remarkPlaceholder')"
             ></textarea>
           </div>
 
@@ -480,19 +478,19 @@ const resetFormData = () => {
             <div>
               <label for="cache_ttl" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.cacheTTL") }}</label>
               <input
-                type="number"
-                id="cache_ttl"
-                v-model="formData.cache_ttl"
-                @input="handleFieldChange('cache_ttl')"
-                @blur="validateField('cache_ttl')"
-                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
-                :class="[
+                  type="number"
+                  id="cache_ttl"
+                  v-model="formData.cache_ttl"
+                  @input="handleFieldChange('cache_ttl')"
+                  @blur="validateField('cache_ttl')"
+                  class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="[
                   darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500',
                   errors.cache_ttl ? 'border-red-500' : '',
                 ]"
-                placeholder="默认300秒"
-                min="0"
-                step="1"
+                  placeholder="默认300秒"
+                  min="0"
+                  step="1"
               />
               <p v-if="errors.cache_ttl" class="mt-1 text-sm text-red-500">{{ errors.cache_ttl }}</p>
               <p class="mt-0.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.cacheTTLHint") }}</p>
@@ -502,18 +500,18 @@ const resetFormData = () => {
             <div>
               <label for="sort_order" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.sortOrder") }}</label>
               <input
-                type="number"
-                id="sort_order"
-                v-model="formData.sort_order"
-                @input="handleFieldChange('sort_order')"
-                @blur="validateField('sort_order')"
-                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
-                :class="[
+                  type="number"
+                  id="sort_order"
+                  v-model="formData.sort_order"
+                  @input="handleFieldChange('sort_order')"
+                  @blur="validateField('sort_order')"
+                  class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="[
                   darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500',
                   errors.sort_order ? 'border-red-500' : '',
                 ]"
-                placeholder="0"
-                step="1"
+                  placeholder="0"
+                  step="1"
               />
               <p v-if="errors.sort_order" class="mt-1 text-sm text-red-500">{{ errors.sort_order }}</p>
               <p class="mt-0.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.sortOrderHint") }}</p>
@@ -525,11 +523,11 @@ const resetFormData = () => {
             <div class="flex items-center">
               <div class="flex items-center h-5">
                 <input
-                  id="is_active"
-                  type="checkbox"
-                  v-model="formData.is_active"
-                  class="h-4 w-4 sm:h-5 sm:w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                    id="is_active"
+                    type="checkbox"
+                    v-model="formData.is_active"
+                    class="h-4 w-4 sm:h-5 sm:w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
                 />
               </div>
               <div class="ml-2 sm:ml-3">
@@ -543,23 +541,23 @@ const resetFormData = () => {
 
       <!-- 操作按钮 - 优化移动端布局 -->
       <div
-        class="px-3 sm:px-4 py-2 sm:py-3 border-t transition-colors duration-200 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0"
-        :class="darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'"
+          class="px-3 sm:px-4 py-2 sm:py-3 border-t transition-colors duration-200 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0"
+          :class="darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'"
       >
         <button
-          @click="closeForm"
-          class="w-full sm:w-auto px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-colors duration-200"
-          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+            @click="closeForm"
+            class="w-full sm:w-auto px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-colors duration-200"
+            :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
         >
           {{ t("admin.mount.button.cancel") }}
         </button>
 
         <button
-          type="button"
-          @click="submitForm"
-          :disabled="submitting"
-          class="w-full sm:w-auto flex justify-center items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-colors duration-200 bg-primary-500 hover:bg-primary-600 text-white"
-          :class="{ 'opacity-75 cursor-not-allowed': submitting }"
+            type="button"
+            @click="submitForm"
+            :disabled="submitting"
+            class="w-full sm:w-auto flex justify-center items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-colors duration-200 bg-primary-500 hover:bg-primary-600 text-white"
+            :class="{ 'opacity-75 cursor-not-allowed': submitting }"
         >
           <svg v-if="submitting" class="animate-spin -ml-1 mr-2 h-3 w-3 sm:h-4 sm:w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

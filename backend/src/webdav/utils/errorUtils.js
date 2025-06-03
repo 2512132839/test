@@ -87,8 +87,8 @@ export function handleWebDAVError(operation, error, includeDetails = false, useX
   // 特殊处理S3的404错误
   if (error.$metadata && error.$metadata.httpStatusCode === 404) {
     return useXmlResponse
-        ? createStandardWebDAVErrorResponse("文件或目录不存在", 404)
-        : new Response("文件或目录不存在", {
+      ? createStandardWebDAVErrorResponse("文件或目录不存在", 404)
+      : new Response("文件或目录不存在", {
           status: 404,
           headers: { "Content-Type": "text/plain" },
         });
@@ -98,8 +98,8 @@ export function handleWebDAVError(operation, error, includeDetails = false, useX
   const errorMessage = includeDetails ? `内部服务器错误: ${error.message} (错误ID: ${errorId})` : `内部服务器错误 (错误ID: ${errorId})`;
 
   return useXmlResponse
-      ? createStandardWebDAVErrorResponse(errorMessage, 500)
-      : new Response(errorMessage, {
+    ? createStandardWebDAVErrorResponse(errorMessage, 500)
+    : new Response(errorMessage, {
         status: 500,
         headers: { "Content-Type": "text/plain" },
       });
@@ -114,8 +114,8 @@ export function handleWebDAVError(operation, error, includeDetails = false, useX
  */
 export function createWebDAVErrorResponse(message, status, useXmlResponse = true) {
   return useXmlResponse
-      ? createStandardWebDAVErrorResponse(message, status)
-      : new Response(message, {
+    ? createStandardWebDAVErrorResponse(message, status)
+    : new Response(message, {
         status,
         headers: { "Content-Type": "text/plain" },
       });

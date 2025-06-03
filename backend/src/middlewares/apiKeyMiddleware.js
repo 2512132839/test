@@ -27,8 +27,8 @@ export const apiKeyTextMiddleware = async (c, next) => {
   // 查询API密钥和权限
   const keyRecord = await db
     .prepare(
-      `SELECT id, name, text_permission, file_permission, mount_permission, expires_at 
-       FROM ${DbTables.API_KEYS} 
+      `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
+       FROM ${DbTables.API_KEYS}
        WHERE key = ?`
     )
     .bind(apiKey)
@@ -61,6 +61,7 @@ export const apiKeyTextMiddleware = async (c, next) => {
   c.set("apiKeyInfo", {
     id: keyRecord.id,
     name: keyRecord.name,
+    basicPath: keyRecord.basic_path || "/",
     permissions: {
       text: keyRecord.text_permission === 1,
       file: keyRecord.file_permission === 1,
@@ -92,8 +93,8 @@ export const apiKeyFileMiddleware = async (c, next) => {
   // 查询API密钥和权限
   const keyRecord = await db
     .prepare(
-      `SELECT id, name, text_permission, file_permission, mount_permission, expires_at 
-       FROM ${DbTables.API_KEYS} 
+      `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
+       FROM ${DbTables.API_KEYS}
        WHERE key = ?`
     )
     .bind(apiKey)
@@ -126,6 +127,7 @@ export const apiKeyFileMiddleware = async (c, next) => {
   c.set("apiKeyInfo", {
     id: keyRecord.id,
     name: keyRecord.name,
+    basicPath: keyRecord.basic_path || "/",
     permissions: {
       text: keyRecord.text_permission === 1,
       file: keyRecord.file_permission === 1,
@@ -157,8 +159,8 @@ export const apiKeyMountMiddleware = async (c, next) => {
   // 查询API密钥和权限
   const keyRecord = await db
     .prepare(
-      `SELECT id, name, text_permission, file_permission, mount_permission, expires_at 
-       FROM ${DbTables.API_KEYS} 
+      `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
+       FROM ${DbTables.API_KEYS}
        WHERE key = ?`
     )
     .bind(apiKey)
@@ -191,6 +193,7 @@ export const apiKeyMountMiddleware = async (c, next) => {
   c.set("apiKeyInfo", {
     id: keyRecord.id,
     name: keyRecord.name,
+    basicPath: keyRecord.basic_path || "/",
     permissions: {
       text: keyRecord.text_permission === 1,
       file: keyRecord.file_permission === 1,
@@ -230,7 +233,7 @@ export const apiKeyMiddleware = async (c, next) => {
     const keyRecord = await db
       .prepare(
         `
-      SELECT id, name, text_permission, file_permission, mount_permission, expires_at
+      SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
       FROM ${DbTables.API_KEYS}
       WHERE key = ?
     `
@@ -277,12 +280,15 @@ export const apiKeyMiddleware = async (c, next) => {
       .run();
 
     // 将密钥信息添加到上下文中
-    c.set("apiKey", {
+    c.set("apiKeyInfo", {
       id: keyRecord.id,
       name: keyRecord.name,
-      textPermission: keyRecord.text_permission === 1,
-      filePermission: keyRecord.file_permission === 1,
-      mountPermission: keyRecord.mount_permission === 1,
+      basicPath: keyRecord.basic_path || "/",
+      permissions: {
+        text: keyRecord.text_permission === 1,
+        file: keyRecord.file_permission === 1,
+        mount: keyRecord.mount_permission === 1,
+      },
     });
 
     // 将apiKeyId也单独添加到上下文中，确保test/api-key接口可以访问

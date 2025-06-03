@@ -42,13 +42,12 @@ export const api = {
       deletePaste: pasteService.deleteUserPaste,
       deletePastes: pasteService.deleteUserPastes,
     },
-    // 添加API密钥用户的挂载服务
+    // 添加API密钥用户的挂载服务（只读）
     mount: {
       getMounts: mountService.getUserMountsList,
       getMountById: mountService.getUserMountById,
-      createMount: mountService.createUserMount,
-      updateMount: mountService.updateUserMount,
-      deleteMount: mountService.deleteUserMount,
+      // 注意：API密钥用户不能创建、更新或删除挂载点
+      // 挂载点管理完全由管理员在后台进行
     },
     // 添加API密钥用户的文件系统服务
     fs: {

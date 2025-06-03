@@ -2,11 +2,10 @@
  * 用户存储挂载路由
  */
 import { Hono } from "hono";
-import { apiKeyMiddleware, apiKeyMountMiddleware } from "../middlewares/apiKeyMiddleware.js";
-import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
-import { getMountsByApiKey, getMountByIdForApiKey, createMount, updateMount, deleteMount } from "../services/storageMountService.js";
-import { DbTables, ApiStatus } from "../constants/index.js";
-import { createErrorResponse, getLocalTimeString } from "../utils/common.js";
+import { apiKeyMountMiddleware } from "../middlewares/apiKeyMiddleware.js";
+import { getAccessibleMountsByBasicPath, checkPathPermission } from "../services/apiKeyService.js";
+import { ApiStatus } from "../constants/index.js";
+import { createErrorResponse } from "../utils/common.js";
 import { HTTPException } from "hono/http-exception";
 
 const userStorageMountRoutes = new Hono();
@@ -31,14 +30,14 @@ const handleApiError = (c, error, defaultMessage) => {
   return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || defaultMessage), ApiStatus.INTERNAL_ERROR);
 };
 
-// 通过API密钥获取挂载点列表
+// 通过API密钥获取可访问的挂载点列表（基于basic_path权限）
 userStorageMountRoutes.get("/api/user/mounts", apiKeyMountMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
 
   try {
-    // API密钥用户只能看到自己的挂载点
-    const mounts = await getMountsByApiKey(db, apiKeyId);
+    // 根据API密钥的基本路径获取可访问的挂载点
+    const mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -51,15 +50,34 @@ userStorageMountRoutes.get("/api/user/mounts", apiKeyMountMiddleware, async (c) 
   }
 });
 
-// 通过API密钥获取单个挂载点详情
+// 通过API密钥获取单个挂载点详情（基于basic_path权限）
 userStorageMountRoutes.get("/api/user/mounts/:id", apiKeyMountMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const { id } = c.req.param();
 
   try {
-    // API密钥用户查询
-    const mount = await getMountByIdForApiKey(db, id, apiKeyId);
+    // 首先获取挂载点信息
+    const mount = await db
+      .prepare(
+        `SELECT
+          id, name, storage_type, storage_config_id, mount_path,
+          remark, is_active, created_by, sort_order, cache_ttl,
+          created_at, updated_at, last_used
+         FROM storage_mounts
+         WHERE id = ? AND is_active = 1`
+      )
+      .bind(id)
+      .first();
+
+    if (!mount) {
+      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在" });
+    }
+
+    // 检查API密钥是否有权限访问此挂载点
+    if (!checkPathPermission(apiKeyInfo.basicPath, mount.mount_path)) {
+      throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问此挂载点" });
+    }
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -72,64 +90,8 @@ userStorageMountRoutes.get("/api/user/mounts/:id", apiKeyMountMiddleware, async 
   }
 });
 
-// 通过API密钥创建挂载点
-userStorageMountRoutes.post("/api/user/mounts", apiKeyMountMiddleware, async (c) => {
-  const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
-
-  try {
-    const body = await c.req.json();
-    const mount = await createMount(db, body, apiKeyId);
-
-    // 返回创建成功响应
-    return c.json({
-      code: ApiStatus.CREATED,
-      message: "挂载点创建成功",
-      data: mount,
-      success: true,
-    });
-  } catch (error) {
-    return handleApiError(c, error, "创建挂载点失败");
-  }
-});
-
-// 通过API密钥更新挂载点
-userStorageMountRoutes.put("/api/user/mounts/:id", apiKeyMountMiddleware, async (c) => {
-  const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
-  const { id } = c.req.param();
-
-  try {
-    const body = await c.req.json();
-    await updateMount(db, id, body, apiKeyId);
-
-    return c.json({
-      code: ApiStatus.SUCCESS,
-      message: "挂载点已更新",
-      success: true,
-    });
-  } catch (error) {
-    return handleApiError(c, error, "更新挂载点失败");
-  }
-});
-
-// 通过API密钥删除挂载点
-userStorageMountRoutes.delete("/api/user/mounts/:id", apiKeyMountMiddleware, async (c) => {
-  const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
-  const { id } = c.req.param();
-
-  try {
-    await deleteMount(db, id, apiKeyId);
-
-    return c.json({
-      code: ApiStatus.SUCCESS,
-      message: "挂载点删除成功",
-      success: true,
-    });
-  } catch (error) {
-    return handleApiError(c, error, "删除挂载点失败");
-  }
-});
+// 注意：用户挂载点的创建、更新、删除功能已移除
+// 现在用户只能查看管理员分配给其API密钥basic_path权限范围内的挂载点
+// 挂载点的管理完全由管理员在后台进行
 
 export default userStorageMountRoutes;

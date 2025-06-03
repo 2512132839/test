@@ -21,7 +21,7 @@ import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import { getLocalTimeString } from "../utils/common.js";
-import { storeAuthInfo, getAuthInfo, isWebDAVClient  } from "./utils/authCache.js";
+import { storeAuthInfo, getAuthInfo, isWebDAVClient } from "./utils/authCache.js";
 
 /**
  * 创建未授权响应
@@ -86,10 +86,24 @@ export const webdavAuthMiddleware = async (c, next) => {
         c.set("authInfo", cachedAuth);
         return next();
       } else if (cachedAuth.apiKey) {
-        c.set("userId", cachedAuth.userId);
-        c.set("userType", "apiKey");
-        c.set("authInfo", cachedAuth);
-        return next();
+        // 对于API密钥用户，需要重新获取完整的API密钥信息
+        try {
+          const apiKey = await db.prepare("SELECT id, name, basic_path FROM api_keys WHERE id = ?").bind(cachedAuth.userId).first();
+          if (apiKey) {
+            const apiKeyInfo = {
+              id: apiKey.id,
+              name: apiKey.name,
+              basicPath: apiKey.basic_path || "/",
+            };
+            c.set("userId", apiKeyInfo);
+            c.set("userType", "apiKey");
+            c.set("authInfo", { ...cachedAuth, apiKeyInfo });
+            return next();
+          }
+        } catch (error) {
+          console.error("WebDAV认证: 获取缓存API密钥信息失败", error);
+          // 如果获取失败，清除缓存并要求重新认证
+        }
       }
     }
 
@@ -201,9 +215,9 @@ async function handleBasicAuth(c, next, authHeader, db, clientIp, userAgent) {
 
     // 情况2: API密钥用户登录 (密钥值为用户名和密码)
     try {
-      // 查询是否存在对应的API密钥
+      // 查询是否存在对应的API密钥，获取完整信息
       console.log("WebDAV认证: 尝试API密钥验证");
-      const apiKey = await db.prepare("SELECT id, key, mount_permission FROM api_keys WHERE key = ?").bind(username).first();
+      const apiKey = await db.prepare("SELECT id, key, name, basic_path, mount_permission FROM api_keys WHERE key = ?").bind(username).first();
 
       if (apiKey) {
         // 简化mount_permission检查，D1数据库可能返回数字字段为字符串
@@ -212,8 +226,15 @@ async function handleBasicAuth(c, next, authHeader, db, clientIp, userAgent) {
         if (hasMountPermission) {
           // 对于API密钥，用户名和密码应相同
           if (username === password) {
-            // 设置API密钥ID到上下文
-            c.set("userId", apiKey.id);
+            // 构建完整的API密钥信息对象
+            const apiKeyInfo = {
+              id: apiKey.id,
+              name: apiKey.name,
+              basicPath: apiKey.basic_path || "/",
+            };
+
+            // 设置API密钥信息到上下文
+            c.set("userId", apiKeyInfo); // 传递完整的API密钥信息对象
             c.set("userType", "apiKey");
 
             // 认证信息
@@ -224,6 +245,7 @@ async function handleBasicAuth(c, next, authHeader, db, clientIp, userAgent) {
               isAdmin: false,
               apiKey: username,
               authType: "basic",
+              apiKeyInfo: apiKeyInfo, // 添加完整的API密钥信息
             };
 
             // 设置认证信息以便后续重新验证
@@ -307,8 +329,8 @@ async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
     // 管理员令牌验证失败，尝试API密钥验证
     try {
       console.log("WebDAV认证: 尝试API密钥Bearer验证");
-      // 查询是否存在对应的API密钥
-      const apiKey = await db.prepare("SELECT id, key, mount_permission, expires_at FROM api_keys WHERE key = ?").bind(token).first();
+      // 查询是否存在对应的API密钥，获取完整信息
+      const apiKey = await db.prepare("SELECT id, key, name, basic_path, mount_permission, expires_at FROM api_keys WHERE key = ?").bind(token).first();
 
       if (!apiKey) {
         console.log("WebDAV认证: 未找到对应的API密钥");
@@ -333,6 +355,13 @@ async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
               console.warn("WebDAV认证: 更新API密钥最后使用时间失败", updateError);
             }
 
+            // 构建完整的API密钥信息对象
+            const apiKeyInfo = {
+              id: apiKey.id,
+              name: apiKey.name,
+              basicPath: apiKey.basic_path || "/",
+            };
+
             // 认证信息
             const authInfo = {
               userId: apiKey.id,
@@ -340,10 +369,11 @@ async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
               isAdmin: false,
               apiKey: token, // 使用令牌作为apiKey值
               authType: "bearer",
+              apiKeyInfo: apiKeyInfo, // 添加完整的API密钥信息
             };
 
-            // 设置API密钥ID到上下文
-            c.set("userId", apiKey.id);
+            // 设置API密钥信息到上下文
+            c.set("userId", apiKeyInfo); // 传递完整的API密钥信息对象
             c.set("userType", "apiKey");
 
             // 设置认证信息以便后续重新验证

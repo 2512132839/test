@@ -2,6 +2,7 @@
  * WebDAV工具函数
  */
 import { getMountsByAdmin, getMountsByApiKey } from "../../services/storageMountService.js";
+import { getAccessibleMountsByBasicPath, checkPathPermission } from "../../services/apiKeyService.js";
 import { HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
 /**
@@ -119,11 +120,11 @@ export function enhancedPathSecurity(path, options = {}) {
  * 根据请求路径查找对应的挂载点和子路径
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 请求路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @returns {Promise<Object>} 包含挂载点、子路径和错误信息的对象
  */
-export async function findMountPointByPath(db, path, userId, userType) {
+export async function findMountPointByPath(db, path, userIdOrInfo, userType) {
   // 规范化路径
   path = path.startsWith("/") ? path : "/" + path;
 
@@ -141,9 +142,18 @@ export async function findMountPointByPath(db, path, userId, userType) {
   // 获取挂载点列表
   let mounts;
   if (userType === "admin") {
-    mounts = await getMountsByAdmin(db, userId);
+    mounts = await getMountsByAdmin(db, userIdOrInfo);
   } else if (userType === "apiKey") {
-    mounts = await getMountsByApiKey(db, userId);
+    // 对于API密钥用户，需要根据基本路径获取可访问的挂载点
+    // 这里userIdOrInfo应该是API密钥信息对象，包含basicPath
+    if (typeof userIdOrInfo === "object" && userIdOrInfo.basicPath) {
+      // 使用新的基于基本路径的挂载点获取逻辑
+      const { getAccessibleMountsByBasicPath } = await import("../../services/apiKeyService.js");
+      mounts = await getAccessibleMountsByBasicPath(db, userIdOrInfo.basicPath);
+    } else {
+      // 兼容旧的逻辑，userIdOrInfo是字符串ID
+      mounts = await getMountsByApiKey(db, userIdOrInfo);
+    }
   } else {
     return {
       error: {
@@ -152,6 +162,72 @@ export async function findMountPointByPath(db, path, userId, userType) {
       },
     };
   }
+
+  // 按照路径长度降序排序，以便优先匹配最长的路径
+  mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
+
+  // 查找匹配的挂载点
+  for (const mount of mounts) {
+    const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
+
+    // 如果请求路径完全匹配挂载点或者是挂载点的子路径
+    if (path === mountPath || path === mountPath + "/" || path.startsWith(mountPath + "/")) {
+      let subPath = path.substring(mountPath.length);
+      if (!subPath.startsWith("/")) {
+        subPath = "/" + subPath;
+      }
+
+      return {
+        mount,
+        subPath,
+        mountPath,
+      };
+    }
+  }
+
+  // 未找到匹配的挂载点
+  return {
+    error: {
+      status: 404,
+      message: "挂载点不存在",
+    },
+  };
+}
+
+/**
+ * 根据API密钥信息查找对应的挂载点和子路径（基于基本路径权限）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} path - 请求路径
+ * @param {Object} apiKeyInfo - API密钥信息对象
+ * @returns {Promise<Object>} 包含挂载点、子路径和错误信息的对象
+ */
+export async function findMountPointByPathWithApiKey(db, path, apiKeyInfo) {
+  // 规范化路径
+  path = path.startsWith("/") ? path : "/" + path;
+
+  // 处理根路径
+  if (path === "/" || path === "//") {
+    return {
+      isRoot: true,
+      error: {
+        status: 403,
+        message: "无法操作根目录",
+      },
+    };
+  }
+
+  // 检查API密钥是否有权限访问此路径
+  if (!checkPathPermission(apiKeyInfo.basicPath, path)) {
+    return {
+      error: {
+        status: 403,
+        message: "没有权限访问此路径",
+      },
+    };
+  }
+
+  // 获取API密钥可访问的挂载点
+  const mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
 
   // 按照路径长度降序排序，以便优先匹配最长的路径
   mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);

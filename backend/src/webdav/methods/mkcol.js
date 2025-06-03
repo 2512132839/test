@@ -6,6 +6,7 @@ import { findMountPointByPath, normalizeS3SubPath, updateMountLastUsed, checkDir
 import { createS3Client } from "../../utils/s3Utils.js";
 import { PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { clearCacheAfterWebDAVOperation } from "../utils/cacheUtils.js";
+import { handleWebDAVError } from "../utils/errorUtils.js";
 
 /**
  * 处理MKCOL请求
@@ -167,15 +168,7 @@ export async function handleMkcol(c, path, userId, userType, db) {
       },
     });
   } catch (error) {
-    console.error("MKCOL请求处理错误:", error);
-    // 生成唯一错误ID用于日志追踪
-    const errorId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-    console.error(`MKCOL错误详情[${errorId}]:`, error);
-
-    // 对外部仅返回通用错误信息和错误ID，不暴露具体错误
-    return new Response(`内部服务器错误 (错误ID: ${errorId})`, {
-      status: 500,
-      headers: { "Content-Type": "text/plain" },
-    });
+    // 使用统一的错误处理
+    return handleWebDAVError("MKCOL", error, false, false);
   }
 }

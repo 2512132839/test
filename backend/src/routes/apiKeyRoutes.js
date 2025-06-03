@@ -10,7 +10,7 @@ const apiKeyRoutes = new Hono();
 // 测试API密钥验证路由
 apiKeyRoutes.get("/api/test/api-key", apiKeyMiddleware, async (c) => {
   // 获取密钥信息
-  const apiKeyInfo = c.get("apiKey");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const apiKeyId = c.get("apiKeyId");
 
   return c.json({
@@ -18,14 +18,16 @@ apiKeyRoutes.get("/api/test/api-key", apiKeyMiddleware, async (c) => {
     message: "API密钥验证成功",
     data: {
       name: apiKeyInfo.name,
+      basic_path: apiKeyInfo.basicPath,
       permissions: {
-        text: apiKeyInfo.textPermission,
-        file: apiKeyInfo.filePermission,
-        mount: apiKeyInfo.mountPermission,
+        text: apiKeyInfo.permissions.text,
+        file: apiKeyInfo.permissions.file,
+        mount: apiKeyInfo.permissions.mount,
       },
       key_info: {
         id: apiKeyId || apiKeyInfo.id,
         name: apiKeyInfo.name,
+        basic_path: apiKeyInfo.basicPath,
       },
     },
     success: true, // 添加兼容字段

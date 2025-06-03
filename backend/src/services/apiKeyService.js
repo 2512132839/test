@@ -35,8 +35,8 @@ export async function getAllApiKeys(db) {
 
   // 查询所有密钥，并隐藏完整密钥
   const keys = await db
-      .prepare(
-          `
+    .prepare(
+      `
     SELECT 
       id, 
       name, 
@@ -45,14 +45,15 @@ export async function getAllApiKeys(db) {
       text_permission, 
       file_permission, 
       mount_permission,
+      basic_path,
       created_at, 
       expires_at,
       last_used
     FROM ${DbTables.API_KEYS}
     ORDER BY created_at DESC
   `
-      )
-      .all();
+    )
+    .all();
 
   return keys.results;
 }
@@ -108,19 +109,22 @@ export async function createApiKey(db, keyData) {
   const filePermission = keyData.file_permission === true ? 1 : 0;
   const mountPermission = keyData.mount_permission === true ? 1 : 0;
 
+  // 处理basic_path字段，默认为根目录'/'
+  const basicPath = keyData.basic_path || "/";
+
   // 创建时间
   const createdAt = now.toISOString();
 
   // 插入到数据库
   await db
-      .prepare(
-          `
-    INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, mount_permission, expires_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    .prepare(
+      `
+    INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
-      )
-      .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, expiresAt.toISOString(), createdAt)
-      .run();
+    )
+    .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, basicPath, expiresAt.toISOString(), createdAt)
+    .run();
 
   // 准备响应数据
   return {
@@ -131,6 +135,7 @@ export async function createApiKey(db, keyData) {
     text_permission: textPermission === 1,
     file_permission: filePermission === 1,
     mount_permission: mountPermission === 1,
+    basic_path: basicPath,
     created_at: createdAt,
     expires_at: expiresAt.toISOString(),
   };
@@ -204,6 +209,11 @@ export async function updateApiKey(db, id, updateData) {
     params.push(updateData.mount_permission ? 1 : 0);
   }
 
+  if (updateData.basic_path !== undefined) {
+    updates.push("basic_path = ?");
+    params.push(updateData.basic_path);
+  }
+
   if (expiresAt !== null) {
     updates.push("expires_at = ?");
     params.push(expiresAt.toISOString());
@@ -219,9 +229,9 @@ export async function updateApiKey(db, id, updateData) {
 
   // 执行更新
   await db
-      .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
-      .bind(...params)
-      .run();
+    .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...params)
+    .run();
 }
 
 /**
@@ -252,15 +262,143 @@ export async function getApiKeyByKey(db, key) {
   if (!key) return null;
 
   const result = await db
-      .prepare(
-          `SELECT id, name, key, text_permission, file_permission, mount_permission, expires_at, last_used
+    .prepare(
+      `SELECT id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, last_used
        FROM ${DbTables.API_KEYS}
        WHERE key = ?`
-      )
-      .bind(key)
-      .first();
+    )
+    .bind(key)
+    .first();
 
   return result;
+}
+
+/**
+ * 检查API密钥是否有访问指定路径的权限
+ * @param {string} basicPath - API密钥的基本路径
+ * @param {string} requestPath - 请求访问的路径
+ * @returns {boolean} 是否有权限
+ */
+export function checkPathPermission(basicPath, requestPath) {
+  if (!basicPath || !requestPath) {
+    return false;
+  }
+
+  // 标准化路径 - 确保以/开头，不以/结尾（除非是根路径）
+  const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+  const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+  // 如果基本路径是根路径，允许访问所有路径
+  if (normalizeBasicPath === "/") {
+    return true;
+  }
+
+  // 检查请求路径是否在基本路径范围内
+  return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
+}
+
+/**
+ * 检查API密钥是否有访问指定路径的权限（支持导航）
+ * 允许访问从根路径到基本路径的所有父级路径，以便用户能够导航
+ * @param {string} basicPath - API密钥的基本路径
+ * @param {string} requestPath - 请求访问的路径
+ * @returns {boolean} 是否有权限
+ */
+export function checkPathPermissionForNavigation(basicPath, requestPath) {
+  if (!basicPath || !requestPath) {
+    return false;
+  }
+
+  // 标准化路径 - 确保以/开头，不以/结尾（除非是根路径）
+  const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+  const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+  // 如果基本路径是根路径，允许访问所有路径
+  if (normalizeBasicPath === "/") {
+    return true;
+  }
+
+  // 检查请求路径是否在基本路径范围内（有完整权限）
+  if (normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/")) {
+    return true;
+  }
+
+  // 允许访问基本路径的父级路径（用于导航），但这些路径只有查看权限，没有操作权限
+  if (normalizeBasicPath.startsWith(normalizeRequestPath + "/") || normalizeRequestPath === "/") {
+    return true;
+  }
+
+  return false;
+}
+
+// 检查是否有操作权限（创建、删除、上传等）
+export function checkPathPermissionForOperation(basicPath, requestPath) {
+  if (!basicPath || !requestPath) {
+    return false;
+  }
+
+  // 标准化路径
+  const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+  const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+  // 如果基本路径是根路径，允许所有操作
+  if (normalizeBasicPath === "/") {
+    return true;
+  }
+
+  // 只有在基本路径范围内才允许操作
+  return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
+}
+
+/**
+ * 根据API密钥的基本路径筛选可访问的挂载点
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} basicPath - API密钥的基本路径
+ * @returns {Promise<Array>} 可访问的挂载点列表
+ */
+export async function getAccessibleMountsByBasicPath(db, basicPath) {
+  // 获取所有活跃的挂载点
+  const allMounts = await db
+    .prepare(
+      `SELECT
+        id, name, storage_type, storage_config_id, mount_path,
+        remark, is_active, created_by, sort_order, cache_ttl,
+        created_at, updated_at, last_used
+       FROM ${DbTables.STORAGE_MOUNTS}
+       WHERE is_active = 1
+       ORDER BY sort_order ASC, name ASC`
+    )
+    .all();
+
+  if (!allMounts.results) return [];
+
+  // 根据基本路径筛选可访问的挂载点
+  // 需要检查两种情况：
+  // 1. 基本路径允许访问挂载点路径（基本路径是挂载点的父级或相同）
+  // 2. 挂载点路径是基本路径的父级（基本路径是挂载点的子目录）
+  const accessibleMounts = allMounts.results.filter((mount) => {
+    const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+    const normalizedMountPath = mount.mount_path.replace(/\/+$/, "") || "/";
+
+    // 情况1：基本路径是根路径，允许访问所有挂载点
+    if (normalizedBasicPath === "/") {
+      return true;
+    }
+
+    // 情况2：基本路径允许访问挂载点路径（基本路径是挂载点的父级或相同）
+    if (normalizedMountPath === normalizedBasicPath || normalizedMountPath.startsWith(normalizedBasicPath + "/")) {
+      return true;
+    }
+
+    // 情况3：挂载点路径是基本路径的父级（基本路径是挂载点的子目录）
+    if (normalizedBasicPath.startsWith(normalizedMountPath + "/")) {
+      return true;
+    }
+
+    return false;
+  });
+
+  return accessibleMounts;
 }
 
 /**

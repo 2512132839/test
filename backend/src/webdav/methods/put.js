@@ -9,6 +9,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getMimeType } from "../../utils/fileUtils.js";
 import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload } from "../../services/multipartUploadService.js";
 import { clearCacheAfterWebDAVOperation } from "../utils/cacheUtils.js";
+import { handleWebDAVError } from "../utils/errorUtils.js";
 
 // 分片上传阈值，设为5MB以符合S3对分片的最小大小要求
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -415,7 +416,7 @@ export async function handlePut(c, path, userId, userType, db) {
     // 2. 如果设置为'auto'，小于指定阈值的文件使用直接上传
     // 注意：空文件已经有专门的处理逻辑，这里只处理非空小文件
     const shouldUseDirect =
-        webdavUploadMode === "direct" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > 0 && declaredContentLength <= DIRECT_THRESHOLD);
+      webdavUploadMode === "direct" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > 0 && declaredContentLength <= DIRECT_THRESHOLD);
 
     // 非空文件且应该使用代理模式时进行代理上传
     if (webdavUploadMode !== "direct" && shouldUseProxy) {
@@ -597,10 +598,10 @@ export async function handlePut(c, path, userId, userType, db) {
           const acceptable = checkSizeDifference(totalProcessed, declaredContentLength);
           if (!acceptable) {
             console.warn(
-                `WebDAV PUT - 警告：文件数据不完整，声明大小：${declaredContentLength}字节，实际上传：${totalProcessed}字节，差异：${(
-                    (declaredContentLength - totalProcessed) /
-                    (1024 * 1024)
-                ).toFixed(2)}MB`
+              `WebDAV PUT - 警告：文件数据不完整，声明大小：${declaredContentLength}字节，实际上传：${totalProcessed}字节，差异：${(
+                (declaredContentLength - totalProcessed) /
+                (1024 * 1024)
+              ).toFixed(2)}MB`
             );
           }
         }
@@ -644,16 +645,8 @@ export async function handlePut(c, path, userId, userType, db) {
       }
     }
   } catch (error) {
-    console.error("PUT请求处理错误:", error);
-    // 生成唯一错误ID用于日志追踪
-    const errorId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-    console.error(`PUT错误详情[${errorId}]:`, error);
-
-    // 对外部仅返回通用错误信息和错误ID，不暴露具体错误
-    return new Response(`内部服务器错误 (错误ID: ${errorId})`, {
-      status: 500,
-      headers: { "Content-Type": "text/plain" },
-    });
+    // 使用统一的错误处理
+    return handleWebDAVError("PUT", error, false, false);
   }
 }
 
