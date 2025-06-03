@@ -18,8 +18,8 @@ import { handleWebDAVError, createWebDAVErrorResponse } from "../utils/errorUtil
  */
 export async function handleDelete(c, path, userId, userType, db) {
   try {
-    // 使用统一函数查找挂载点
-    const mountResult = await findMountPointByPath(db, path, userId, userType);
+    // 使用统一函数查找挂载点 - DELETE使用操作权限
+    const mountResult = await findMountPointByPath(db, path, userId, userType, "operation");
 
     // 处理错误情况
     if (mountResult.error) {

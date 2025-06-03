@@ -24,8 +24,8 @@ export async function handleLock(c, path, userId, userType, db) {
     // 记录锁定请求信息
     console.log(`WebDAV LOCK请求: 路径 ${path}, 用户类型: ${userType}, 客户端: ${isWindowsClient ? "Windows" : "其他"}`);
 
-    // 使用统一函数查找挂载点
-    const mountResult = await findMountPointByPath(db, path, userId, userType);
+    // 使用统一函数查找挂载点 - LOCK使用读取权限
+    const mountResult = await findMountPointByPath(db, path, userId, userType, "read");
 
     // 处理错误情况
     if (mountResult.error) {

@@ -20,8 +20,8 @@ export async function handleGet(c, path, userId, userType, db) {
   const isHead = c.req.method === "HEAD";
 
   try {
-    // 使用统一函数查找挂载点
-    const mountResult = await findMountPointByPath(db, path, userId, userType);
+    // 使用统一函数查找挂载点 - GET/HEAD使用读取权限
+    const mountResult = await findMountPointByPath(db, path, userId, userType, "read");
 
     // 处理错误情况
     if (mountResult.error) {

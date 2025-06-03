@@ -40,7 +40,6 @@ function isWebDAVClient(userAgent) {
   return false;
 }
 
-
 /**
  * 生成缓存键
  * @param {string} clientIp - 客户端IP

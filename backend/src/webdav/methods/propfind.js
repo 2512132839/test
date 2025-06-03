@@ -3,6 +3,7 @@ import { createS3Client } from "../../utils/s3Utils.js";
 import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getMimeType } from "../../utils/fileUtils.js";
 import { handleWebDAVError } from "../utils/errorUtils.js";
+import { checkPathPermission, checkPathPermissionForNavigation } from "../../services/apiKeyService.js";
 
 // 添加配置常量，用于控制分页行为
 const ABSOLUTE_MAX_ITEMS = 10000; // 绝对最大项目数，防止过度消耗资源
@@ -30,18 +31,18 @@ function encodeUriPath(path) {
   // 将路径分割成段，单独编码每一段，然后重新组合
   // 这样可以保留路径分隔符"/"
   return path
-    .split("/")
-    .map((segment) => {
-      // 对每个段进行URL编码，但保留某些合法的URI字符
-      return encodeURIComponent(segment)
-        .replace(/%20/g, "%20") // 保留空格的编码
-        .replace(/'/g, "%27") // 单引号编码
-        .replace(/\(/g, "%28") // 左括号编码
-        .replace(/\)/g, "%29") // 右括号编码
-        .replace(/\*/g, "%2A") // 星号编码
-        .replace(/%2F/g, "/"); // 恢复被错误编码的斜杠
-    })
-    .join("/");
+      .split("/")
+      .map((segment) => {
+        // 对每个段进行URL编码，但保留某些合法的URI字符
+        return encodeURIComponent(segment)
+            .replace(/%20/g, "%20") // 保留空格的编码
+            .replace(/'/g, "%27") // 单引号编码
+            .replace(/\(/g, "%28") // 左括号编码
+            .replace(/\)/g, "%29") // 右括号编码
+            .replace(/\*/g, "%2A") // 星号编码
+            .replace(/%2F/g, "/"); // 恢复被错误编码的斜杠
+      })
+      .join("/");
 }
 
 /**
@@ -138,7 +139,16 @@ export async function handlePropfind(c, path, userId, userType, db) {
     if (userType === "admin") {
       mounts = await getMountsByAdmin(db, userId);
     } else if (userType === "apiKey") {
-      mounts = await getMountsByApiKey(db, userId);
+      // 对于API密钥用户，userId现在是完整的API密钥信息对象
+      if (typeof userId === "object" && userId.basicPath) {
+        // 使用基于基本路径的挂载点获取逻辑
+        const { getAccessibleMountsByBasicPath } = await import("../../services/apiKeyService.js");
+        mounts = await getAccessibleMountsByBasicPath(db, userId.basicPath);
+      } else {
+        // 兼容旧的逻辑，如果userId是字符串
+        const apiKeyId = typeof userId === "string" ? userId : userId.id;
+        mounts = await getMountsByApiKey(db, apiKeyId);
+      }
     } else {
       return new Response("Unauthorized", { status: 401 });
     }
@@ -203,8 +213,8 @@ export async function handlePropfind(c, path, userId, userType, db) {
       console.warn("更新存储挂载点最后使用时间失败:", updateError);
     }
 
-    // 构建响应，传递最大项目数限制
-    return await buildPropfindResponse(c, s3Client, s3Config.bucket_name, s3SubPath, depth, path, maxItems);
+    // 构建响应，传递最大项目数限制和用户信息
+    return await buildPropfindResponse(c, s3Client, s3Config.bucket_name, s3SubPath, depth, path, maxItems, userId, userType);
   } catch (error) {
     // 使用统一的错误处理
     return handleWebDAVError("PROPFIND", error);
@@ -231,8 +241,9 @@ async function respondWithMounts(c, userIdOrInfo, userType, db, path = "/") {
       const { getAccessibleMountsByBasicPath } = await import("../../services/apiKeyService.js");
       mounts = await getAccessibleMountsByBasicPath(db, userIdOrInfo.basicPath);
     } else {
-      // 兼容旧的逻辑
-      mounts = await getMountsByApiKey(db, userIdOrInfo);
+      // 兼容旧的逻辑，如果userIdOrInfo是字符串
+      const apiKeyId = typeof userIdOrInfo === "string" ? userIdOrInfo : userIdOrInfo.id;
+      mounts = await getMountsByApiKey(db, apiKeyId);
     }
   } else {
     return new Response("Unauthorized", { status: 401 });
@@ -241,6 +252,13 @@ async function respondWithMounts(c, userIdOrInfo, userType, db, path = "/") {
   // 规范化路径
   path = path.startsWith("/") ? path : "/" + path;
   path = path.endsWith("/") ? path : path + "/";
+
+  // 对于API密钥用户，检查是否有导航权限访问此路径
+  if (userType === "apiKey" && typeof userIdOrInfo === "object" && userIdOrInfo.basicPath) {
+    if (!checkPathPermissionForNavigation(userIdOrInfo.basicPath, path)) {
+      return new Response("没有权限访问此路径", { status: 403 });
+    }
+  }
 
   // 获取当前路径下的目录结构
   const structure = getDirectoryStructure(mounts, path);
@@ -384,8 +402,10 @@ async function respondWithMounts(c, userIdOrInfo, userType, db, path = "/") {
  * @param {string} depth - 深度
  * @param {string} requestPath - 请求路径
  * @param {number} maxItems - 最大项目数
+ * @param {Object} userInfo - 用户信息（用于权限检查）
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
  */
-async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, requestPath, maxItems = ABSOLUTE_MAX_ITEMS) {
+async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, requestPath, maxItems = ABSOLUTE_MAX_ITEMS, userInfo = null, userType = "admin") {
   // 确保路径以斜杠结尾
   if (!prefix.endsWith("/") && prefix !== "") {
     prefix += "/";
@@ -466,10 +486,19 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
           const folderName = item.Prefix.split("/").filter(Boolean).pop();
           if (!folderName) continue; // 跳过空文件夹名
 
+          // 构建文件夹路径用于权限检查
+          const folderPath = `${requestPath}${folderName}/`;
+
+          // 对于API密钥用户，检查是否有权限访问此目录
+          if (userType === "apiKey" && userInfo && userInfo.basicPath) {
+            if (!checkPathPermission(userInfo.basicPath, folderPath)) {
+              continue; // 跳过没有权限的目录
+            }
+          }
+
           // 转义文件夹名中的XML特殊字符
           const escapedFolderName = escapeXmlChars(folderName);
-          // 构建并编码文件夹路径
-          const folderPath = `${requestPath}${folderName}/`;
+          // 编码文件夹路径
           const encodedFolderPath = encodeUriPath(folderPath);
 
           // 为子目录生成唯一的ETag
@@ -518,10 +547,19 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
           const fileName = item.Key.split("/").pop();
           if (!fileName) continue; // 跳过空文件名
 
+          // 构建文件路径用于权限检查
+          const filePath = `${requestPath}${fileName}`;
+
+          // 对于API密钥用户，检查是否有权限访问此文件
+          if (userType === "apiKey" && userInfo && userInfo.basicPath) {
+            if (!checkPathPermission(userInfo.basicPath, filePath)) {
+              continue; // 跳过没有权限的文件
+            }
+          }
+
           // 转义文件名中的XML特殊字符
           const escapedFileName = escapeXmlChars(fileName);
-          // 构建并编码文件路径
-          const filePath = `${requestPath}${fileName}`;
+          // 编码文件路径
           const encodedFilePath = encodeUriPath(filePath);
 
           // 获取文件的MIME类型
@@ -591,8 +629,17 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
               const folderName = item.Prefix.split("/").filter(Boolean).pop();
               if (!folderName) continue;
 
-              const escapedFolderName = escapeXmlChars(folderName);
+              // 构建文件夹路径用于权限检查
               const folderPath = `${requestPath}${folderName}/`;
+
+              // 对于API密钥用户，检查是否有权限访问此目录
+              if (userType === "apiKey" && userInfo && userInfo.basicPath) {
+                if (!checkPathPermission(userInfo.basicPath, folderPath)) {
+                  continue; // 跳过没有权限的目录
+                }
+              }
+
+              const escapedFolderName = escapeXmlChars(folderName);
               const encodedFolderPath = encodeUriPath(folderPath);
 
               // 为子目录生成唯一的ETag
@@ -640,8 +687,17 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
               const fileName = item.Key.split("/").pop();
               if (!fileName) continue;
 
-              const escapedFileName = escapeXmlChars(fileName);
+              // 构建文件路径用于权限检查
               const filePath = `${requestPath}${fileName}`;
+
+              // 对于API密钥用户，检查是否有权限访问此文件
+              if (userType === "apiKey" && userInfo && userInfo.basicPath) {
+                if (!checkPathPermission(userInfo.basicPath, filePath)) {
+                  continue; // 跳过没有权限的文件
+                }
+              }
+
+              const escapedFileName = escapeXmlChars(fileName);
               const encodedFilePath = encodeUriPath(filePath);
 
               // 获取文件的MIME类型

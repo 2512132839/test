@@ -19,8 +19,8 @@ export async function handleProppatch(c, path, userId, userType, db) {
     // 记录PROPPATCH请求信息
     console.log(`WebDAV PROPPATCH请求: 路径 ${path}, 用户类型: ${userType}`);
 
-    // 使用统一函数查找挂载点
-    const mountResult = await findMountPointByPath(db, path, userId, userType);
+    // 使用统一函数查找挂载点 - PROPPATCH使用读取权限
+    const mountResult = await findMountPointByPath(db, path, userId, userType, "read");
 
     // 处理错误情况
     if (mountResult.error) {

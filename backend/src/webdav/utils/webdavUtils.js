@@ -2,7 +2,7 @@
  * WebDAV工具函数
  */
 import { getMountsByAdmin, getMountsByApiKey } from "../../services/storageMountService.js";
-import { getAccessibleMountsByBasicPath, checkPathPermission } from "../../services/apiKeyService.js";
+import { getAccessibleMountsByBasicPath, checkPathPermission, checkPathPermissionForNavigation, checkPathPermissionForOperation } from "../../services/apiKeyService.js";
 import { HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
 /**
@@ -122,9 +122,10 @@ export function enhancedPathSecurity(path, options = {}) {
  * @param {string} path - 请求路径
  * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} permissionType - 权限检查类型 (navigation, read, operation)
  * @returns {Promise<Object>} 包含挂载点、子路径和错误信息的对象
  */
-export async function findMountPointByPath(db, path, userIdOrInfo, userType) {
+export async function findMountPointByPath(db, path, userIdOrInfo, userType, permissionType = "read") {
   // 规范化路径
   path = path.startsWith("/") ? path : "/" + path;
 
@@ -147,12 +148,32 @@ export async function findMountPointByPath(db, path, userIdOrInfo, userType) {
     // 对于API密钥用户，需要根据基本路径获取可访问的挂载点
     // 这里userIdOrInfo应该是API密钥信息对象，包含basicPath
     if (typeof userIdOrInfo === "object" && userIdOrInfo.basicPath) {
+      // 根据权限类型选择合适的权限检查函数
+      let hasPermission = false;
+      if (permissionType === "navigation") {
+        hasPermission = checkPathPermissionForNavigation(userIdOrInfo.basicPath, path);
+      } else if (permissionType === "operation") {
+        hasPermission = checkPathPermissionForOperation(userIdOrInfo.basicPath, path);
+      } else {
+        // 默认使用严格的读取权限检查
+        hasPermission = checkPathPermission(userIdOrInfo.basicPath, path);
+      }
+
+      if (!hasPermission) {
+        return {
+          error: {
+            status: 403,
+            message: "没有权限访问此路径",
+          },
+        };
+      }
+
       // 使用新的基于基本路径的挂载点获取逻辑
-      const { getAccessibleMountsByBasicPath } = await import("../../services/apiKeyService.js");
       mounts = await getAccessibleMountsByBasicPath(db, userIdOrInfo.basicPath);
     } else {
-      // 兼容旧的逻辑，userIdOrInfo是字符串ID
-      mounts = await getMountsByApiKey(db, userIdOrInfo);
+      // 兼容旧的逻辑，如果userIdOrInfo是字符串
+      const apiKeyId = typeof userIdOrInfo === "string" ? userIdOrInfo : userIdOrInfo.id;
+      mounts = await getMountsByApiKey(db, apiKeyId);
     }
   } else {
     return {

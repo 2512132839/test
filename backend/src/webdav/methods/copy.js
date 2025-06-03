@@ -18,8 +18,8 @@ import { handleWebDAVError } from "../utils/errorUtils.js";
  */
 export async function handleCopy(c, path, userId, userType, db) {
   try {
-    // 使用统一函数查找源路径的挂载点
-    const sourceMountResult = await findMountPointByPath(db, path, userId, userType);
+    // 使用统一函数查找源路径的挂载点 - COPY使用操作权限
+    const sourceMountResult = await findMountPointByPath(db, path, userId, userType, "operation");
 
     // 处理错误情况
     if (sourceMountResult.error) {
@@ -48,8 +48,8 @@ export async function handleCopy(c, path, userId, userType, db) {
       });
     }
 
-    // 查找目标路径的挂载点
-    const destMountResult = await findMountPointByPath(db, destPath, userId, userType);
+    // 查找目标路径的挂载点 - COPY使用操作权限
+    const destMountResult = await findMountPointByPath(db, destPath, userId, userType, "operation");
 
     // 如果目标路径是根目录，则返回错误
     if (destMountResult.isRoot) {
