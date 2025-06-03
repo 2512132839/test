@@ -713,7 +713,7 @@ const handleDelete = async (item) => {
     loading.value = true;
 
     // 调用删除函数
-    await deleteFileOrFolder(item.path, item.isDirectory);
+    await deleteFileOrFolder(item.path);
 
     // 检查响应状态
     showMessage("success", `${item.isDirectory ? "文件夹" : "文件"}删除成功`);
@@ -730,10 +730,9 @@ const handleDelete = async (item) => {
 /**
  * 删除文件或文件夹
  * @param {string} path 路径
- * @param {boolean} isDirectory 是否为目录
  * @returns {Promise<Object>} 删除结果
  */
-const deleteFileOrFolder = async (path, isDirectory) => {
+const deleteFileOrFolder = async (path) => {
   // 根据用户类型选择合适的API函数
   const deleteItem = isAdmin.value ? api.fs.deleteAdminItem : api.fs.deleteUserItem;
 

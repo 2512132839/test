@@ -179,7 +179,7 @@ export async function handlePropfind(c, path, userId, userType, db) {
 
     // 处理虚拟目录路径 (根目录或中间目录)
     if (isVirtualPath) {
-      return await respondWithMounts(c, userId, userType, db, path);
+      return await respondWithMounts(userId, userType, db, path);
     }
 
     // 处理实际挂载点路径
@@ -214,7 +214,7 @@ export async function handlePropfind(c, path, userId, userType, db) {
     }
 
     // 构建响应，传递最大项目数限制和用户信息
-    return await buildPropfindResponse(c, s3Client, s3Config.bucket_name, s3SubPath, depth, path, maxItems, userId, userType);
+    return await buildPropfindResponse(s3Client, s3Config.bucket_name, s3SubPath, depth, path, maxItems, userId, userType);
   } catch (error) {
     // 使用统一的错误处理
     return handleWebDAVError("PROPFIND", error);
@@ -229,7 +229,7 @@ export async function handlePropfind(c, path, userId, userType, db) {
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 当前路径
  */
-async function respondWithMounts(c, userIdOrInfo, userType, db, path = "/") {
+async function respondWithMounts(userIdOrInfo, userType, db, path = "/") {
   let mounts;
   if (userType === "admin") {
     // 对于WebDAV访问，管理员也只能看到激活的挂载点
@@ -405,7 +405,7 @@ async function respondWithMounts(c, userIdOrInfo, userType, db, path = "/") {
  * @param {Object} userInfo - 用户信息（用于权限检查）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  */
-async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, requestPath, maxItems = ABSOLUTE_MAX_ITEMS, userInfo = null, userType = "admin") {
+async function buildPropfindResponse(s3Client, bucketName, prefix, depth, requestPath, maxItems = ABSOLUTE_MAX_ITEMS, userInfo = null, userType = "admin") {
   // 确保路径以斜杠结尾
   if (!prefix.endsWith("/") && prefix !== "") {
     prefix += "/";

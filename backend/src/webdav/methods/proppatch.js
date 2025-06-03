@@ -59,7 +59,7 @@ export async function handleProppatch(c, path, userId, userType, db) {
     // 在完整实现中，应解析XML请求体，识别要修改的属性，并实际进行修改
 
     // 清理缓存 - 即使当前并未实际修改属性，也添加缓存清理以保持一致性
-    await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, isDirectory);
+    await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, isDirectory, mount.id);
 
     // 更新挂载点的最后使用时间
     await updateMountLastUsed(db, mount.id);

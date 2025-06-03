@@ -208,7 +208,7 @@ export async function handleMove(c, path, userId, userType, db) {
 
       // 清理缓存 - 对于移动目录操作，需要清理源路径和目标路径的缓存
       await clearCacheAfterWebDAVOperation(db, sourceS3SubPath, s3Config, true, mount.id);
-      await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, destMount.id);
+      await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, mount.id);
     } else {
       // 处理文件移动
       // 检查源文件是否存在
@@ -248,7 +248,7 @@ export async function handleMove(c, path, userId, userType, db) {
 
       // 清理缓存 - 对于移动文件操作，需要清理源路径和目标路径的缓存
       await clearCacheAfterWebDAVOperation(db, sourceS3SubPath, s3Config, false, mount.id);
-      await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, false, destMount.id);
+      await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, false, mount.id);
     }
 
     // 更新挂载点的最后使用时间

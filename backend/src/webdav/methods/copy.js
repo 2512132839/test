@@ -177,7 +177,7 @@ export async function handleCopy(c, path, userId, userType, db) {
         await s3Client.send(putCommand);
 
         // 清理缓存 - 只复制目录本身
-        await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, destMount.id);
+        await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, mount.id);
       } else {
         // 深度为infinity，递归复制目录内容
         // 列出目录中的所有对象
@@ -225,7 +225,7 @@ export async function handleCopy(c, path, userId, userType, db) {
             await s3Client.send(putCommand);
 
             // 清理缓存 - 复制空目录
-            await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, destMount.id);
+            await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, mount.id);
           } catch (error) {
             if (error.$metadata && error.$metadata.httpStatusCode === 404) {
               return new Response("源目录不存在", { status: 404 });
@@ -251,7 +251,7 @@ export async function handleCopy(c, path, userId, userType, db) {
           }
 
           // 清理缓存 - 目录复制完成
-          await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, destMount.id);
+          await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, mount.id);
         }
       }
     } else {
@@ -283,7 +283,7 @@ export async function handleCopy(c, path, userId, userType, db) {
       await s3Client.send(copyCommand);
 
       // 清理缓存 - 文件复制后清理目标路径的缓存
-      await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, false, destMount.id);
+      await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, false, mount.id);
     }
 
     // 更新挂载点的最后使用时间
