@@ -154,7 +154,7 @@ export async function handleMkcol(c, path, userId, userType, db) {
     await s3Client.send(putCommand);
 
     // 清理缓存 - 对于创建目录操作，应清理该目录及父目录的缓存
-    await clearCacheAfterWebDAVOperation(db, validS3SubPath, s3Config, true);
+    await clearCacheAfterWebDAVOperation(db, validS3SubPath, s3Config, true, mount.id);
 
     // 更新挂载点的最后使用时间
     await updateMountLastUsed(db, mount.id);

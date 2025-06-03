@@ -441,7 +441,7 @@ export async function handlePut(c, path, userId, userType, db) {
         // 如果代理上传成功，更新挂载点的最后使用时间并清理缓存
         if (proxyResponse.status === 201) {
           await updateMountLastUsed(db, mount.id);
-          await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
+          await finalizePutOperation(db, s3Client, s3Config, s3SubPath, mount.id);
         }
 
         return proxyResponse;
@@ -468,7 +468,7 @@ export async function handlePut(c, path, userId, userType, db) {
       await s3Client.send(putCommand);
 
       // 清理缓存
-      await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
+      await finalizePutOperation(db, s3Client, s3Config, s3SubPath, mount.id);
 
       // 更新挂载点的最后使用时间
       await updateMountLastUsed(db, mount.id);
@@ -525,7 +525,7 @@ export async function handlePut(c, path, userId, userType, db) {
 
         // 处理成功上传后的操作
         await updateMountLastUsed(db, mount.id);
-        await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
+        await finalizePutOperation(db, s3Client, s3Config, s3SubPath, mount.id);
 
         const uploadDuration = Math.ceil((Date.now() - requestStartTime) / 1000);
         const uploadSpeedMBps = (bytesRead / 1024 / 1024 / uploadDuration).toFixed(2);
@@ -612,7 +612,7 @@ export async function handlePut(c, path, userId, userType, db) {
         const completeResult = await completeMultipartUpload(db, path, uploadId, parts, userId, userType, c.env.ENCRYPTION_SECRET, s3Key, contentType, totalProcessed, false);
 
         // 清理缓存
-        await finalizePutOperation(db, s3Client, s3Config, s3SubPath);
+        await finalizePutOperation(db, s3Client, s3Config, s3SubPath, mount.id);
 
         const uploadDuration = Math.ceil((Date.now() - requestStartTime) / 1000);
         const uploadSpeedMBps = (totalProcessed / 1024 / 1024 / uploadDuration).toFixed(2);
@@ -712,10 +712,10 @@ async function proxyUploadToS3(c, presignedUrl, contentType) {
   }
 }
 
-async function finalizePutOperation(db, s3Client, s3Config, s3SubPath) {
+async function finalizePutOperation(db, s3Client, s3Config, s3SubPath, mountId) {
   try {
     // 更新缓存 - 清除相关目录的缓存
-    await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config);
+    await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, false, mountId);
     return true;
   } catch (error) {
     console.error("PUT操作后清理缓存错误:", error);

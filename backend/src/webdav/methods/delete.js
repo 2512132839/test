@@ -90,7 +90,7 @@ export async function handleDelete(c, path, userId, userType, db) {
       }
 
       // 清理缓存 - 对于目录操作，应清理该目录的缓存
-      await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, true);
+      await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, true, mount.id);
     } else {
       // 文件删除 - 检查文件是否存在
       try {
@@ -118,7 +118,7 @@ export async function handleDelete(c, path, userId, userType, db) {
       await s3Client.send(deleteCommand);
 
       // 清理缓存 - 对于文件操作，应清理文件所在目录的缓存
-      await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, false);
+      await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, false, mount.id);
     }
 
     // 更新挂载点的最后使用时间
