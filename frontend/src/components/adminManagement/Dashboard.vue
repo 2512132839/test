@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch, onBeforeUnmount } from "vue";
-import { getDashboardStats } from "../../api/adminService";
+import { api } from "../../api";
 import { useI18n } from "vue-i18n";
 // 引入Chart.js相关组件
 import { Bar, Line } from "vue-chartjs";
@@ -41,7 +41,7 @@ const error = ref(null);
 // 图表显示类型切换
 const chartType = ref("bar"); // 'bar' 或 'line'
 
-// 时间处理工具
+// 导入统一的时间处理工具
 import { formatCurrentTime } from "../../utils/timeUtils.js";
 
 // 图表日期标签
@@ -270,7 +270,7 @@ const fetchDashboardStats = async () => {
 
   try {
     // 实际API调用
-    const response = await getDashboardStats();
+    const response = await api.admin.getDashboardStats();
     if (response.success && response.data) {
       statsData.value = response.data;
       // 重置选中的存储桶

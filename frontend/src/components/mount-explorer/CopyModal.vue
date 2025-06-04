@@ -118,7 +118,7 @@
 
 <script setup>
 import { ref, watch, computed, shallowRef } from "vue";
-import { getFsApiByUserType } from "../../api/fsService";
+import { api } from "../../api";
 import { useTaskManager, TaskType, TaskStatus } from "../../utils/taskManager";
 
 // 使用Vue 3的方式注册递归组件
@@ -420,7 +420,7 @@ const props = defineProps({
 const emit = defineEmits(["close", "copy-complete"]);
 
 // 获取API函数
-const fsApi = getFsApiByUserType(props.isAdmin);
+const fsApi = api.fs.getUserTypeApi(props.isAdmin);
 
 // 计算用户的基本路径
 const userBasicPath = computed(() => {

@@ -243,7 +243,7 @@
 import { ref, computed, nextTick, inject } from "vue";
 import FileItem from "./FileItem.vue";
 import { getFileIcon } from "../../utils/fileTypeIcons";
-import { getAdminFileLink, getUserFileLink } from "../../api/fsService.js";
+import { api } from "../../api";
 import { copyToClipboard } from "@/utils/clipboard";
 
 const props = defineProps({
@@ -413,7 +413,7 @@ const handleGetLink = async (item) => {
   if (item.isDirectory) return; // 文件夹不提供直链
 
   try {
-    const getFileLink = isAdmin ? getAdminFileLink : getUserFileLink;
+    const getFileLink = isAdmin ? api.admin.getFileLink : api.user.fs.getFileLink;
     const response = await getFileLink(item.path, 86400, true);
 
     if (response.success && response.data?.presignedUrl) {

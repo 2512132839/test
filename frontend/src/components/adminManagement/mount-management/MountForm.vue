@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
-import { createAdminMount, updateAdminMount } from "../../../api/mountService";
-import { getAllS3Configs as getS3ConfigsList } from "../../../api/adminService";
+import { api } from "../../../api";
 import { useI18n } from "vue-i18n";
 
 // 初始化 i18n
@@ -237,10 +236,10 @@ const submitForm = async () => {
 
     if (isEditMode.value) {
       // 更新挂载点
-      response = await updateAdminMount(props.mount.id, formPayload);
+      response = await api.mount.updateMount(props.mount.id, formPayload);
     } else {
       // 创建挂载点
-      response = await createAdminMount(formPayload);
+      response = await api.mount.createMount(formPayload);
     }
 
     if (response.code === 200 || response.code === 201) {
@@ -263,7 +262,7 @@ const loadS3Configs = async () => {
   loading.value = true;
 
   try {
-    const response = await getS3ConfigsList();
+    const response = await api.storage.getAllS3Configs();
     if (response.code === 200 && response.data) {
       s3Configs.value = response.data;
     } else {

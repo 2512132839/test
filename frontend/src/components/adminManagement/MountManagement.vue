@@ -1,10 +1,8 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from "vue";
-import { getAdminMountsList, deleteAdminMount, getUserMountsList, updateAdminMount } from "../../api/mountService";
+import { api } from "../../api";
 import MountForm from "./mount-management/MountForm.vue";
 import CommonPagination from "../common/CommonPagination.vue";
-import { getAllS3Configs } from "../../api/adminService";
-import { getAllApiKeys } from "../../api/adminService";
 import { getApiKeyInfo } from "../../utils/auth-helper";
 
 /**
@@ -34,8 +32,8 @@ const isApiKeyUser = () => {
 };
 
 // 根据用户类型返回相应的API函数
-const getMountsList = () => (isApiKeyUser() ? getUserMountsList : getAdminMountsList);
-const deleteMountById = () => deleteAdminMount; // API密钥用户不能删除挂载点
+const getMountsList = () => (isApiKeyUser() ? api.mount.getUserMountsList : api.mount.getMountsList);
+const deleteMountById = () => api.mount.deleteMount; // API密钥用户不能删除挂载点
 
 /**
  * 状态变量定义
@@ -120,7 +118,7 @@ const handleOffsetChange = (newOffset) => {
 // 加载S3配置列表
 const loadS3Configs = async () => {
   try {
-    const response = await getAllS3Configs();
+    const response = await api.storage.getAllS3Configs();
     if (response.code === 200 && response.data) {
       s3ConfigsList.value = response.data;
     } else {
@@ -260,7 +258,7 @@ const loadApiKeyNames = async () => {
     // 根据用户类型选择不同的加载方式
     if (isAdmin()) {
       // 管理员用户 - 加载所有API密钥
-      const response = await getAllApiKeys();
+      const response = await api.admin.getAllApiKeys();
       if (response.code === 200 && response.data) {
         // 构建API密钥ID到名称的映射
         const keyMap = {};
@@ -416,7 +414,7 @@ const toggleActive = async (mount) => {
       return;
     }
 
-    const response = await updateAdminMount(mount.id, updateData);
+    const response = await api.mount.updateMount(mount.id, updateData);
 
     // 处理响应
     if (response.code === 200) {

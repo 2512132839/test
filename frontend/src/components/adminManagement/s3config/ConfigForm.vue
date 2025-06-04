@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from "vue";
-import { createS3Config, updateS3Config } from "../../../api/adminService";
+import { api } from "../../../api";
 
 // 接收属性
 const props = defineProps({
@@ -156,64 +156,64 @@ watch(() => formData.value.provider_type, updateEndpoint);
 
 // 监听编辑的配置变化
 watch(
-  () => props.config,
-  () => {
-    if (props.config) {
-      // 编辑模式下，复制现有配置到表单
-      formData.value.name = props.config.name;
-      formData.value.provider_type = props.config.provider_type;
-      formData.value.endpoint_url = props.config.endpoint_url;
-      formData.value.bucket_name = props.config.bucket_name;
-      formData.value.region = props.config.region || "";
-      formData.value.default_folder = props.config.default_folder || "";
-      formData.value.path_style = props.config.path_style === 1 || props.config.path_style === true;
-      formData.value.is_public = props.config.is_public === 1 || props.config.is_public === true;
+    () => props.config,
+    () => {
+      if (props.config) {
+        // 编辑模式下，复制现有配置到表单
+        formData.value.name = props.config.name;
+        formData.value.provider_type = props.config.provider_type;
+        formData.value.endpoint_url = props.config.endpoint_url;
+        formData.value.bucket_name = props.config.bucket_name;
+        formData.value.region = props.config.region || "";
+        formData.value.default_folder = props.config.default_folder || "";
+        formData.value.path_style = props.config.path_style === 1 || props.config.path_style === true;
+        formData.value.is_public = props.config.is_public === 1 || props.config.is_public === true;
 
-      // 敏感信息在编辑时默认为空，只在主动填写时才提交
-      formData.value.access_key_id = "";
-      formData.value.secret_access_key = "";
+        // 敏感信息在编辑时默认为空，只在主动填写时才提交
+        formData.value.access_key_id = "";
+        formData.value.secret_access_key = "";
 
-      // 设置存储容量显示
-      if (props.config.total_storage_bytes) {
-        setStorageSizeFromBytes(props.config.total_storage_bytes);
+        // 设置存储容量显示
+        if (props.config.total_storage_bytes) {
+          setStorageSizeFromBytes(props.config.total_storage_bytes);
+        } else {
+          // 使用默认值
+          setStorageSizeFromBytes(getDefaultStorageByProvider(props.config.provider_type));
+        }
       } else {
-        // 使用默认值
-        setStorageSizeFromBytes(getDefaultStorageByProvider(props.config.provider_type));
-      }
-    } else {
-      // 添加模式下重置表单
-      formData.value = {
-        name: "",
-        provider_type: "Cloudflare R2",
-        endpoint_url: "",
-        bucket_name: "",
-        region: "",
-        access_key_id: "",
-        secret_access_key: "",
-        path_style: false,
-        default_folder: "",
-        is_public: false,
-        total_storage_bytes: getDefaultStorageByProvider("Cloudflare R2"),
-      };
-      updateEndpoint();
+        // 添加模式下重置表单
+        formData.value = {
+          name: "",
+          provider_type: "Cloudflare R2",
+          endpoint_url: "",
+          bucket_name: "",
+          region: "",
+          access_key_id: "",
+          secret_access_key: "",
+          path_style: false,
+          default_folder: "",
+          is_public: false,
+          total_storage_bytes: getDefaultStorageByProvider("Cloudflare R2"),
+        };
+        updateEndpoint();
 
-      // 设置默认存储容量显示
-      setStorageSizeFromBytes(formData.value.total_storage_bytes);
-    }
-  },
-  { immediate: true }
+        // 设置默认存储容量显示
+        setStorageSizeFromBytes(formData.value.total_storage_bytes);
+      }
+    },
+    { immediate: true }
 );
 
 // 监听provider_type变化，自动设置默认存储容量
 watch(
-  () => formData.value.provider_type,
-  (newProvider) => {
-    if (!formData.value.total_storage_bytes) {
-      const defaultBytes = getDefaultStorageByProvider(newProvider);
-      formData.value.total_storage_bytes = defaultBytes;
-      setStorageSizeFromBytes(defaultBytes);
+    () => formData.value.provider_type,
+    (newProvider) => {
+      if (!formData.value.total_storage_bytes) {
+        const defaultBytes = getDefaultStorageByProvider(newProvider);
+        formData.value.total_storage_bytes = defaultBytes;
+        setStorageSizeFromBytes(defaultBytes);
+      }
     }
-  }
 );
 
 // 监听存储大小和单位的变化
@@ -252,10 +252,10 @@ const submitForm = async () => {
         delete updateData.secret_access_key;
       }
 
-      response = await updateS3Config(props.config.id, updateData);
+      response = await api.storage.updateS3Config(props.config.id, updateData);
     } else {
       // 创建新配置
-      response = await createS3Config(formData.value);
+      response = await api.storage.createS3Config(formData.value);
     }
 
     if (response.success) {
@@ -302,13 +302,13 @@ const closeModal = () => {
           <div>
             <label for="name" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'"> 配置名称 <span class="text-red-500">*</span> </label>
             <input
-              type="text"
-              id="name"
-              v-model="formData.name"
-              required
-              class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-              placeholder="例如：我的备份存储"
+                type="text"
+                id="name"
+                v-model="formData.name"
+                required
+                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                placeholder="例如：我的备份存储"
             />
             <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">为此配置指定一个易于识别的名称</p>
           </div>
@@ -319,11 +319,11 @@ const closeModal = () => {
                 提供商类型 <span class="text-red-500">*</span>
               </label>
               <select
-                id="provider_type"
-                v-model="formData.provider_type"
-                required
-                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900'"
+                  id="provider_type"
+                  v-model="formData.provider_type"
+                  required
+                  class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900'"
               >
                 <option v-for="provider in providerTypes" :key="provider.value" :value="provider.value">
                   {{ provider.label }}
@@ -336,13 +336,13 @@ const closeModal = () => {
                 存储桶名称 <span class="text-red-500">*</span>
               </label>
               <input
-                type="text"
-                id="bucket_name"
-                v-model="formData.bucket_name"
-                required
-                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-                placeholder="my-bucket"
+                  type="text"
+                  id="bucket_name"
+                  v-model="formData.bucket_name"
+                  required
+                  class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                  placeholder="my-bucket"
               />
             </div>
           </div>
@@ -351,19 +351,19 @@ const closeModal = () => {
             <label for="storage_size" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'"> 存储容量限制 </label>
             <div class="flex space-x-2">
               <input
-                type="number"
-                id="storage_size"
-                v-model="storageSize"
-                min="0"
-                step="0.01"
-                class="block w-2/3 px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-                placeholder="例如：10"
+                  type="number"
+                  id="storage_size"
+                  v-model="storageSize"
+                  min="0"
+                  step="0.01"
+                  class="block w-2/3 px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                  placeholder="例如：10"
               />
               <select
-                v-model="storageUnit"
-                class="block w-1/3 px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900'"
+                  v-model="storageUnit"
+                  class="block w-1/3 px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900'"
               >
                 <option v-for="unit in storageUnits" :key="unit.value" :value="unit.value">{{ unit.label }}</option>
               </select>
@@ -378,13 +378,13 @@ const closeModal = () => {
               端点URL <span class="text-red-500">*</span>
             </label>
             <input
-              type="text"
-              id="endpoint_url"
-              v-model="formData.endpoint_url"
-              required
-              class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-              placeholder="https://endpoint.example.com"
+                type="text"
+                id="endpoint_url"
+                v-model="formData.endpoint_url"
+                required
+                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                placeholder="https://endpoint.example.com"
             />
             <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">S3 API的完整端点URL，包含https://前缀</p>
           </div>
@@ -394,12 +394,12 @@ const closeModal = () => {
             <div>
               <label for="region" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'"> 区域 </label>
               <input
-                type="text"
-                id="region"
-                v-model="formData.region"
-                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-                placeholder="us-east-1"
+                  type="text"
+                  id="region"
+                  v-model="formData.region"
+                  class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                  placeholder="us-east-1"
               />
             </div>
 
@@ -407,12 +407,12 @@ const closeModal = () => {
             <div>
               <label for="default_folder" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'"> 默认文件夹 </label>
               <input
-                type="text"
-                id="default_folder"
-                v-model="formData.default_folder"
-                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-                placeholder="uploads/"
+                  type="text"
+                  id="default_folder"
+                  v-model="formData.default_folder"
+                  class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                  placeholder="uploads/"
               />
             </div>
           </div>
@@ -424,13 +424,13 @@ const closeModal = () => {
                 访问密钥ID <span class="text-red-500">{{ !isEdit ? "*" : "" }}</span>
               </label>
               <input
-                type="text"
-                id="access_key_id"
-                v-model="formData.access_key_id"
-                :required="!isEdit"
-                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-                placeholder="AKIAXXXXXXXXXXXXXXXX"
+                  type="text"
+                  id="access_key_id"
+                  v-model="formData.access_key_id"
+                  :required="!isEdit"
+                  class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                  placeholder="AKIAXXXXXXXXXXXXXXXX"
               />
               <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 {{ isEdit ? "留空表示保持不变" : "S3访问密钥ID" }}
@@ -443,13 +443,13 @@ const closeModal = () => {
                 秘密访问密钥 <span class="text-red-500">{{ !isEdit ? "*" : "" }}</span>
               </label>
               <input
-                type="password"
-                id="secret_access_key"
-                v-model="formData.secret_access_key"
-                :required="!isEdit"
-                class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
-                placeholder="••••••••••••••••••••••••••••••"
+                  type="password"
+                  id="secret_access_key"
+                  v-model="formData.secret_access_key"
+                  :required="!isEdit"
+                  class="block w-full px-3 py-2 rounded-md text-sm transition-colors duration-200"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500'"
+                  placeholder="••••••••••••••••••••••••••••••"
               />
               <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 {{ isEdit ? "留空表示保持不变" : "S3秘密访问密钥" }}
@@ -463,11 +463,11 @@ const closeModal = () => {
             <div class="flex items-start">
               <div class="flex items-center h-5">
                 <input
-                  type="checkbox"
-                  id="path_style"
-                  v-model="formData.path_style"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                    type="checkbox"
+                    id="path_style"
+                    v-model="formData.path_style"
+                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
                 />
               </div>
               <div class="ml-3 text-sm">
@@ -479,11 +479,11 @@ const closeModal = () => {
             <div class="flex items-start">
               <div class="flex items-center h-5">
                 <input
-                  type="checkbox"
-                  id="is_public"
-                  v-model="formData.is_public"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                    type="checkbox"
+                    id="is_public"
+                    v-model="formData.is_public"
+                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
                 />
               </div>
               <div class="ml-3 text-sm">
@@ -497,18 +497,18 @@ const closeModal = () => {
 
       <div class="px-4 py-3 border-t transition-colors duration-200 flex justify-end space-x-3" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <button
-          @click="closeModal"
-          class="px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+            @click="closeModal"
+            class="px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+            :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
         >
           取消
         </button>
 
         <button
-          @click="submitForm"
-          :disabled="!formValid || loading"
-          class="flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 bg-primary-500 hover:bg-primary-600 text-white"
-          :class="{ 'opacity-50 cursor-not-allowed': !formValid || loading }"
+            @click="submitForm"
+            :disabled="!formValid || loading"
+            class="flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 bg-primary-500 hover:bg-primary-600 text-white"
+            :class="{ 'opacity-50 cursor-not-allowed': !formValid || loading }"
         >
           <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

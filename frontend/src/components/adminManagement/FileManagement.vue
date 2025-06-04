@@ -115,7 +115,7 @@
 <script setup>
 import { ref, onMounted, reactive } from "vue";
 import QRCode from "qrcode";
-import { getFiles, getFile, updateFile, deleteFile as adminDeleteFile, getUserFiles, getUserFile, updateUserFile, deleteUserFile as apiKeyDeleteFile } from "../../api/fileService";
+import { api } from "../../api";
 
 // 导入子组件
 import FileTable from "./files-management/FileTable.vue";
@@ -146,13 +146,13 @@ const isAdmin = () => props.userType === "admin";
 const isApiKeyUser = () => props.userType === "apikey";
 
 // 根据用户类型选择适当的API函数
-const apiGetFiles = (limit, offset) => (isAdmin() ? getFiles(limit, offset) : getUserFiles(limit, offset));
+const apiGetFiles = (limit, offset) => (isAdmin() ? api.file.getFiles(limit, offset) : api.file.getUserFiles(limit, offset));
 
-const apiGetFile = (id) => (isAdmin() ? getFile(id) : getUserFile(id));
+const apiGetFile = (id) => (isAdmin() ? api.file.getFile(id) : api.file.getUserFile(id));
 
-const apiUpdateFile = (id, metadata) => (isAdmin() ? updateFile(id, metadata) : updateUserFile(id, metadata));
+const apiUpdateFile = (id, metadata) => (isAdmin() ? api.file.updateFile(id, metadata) : api.file.updateUserFile(id, metadata));
 
-const apiDeleteFile = (id) => (isAdmin() ? adminDeleteFile(id) : apiKeyDeleteFile(id));
+const apiDeleteFile = (id) => (isAdmin() ? api.file.deleteFile(id) : api.file.deleteUserFile(id));
 
 /**
  * 状态变量定义

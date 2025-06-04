@@ -1,8 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, onBeforeUnmount } from "vue";
-import { getAllApiKeys, deleteApiKey } from "../../api/adminService";
+import { api } from "../../api";
 import { useI18n } from "vue-i18n";
-import { getAdminMountsList } from "../../api/mountService";
 import CommonPagination from "../common/CommonPagination.vue";
 import { copyToClipboard } from "../../utils/clipboard";
 
@@ -84,7 +83,7 @@ const loadApiKeys = async () => {
   error.value = null;
 
   try {
-    const result = await getAllApiKeys();
+    const result = await api.admin.getAllApiKeys();
 
     if (result.success && result.data) {
       apiKeys.value = result.data;
@@ -106,7 +105,7 @@ const loadApiKeys = async () => {
 // 加载挂载点列表
 const loadMounts = async () => {
   try {
-    const result = await getAdminMountsList();
+    const result = await api.mount.getMountsList();
     if (result.success && result.data) {
       // 只保留激活状态的挂载点
       availableMounts.value = result.data.filter((mount) => mount.is_active);
@@ -184,7 +183,7 @@ const deleteSelectedKeys = async () => {
 
   try {
     // 逐个删除选中的密钥
-    const promises = selectedKeys.value.map((id) => deleteApiKey(id));
+    const promises = selectedKeys.value.map((id) => api.admin.deleteApiKey(id));
     await Promise.all(promises);
 
     // 清空选中列表

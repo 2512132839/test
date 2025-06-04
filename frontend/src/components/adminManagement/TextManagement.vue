@@ -1,9 +1,7 @@
 <script setup>
 import { ref, onMounted, reactive, computed } from "vue";
-import { getAllPastes } from "../../api/adminService";
-import api from "../../api";
+import { api } from "../../api";
 import QRCode from "qrcode";
-import { getRawPasteUrl } from "../../api/pasteService";
 import { copyToClipboard } from "@/utils/clipboard";
 
 // 导入子组件
@@ -508,7 +506,7 @@ const copyRawLink = async (paste) => {
     }
 
     // 构建原始文本链接URL，使用paste.plain_password（如果存在）
-    const finalLink = getRawPasteUrl(pasteWithPassword.slug, pasteWithPassword.plain_password);
+    const finalLink = api.paste.getRawPasteUrl(pasteWithPassword.slug, pasteWithPassword.plain_password);
 
     const success = await copyToClipboard(finalLink);
 

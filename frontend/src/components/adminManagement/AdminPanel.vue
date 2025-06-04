@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
-import { logout } from "../../api/adminService";
+import { api } from "../../api";
 import TextManagement from "./TextManagement.vue";
 import SystemSettings from "./SystemSettings.vue";
 import KeyManagement from "./KeyManagement.vue";
@@ -95,7 +95,7 @@ const handleLogout = async () => {
   try {
     // 仅当是管理员登录时调用登出API
     if (props.loginType === "admin") {
-      await logout();
+      await api.admin.logout();
     }
   } catch (error) {
     console.error("登出失败:", error);

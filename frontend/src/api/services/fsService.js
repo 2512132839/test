@@ -1,5 +1,11 @@
-import { get, post, put, del } from "./client";
-import { API_BASE_URL } from "./config";
+/**
+ * 文件系统服务API
+ * 统一管理所有文件系统相关的API调用，包括管理员和API密钥用户的操作
+ * 支持基础文件操作、分片上传、预签名URL上传、复制等功能
+ */
+
+import { get, post, del } from "../client";
+import { API_BASE_URL } from "../config";
 
 /******************************************************************************
  * 管理员(Admin)相关API函数
@@ -261,7 +267,7 @@ export async function commitAdminBatchCopy(data) {
 }
 
 /******************************************************************************
- * API密钥用户API函数
+ * API密钥用户(User)相关API函数
  ******************************************************************************/
 
 /**
@@ -313,7 +319,7 @@ export async function createUserDirectory(path) {
  * API密钥用户API - 上传文件
  * @param {string} path 目标路径
  * @param {File} file 文件对象
- * @param {boolean} useMultipart 是否使用分片上传，默认为true
+ * @param {boolean} useMultipart 是否使用服务器分片上传，默认为true
  * @param {Function} onXhrCreated XHR创建后的回调，用于保存引用以便取消请求
  * @returns {Promise<Object>} 上传结果响应对象
  */
@@ -519,321 +525,6 @@ export async function commitUserBatchCopy(data) {
   return post(`/user/fs/batch-copy-commit`, data);
 }
 
-/******************************************************************************
- * 辅助函数
- ******************************************************************************/
-
-/**
- * 执行分片上传流程
- * @param {File} file 要上传的文件
- * @param {string} path 目标路径
- * @param {boolean} isAdmin 是否为管理员
- * @param {Function} onProgress 进度回调函数，参数为上传百分比
- * @param {Function} onCancel 取消检查函数，返回true时中止上传
- * @param {Function} onXhrCreated 创建XHR对象后的回调，用于保存引用以便取消请求
- * @returns {Promise<Object>} 上传结果
- */
-export async function performMultipartUpload(file, path, isAdmin, onProgress = null, onCancel = null, onXhrCreated = null) {
-  console.log(`开始分片上传流程，文件: ${file.name}, 大小: ${file.size} 字节, 路径: ${path}`);
-
-  // 选择合适的API函数
-  const initUpload = isAdmin ? initAdminMultipartUpload : initUserMultipartUpload;
-  const uploadPart = isAdmin ? uploadAdminPart : uploadUserPart;
-  const completeUpload = isAdmin ? completeAdminMultipartUpload : completeUserMultipartUpload;
-  const abortUpload = isAdmin ? abortAdminMultipartUpload : abortUserMultipartUpload;
-
-  let uploadId = null;
-  let s3Key = null;
-
-  try {
-    // 步骤1: 初始化分片上传
-    console.log(`初始化分片上传，文件: ${file.name}, 类型: ${file.type || "application/octet-stream"}`);
-    const initResponse = await initUpload(path, file.type || "application/octet-stream", file.size, file.name);
-
-    if (!initResponse.success) {
-      console.error(`初始化分片上传失败:`, initResponse);
-      throw new Error(initResponse.message || "初始化分片上传失败");
-    }
-
-    console.log(`分片上传初始化成功，uploadId: ${initResponse.data.uploadId}`);
-    uploadId = initResponse.data.uploadId;
-    s3Key = initResponse.data.key; // 保存S3对象键值，用于后续请求
-
-    // 使用服务器推荐的分片大小，如果太大则使用较小值以避免Worker超时
-    let recommendedPartSize = initResponse.data.recommendedPartSize || 5 * 1024 * 1024; // 默认5MB
-
-    // 步骤2: 计算分片数
-    const parts = [];
-    const totalParts = Math.ceil(file.size / recommendedPartSize);
-    let uploadedBytes = 0;
-
-    console.log(`文件将被分成 ${totalParts} 个分片，每个分片大小约 ${recommendedPartSize / (1024 * 1024)} MB`);
-
-    // 步骤3: 上传每个分片
-    for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
-      // 检查是否应该取消上传
-      if (onCancel && onCancel()) {
-        console.log(`上传被用户取消，中止上传过程`);
-        await abortUpload(path, uploadId, s3Key);
-        throw new Error("上传已取消");
-      }
-
-      // 计算当前分片的起始和结束位置
-      const start = (partNumber - 1) * recommendedPartSize;
-      const end = Math.min(partNumber * recommendedPartSize, file.size);
-      const isLastPart = partNumber === totalParts;
-      const partSize = end - start;
-
-      // 创建分片数据
-      const partData = file.slice(start, end);
-      console.log(`上传分片 ${partNumber}/${totalParts}, 范围: ${start}-${end}, 大小: ${partSize} 字节${isLastPart ? " (最后一个分片)" : ""}`);
-
-      try {
-        // 上传分片
-        const maxRetries = 3; // 最大重试次数
-        let retryCount = 0;
-        let partResponse;
-
-        while (retryCount <= maxRetries) {
-          try {
-            partResponse = await uploadPart(path, uploadId, partNumber, partData, isLastPart, s3Key, {
-              onXhrCreated: onXhrCreated,
-              timeout: 300000, // 5分钟超时
-            });
-
-            // 如果成功就跳出循环
-            break;
-          } catch (err) {
-            retryCount++;
-            // 如果已经尝试了最大次数，抛出错误
-            if (retryCount > maxRetries) {
-              console.error(`上传分片 ${partNumber} 失败，已重试 ${maxRetries} 次:`, err);
-              throw err;
-            }
-          }
-        }
-
-        if (!partResponse.success) {
-          console.error(`上传分片 ${partNumber} 失败:`, partResponse);
-          throw new Error(`上传第${partNumber}个分片失败: ${partResponse.message}`);
-        }
-
-        console.log(`分片 ${partNumber} 上传成功，ETag: ${partResponse.data.etag}`);
-
-        // 记录分片信息
-        parts.push({
-          partNumber: partNumber,
-          etag: partResponse.data.etag,
-        });
-
-        // 更新上传进度
-        uploadedBytes += partSize;
-        if (onProgress) {
-          const percentage = Math.round((uploadedBytes / file.size) * 100);
-          console.log(`上传进度: ${percentage}%`);
-          onProgress(percentage);
-        }
-      } catch (partError) {
-        console.error(`上传分片 ${partNumber} 时发生错误:`, partError);
-        // 尝试中止上传，避免残留未完成的上传
-        try {
-          await abortUpload(path, uploadId, s3Key);
-          console.log(`已中止上传: ${uploadId}`);
-        } catch (abortError) {
-          console.error(`中止上传失败: ${abortError.message}`);
-        }
-        throw partError; // 重新抛出错误供上层处理
-      }
-    }
-
-    // 步骤4: 完成分片上传
-    console.log(`所有分片上传完成，准备完成分片上传过程`);
-
-    // 添加完成上传的重试机制
-    let completeResponse;
-    const maxCompletionRetries = 3;
-    let completionRetryCount = 0;
-
-    while (completionRetryCount <= maxCompletionRetries) {
-      try {
-        completeResponse = await completeUpload(
-          path,
-          uploadId,
-          parts,
-          s3Key,
-          file.type || "application/octet-stream", // 添加文件类型
-          file.size // 添加文件大小
-        );
-        break; // 成功则跳出循环
-      } catch (err) {
-        completionRetryCount++;
-        // 如果已经尝试了最大次数，抛出错误
-        if (completionRetryCount > maxCompletionRetries) {
-          console.error(`完成分片上传失败，已重试 ${maxCompletionRetries} 次:`, err);
-          throw err;
-        }
-      }
-    }
-
-    if (!completeResponse.success) {
-      console.error(`完成分片上传失败:`, completeResponse);
-      throw new Error(completeResponse.message || "完成分片上传失败");
-    }
-
-    console.log(`分片上传过程完成，文件: ${file.name}`);
-
-    // 返回上传结果
-    return completeResponse;
-  } catch (error) {
-    console.error(`分片上传过程中发生错误:`, error);
-
-    // 如果有uploadId且失败，尝试中止上传
-    if (uploadId) {
-      try {
-        await abortUpload(path, uploadId, s3Key);
-        console.log(`已中止上传: ${uploadId}`);
-      } catch (abortError) {
-        console.error(`中止上传失败: ${abortError.message}`);
-      }
-    }
-
-    throw error;
-  }
-}
-
-/**
- * 使用预签名URL上传文件
- * @param {string} presignedUrl 预签名URL
- * @param {File} file 文件对象
- * @param {Function} onProgress 进度回调，参数为上传百分比(0-100)
- * @param {Function} onCancel 取消函数，返回true则中止上传
- * @returns {Promise<Object>} 上传结果，包含ETag
- */
-export async function uploadWithPresignedUrl(presignedUrl, file, onProgress = null, onCancel = null) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    // 监听上传进度
-    if (onProgress) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percentage = Math.round((event.loaded * 100) / event.total);
-          onProgress(percentage);
-        }
-      };
-    }
-
-    // 设置完成处理程序
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        // 获取ETag响应头
-        const etag = xhr.getResponseHeader("ETag");
-        resolve({
-          success: true,
-          etag: etag ? etag.replace(/"/g, "") : null, // 移除引号
-          status: xhr.status,
-          response: xhr.responseText,
-        });
-      } else {
-        reject(new Error(`上传失败: ${xhr.status} ${xhr.statusText}`));
-      }
-    };
-
-    // 设置错误处理程序
-    xhr.onerror = () => {
-      reject(new Error("网络错误，上传失败"));
-    };
-
-    // 支持取消上传
-    xhr.onabort = () => {
-      reject(new Error("上传已取消"));
-    };
-
-    // 取消检查
-    if (onCancel) {
-      const cancelInterval = setInterval(() => {
-        if (onCancel()) {
-          xhr.abort();
-          clearInterval(cancelInterval);
-          reject(new Error("上传已取消"));
-        }
-      }, 100);
-
-      // 确保在请求完成后清除定时器
-      xhr.onloadend = () => clearInterval(cancelInterval);
-    }
-
-    // 打开连接并发送请求
-    xhr.open("PUT", presignedUrl, true);
-    xhr.setRequestHeader("Content-Type", file.type);
-    xhr.send(file);
-  });
-}
-
-/**
- * 执行完整的预签名URL上传流程
- * @param {File} file 要上传的文件
- * @param {string} path 目标路径
- * @param {boolean} isAdmin 是否为管理员
- * @param {Function} onProgress 进度回调函数，参数为上传百分比
- * @param {Function} onCancel 取消检查函数，返回true时中止上传
- * @returns {Promise<Object>} 上传结果
- */
-export async function performPresignedUpload(file, path, isAdmin, onProgress = null, onCancel = null) {
-  console.log(`开始预签名URL上传流程，文件: ${file.name}, 大小: ${file.size} 字节, 路径: ${path}`);
-
-  // 选择合适的API函数
-  const getPresignedUrl = isAdmin ? getAdminPresignedUploadUrl : getUserPresignedUploadUrl;
-  const commitUpload = isAdmin ? commitAdminPresignedUpload : commitUserPresignedUpload;
-
-  try {
-    // 步骤1: 获取预签名URL
-    console.log(`获取预签名URL，文件: ${file.name}, 类型: ${file.type || "application/octet-stream"}`);
-    const urlResponse = await getPresignedUrl(path, file.name, file.type || "application/octet-stream", file.size);
-
-    if (!urlResponse.success) {
-      console.error(`获取预签名URL失败:`, urlResponse);
-      throw new Error(urlResponse.message || "获取预签名URL失败");
-    }
-
-    const { presignedUrl, fileId, s3Path, s3Url, mountId, s3ConfigId, targetPath } = urlResponse.data;
-    console.log(`获取预签名URL成功: ${presignedUrl.substring(0, 100)}...`);
-
-    // 步骤2: 使用预签名URL上传文件
-    console.log(`开始上传文件: ${file.name}`);
-    const uploadResult = await uploadWithPresignedUrl(presignedUrl, file, onProgress, onCancel);
-
-    if (!uploadResult.success) {
-      console.error(`预签名URL上传失败:`, uploadResult);
-      throw new Error("文件上传失败");
-    }
-
-    console.log(`文件上传成功，ETag: ${uploadResult.etag}`);
-
-    // 步骤3: 提交上传完成信息
-    const uploadInfo = { fileId, s3Path, s3Url, targetPath, s3ConfigId, mountId };
-    const commitResult = await commitUpload(uploadInfo, uploadResult.etag, file.type || "application/octet-stream", file.size);
-
-    if (!commitResult.success) {
-      console.error(`提交上传完成信息失败:`, commitResult);
-      throw new Error(commitResult.message || "提交上传完成信息失败");
-    }
-
-    console.log(`预签名URL上传全部完成: ${file.name}`);
-    return {
-      success: true,
-      data: commitResult.data,
-      message: "文件上传成功",
-    };
-  } catch (error) {
-    console.error(`预签名URL上传错误:`, error);
-    return {
-      success: false,
-      message: error.message || "上传过程中发生错误",
-    };
-  }
-}
-
 /**
  * 管理员API - 复制文件或目录
  * @param {string} sourcePath 源路径
@@ -864,142 +555,6 @@ export async function copyUserItem(sourcePath, targetPath, skipExisting = true, 
   // 将单文件复制转换为批量复制格式
   const items = [{ sourcePath, targetPath }];
   return batchCopyUserItems(items, skipExisting, options);
-}
-
-/**
- * 使用预签名URL下载文件内容
- * @param {Object} options - 下载选项
- * @param {string} options.url - 预签名下载URL
- * @param {Function} [options.onProgress] - 进度回调，参数为(progress, loaded, total)
- * @param {Function} [options.onCancel] - 取消检查函数，返回true时中止下载
- * @param {Function} [options.setXhr] - 设置xhr引用的回调函数，用于取消请求
- * @returns {Promise<Blob>} 获取到的文件内容
- */
-export async function fetchFileContent(options) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", options.url);
-    xhr.responseType = "blob";
-
-    // 设置XHR引用，用于可能的取消操作
-    if (options.setXhr) {
-      options.setXhr(xhr);
-    }
-
-    // 进度事件
-    xhr.onprogress = (event) => {
-      if (event.lengthComputable && options.onProgress) {
-        const progress = Math.round((event.loaded / event.total) * 100);
-        options.onProgress(progress, event.loaded, event.total, "downloading");
-      }
-    };
-
-    // 取消检查
-    if (options.onCancel) {
-      const cancelInterval = setInterval(() => {
-        if (options.onCancel()) {
-          xhr.abort();
-          clearInterval(cancelInterval);
-          reject(new Error("下载已取消"));
-        }
-      }, 100);
-
-      // 确保在请求完成后清除定时器
-      xhr.onloadend = () => clearInterval(cancelInterval);
-    }
-
-    xhr.onerror = () => {
-      reject(new Error("下载文件内容失败"));
-    };
-
-    xhr.onabort = () => {
-      reject(new Error("下载已取消"));
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.response);
-      } else {
-        reject(new Error(`下载文件内容失败: HTTP ${xhr.status} ${xhr.statusText}`));
-      }
-    };
-
-    xhr.send();
-  });
-}
-
-/**
- * 使用预签名URL上传文件内容到S3
- * @param {Object} options - 上传选项
- * @param {Blob|File|ArrayBuffer} options.data - 要上传的文件内容
- * @param {string} options.url - 预签名上传URL
- * @param {Function} [options.onProgress] - 进度回调，参数为(progress, loaded, total)
- * @param {Function} [options.onCancel] - 取消检查函数，返回true时中止上传
- * @param {Function} [options.setXhr] - 设置xhr引用的回调函数，用于取消请求
- * @param {string} [options.contentType] - 内容类型，默认为application/octet-stream
- * @returns {Promise<Object>} 上传结果，包含ETag
- */
-export async function uploadToPresignedUrl(options) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", options.url);
-    xhr.responseType = "text";
-
-    // 设置Content-Type
-    const contentType = options.contentType || "application/octet-stream";
-    xhr.setRequestHeader("Content-Type", contentType);
-
-    // 设置XHR引用，用于可能的取消操作
-    if (options.setXhr) {
-      options.setXhr(xhr);
-    }
-
-    // 进度事件
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && options.onProgress) {
-        const progress = Math.round((event.loaded / event.total) * 100);
-        options.onProgress(progress, event.loaded, event.total, "uploading");
-      }
-    };
-
-    // 取消检查
-    if (options.onCancel) {
-      const cancelInterval = setInterval(() => {
-        if (options.onCancel()) {
-          xhr.abort();
-          clearInterval(cancelInterval);
-          reject(new Error("上传已取消"));
-        }
-      }, 100);
-
-      // 确保在请求完成后清除定时器
-      xhr.onloadend = () => clearInterval(cancelInterval);
-    }
-
-    xhr.onerror = () => {
-      reject(new Error("上传文件内容失败"));
-    };
-
-    xhr.onabort = () => {
-      reject(new Error("上传已取消"));
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        // 获取ETag
-        const etag = xhr.getResponseHeader("ETag");
-        resolve({
-          success: true,
-          etag: etag ? etag.replace(/"/g, "") : null, // 移除引号
-          size: options.data.size || (options.data.byteLength ? options.data.byteLength : 0),
-        });
-      } else {
-        reject(new Error(`上传文件内容失败: HTTP ${xhr.status} ${xhr.statusText}`));
-      }
-    };
-
-    xhr.send(options.data);
-  });
 }
 
 /**
@@ -1055,6 +610,377 @@ export async function commitUserCopy(data) {
         etag: data.etag,
       },
     ],
+  });
+}
+
+/******************************************************************************
+ * 高级文件操作功能
+ ******************************************************************************/
+
+/**
+ * 执行分片上传的完整流程
+ * @param {File} file 要上传的文件
+ * @param {string} path 目标路径
+ * @param {boolean} isAdmin 是否为管理员
+ * @param {Function} onProgress 进度回调函数，参数为(progress, loaded, total)
+ * @param {Function} onCancel 取消检查函数，返回true时中止上传
+ * @param {Function} onXhrCreated XHR创建后的回调，用于保存引用以便取消请求
+ * @returns {Promise<Object>} 上传结果
+ */
+export async function performMultipartUpload(file, path, isAdmin, onProgress, onCancel, onXhrCreated) {
+  const chunkSize = 5 * 1024 * 1024; // 5MB per chunk
+  const totalChunks = Math.ceil(file.size / chunkSize);
+
+  // 选择合适的API函数
+  const initMultipartUpload = isAdmin ? initAdminMultipartUpload : initUserMultipartUpload;
+  const uploadPart = isAdmin ? uploadAdminPart : uploadUserPart;
+  const completeMultipartUpload = isAdmin ? completeAdminMultipartUpload : completeUserMultipartUpload;
+  const abortMultipartUpload = isAdmin ? abortAdminMultipartUpload : abortUserMultipartUpload;
+
+  let uploadId = null;
+  let key = null;
+  const uploadedParts = [];
+
+  try {
+    // 1. 初始化分片上传
+    const initResult = await initMultipartUpload(path, file.type, file.size, file.name);
+    if (!initResult.success) {
+      throw new Error(initResult.message || "初始化分片上传失败");
+    }
+
+    uploadId = initResult.data.uploadId;
+    key = initResult.data.key;
+
+    // 2. 上传各个分片
+    for (let i = 0; i < totalChunks; i++) {
+      // 检查是否需要取消
+      if (onCancel && onCancel()) {
+        await abortMultipartUpload(path, uploadId, key);
+        throw new Error("上传已取消");
+      }
+
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = file.slice(start, end);
+      const partNumber = i + 1;
+      const isLastPart = i === totalChunks - 1;
+
+      const partResult = await uploadPart(path, uploadId, partNumber, chunk, isLastPart, key, {
+        onXhrCreated,
+        timeout: 300000, // 5分钟超时
+      });
+
+      if (!partResult.success) {
+        throw new Error(`上传分片 ${partNumber} 失败: ${partResult.message}`);
+      }
+
+      uploadedParts.push({
+        partNumber,
+        etag: partResult.data.etag,
+      });
+
+      // 更新进度
+      if (onProgress) {
+        const progress = Math.round(((i + 1) / totalChunks) * 100);
+        onProgress(progress, end, file.size);
+      }
+    }
+
+    // 3. 完成分片上传
+    const completeResult = await completeMultipartUpload(path, uploadId, uploadedParts, key, file.type, file.size);
+
+    if (!completeResult.success) {
+      throw new Error(completeResult.message || "完成分片上传失败");
+    }
+
+    return completeResult;
+  } catch (error) {
+    // 如果有uploadId，尝试中止上传
+    if (uploadId && key) {
+      try {
+        await abortMultipartUpload(path, uploadId, key);
+      } catch (abortError) {
+        console.error("中止分片上传失败:", abortError);
+      }
+    }
+    throw error;
+  }
+}
+
+/**
+ * 使用预签名URL上传文件
+ * @param {string} url 预签名URL
+ * @param {File|Blob|ArrayBuffer} data 要上传的数据
+ * @param {string} contentType 文件MIME类型
+ * @param {Function} onProgress 进度回调函数
+ * @param {Function} onCancel 取消检查函数
+ * @param {Function} setXhr 设置XHR引用的函数
+ * @returns {Promise<Object>} 上传结果，包含etag和size
+ */
+export async function uploadWithPresignedUrl(url, data, contentType, onProgress, onCancel, setXhr) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (setXhr) {
+      setXhr(xhr);
+    }
+
+    // 设置进度监听
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress, event.loaded, event.total);
+        }
+      });
+    }
+
+    // 设置取消检查
+    let cancelChecker;
+    if (onCancel) {
+      cancelChecker = setInterval(() => {
+        if (onCancel()) {
+          xhr.abort();
+          clearInterval(cancelChecker);
+          reject(new Error("上传已取消"));
+        }
+      }, 100);
+    }
+
+    xhr.onload = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+
+      if (xhr.status === 200) {
+        const etag = xhr.getResponseHeader("ETag");
+        resolve({
+          etag: etag ? etag.replace(/"/g, "") : null,
+          size: data.size || data.byteLength || 0,
+        });
+      } else {
+        reject(new Error(`上传失败: HTTP ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+      reject(new Error("上传过程中发生网络错误"));
+    };
+
+    xhr.onabort = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+      reject(new Error("上传已取消"));
+    };
+
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.send(data);
+  });
+}
+
+/**
+ * 执行预签名URL上传的完整流程
+ * @param {File} file 要上传的文件
+ * @param {string} path 目标路径
+ * @param {boolean} isAdmin 是否为管理员
+ * @param {Function} onProgress 进度回调函数
+ * @param {Function} onCancel 取消检查函数
+ * @returns {Promise<Object>} 上传结果
+ */
+export async function performPresignedUpload(file, path, isAdmin, onProgress, onCancel) {
+  // 选择合适的API函数
+  const getPresignedUploadUrl = isAdmin ? getAdminPresignedUploadUrl : getUserPresignedUploadUrl;
+  const commitPresignedUpload = isAdmin ? commitAdminPresignedUpload : commitUserPresignedUpload;
+
+  let uploadXhr = null;
+
+  try {
+    // 1. 获取预签名URL
+    const urlResult = await getPresignedUploadUrl(path, file.name, file.type, file.size);
+    if (!urlResult.success) {
+      throw new Error(urlResult.message || "获取预签名URL失败");
+    }
+
+    const { presignedUrl: uploadUrl, ...uploadInfo } = urlResult.data;
+
+    // 2. 上传文件到预签名URL
+    const uploadResult = await uploadWithPresignedUrl(uploadUrl, file, file.type, onProgress, onCancel, (xhr) => {
+      uploadXhr = xhr;
+    });
+
+    // 3. 提交上传完成信息
+    const commitResult = await commitPresignedUpload(uploadInfo, uploadResult.etag, file.type, file.size);
+
+    if (!commitResult.success) {
+      throw new Error(commitResult.message || "提交上传完成信息失败");
+    }
+
+    return commitResult;
+  } catch (error) {
+    // 如果是取消操作，中止XHR请求
+    if (uploadXhr && error.message === "上传已取消") {
+      uploadXhr.abort();
+    }
+    throw error;
+  }
+}
+
+/**
+ * 下载文件内容
+ * @param {Object} options 下载选项
+ * @param {string} options.url 下载URL
+ * @param {Function} [options.onProgress] 进度回调函数
+ * @param {Function} [options.onCancel] 取消检查函数
+ * @param {Function} [options.setXhr] 设置XHR引用的函数
+ * @returns {Promise<ArrayBuffer>} 文件内容
+ */
+export async function fetchFileContent(options) {
+  const { url, onProgress, onCancel, setXhr } = options;
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (setXhr) {
+      setXhr(xhr);
+    }
+
+    // 设置响应类型为ArrayBuffer
+    xhr.responseType = "arraybuffer";
+
+    // 设置进度监听
+    if (onProgress) {
+      xhr.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress, event.loaded, event.total, "downloading");
+        }
+      });
+    }
+
+    // 设置取消检查
+    let cancelChecker;
+    if (onCancel) {
+      cancelChecker = setInterval(() => {
+        if (onCancel()) {
+          xhr.abort();
+          clearInterval(cancelChecker);
+          reject(new Error("下载已取消"));
+        }
+      }, 100);
+    }
+
+    xhr.onload = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+
+      if (xhr.status === 200) {
+        resolve(xhr.response);
+      } else {
+        reject(new Error(`下载失败: HTTP ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+      reject(new Error("下载过程中发生网络错误"));
+    };
+
+    xhr.onabort = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+      reject(new Error("下载已取消"));
+    };
+
+    xhr.open("GET", url);
+    xhr.send();
+  });
+}
+
+/**
+ * 上传到预签名URL
+ * @param {Object} options 上传选项
+ * @param {string} options.url 预签名URL
+ * @param {ArrayBuffer|Blob} options.data 要上传的数据
+ * @param {string} options.contentType 文件MIME类型
+ * @param {Function} [options.onProgress] 进度回调函数
+ * @param {Function} [options.onCancel] 取消检查函数
+ * @param {Function} [options.setXhr] 设置XHR引用的函数
+ * @returns {Promise<Object>} 上传结果，包含etag和size
+ */
+export async function uploadToPresignedUrl(options) {
+  const { url, data, contentType, onProgress, onCancel, setXhr } = options;
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (setXhr) {
+      setXhr(xhr);
+    }
+
+    // 设置进度监听
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress, event.loaded, event.total, "uploading");
+        }
+      });
+    }
+
+    // 设置取消检查
+    let cancelChecker;
+    if (onCancel) {
+      cancelChecker = setInterval(() => {
+        if (onCancel()) {
+          xhr.abort();
+          clearInterval(cancelChecker);
+          reject(new Error("上传已取消"));
+        }
+      }, 100);
+    }
+
+    xhr.onload = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+
+      if (xhr.status === 200) {
+        const etag = xhr.getResponseHeader("ETag");
+        resolve({
+          etag: etag ? etag.replace(/"/g, "") : null,
+          size: data.size || data.byteLength || 0,
+        });
+      } else {
+        reject(new Error(`上传失败: HTTP ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+      reject(new Error("上传过程中发生网络错误"));
+    };
+
+    xhr.onabort = function () {
+      if (cancelChecker) {
+        clearInterval(cancelChecker);
+      }
+      reject(new Error("上传已取消"));
+    };
+
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
+    xhr.send(data);
   });
 }
 
@@ -1531,3 +1457,20 @@ export function getFsApiByUserType(isAdmin) {
         commitBatchCopy: commitUserBatchCopy,
       };
 }
+
+/******************************************************************************
+ * 兼容性导出 - 保持向后兼容
+ ******************************************************************************/
+
+// 兼容性导出 - 保持向后兼容
+export const getDirectoryList = getAdminDirectoryList;
+export const getFileInfo = getAdminFileInfo;
+export const getFileDownloadUrl = getAdminFileDownloadUrl;
+export const getFilePreviewUrl = getAdminFilePreviewUrl;
+export const createDirectory = createAdminDirectory;
+export const uploadFile = uploadAdminFile;
+export const deleteItem = deleteAdminItem;
+export const batchDeleteItems = batchDeleteAdminItems;
+export const renameItem = renameAdminItem;
+export const updateFile = updateAdminFile;
+export const getFileLink = getAdminFileLink;

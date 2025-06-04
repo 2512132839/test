@@ -2,9 +2,7 @@
 import { ref, computed, watch, shallowRef } from "vue";
 import { h } from "vue"; //递归组件
 import { useI18n } from "vue-i18n";
-import { createApiKey, updateApiKey, getAllS3Configs } from "../../../api/adminService";
-import { getAdminMountsList } from "../../../api/mountService";
-import { getAdminDirectoryList } from "../../../api/fsService";
+import { api } from "../../../api";
 
 // 目录缓存对象，用于存储已加载的目录内容
 const directoryCache = shallowRef(new Map());
@@ -64,7 +62,7 @@ const DirectoryItemVue = {
           }));
         } else {
           // 对于其他路径，调用正确的API获取子目录
-          const response = await getAdminDirectoryList(props.item.path);
+          const response = await api.admin.getDirectoryList(props.item.path);
           if (response.success && response.data && response.data.items) {
             // 获取目录项，并只保留目录类型
             dirItems = response.data.items
@@ -460,7 +458,7 @@ const loadMounts = async () => {
     // 先获取所有公开的S3配置
     let publicS3Configs = [];
     try {
-      const s3Result = await getAllS3Configs();
+      const s3Result = await api.storage.getAllS3Configs();
       if (s3Result.success && s3Result.data) {
         // 过滤出公开的S3配置
         publicS3Configs = s3Result.data.filter((config) => config.is_public === true || config.is_public === 1);
@@ -470,7 +468,7 @@ const loadMounts = async () => {
     }
 
     // 获取所有挂载点
-    const result = await getAdminMountsList();
+    const result = await api.mount.getMountsList();
     if (result.success && result.data) {
       // 过滤挂载点：必须激活，且如果是S3类型，其配置ID必须在公开配置列表中
       mountsList.value = result.data.filter((mount) => {
@@ -612,7 +610,7 @@ const handleSubmit = async () => {
         updateData.expires_at = "never";
       }
 
-      const result = await updateApiKey(props.keyData.id, updateData);
+      const result = await api.admin.updateApiKey(props.keyData.id, updateData);
 
       if (result.success) {
         emit("updated", {
@@ -626,7 +624,7 @@ const handleSubmit = async () => {
     } else {
       // 创建密钥
       const customKeyValue = useCustomKey.value ? customKey.value : null;
-      const result = await createApiKey(keyName.value, expiresAt, textPermission.value, filePermission.value, mountPermission.value, customKeyValue, basicPath.value);
+      const result = await api.admin.createApiKey(keyName.value, expiresAt, textPermission.value, filePermission.value, mountPermission.value, customKeyValue, basicPath.value);
 
       if (result.success && result.data) {
         emit(

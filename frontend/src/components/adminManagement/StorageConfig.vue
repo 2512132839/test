@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, reactive } from "vue";
-import { getAllS3Configs, deleteS3Config, testS3Config, setDefaultS3Config } from "../../api/adminService";
+import { api } from "../../api";
 import ConfigForm from "./s3config/ConfigForm.vue";
 import CommonPagination from "../common/CommonPagination.vue";
 
@@ -41,7 +41,7 @@ const loadS3Configs = async () => {
   error.value = "";
 
   try {
-    const response = await getAllS3Configs({
+    const response = await api.storage.getAllS3Configs({
       page: pagination.page,
       limit: pagination.limit,
     });
@@ -74,7 +74,7 @@ const handleDeleteConfig = async (configId) => {
   }
 
   try {
-    await deleteS3Config(configId);
+    await api.storage.deleteS3Config(configId);
     loadS3Configs(); // 重新加载列表
   } catch (err) {
     console.error("删除S3配置失败:", err);
@@ -105,7 +105,7 @@ const addNewConfig = () => {
 const testConnection = async (configId) => {
   try {
     testResults.value[configId] = { loading: true };
-    const response = await testS3Config(configId);
+    const response = await api.storage.testS3Config(configId);
 
     // 提取测试结果数据
     const result = response.data?.result || {};
@@ -279,7 +279,7 @@ const formatDate = (isoDate) => {
 // 处理设置默认配置
 const handleSetDefaultConfig = async (configId) => {
   try {
-    await setDefaultS3Config(configId);
+    await api.storage.setDefaultS3Config(configId);
     loadS3Configs(); // 重新加载列表
   } catch (err) {
     console.error("设置默认S3配置失败:", err);

@@ -2,8 +2,7 @@
 // PasteViewMain组件 - 主组件，整合各个功能模块
 // 负责协调预览、大纲和编辑功能，管理全局状态和数据流
 import { ref, onMounted, onBeforeUnmount, watch, nextTick, computed } from "vue";
-import { getPaste, getRawPasteUrl } from "../../api/pasteService";
-import { updatePaste } from "../../api/adminService";
+
 import PasteViewPreview from "./PasteViewPreview.vue";
 import PasteViewOutline from "./PasteViewOutline.vue";
 import PasteViewEditor from "./PasteViewEditor.vue";
@@ -196,7 +195,7 @@ const loadPaste = async (password = null) => {
   try {
     debugLog(enableDebug.value, isDev, "PasteView: 开始加载内容", props.slug);
     // 调用API获取文本分享数据
-    const result = await getPaste(props.slug, password);
+    const result = await api.paste.getPaste(props.slug, password);
     paste.value = result;
 
     // 检查返回的完整数据用于调试
@@ -394,7 +393,7 @@ const saveEdit = async (updateData) => {
     // 根据用户类型调用不同的API更新内容
     if (isAdmin.value) {
       // 管理员使用admin API
-      await updatePaste(slug, updateData);
+      await api.admin.updatePaste(slug, updateData);
     } else if (hasApiKey.value && hasTextPermission.value && isCreator.value) {
       // API密钥用户使用user API
       await api.user.paste.updatePaste(slug, updateData);
@@ -501,7 +500,7 @@ const copyRawLink = async () => {
 
   try {
     // 从getRawPasteUrl获取原始链接
-    const rawLink = getRawPasteUrl(paste.value.slug, paste.value.plain_password || null);
+    const rawLink = api.paste.getRawPasteUrl(paste.value.slug, paste.value.plain_password || null);
 
     // 复制链接到剪贴板
     const success = await copyToClipboard(rawLink);

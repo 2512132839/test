@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { deleteApiKey } from "../../../api/adminService";
+import { api } from "../../../api";
 import { copyToClipboard } from "../../../utils/clipboard";
 
 // i18n
@@ -67,7 +67,7 @@ const handleDeleteKey = async (keyId) => {
   }
 
   try {
-    const result = await deleteApiKey(keyId);
+    const result = await api.admin.deleteApiKey(keyId);
 
     if (result.success) {
       // 从选中列表中移除

@@ -410,7 +410,6 @@
 import { ref, defineProps, defineEmits, watch, onUnmounted } from "vue";
 import { api } from "../../api";
 import { useI18n } from "vue-i18n";
-import { getFile, getUserFile } from "../../api/fileService";
 import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
 import { copyToClipboard } from "@/utils/clipboard";
 
@@ -671,7 +670,7 @@ const copyPermanentLink = async (file) => {
         console.log(`当前用户类型: ${props.userType}, 是否管理员: ${isAdminUser}`);
 
         // 调用相应的API
-        const response = isAdminUser ? await getFile(file.id) : await getUserFile(file.id);
+        const response = isAdminUser ? await api.file.getFile(file.id) : await api.file.getUserFile(file.id);
 
         if (response.success && response.data) {
           fileWithUrls = response.data;

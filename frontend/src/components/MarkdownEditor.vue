@@ -289,7 +289,6 @@ import { useI18n } from "vue-i18n";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import { api } from "../api";
-import { createPaste, getRawPasteUrl } from "../api/pasteService";
 import { useRouter, useRoute } from "vue-router";
 import QRCode from "qrcode";
 import { getFullApiUrl } from "../api/config.js";
@@ -1070,7 +1069,7 @@ const saveContent = async () => {
     console.log("创建分享，使用凭据类型:", isAdmin.value ? "管理员令牌" : hasApiKey.value ? "API密钥" : "无凭据");
 
     // 调用API函数，授权由client.js自动处理
-    const result = await createPaste(pasteData);
+    const result = await api.paste.createPaste(pasteData);
     console.log("创建分享结果:", result);
 
     // 处理成功响应
@@ -1169,7 +1168,7 @@ const copyRawTextLink = async () => {
   const slug = shareLink.value.split("/").pop();
 
   // 构建原始文本直链URL，使用当前分享的密码（如果有）
-  const rawLink = getRawPasteUrl(slug, currentSharePassword.value || null);
+  const rawLink = api.paste.getRawPasteUrl(slug, currentSharePassword.value || null);
 
   try {
     const success = await clipboardCopy(rawLink);

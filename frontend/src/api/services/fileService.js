@@ -1,75 +1,13 @@
-import { get, post, put, del } from "./client";
-
 /**
- * 获取S3配置列表
- * @returns {Promise<Object>} S3配置列表响应
+ * 文件管理服务API
+ * 统一管理所有文件相关的API调用，包括上传、下载、管理等
  */
-export async function getS3Configs() {
-  return await get("s3-configs");
-}
 
-/**
- * 获取系统最大上传大小限制
- * @returns {Promise<number>} 最大上传大小(MB)
- */
-export async function getMaxUploadSize() {
-  try {
-    const response = await get("system/max-upload-size");
-    if (response && response.data && response.data.max_upload_size) {
-      return response.data.max_upload_size;
-    }
-    return 100; // 默认值
-  } catch (error) {
-    console.error("获取最大上传大小失败:", error);
-    return 100; // 出错时返回默认值
-  }
-}
+import { get, post, put, del } from "../client";
 
-/**
- * 获取单个S3配置
- * @param {string} id - S3配置ID
- * @returns {Promise<Object>} S3配置详情响应
- */
-export async function getS3Config(id) {
-  return await get(`s3-configs/${id}`);
-}
-
-/**
- * 创建S3配置
- * @param {Object} configData - S3配置数据
- * @returns {Promise<Object>} 创建响应
- */
-export async function createS3Config(configData) {
-  return await post("s3-configs", configData);
-}
-
-/**
- * 更新S3配置
- * @param {string} id - S3配置ID
- * @param {Object} configData - 更新的S3配置数据
- * @returns {Promise<Object>} 更新响应
- */
-export async function updateS3Config(id, configData) {
-  return await put(`s3-configs/${id}`, configData);
-}
-
-/**
- * 删除S3配置
- * @param {string} id - S3配置ID
- * @returns {Promise<Object>} 删除响应
- */
-export async function deleteS3Config(id) {
-  return await del(`s3-configs/${id}`);
-}
-
-/**
- * 测试S3配置连接
- * @param {string} id - S3配置ID
- * @returns {Promise<Object>} 测试响应
- */
-export async function testS3Config(id) {
-  return await post(`s3-configs/${id}/test`);
-}
+/******************************************************************************
+ * 文件上传相关API
+ ******************************************************************************/
 
 /**
  * 获取更准确的文件MIME类型，特别处理Markdown文件
@@ -87,7 +25,7 @@ function getAccurateMimeType(file) {
 }
 
 /**
- * 上传文件
+ * 上传文件（传统方式）
  * @param {File} file - 要上传的文件
  * @param {Object} options - 上传选项
  * @returns {Promise<Object>} 上传响应
@@ -329,7 +267,7 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
         // 根据用户身份选择合适的删除API
         if (hasAdminToken) {
           // 使用管理员API删除文件
-          await deleteFile(fileId);
+          await deleteAdminFile(fileId);
           console.log("已成功删除上传失败的文件记录（管理员API）");
         } else if (hasApiKey) {
           // 使用用户API删除文件
@@ -348,13 +286,19 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
   }
 }
 
+
+
+/******************************************************************************
+ * 管理员文件管理API
+ ******************************************************************************/
+
 /**
  * 获取管理员文件列表
  * @param {number} limit - 每页条数
  * @param {number} offset - 偏移量
  * @returns {Promise<Object>} 文件列表响应
  */
-export async function getFiles(limit = 50, offset = 0) {
+export async function getAdminFiles(limit = 50, offset = 0) {
   return await get(`admin/files?limit=${limit}&offset=${offset}`);
 }
 
@@ -363,7 +307,7 @@ export async function getFiles(limit = 50, offset = 0) {
  * @param {string} id - 文件ID
  * @returns {Promise<Object>} 文件详情响应
  */
-export async function getFile(id) {
+export async function getAdminFile(id) {
   return await get(`admin/files/${id}`);
 }
 
@@ -373,7 +317,7 @@ export async function getFile(id) {
  * @param {Object} metadata - 更新的文件元数据
  * @returns {Promise<Object>} 更新响应
  */
-export async function updateFile(id, metadata) {
+export async function updateAdminFile(id, metadata) {
   return await put(`admin/files/${id}`, metadata);
 }
 
@@ -382,9 +326,13 @@ export async function updateFile(id, metadata) {
  * @param {string} id - 文件ID
  * @returns {Promise<Object>} 删除响应
  */
-export async function deleteFile(id) {
+export async function deleteAdminFile(id) {
   return await del(`admin/files/${id}`);
 }
+
+/******************************************************************************
+ * API密钥用户文件管理API
+ ******************************************************************************/
 
 /**
  * 获取API密钥用户的文件列表
@@ -424,6 +372,10 @@ export async function deleteUserFile(id) {
   return await del(`user/files/${id}`);
 }
 
+/******************************************************************************
+ * 公共文件访问API
+ ******************************************************************************/
+
 /**
  * 获取公开文件信息
  * @param {string} slug - 文件短链接
@@ -442,3 +394,9 @@ export async function getPublicFile(slug) {
 export async function verifyFilePassword(slug, password) {
   return await post(`public/files/${slug}/verify`, { password });
 }
+
+// 兼容性导出 - 保持向后兼容
+export const getFiles = getAdminFiles;
+export const getFile = getAdminFile;
+export const updateFile = updateAdminFile;
+export const deleteFile = deleteAdminFile;

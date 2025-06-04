@@ -671,13 +671,13 @@ const copyPermanentLink = async (file) => {
     if (!file.urls || !file.urls.proxyDownloadUrl) {
       try {
         // 导入API函数
-        const { getFile, getUserFile } = await import("../../../api/fileService");
+        const { api } = await import("../../../api");
 
         // 使用组件级别的isAdmin计算属性判断用户角色
         console.log(`当前用户类型: ${props.userType}, 是否管理员: ${isAdmin.value}`);
 
         // 调用相应的API
-        const response = isAdmin.value ? await getFile(file.id) : await getUserFile(file.id);
+        const response = isAdmin.value ? await api.file.getFile(file.id) : await api.file.getUserFile(file.id);
 
         if (response.success && response.data) {
           fileWithUrls = response.data;

@@ -1,4 +1,13 @@
-import { get, post, put, del } from "./client";
+/**
+ * 挂载点管理服务API
+ * 统一管理所有挂载点相关的API调用，包括管理员和API密钥用户的操作
+ */
+
+import { get, post, put, del } from "../client";
+
+/******************************************************************************
+ * 管理员挂载点管理API
+ ******************************************************************************/
 
 /**
  * 管理员API - 获取所有挂载点列表
@@ -45,6 +54,10 @@ export async function deleteAdminMount(id) {
   return del(`/admin/mounts/${id}`);
 }
 
+/******************************************************************************
+ * API密钥用户挂载点访问API（只读）
+ ******************************************************************************/
+
 /**
  * 用户API - 获取API密钥可访问的挂载点列表（只读）
  * 注意：API密钥用户只能查看基于basic_path权限范围内的挂载点，不能管理挂载点
@@ -62,3 +75,10 @@ export async function getUserMountsList() {
 export async function getUserMountById(id) {
   return get(`/user/mounts/${id}`);
 }
+
+// 兼容性导出 - 保持向后兼容
+export const getMountsList = getAdminMountsList;
+export const getMountById = getAdminMountById;
+export const createMount = createAdminMount;
+export const updateMount = updateAdminMount;
+export const deleteMount = deleteAdminMount;
