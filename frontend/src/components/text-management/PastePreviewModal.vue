@@ -21,113 +21,47 @@ const props = defineProps({
 // 定义组件要触发的事件
 const emit = defineEmits(["close", "view-paste"]);
 
+// 导入统一的时间处理工具
+import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil } from "../../utils/timeUtils.js";
+
 /**
  * 格式化日期为本地日期时间字符串
- * @param {string} dateString - ISO格式的日期字符串
- * @returns {string} 格式化后的日期字符串
+ * @param {string} dateString - UTC 时间字符串
+ * @returns {string} 格式化后的本地时间字符串
  */
 const formatDate = (dateString) => {
-  if (!dateString) return "未知";
-
-  try {
-    const date = new Date(dateString);
-
-    // 检查日期是否有效
-    if (isNaN(date.getTime())) {
-      return "日期无效";
-    }
-
-    // 使用Intl.DateTimeFormat以确保时区正确
-    return new Intl.DateTimeFormat("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false, // 使用24小时制
-    }).format(date);
-  } catch (e) {
-    console.error("日期格式化错误:", e);
-    return "日期格式错误";
-  }
+  return formatDateTime(dateString);
 };
 
 /**
  * 格式化相对时间（如：3天后过期）
- * @param {string} dateString - ISO格式的日期字符串
+ * @param {string} dateString - UTC 时间字符串
  * @returns {string} 相对时间描述
  */
 const formatRelativeTime = (dateString) => {
   if (!dateString) return "";
 
-  try {
-    const targetDate = new Date(dateString);
-    const now = new Date();
+  const relativeTime = formatRelativeTimeUtil(dateString);
 
-    // 检查日期是否有效
-    if (isNaN(targetDate.getTime())) {
-      return "";
-    }
-
-    // 计算时间差（毫秒）
-    const diff = targetDate - now;
-
-    // 转换为秒、分钟、小时、天
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    // 根据时间差返回不同的文本
-    if (diff < 0) {
-      return "已过期";
-    } else if (days > 30) {
-      return `${Math.floor(days / 30)}个月后过期`;
-    } else if (days > 0) {
-      return `${days}天后过期`;
-    } else if (hours > 0) {
-      return `${hours}小时后过期`;
-    } else if (minutes > 0) {
-      return `${minutes}分钟后过期`;
-    } else {
-      return "即将过期";
-    }
-  } catch (e) {
-    console.error("相对时间格式化错误:", e);
-    return "";
+  // 为过期场景添加特殊处理
+  if (relativeTime.includes("前")) {
+    return "已过期";
+  } else if (relativeTime === "即将") {
+    return "即将过期";
+  } else if (relativeTime.includes("后")) {
+    return relativeTime.replace("后", "后过期");
   }
+
+  return relativeTime;
 };
 
 /**
  * 格式化过期日期，同时显示具体日期和相对时间
- * @param {string} expiryDate - ISO格式的过期日期
+ * @param {string} expiryDate - UTC 时间字符串
  * @returns {string} 格式化后的过期信息
  */
 const formatExpiry = (expiryDate) => {
-  if (!expiryDate) return "永不过期";
-
-  try {
-    const expiry = new Date(expiryDate);
-    const now = new Date();
-
-    // 检查日期是否有效
-    if (isNaN(expiry.getTime())) {
-      return "日期无效";
-    }
-
-    if (expiry < now) {
-      return "已过期";
-    }
-
-    // 显示具体日期和相对时间
-    const formattedDate = formatDate(expiryDate);
-    const relativeTime = formatRelativeTime(expiryDate);
-
-    return `${formattedDate} (${relativeTime})`;
-  } catch (e) {
-    console.error("过期时间格式化错误:", e);
-    return "日期格式错误";
-  }
+  return formatExpiryUtil(expiryDate);
 };
 
 /**
@@ -173,14 +107,14 @@ const copyLink = (slug) => {
 
   const link = `${window.location.origin}/paste/${slug}`;
   navigator.clipboard
-    .writeText(link)
-    .then(() => {
-      alert("链接已复制到剪贴板");
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-      alert("复制失败，请手动复制");
-    });
+      .writeText(link)
+      .then(() => {
+        alert("链接已复制到剪贴板");
+      })
+      .catch((err) => {
+        console.error("复制失败:", err);
+        alert("复制失败，请手动复制");
+      });
 };
 
 /**
@@ -213,16 +147,16 @@ const viewPaste = (slug) => {
 
       <!-- 弹窗主体内容 -->
       <div
-        class="inline-block align-middle sm:align-middle bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:max-w-3xl max-h-[80vh] sm:max-h-[80vh] my-1 sm:my-8"
-        :class="darkMode ? 'dark' : ''"
+          class="inline-block align-middle sm:align-middle bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:max-w-3xl max-h-[80vh] sm:max-h-[80vh] my-1 sm:my-8"
+          :class="darkMode ? 'dark' : ''"
       >
         <!-- 弹窗头部带关闭按钮 -->
         <div class="bg-white dark:bg-gray-800 px-4 py-3 sm:py-4 border-b dark:border-gray-700 flex justify-between items-center">
           <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100" id="modal-title">内容预览</h3>
           <button
-            type="button"
-            @click="closePreview"
-            class="rounded-md p-1 inline-flex items-center justify-center text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none"
+              type="button"
+              @click="closePreview"
+              class="rounded-md p-1 inline-flex items-center justify-center text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none"
           >
             <span class="sr-only">关闭</span>
             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -250,10 +184,10 @@ const viewPaste = (slug) => {
                   <button @click="copyLink(paste?.slug)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                       />
                     </svg>
                   </button>
@@ -279,33 +213,33 @@ const viewPaste = (slug) => {
                 <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">密码保护:</p>
                 <p class="font-medium">
                   <span
-                    v-if="paste && hasPassword(paste)"
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                    :class="[
+                      v-if="paste && hasPassword(paste)"
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      :class="[
                       isExpired(paste) ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100',
                     ]"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                       />
                     </svg>
                     已加密
                   </span>
                   <span
-                    v-else
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                    :class="[isExpired(paste) ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100']"
+                      v-else
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      :class="[isExpired(paste) ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100']"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
                       />
                     </svg>
                     公开
@@ -317,8 +251,8 @@ const viewPaste = (slug) => {
               <div>
                 <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">剩余访问次数:</p>
                 <p
-                  class="font-medium"
-                  :class="[
+                    class="font-medium"
+                    :class="[
                     isExpired(paste)
                       ? 'text-red-600 dark:text-red-400'
                       : getRemainingViews(paste) === '已用完'
@@ -354,16 +288,16 @@ const viewPaste = (slug) => {
         <!-- 弹窗底部按钮区 -->
         <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-col sm:flex-row-reverse sm:space-x-reverse space-y-2 sm:space-y-0 sm:space-x-3">
           <button
-            type="button"
-            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
-            @click="viewPaste(paste?.slug)"
+              type="button"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
+              @click="viewPaste(paste?.slug)"
           >
             查看链接
           </button>
           <button
-            type="button"
-            class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
-            @click="closePreview"
+              type="button"
+              class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
+              @click="closePreview"
           >
             关闭
           </button>

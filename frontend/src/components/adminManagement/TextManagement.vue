@@ -102,14 +102,8 @@ const copiedTexts = reactive({});
 // 添加响应式对象跟踪原始文本直链复制状态
 const copiedRawTexts = reactive({});
 
-/**
- * 格式化当前时间为本地时间字符串
- * @returns {string} 格式化后的时间字符串
- */
-const formatCurrentTime = () => {
-  const now = new Date();
-  return now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-};
+// 导入统一的时间处理工具
+import { formatCurrentTime } from "../../utils/timeUtils.js";
 
 /**
  * 更新最后刷新时间
@@ -760,24 +754,24 @@ onMounted(() => {
 
         <!-- 刷新按钮 - 在所有屏幕尺寸显示 -->
         <button
-          class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          @click="loadPastes"
-          :disabled="loading"
+            class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            @click="loadPastes"
+            :disabled="loading"
         >
           <svg xmlns="http://www.w3.org/2000/svg" :class="['h-3 w-3 sm:h-4 sm:w-4 mr-1', loading ? 'animate-spin' : '']" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-              v-if="!loading"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                v-if="!loading"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
             <circle v-if="loading" class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path
-              v-if="loading"
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                v-if="loading"
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
           <span class="hidden xs:inline">{{ loading ? "刷新中..." : "刷新" }}</span>
@@ -789,16 +783,16 @@ onMounted(() => {
       <div class="flex flex-wrap gap-1 sm:gap-2">
         <!-- 清理过期按钮 -->
         <button
-          class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 flex-grow sm:flex-grow-0"
-          @click="clearExpiredPastes"
-          title="系统会自动删除过期内容，但您也可以通过此功能手动立即清理"
+            class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 flex-grow sm:flex-grow-0"
+            @click="clearExpiredPastes"
+            title="系统会自动删除过期内容，但您也可以通过此功能手动立即清理"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
             />
           </svg>
           <span class="hidden xs:inline">清理过期</span>
@@ -807,19 +801,19 @@ onMounted(() => {
 
         <!-- 批量删除按钮 -->
         <button
-          :disabled="selectedPastes.length === 0"
-          :class="[
+            :disabled="selectedPastes.length === 0"
+            :class="[
             'inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 flex-grow sm:flex-grow-0',
             selectedPastes.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'text-white bg-red-600 hover:bg-red-700 focus:ring-red-500',
           ]"
-          @click="deleteSelectedPastes"
+            @click="deleteSelectedPastes"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
             />
           </svg>
           <span class="hidden xs:inline">批量删除{{ selectedPastes.length ? `(${selectedPastes.length})` : "" }}</span>
@@ -830,16 +824,16 @@ onMounted(() => {
 
     <!-- 错误信息提示 -->
     <div
-      v-if="error"
-      class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
+        v-if="error"
+        class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
     >
       <p>{{ error }}</p>
     </div>
 
     <!-- 成功信息提示 -->
     <div
-      v-if="successMessage"
-      class="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
+        v-if="successMessage"
+        class="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
     >
       <p>{{ successMessage }}</p>
     </div>
@@ -862,41 +856,41 @@ onMounted(() => {
         <!-- 桌面端表格组件 - 中等及以上设备显示 -->
         <div class="hidden md:block flex-1 overflow-auto">
           <PasteTable
-            :dark-mode="darkMode"
-            :pastes="pastes"
-            :selectedPastes="selectedPastes"
-            :loading="loading"
-            :copiedTexts="copiedTexts"
-            :copiedRawTexts="copiedRawTexts"
-            @toggle-select-all="toggleSelectAll"
-            @toggle-select-item="toggleSelectItem"
-            @view="goToViewPage"
-            @copy-link="copyLink"
-            @copy-raw-link="copyRawLink"
-            @preview="openPreview"
-            @edit="openEditModal"
-            @delete="deletePaste"
-            @show-qrcode="showQRCode"
+              :dark-mode="darkMode"
+              :pastes="pastes"
+              :selectedPastes="selectedPastes"
+              :loading="loading"
+              :copiedTexts="copiedTexts"
+              :copiedRawTexts="copiedRawTexts"
+              @toggle-select-all="toggleSelectAll"
+              @toggle-select-item="toggleSelectItem"
+              @view="goToViewPage"
+              @copy-link="copyLink"
+              @copy-raw-link="copyRawLink"
+              @preview="openPreview"
+              @edit="openEditModal"
+              @delete="deletePaste"
+              @show-qrcode="showQRCode"
           />
         </div>
 
         <!-- 移动端卡片组件 - 小于中等设备显示 -->
         <div class="md:hidden flex-1 overflow-auto">
           <PasteCardList
-            :dark-mode="darkMode"
-            :pastes="pastes"
-            :selectedPastes="selectedPastes"
-            :loading="loading"
-            :copiedTexts="copiedTexts"
-            :copiedRawTexts="copiedRawTexts"
-            @toggle-select-item="toggleSelectItem"
-            @view="goToViewPage"
-            @copy-link="copyLink"
-            @copy-raw-link="copyRawLink"
-            @preview="openPreview"
-            @edit="openEditModal"
-            @delete="deletePaste"
-            @show-qrcode="showQRCode"
+              :dark-mode="darkMode"
+              :pastes="pastes"
+              :selectedPastes="selectedPastes"
+              :loading="loading"
+              :copiedTexts="copiedTexts"
+              :copiedRawTexts="copiedRawTexts"
+              @toggle-select-item="toggleSelectItem"
+              @view="goToViewPage"
+              @copy-link="copyLink"
+              @copy-raw-link="copyRawLink"
+              @preview="openPreview"
+              @edit="openEditModal"
+              @delete="deletePaste"
+              @show-qrcode="showQRCode"
           />
         </div>
       </div>

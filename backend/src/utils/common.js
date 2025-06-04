@@ -31,36 +31,6 @@ export function createErrorResponse(statusCode, message) {
   };
 }
 
-/**
- * 获取当前时间的本地格式化字符串，用于数据库时间字段
- * @returns {string} 格式化的本地时间字符串，如：'2023-06-01 14:30:45'
- */
-export function getLocalTimeString() {
-  // 创建一个基于UTC时间的Date对象
-  const now = new Date();
-
-  // 调整为UTC+8时区（中国标准时间）
-  // 获取当前UTC时间的毫秒数
-  const utcTime = now.getTime();
-  // 获取本地时区与UTC的时差（分钟）
-  const localTimezoneOffset = now.getTimezoneOffset();
-  // UTC+8时区比UTC快8小时，即480分钟
-  const cstTimezoneOffset = -480;
-  // 计算需要调整的时差（分钟）
-  const timeDifference = (localTimezoneOffset - cstTimezoneOffset) * 60 * 1000;
-  // 创建调整后的时间对象
-  const cstTime = new Date(utcTime + timeDifference);
-
-  // 从CST时间对象中提取各个部分
-  const year = cstTime.getFullYear();
-  const month = String(cstTime.getMonth() + 1).padStart(2, "0");
-  const day = String(cstTime.getDate()).padStart(2, "0");
-  const hours = String(cstTime.getHours()).padStart(2, "0");
-  const minutes = String(cstTime.getMinutes()).padStart(2, "0");
-  const seconds = String(cstTime.getSeconds()).padStart(2, "0");
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
 
 /**
  * 格式化文件大小

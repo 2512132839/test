@@ -20,7 +20,6 @@ import { verifyPassword } from "../utils/crypto.js";
 import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
-import { getLocalTimeString } from "../utils/common.js";
 import { storeAuthInfo, getAuthInfo, isWebDAVClient } from "./utils/authCache.js";
 
 /**
@@ -349,7 +348,7 @@ async function handleBearerAuth(c, next, authHeader, db, clientIp, userAgent) {
           if (hasMountPermission) {
             // 更新最后使用时间
             try {
-              await db.prepare("UPDATE api_keys SET last_used = ? WHERE id = ?").bind(getLocalTimeString(), apiKey.id).run();
+              await db.prepare("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?").bind(apiKey.id).run();
             } catch (updateError) {
               // 更新最后使用时间失败不阻止认证流程
               console.warn("WebDAV认证: 更新API密钥最后使用时间失败", updateError);

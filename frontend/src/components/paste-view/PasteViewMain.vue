@@ -8,6 +8,7 @@ import PasteViewPreview from "./PasteViewPreview.vue";
 import PasteViewOutline from "./PasteViewOutline.vue";
 import PasteViewEditor from "./PasteViewEditor.vue";
 import { formatExpiry, debugLog } from "./PasteViewUtils";
+import { isExpired } from "../../utils/timeUtils.js";
 import { api } from "../../api";
 import { ApiStatus } from "../../api/ApiStatus";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -176,13 +177,13 @@ const checkApiKeyStatus = () => {
 
 // 监听slug的变化，当它变化时重新加载内容
 watch(
-  () => props.slug,
-  (newSlug) => {
-    if (mounted && newSlug) {
-      debugLog(enableDebug.value, isDev, "PasteView: 检测到slug变化，重新加载", newSlug);
-      loadPaste();
+    () => props.slug,
+    (newSlug) => {
+      if (mounted && newSlug) {
+        debugLog(enableDebug.value, isDev, "PasteView: 检测到slug变化，重新加载", newSlug);
+        loadPaste();
+      }
     }
-  }
 );
 
 // 获取文本分享内容 - 主要数据加载函数
@@ -633,17 +634,17 @@ const handleStorageChange = (e) => {
       <div v-else-if="error && !needPassword && !error.includes('成功')" class="error-container py-12 px-4 max-w-4xl mx-auto text-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-red-600 dark:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
           />
         </svg>
         <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">文本访问错误</h2>
         <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ error }}</p>
         <a
-          href="/"
-          class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+            href="/"
+            class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
         >
           返回首页
         </a>
@@ -659,34 +660,34 @@ const handleStorageChange = (e) => {
             <label for="password" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">密码</label>
             <div class="relative">
               <input
-                :type="showPassword ? 'text' : 'password'"
-                id="password"
-                v-model="passwordInput"
-                @keyup.enter="submitPassword"
-                class="block w-full px-3 py-2 rounded-md shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 password-input"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white focus:ring-offset-gray-800' : 'border-gray-300 text-gray-900 focus:ring-offset-white'"
-                placeholder="请输入密码"
+                  :type="showPassword ? 'text' : 'password'"
+                  id="password"
+                  v-model="passwordInput"
+                  @keyup.enter="submitPassword"
+                  class="block w-full px-3 py-2 rounded-md shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 password-input"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white focus:ring-offset-gray-800' : 'border-gray-300 text-gray-900 focus:ring-offset-white'"
+                  placeholder="请输入密码"
               />
               <button
-                type="button"
-                @click="togglePasswordVisibility"
-                class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+                  type="button"
+                  @click="togglePasswordVisibility"
+                  class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
               >
                 <svg v-if="showPassword" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"
                   />
                 </svg>
                 <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                   />
                 </svg>
               </button>
@@ -696,9 +697,9 @@ const handleStorageChange = (e) => {
           </div>
 
           <button
-            @click="submitPassword"
-            class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            :class="darkMode ? 'focus:ring-offset-gray-800' : 'focus:ring-offset-white'"
+              @click="submitPassword"
+              class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              :class="darkMode ? 'focus:ring-offset-gray-800' : 'focus:ring-offset-white'"
           >
             提交
           </button>
@@ -717,15 +718,13 @@ const handleStorageChange = (e) => {
           <div class="grid grid-cols-1 gap-4 text-sm">
             <div v-if="paste.expiresAt">
               <span :class="darkMode ? 'text-gray-400' : 'text-gray-500'">过期时间:</span>
-              <span class="ml-2" :class="[darkMode ? 'text-white' : 'text-gray-900', new Date(paste.expiresAt) < new Date() ? 'text-red-500' : '']">{{
-                formatExpiry(paste.expiresAt)
-              }}</span>
+              <span class="ml-2" :class="[darkMode ? 'text-white' : 'text-gray-900', isExpired(paste.expiresAt) ? 'text-red-500' : '']">{{ formatExpiry(paste.expiresAt) }}</span>
             </div>
             <div v-if="paste.maxViews">
               <span :class="darkMode ? 'text-gray-400' : 'text-gray-500'">剩余查看次数:</span>
               <span
-                class="ml-2"
-                :class="[
+                  class="ml-2"
+                  :class="[
                   darkMode ? 'text-white' : 'text-gray-900',
                   paste.maxViews - paste.views <= 5 ? 'text-amber-500' : '',
                   paste.maxViews - paste.views <= 1 ? 'text-red-500' : '',
@@ -742,9 +741,9 @@ const handleStorageChange = (e) => {
           <!-- 视图模式切换按钮组 - 在编辑模式下隐藏 -->
           <div v-if="viewMode !== 'edit'" class="flex border rounded-md overflow-hidden" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
             <button
-              @click="switchViewMode('preview')"
-              class="px-3 py-1.5 text-sm font-medium"
-              :class="[
+                @click="switchViewMode('preview')"
+                class="px-3 py-1.5 text-sm font-medium"
+                :class="[
                 viewMode === 'preview'
                   ? darkMode
                     ? 'bg-gray-700 text-white'
@@ -757,9 +756,9 @@ const handleStorageChange = (e) => {
               预览
             </button>
             <button
-              @click="switchViewMode('outline')"
-              class="px-3 py-1.5 text-sm font-medium"
-              :class="[
+                @click="switchViewMode('outline')"
+                class="px-3 py-1.5 text-sm font-medium"
+                :class="[
                 viewMode === 'outline'
                   ? darkMode
                     ? 'bg-gray-700 text-white'
@@ -773,9 +772,9 @@ const handleStorageChange = (e) => {
             </button>
             <!-- 纯文本/Markdown切换按钮组 -->
             <button
-              @click="toggleTextMode(false)"
-              class="px-3 py-1.5 text-sm font-medium"
-              :class="[
+                @click="toggleTextMode(false)"
+                class="px-3 py-1.5 text-sm font-medium"
+                :class="[
                 !isPlainTextMode
                   ? darkMode
                     ? 'bg-gray-700 text-white'
@@ -788,9 +787,9 @@ const handleStorageChange = (e) => {
               MD
             </button>
             <button
-              @click="toggleTextMode(true)"
-              class="px-3 py-1.5 text-sm font-medium"
-              :class="[
+                @click="toggleTextMode(true)"
+                class="px-3 py-1.5 text-sm font-medium"
+                :class="[
                 isPlainTextMode
                   ? darkMode
                     ? 'bg-gray-700 text-white'
@@ -810,30 +809,30 @@ const handleStorageChange = (e) => {
           <div v-if="viewMode !== 'edit'" class="flex items-center gap-2">
             <!-- 复制内容按钮 -->
             <button
-              v-if="paste && paste.content"
-              @click="copyContentToClipboard"
-              class="px-4 py-1.5 text-sm font-medium border rounded-md"
-              :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
+                v-if="paste && paste.content"
+                @click="copyContentToClipboard"
+                class="px-4 py-1.5 text-sm font-medium border rounded-md"
+                :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
             >
               复制内容
             </button>
 
             <!-- 复制原始链接按钮 -->
             <button
-              v-if="paste && paste.slug"
-              @click="copyRawLink"
-              class="px-4 py-1.5 text-sm font-medium border rounded-md"
-              :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
+                v-if="paste && paste.slug"
+                @click="copyRawLink"
+                class="px-4 py-1.5 text-sm font-medium border rounded-md"
+                :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
             >
               raw
             </button>
 
             <!-- 编辑按钮 - 管理员和有权限的API密钥创建者可见 -->
             <button
-              v-if="isAdmin || (hasApiKey && hasTextPermission && isCreator) || (isDev && forceShowEditButton)"
-              @click="switchViewMode('edit')"
-              class="px-4 py-1.5 text-sm font-medium border rounded-md"
-              :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
+                v-if="isAdmin || (hasApiKey && hasTextPermission && isCreator) || (isDev && forceShowEditButton)"
+                @click="switchViewMode('edit')"
+                class="px-4 py-1.5 text-sm font-medium border rounded-md"
+                :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
             >
               编辑内容
             </button>
@@ -842,16 +841,16 @@ const handleStorageChange = (e) => {
           <!-- 调试按钮 (仅在开发模式显示) -->
           <div v-if="isDev" class="ml-auto">
             <button
-              @click="toggleDebug"
-              class="text-xs px-2 py-1 mr-2 rounded transition-colors"
-              :class="enableDebug ? 'bg-yellow-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
+                @click="toggleDebug"
+                class="text-xs px-2 py-1 mr-2 rounded transition-colors"
+                :class="enableDebug ? 'bg-yellow-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
             >
               {{ enableDebug ? "隐藏调试" : "调试" }}
             </button>
             <button
-              @click="toggleForceEditButton"
-              class="text-xs px-2 py-1 rounded transition-colors"
-              :class="forceShowEditButton ? 'bg-pink-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
+                @click="toggleForceEditButton"
+                class="text-xs px-2 py-1 rounded transition-colors"
+                :class="forceShowEditButton ? 'bg-pink-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'"
             >
               {{ forceShowEditButton ? "取消强制编辑" : "强制编辑" }}
             </button>
@@ -884,36 +883,36 @@ const handleStorageChange = (e) => {
           <!-- 常规预览模式 - 显示Markdown渲染结果 -->
           <div v-if="viewMode === 'preview'" class="p-6">
             <PasteViewPreview
-              ref="previewRef"
-              :dark-mode="darkMode"
-              :content="paste.content"
-              :is-dev="isDev"
-              :enable-debug="enableDebug"
-              :is-plain-text-mode="isPlainTextMode"
-              @rendered="handlePreviewRendered"
+                ref="previewRef"
+                :dark-mode="darkMode"
+                :content="paste.content"
+                :is-dev="isDev"
+                :enable-debug="enableDebug"
+                :is-plain-text-mode="isPlainTextMode"
+                @rendered="handlePreviewRendered"
             />
           </div>
 
           <!-- 大纲预览模式 - 左侧显示大纲，右侧显示内容 -->
           <div v-else-if="viewMode === 'outline'">
             <PasteViewOutline
-              :dark-mode="darkMode"
-              :outline-data="outlineData"
-              :outline-tree-data="outlineTreeData"
-              :content="paste.content"
-              :is-dev="isDev"
-              :enable-debug="enableDebug"
-              @heading-click="scrollToHeading"
+                :dark-mode="darkMode"
+                :outline-data="outlineData"
+                :outline-tree-data="outlineTreeData"
+                :content="paste.content"
+                :is-dev="isDev"
+                :enable-debug="enableDebug"
+                @heading-click="scrollToHeading"
             >
               <template #content>
                 <div class="content-scroll flex-1 p-4 overflow-y-auto md:absolute md:inset-0">
                   <PasteViewPreview
-                    :dark-mode="darkMode"
-                    :content="paste.content"
-                    :is-dev="isDev"
-                    :enable-debug="enableDebug"
-                    :is-plain-text-mode="isPlainTextMode"
-                    @rendered="handlePreviewRendered"
+                      :dark-mode="darkMode"
+                      :content="paste.content"
+                      :is-dev="isDev"
+                      :enable-debug="enableDebug"
+                      :is-plain-text-mode="isPlainTextMode"
+                      @rendered="handlePreviewRendered"
                   />
                 </div>
               </template>
@@ -923,16 +922,16 @@ const handleStorageChange = (e) => {
           <!-- 编辑模式 - 显示编辑器和相关配置表单 -->
           <div v-else-if="viewMode === 'edit'" class="flex flex-col p-6">
             <PasteViewEditor
-              :dark-mode="darkMode"
-              :content="editContent"
-              :paste="paste"
-              :loading="loading"
-              :error="error"
-              :is-dev="isDev"
-              :enable-debug="enableDebug"
-              @save="saveEdit"
-              @cancel="cancelEdit"
-              @update:error="(val) => (error = val)"
+                :dark-mode="darkMode"
+                :content="editContent"
+                :paste="paste"
+                :loading="loading"
+                :error="error"
+                :is-dev="isDev"
+                :enable-debug="enableDebug"
+                @save="saveEdit"
+                @cancel="cancelEdit"
+                @update:error="(val) => (error = val)"
             />
           </div>
         </div>

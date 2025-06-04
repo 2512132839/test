@@ -116,9 +116,9 @@
             </div>
 
             <button
-              @click="$emit('close')"
-              class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+                @click="$emit('close')"
+                class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
             >
               关闭
             </button>
@@ -252,23 +252,16 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + " " + sizes[i];
 };
 
+// 导入统一的时间处理工具
+import { formatDateTimeWithSeconds } from "../../../utils/timeUtils.js";
+
 /**
  * 格式化日期时间
- * @param {string} dateString - ISO格式的日期字符串
- * @returns {string} 格式化后的日期时间
+ * @param {string} dateString - UTC 时间字符串
+ * @returns {string} 格式化后的本地时间字符串
  */
 const formatDateTime = (dateString) => {
-  if (!dateString) return "未知";
-
-  const date = new Date(dateString);
-  return date.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return formatDateTimeWithSeconds(dateString);
 };
 
 /**

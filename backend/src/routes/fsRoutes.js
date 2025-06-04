@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { apiKeyFileMiddleware } from "../middlewares/apiKeyMiddleware.js";
-import { createErrorResponse, generateFileId, getLocalTimeString } from "../utils/common.js";
+import { createErrorResponse, generateFileId } from "../utils/common.js";
 import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
 import {
@@ -1194,19 +1194,16 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
     // 生成slug（使用文件ID的前8位作为slug）
     const fileSlug = "M-" + fileId.substring(0, 5);
 
-    // 获取当前时间
-    const now = getLocalTimeString();
-
     // 记录文件上传成功
     await db
         .prepare(
             `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `
         )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId)
         .run();
 
     // 提取父路径
@@ -1292,19 +1289,16 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
     // 生成slug（使用文件ID的前8位作为slug）
     const fileSlug = "M-" + fileId.substring(0, 5);
 
-    // 获取当前时间
-    const now = getLocalTimeString();
-
     // 记录文件上传成功
     await db
         .prepare(
             `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `
         )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`, now, now)
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`)
         .run();
 
     // 提取父路径

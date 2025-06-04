@@ -62,113 +62,47 @@ const truncateText = (text, length = 10) => {
   return text.length <= length ? text : `${text.substring(0, length)}...`;
 };
 
+// 导入统一的时间处理工具
+import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil, isExpired as isExpiredUtil } from "../../utils/timeUtils.js";
+
 /**
  * 格式化日期为本地日期时间字符串
- * @param {string} dateString - ISO格式的日期字符串
- * @returns {string} 格式化后的日期字符串
+ * @param {string} dateString - UTC 时间字符串
+ * @returns {string} 格式化后的本地时间字符串
  */
 const formatDate = (dateString) => {
-  if (!dateString) return "未知";
-
-  try {
-    const date = new Date(dateString);
-
-    // 检查日期是否有效
-    if (isNaN(date.getTime())) {
-      return "日期无效";
-    }
-
-    // 使用Intl.DateTimeFormat以确保时区正确
-    return new Intl.DateTimeFormat("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false, // 使用24小时制
-    }).format(date);
-  } catch (e) {
-    console.error("日期格式化错误:", e);
-    return "日期格式错误";
-  }
+  return formatDateTime(dateString);
 };
 
 /**
  * 格式化过期日期，同时显示具体日期和相对时间
- * @param {string} expiryDate - ISO格式的过期日期
+ * @param {string} expiryDate - UTC 时间字符串
  * @returns {string} 格式化后的过期信息
  */
 const formatExpiry = (expiryDate) => {
-  if (!expiryDate) return "永不过期";
-
-  try {
-    const expiry = new Date(expiryDate);
-    const now = new Date();
-
-    // 检查日期是否有效
-    if (isNaN(expiry.getTime())) {
-      return "日期无效";
-    }
-
-    if (expiry < now) {
-      return "已过期";
-    }
-
-    // 显示具体日期和相对时间
-    const formattedDate = formatDate(expiryDate);
-    const relativeTime = formatRelativeTime(expiryDate);
-
-    return `${formattedDate} (${relativeTime})`;
-  } catch (e) {
-    console.error("过期时间格式化错误:", e);
-    return "日期格式错误";
-  }
+  return formatExpiryUtil(expiryDate);
 };
 
 /**
  * 格式化相对时间（如：3天后过期）
- * @param {string} dateString - ISO格式的日期字符串
+ * @param {string} dateString - UTC 时间字符串
  * @returns {string} 相对时间描述
  */
 const formatRelativeTime = (dateString) => {
   if (!dateString) return "";
 
-  try {
-    const targetDate = new Date(dateString);
-    const now = new Date();
+  const relativeTime = formatRelativeTimeUtil(dateString);
 
-    // 检查日期是否有效
-    if (isNaN(targetDate.getTime())) {
-      return "";
-    }
-
-    // 计算时间差（毫秒）
-    const diff = targetDate - now;
-
-    // 转换为秒、分钟、小时、天
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    // 根据时间差返回不同的文本
-    if (diff < 0) {
-      return "已过期";
-    } else if (days > 30) {
-      return `${Math.floor(days / 30)}个月后过期`;
-    } else if (days > 0) {
-      return `${days}天后过期`;
-    } else if (hours > 0) {
-      return `${hours}小时后过期`;
-    } else if (minutes > 0) {
-      return `${minutes}分钟后过期`;
-    } else {
-      return "即将过期";
-    }
-  } catch (e) {
-    console.error("相对时间格式化错误:", e);
-    return "";
+  // 为过期场景添加特殊处理
+  if (relativeTime.includes("前")) {
+    return "已过期";
+  } else if (relativeTime === "即将") {
+    return "即将过期";
+  } else if (relativeTime.includes("后")) {
+    return relativeTime.replace("后", "后过期");
   }
+
+  return relativeTime;
 };
 
 /**
@@ -200,9 +134,7 @@ const getRemainingViews = (paste) => {
  */
 const isExpired = (paste) => {
   if (!paste.expires_at) return false;
-  const expiryDate = new Date(paste.expires_at);
-  const now = new Date();
-  return expiryDate < now;
+  return isExpiredUtil(paste.expires_at);
 };
 
 /**
@@ -264,25 +196,25 @@ const formatCreator = (paste) => {
         <!-- 左侧：复选框、链接和复制按钮 -->
         <div class="flex items-center">
           <input
-            type="checkbox"
-            :checked="selectedPastes.includes(paste.id)"
-            @change="$emit('toggle-select-item', paste.id)"
-            class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded cursor-pointer mr-2"
+              type="checkbox"
+              :checked="selectedPastes.includes(paste.id)"
+              @change="$emit('toggle-select-item', paste.id)"
+              class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded cursor-pointer mr-2"
           />
           <span
-            class="cursor-pointer font-medium text-base hover:underline"
-            @click="$emit('view', paste.slug)"
-            :class="isExpired(paste) ? 'text-red-600 dark:text-red-400' : 'text-primary-600 dark:text-primary-400'"
+              class="cursor-pointer font-medium text-base hover:underline"
+              @click="$emit('view', paste.slug)"
+              :class="isExpired(paste) ? 'text-red-600 dark:text-red-400' : 'text-primary-600 dark:text-primary-400'"
           >
             {{ paste.slug }}
           </span>
           <button @click="$emit('copy-link', paste.slug)" class="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 relative" title="复制链接">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
               />
             </svg>
             <!-- 添加复制成功提示 -->
@@ -294,10 +226,10 @@ const formatCreator = (paste) => {
           <button @click="$emit('show-qrcode', paste.slug)" class="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" title="显示二维码">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
               />
             </svg>
           </button>
@@ -310,10 +242,10 @@ const formatCreator = (paste) => {
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
               />
             </svg>
           </button>
@@ -322,10 +254,10 @@ const formatCreator = (paste) => {
           <button class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 p-1" @click="$emit('edit', paste)">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
               />
             </svg>
           </button>
@@ -344,10 +276,10 @@ const formatCreator = (paste) => {
           <button class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1" @click="$emit('delete', paste.id)">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
               />
             </svg>
           </button>
@@ -360,12 +292,12 @@ const formatCreator = (paste) => {
         <div>
           <div class="text-gray-500 dark:text-gray-400 text-xs mb-1">备注</div>
           <span
-            class="truncate max-w-xs inline-block px-2 py-1 rounded"
-            :class="[
+              class="truncate max-w-xs inline-block px-2 py-1 rounded"
+              :class="[
               paste.remark ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : darkMode ? 'text-gray-300' : 'text-gray-500',
               isExpired(paste) ? 'text-red-600 dark:text-red-400' : '',
             ]"
-            :title="paste.remark || '无'"
+              :title="paste.remark || '无'"
           >
             {{ truncateText(paste.remark) }}
           </span>
@@ -392,14 +324,14 @@ const formatCreator = (paste) => {
           <div class="text-gray-500 dark:text-gray-400 text-xs mb-1">创建者</div>
           <div class="flex">
             <span
-              v-if="paste.created_by && paste.created_by.startsWith('apikey:')"
-              class="px-3 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 inline-block mt-1"
+                v-if="paste.created_by && paste.created_by.startsWith('apikey:')"
+                class="px-3 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 inline-block mt-1"
             >
               {{ paste.key_name ? `密钥：${paste.key_name}` : `密钥：${paste.created_by.substring(7, 12)}...` }}
             </span>
             <span
-              v-else-if="paste.created_by === 'admin' || (paste.created_by && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paste.created_by))"
-              class="px-3 py-1 text-xs rounded bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 inline-block mt-1"
+                v-else-if="paste.created_by === 'admin' || (paste.created_by && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paste.created_by))"
+                class="px-3 py-1 text-xs rounded bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 inline-block mt-1"
             >
               管理员
             </span>
@@ -415,16 +347,16 @@ const formatCreator = (paste) => {
           <div class="flex items-center flex-wrap gap-2">
             <!-- 密码状态标签 - 已加密 -->
             <span
-              v-if="hasPassword(paste)"
-              class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-              :class="[isExpired(paste) ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100']"
+                v-if="hasPassword(paste)"
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                :class="[isExpired(paste) ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100']"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                 />
               </svg>
               已加密
@@ -432,16 +364,16 @@ const formatCreator = (paste) => {
 
             <!-- 密码状态标签 - 公开 -->
             <span
-              v-else
-              class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-              :class="[isExpired(paste) ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100']"
+                v-else
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                :class="[isExpired(paste) ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100']"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
                 />
               </svg>
               公开
@@ -449,8 +381,8 @@ const formatCreator = (paste) => {
 
             <!-- 剩余访问次数标签 -->
             <span
-              class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-              :class="[
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                :class="[
                 isExpired(paste)
                   ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
                   : getRemainingViews(paste) === '已用完'
@@ -461,10 +393,10 @@ const formatCreator = (paste) => {
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                 />
               </svg>
               剩余 {{ getRemainingViews(paste) }}

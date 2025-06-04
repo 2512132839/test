@@ -65,11 +65,8 @@ const keyTableRef = ref(null);
 // 可用挂载点列表
 const availableMounts = ref([]);
 
-// 格式化当前时间为本地时间字符串
-const formatCurrentTime = () => {
-  const now = new Date();
-  return now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-};
+// 导入统一的时间处理工具
+import { formatCurrentTime } from "../../utils/timeUtils.js";
 
 // 更新最后刷新时间
 const updateLastRefreshTime = () => {

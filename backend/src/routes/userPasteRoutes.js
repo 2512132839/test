@@ -15,7 +15,7 @@ import {
 } from "../services/pasteService.js";
 import { ApiStatus, DbTables } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
-import { createErrorResponse, getLocalTimeString } from "../utils/common.js";
+import { createErrorResponse } from "../utils/common.js";
 
 const userPasteRoutes = new Hono();
 
@@ -70,11 +70,11 @@ userPasteRoutes.post("/api/paste", async (c) => {
             .prepare(
                 `
           UPDATE ${DbTables.API_KEYS}
-          SET last_used = ?
+          SET last_used = CURRENT_TIMESTAMP
           WHERE id = ?
         `
             )
-            .bind(getLocalTimeString(), keyRecord.id)
+            .bind(keyRecord.id)
             .run();
       }
     }

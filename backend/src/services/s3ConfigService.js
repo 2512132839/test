@@ -3,7 +3,7 @@
  */
 import { DbTables, ApiStatus, S3ProviderTypes } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
-import { createErrorResponse, getLocalTimeString, generateS3ConfigId, formatFileSize } from "../utils/common.js";
+import { createErrorResponse, generateS3ConfigId, formatFileSize } from "../utils/common.js";
 import { encryptValue, decryptValue } from "../utils/crypto.js";
 import { createS3Client } from "../utils/s3Utils.js";
 import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -169,13 +169,13 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
       .prepare(
           `
     INSERT INTO ${DbTables.S3_CONFIGS} (
-      id, name, provider_type, endpoint_url, bucket_name, 
-      region, access_key_id, secret_access_key, path_style, 
+      id, name, provider_type, endpoint_url, bucket_name,
+      region, access_key_id, secret_access_key, path_style,
       default_folder, is_public, admin_id, total_storage_bytes, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, 
-      ?, ?, ?, ?, 
-      ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `
       )
@@ -192,9 +192,7 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
           defaultFolder,
           isPublic,
           adminId,
-          totalStorageBytes,
-          getLocalTimeString(),
-          getLocalTimeString()
+          totalStorageBytes
       )
       .run();
 
@@ -324,8 +322,7 @@ export async function updateS3Config(db, id, updateData, adminId, encryptionSecr
   }
 
   // 更新时间戳
-  updateFields.push("updated_at = ?");
-  params.push(new Date().toISOString());
+  updateFields.push("updated_at = CURRENT_TIMESTAMP");
 
   // 如果没有更新字段，直接返回成功
   if (updateFields.length === 0) {
@@ -824,11 +821,11 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
       .prepare(
           `
       UPDATE ${DbTables.S3_CONFIGS}
-      SET last_used = ?
+      SET last_used = CURRENT_TIMESTAMP
       WHERE id = ?
     `
       )
-      .bind(getLocalTimeString(), id)
+      .bind(id)
       .run();
 
   // 生成友好的测试结果消息

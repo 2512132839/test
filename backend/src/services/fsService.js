@@ -34,7 +34,7 @@ import { initializeMultipartUpload } from "./multipartUploadService.js";
 import { S3ProviderTypes } from "../constants/index.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
 import { deleteFileRecordByStoragePath } from "./fileService.js";
-import { generateFileId, getLocalTimeString } from "../utils/common.js";
+import { generateFileId } from "../utils/common.js";
 import { getMimeTypeFromFilename, getMimeTypeAndGroupFromFile, getContentTypeAndDisposition, MIME_GROUPS } from "../utils/fileUtils.js";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -920,16 +920,13 @@ export async function uploadFile(db, path, file, userIdOrInfo, userType, encrypt
             // 生成slug（使用文件ID的前5位作为slug）
             const fileSlug = "M-" + fileId.substring(0, 5);
 
-            // 获取当前时间
-            const now = getLocalTimeString();
-
             // 记录文件信息到数据库
             await db
                 .prepare(
                     `
               INSERT INTO files (
                 id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             `
                 )
                 .bind(
@@ -942,9 +939,7 @@ export async function uploadFile(db, path, file, userIdOrInfo, userType, encrypt
                     s3Config.id,
                     fileSlug,
                     result.ETag ? result.ETag.replace(/"/g, "") : null,
-                    `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`,
-                    now,
-                    now
+                    `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`
                 )
                 .run();
 

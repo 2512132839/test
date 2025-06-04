@@ -89,14 +89,8 @@ const s3ConfigsList = ref([]);
 // API密钥名称映射 - 用于存储API密钥ID与名称的对应关系
 const apiKeyNames = ref({});
 
-/**
- * 格式化当前时间为本地时间字符串
- * @returns {string} 格式化后的时间字符串
- */
-const formatCurrentTime = () => {
-  const now = new Date();
-  return now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-};
+// 导入统一的时间处理工具
+import { formatCurrentTime, formatDateTimeWithSeconds } from "../../utils/timeUtils.js";
 
 /**
  * 更新最后刷新时间
@@ -109,23 +103,7 @@ const updateLastRefreshTime = () => {
 // 格式化日期显示
 const formatDate = (dateString) => {
   if (!dateString) return "-";
-  const date = new Date(dateString);
-
-  // 检查日期是否有效
-  if (isNaN(date.getTime())) {
-    return "日期无效";
-  }
-
-  // 使用Intl.DateTimeFormat以确保时区正确
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false, // 使用24小时制
-  }).format(date);
+  return formatDateTimeWithSeconds(dateString);
 };
 
 // 更新分页信息

@@ -4,7 +4,7 @@
  */
 import { DbTables } from "../constants/index.js";
 import { ApiStatus } from "../constants/index.js";
-import { createErrorResponse, getLocalTimeString, formatFileSize } from "../utils/common.js";
+import { createErrorResponse, formatFileSize } from "../utils/common.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import {
@@ -116,15 +116,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询数据库中的API密钥记录
       const keyRecord = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, name, file_permission, expires_at
           FROM ${DbTables.API_KEYS}
           WHERE key = ?
         `
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       // 如果密钥存在且有文件权限
       if (keyRecord && keyRecord.file_permission === 1) {
@@ -137,15 +137,15 @@ export function registerUrlUploadRoutes(app) {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `
+              .prepare(
+                  `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(keyRecord.id)
+              .run();
         }
       }
     }
@@ -169,14 +169,14 @@ export function registerUrlUploadRoutes(app) {
 
       // 验证S3配置ID
       const s3Config = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id FROM ${DbTables.S3_CONFIGS}
           WHERE id = ? AND ${authorizedBy === "admin" ? "admin_id = ?" : "is_public = 1"}
         `
-        )
-        .bind(...(authorizedBy === "admin" ? [body.s3_config_id, adminId] : [body.s3_config_id]))
-        .first();
+          )
+          .bind(...(authorizedBy === "admin" ? [body.s3_config_id, adminId] : [body.s3_config_id]))
+          .first();
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "指定的S3配置不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -266,15 +266,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询数据库中的API密钥记录
       const keyRecord = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, name, file_permission, expires_at
           FROM ${DbTables.API_KEYS}
           WHERE key = ?
         `
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       // 如果密钥存在且有文件权限
       if (keyRecord && keyRecord.file_permission === 1) {
@@ -287,15 +287,15 @@ export function registerUrlUploadRoutes(app) {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `
+              .prepare(
+                  `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(keyRecord.id)
+              .run();
         }
       }
     }
@@ -319,15 +319,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询待提交的文件信息
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, filename, storage_path, s3_config_id, size, s3_url, slug, created_by
           FROM ${DbTables.FILES}
           WHERE id = ?
         `
-        )
-        .bind(body.file_id)
-        .first();
+          )
+          .bind(body.file_id)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -344,13 +344,13 @@ export function registerUrlUploadRoutes(app) {
 
       // 获取S3配置
       const s3ConfigQuery =
-        authorizedBy === "admin" ? `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?` : `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND is_public = 1`;
+          authorizedBy === "admin" ? `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?` : `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND is_public = 1`;
 
       const s3ConfigParams = authorizedBy === "admin" ? [file.s3_config_id, adminId] : [file.s3_config_id];
       const s3Config = await db
-        .prepare(s3ConfigQuery)
-        .bind(...s3ConfigParams)
-        .first();
+          .prepare(s3ConfigQuery)
+          .bind(...s3ConfigParams)
+          .first();
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "无效的S3配置ID或无权访问该配置"), ApiStatus.BAD_REQUEST);
@@ -360,15 +360,15 @@ export function registerUrlUploadRoutes(app) {
       if (s3Config.total_storage_bytes !== null) {
         // 获取当前存储桶已使用的总容量（不包括当前待提交的文件）
         const usageResult = await db
-          .prepare(
-            `
+            .prepare(
+                `
             SELECT SUM(size) as total_used
             FROM ${DbTables.FILES}
             WHERE s3_config_id = ? AND id != ?
           `
-          )
-          .bind(file.s3_config_id, file.id)
-          .first();
+            )
+            .bind(file.s3_config_id, file.id)
+            .first();
 
         const currentUsage = usageResult?.total_used || 0;
         const fileSize = parseInt(body.size || 0);
@@ -395,11 +395,11 @@ export function registerUrlUploadRoutes(app) {
           const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
 
           return c.json(
-            createErrorResponse(
-              ApiStatus.BAD_REQUEST,
-              `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。文件已被删除。`
-            ),
-            ApiStatus.BAD_REQUEST
+              createErrorResponse(
+                  ApiStatus.BAD_REQUEST,
+                  `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。文件已被删除。`
+              ),
+              ApiStatus.BAD_REQUEST
           );
         }
       }
@@ -459,19 +459,18 @@ export function registerUrlUploadRoutes(app) {
 
       // 更新ETag和创建者
       const creator = authorizedBy === "admin" ? adminId : `apikey:${apiKeyId}`;
-      const now = getLocalTimeString();
 
       // 构建SQL更新语句
       let updateSql = `
         UPDATE ${DbTables.FILES}
-        SET 
-          etag = ?, 
-          created_by = ?, 
+        SET
+          etag = ?,
+          created_by = ?,
           remark = ?,
           password = ?,
           expires_at = ?,
           max_views = ?,
-          updated_at = ?,
+          updated_at = CURRENT_TIMESTAMP,
           size = CASE WHEN ? IS NOT NULL THEN ? ELSE size END
       `;
 
@@ -490,7 +489,6 @@ export function registerUrlUploadRoutes(app) {
         passwordHash,
         expiresAt,
         maxViews,
-        now,
         fileSize !== null ? 1 : null, // 条件参数
         fileSize, // 文件大小值
       ];
@@ -505,9 +503,9 @@ export function registerUrlUploadRoutes(app) {
 
       // 更新文件记录
       await db
-        .prepare(updateSql)
-        .bind(...bindParams)
-        .run();
+          .prepare(updateSql)
+          .bind(...bindParams)
+          .run();
 
       // 处理明文密码保存
       if (body.password) {
@@ -516,13 +514,13 @@ export function registerUrlUploadRoutes(app) {
 
         if (passwordExists) {
           // 更新现有密码
-          await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = ? WHERE file_id = ?`).bind(body.password, now, body.file_id).run();
+          await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = CURRENT_TIMESTAMP WHERE file_id = ?`).bind(body.password, body.file_id).run();
         } else {
           // 插入新密码
           await db
-            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-            .bind(body.file_id, body.password, now, now)
-            .run();
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+              .bind(body.file_id, body.password)
+              .run();
         }
       }
 
@@ -531,8 +529,8 @@ export function registerUrlUploadRoutes(app) {
 
       // 获取更新后的文件记录
       const updatedFile = await db
-        .prepare(
-          `
+          .prepare(
+              `
         SELECT 
           id, slug, filename, storage_path, s3_url, 
           mimetype, size, remark, 
@@ -540,9 +538,9 @@ export function registerUrlUploadRoutes(app) {
         FROM ${DbTables.FILES}
         WHERE id = ?
       `
-        )
-        .bind(body.file_id)
-        .first();
+          )
+          .bind(body.file_id)
+          .first();
 
       // 返回成功响应
       return c.json({
@@ -590,15 +588,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询数据库中的API密钥记录
       const keyRecord = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, name, file_permission, expires_at
           FROM ${DbTables.API_KEYS}
           WHERE key = ?
         `
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       // 如果密钥存在且有文件权限
       if (keyRecord && keyRecord.file_permission === 1) {
@@ -611,15 +609,15 @@ export function registerUrlUploadRoutes(app) {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `
+              .prepare(
+                  `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(keyRecord.id)
+              .run();
         }
       }
     }
@@ -643,14 +641,14 @@ export function registerUrlUploadRoutes(app) {
 
       // 验证S3配置ID
       const s3Config = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id FROM ${DbTables.S3_CONFIGS}
           WHERE id = ? AND ${authorizedBy === "admin" ? "admin_id = ?" : "is_public = 1"}
         `
-        )
-        .bind(...(authorizedBy === "admin" ? [body.s3_config_id, adminId] : [body.s3_config_id]))
-        .first();
+          )
+          .bind(...(authorizedBy === "admin" ? [body.s3_config_id, adminId] : [body.s3_config_id]))
+          .first();
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "指定的S3配置不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -748,15 +746,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询数据库中的API密钥记录
       const keyRecord = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, name, file_permission, expires_at
           FROM ${DbTables.API_KEYS}
           WHERE key = ?
         `
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       // 如果密钥存在且有文件权限
       if (keyRecord && keyRecord.file_permission === 1) {
@@ -769,15 +767,15 @@ export function registerUrlUploadRoutes(app) {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `
+              .prepare(
+                  `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(keyRecord.id)
+              .run();
         }
       }
     }
@@ -805,15 +803,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询文件记录
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, created_by, s3_config_id
           FROM ${DbTables.FILES}
           WHERE id = ?
         `
-        )
-        .bind(body.file_id)
-        .first();
+          )
+          .bind(body.file_id)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -884,15 +882,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询数据库中的API密钥记录
       const keyRecord = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, name, file_permission, expires_at
           FROM ${DbTables.API_KEYS}
           WHERE key = ?
         `
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       // 如果密钥存在且有文件权限
       if (keyRecord && keyRecord.file_permission === 1) {
@@ -905,15 +903,15 @@ export function registerUrlUploadRoutes(app) {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `
+              .prepare(
+                  `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(keyRecord.id)
+              .run();
         }
       }
     }
@@ -937,15 +935,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询文件记录
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, created_by, s3_config_id
           FROM ${DbTables.FILES}
           WHERE id = ?
         `
-        )
-        .bind(body.file_id)
-        .first();
+          )
+          .bind(body.file_id)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -1014,15 +1012,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询数据库中的API密钥记录
       const keyRecord = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, name, file_permission, expires_at
           FROM ${DbTables.API_KEYS}
           WHERE key = ?
         `
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       // 如果密钥存在且有文件权限
       if (keyRecord && keyRecord.file_permission === 1) {
@@ -1035,15 +1033,15 @@ export function registerUrlUploadRoutes(app) {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `
+              .prepare(
+                  `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(keyRecord.id)
+              .run();
         }
       }
     }
@@ -1063,15 +1061,15 @@ export function registerUrlUploadRoutes(app) {
 
       // 查询文件记录
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, created_by, s3_config_id, storage_path
           FROM ${DbTables.FILES}
           WHERE id = ?
         `
-        )
-        .bind(body.file_id)
-        .first();
+          )
+          .bind(body.file_id)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);

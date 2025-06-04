@@ -140,7 +140,7 @@
             <!-- 任务详情 - 仅在展开时显示 -->
             <div v-if="isTaskExpanded(task.id)" class="mt-2 pt-2 border-t" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
               <!-- 完成时间 -->
-              <div class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">完成时间: {{ new Date(task.updatedAt).toLocaleString() }}</div>
+              <div class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">完成时间: {{ formatDateTime(task.updatedAt) }}</div>
 
               <!-- 任务详情 -->
               <div v-if="task.details && Object.keys(task.details).length > 0" class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
@@ -408,42 +408,12 @@ const TIME_UNITS = {
   WEEK: 604800,
 };
 
-// 获取相对时间文本 - 优化版本
+// 导入统一的时间处理工具
+import { formatRelativeTime, formatDateTime } from "../../utils/timeUtils.js";
+
+// 获取相对时间文本 - 使用统一的时间处理工具
 const getTimeAgo = (dateString) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now - date) / 1000);
-
-  // 如果时间差小于一分钟，显示"刚刚"
-  if (diffInSeconds < TIME_UNITS.MINUTE) return "刚刚";
-
-  // 如果时间差小于一小时，显示分钟数
-  if (diffInSeconds < TIME_UNITS.HOUR) {
-    const minutes = Math.floor(diffInSeconds / TIME_UNITS.MINUTE);
-    return `${minutes}分钟前`;
-  }
-
-  // 如果时间差小于24小时，显示小时数
-  if (diffInSeconds < TIME_UNITS.DAY) {
-    const hours = Math.floor(diffInSeconds / TIME_UNITS.HOUR);
-    return `${hours}小时前`;
-  }
-
-  // 如果时间差小于7天，显示天数
-  if (diffInSeconds < TIME_UNITS.WEEK) {
-    const days = Math.floor(diffInSeconds / TIME_UNITS.DAY);
-    return `${days}天前`;
-  }
-
-  // 如果时间差大于7天，显示具体日期
-  const options = { month: "short", day: "numeric" };
-
-  // 如果不是今年，还要显示年份
-  if (date.getFullYear() !== now.getFullYear()) {
-    options.year = "numeric";
-  }
-
-  return date.toLocaleDateString(undefined, options);
+  return formatRelativeTime(dateString);
 };
 
 // 格式化进度数值
