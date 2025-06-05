@@ -73,6 +73,28 @@ export function clearExpiredPastes() {
 }
 
 /**
+ * 清理目录缓存（管理员）
+ * @param {Object} options - 清理选项
+ * @param {string} [options.mountId] - 要清理的挂载点ID
+ * @param {string} [options.s3ConfigId] - S3配置ID
+ * @returns {Promise<Object>} 清理结果
+ */
+export function clearCacheAdmin(options = {}) {
+  return post("/admin/cache/clear", options);
+}
+
+/**
+ * 清理目录缓存（API密钥用户）
+ * @param {Object} options - 清理选项
+ * @param {string} [options.mountId] - 要清理的挂载点ID
+ * @param {string} [options.s3ConfigId] - S3配置ID
+ * @returns {Promise<Object>} 清理结果
+ */
+export function clearCacheUser(options = {}) {
+  return post("/user/cache/clear", options);
+}
+
+/**
  * 系统健康检查
  * @returns {Promise<Object>} 健康检查结果
  */
@@ -87,5 +109,3 @@ export function healthCheck() {
 export function getVersionInfo() {
   return get("/version");
 }
-
-

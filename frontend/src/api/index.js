@@ -81,6 +81,7 @@ export const api = {
     getSystemSettings: systemService.getSystemSettings,
     updateSystemSettings: systemService.updateSystemSettings,
     getDashboardStats: systemService.getDashboardStats,
+    clearCache: systemService.clearCacheAdmin,
 
     // 文件系统管理
     getDirectoryList: fsService.getAdminDirectoryList,
@@ -193,6 +194,11 @@ export const api = {
       getUrlUploadPresignedUrl: urlUploadService.getUrlUploadPresignedUrl,
       uploadFromUrlToS3: urlUploadService.uploadFromUrlToS3,
       commitUrlUpload: urlUploadService.commitUrlUpload,
+    },
+
+    // API密钥用户的系统服务
+    system: {
+      clearCache: systemService.clearCacheUser,
     },
   },
 };

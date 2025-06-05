@@ -450,6 +450,22 @@ const checkPermissions = () => {
 // 处理刷新操作
 const handleRefresh = async () => {
   try {
+    // 先清理缓存
+    try {
+      console.log("正在清理目录缓存...");
+      const clearCacheFunction = isAdmin.value ? api.admin.clearCache : api.user.system.clearCache;
+      const cacheResponse = await clearCacheFunction();
+
+      if (cacheResponse.success) {
+        console.log(`缓存清理成功，共清理 ${cacheResponse.data?.clearedCount || 0} 项`);
+      } else {
+        console.warn("缓存清理失败:", cacheResponse.message);
+      }
+    } catch (cacheError) {
+      console.warn("清理缓存时出错:", cacheError);
+      // 缓存清理失败不影响后续刷新操作
+    }
+
     // 对于API密钥用户，先刷新API密钥信息
     if (!isAdmin.value && hasApiKey.value) {
       const refreshed = await refreshApiKeyInfo();
@@ -469,6 +485,8 @@ const handleRefresh = async () => {
 
         showMessage("success", "已更新API密钥信息");
       }
+    } else {
+      showMessage("success", "刷新成功");
     }
 
     // 加载目录内容
