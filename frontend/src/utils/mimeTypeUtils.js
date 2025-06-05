@@ -20,6 +20,9 @@ export const MIME_GROUPS = {
   EXECUTABLE: "executable",
   DESIGN: "design",
   EBOOK: "ebook",
+  MODEL: "model",
+  CERTIFICATE: "certificate",
+  DATA: "data",
   UNKNOWN: "unknown",
 };
 
@@ -187,6 +190,26 @@ export const GROUP_TO_STYLE_CLASS = {
     dark: "text-slate-400",
     light: "text-slate-500",
   },
+  [MIME_GROUPS.DESIGN]: {
+    dark: "text-violet-400",
+    light: "text-violet-500",
+  },
+  [MIME_GROUPS.EBOOK]: {
+    dark: "text-amber-400",
+    light: "text-amber-500",
+  },
+  [MIME_GROUPS.MODEL]: {
+    dark: "text-emerald-400",
+    light: "text-emerald-500",
+  },
+  [MIME_GROUPS.CERTIFICATE]: {
+    dark: "text-teal-400",
+    light: "text-teal-500",
+  },
+  [MIME_GROUPS.DATA]: {
+    dark: "text-sky-400",
+    light: "text-sky-500",
+  },
   [MIME_GROUPS.UNKNOWN]: {
     dark: "text-gray-400",
     light: "text-gray-500",
@@ -259,6 +282,18 @@ export const GROUP_TO_BG_CLASS = {
     dark: "bg-sky-900 text-sky-200",
     light: "bg-sky-100 text-sky-800",
   },
+  [MIME_GROUPS.MODEL]: {
+    dark: "bg-emerald-900 text-emerald-200",
+    light: "bg-emerald-100 text-emerald-800",
+  },
+  [MIME_GROUPS.CERTIFICATE]: {
+    dark: "bg-teal-900 text-teal-200",
+    light: "bg-teal-100 text-teal-800",
+  },
+  [MIME_GROUPS.DATA]: {
+    dark: "bg-sky-900 text-sky-200",
+    light: "bg-sky-100 text-sky-800",
+  },
   [MIME_GROUPS.UNKNOWN]: {
     dark: "bg-gray-700 text-gray-300",
     light: "bg-gray-200 text-gray-700",
@@ -284,6 +319,9 @@ export const GROUP_TO_SIMPLE_LABEL = {
   [MIME_GROUPS.EXECUTABLE]: "可执行文件",
   [MIME_GROUPS.DESIGN]: "设计文件",
   [MIME_GROUPS.EBOOK]: "电子书",
+  [MIME_GROUPS.MODEL]: "3D模型",
+  [MIME_GROUPS.CERTIFICATE]: "证书",
+  [MIME_GROUPS.DATA]: "数据",
   [MIME_GROUPS.UNKNOWN]: "未知",
 };
 
@@ -300,6 +338,18 @@ export const EXTENSION_TO_TYPE_MAP = {
   ico: "image",
   heic: "image",
   avif: "image",
+  jfif: "image",
+  jpe: "image",
+  pjpeg: "image",
+  pjp: "image",
+  jxl: "image",
+  tiff: "image",
+  tif: "image",
+  raw: "image",
+  cr2: "image",
+  nef: "image",
+  arw: "image",
+  dng: "image",
 
   // 文档
   doc: "document",
@@ -359,6 +409,11 @@ export const EXTENSION_TO_TYPE_MAP = {
   java: "code",
   c: "code",
   cpp: "code", // C++
+  cxx: "code", // C++
+  cc: "code", // C++
+  h: "code", // C header
+  hpp: "code", // C++ header
+  hxx: "code", // C++ header
   cs: "code", // C#
   php: "code",
   swift: "code",
@@ -374,6 +429,25 @@ export const EXTENSION_TO_TYPE_MAP = {
   zsh: "code",
   fish: "code",
   vue: "code", // Vue
+  sass: "code", // Sass
+  scss: "code", // SCSS
+  less: "code", // Less
+  styl: "code", // Stylus
+  coffee: "code", // CoffeeScript
+  elm: "code", // Elm
+  haskell: "code", // Haskell
+  hs: "code", // Haskell
+  ml: "code", // OCaml
+  fs: "code", // F#
+  vb: "code", // Visual Basic
+  pas: "code", // Pascal
+  asm: "code", // Assembly
+  s: "code", // Assembly
+  bat: "code", // Batch
+  cmd: "code", // Command
+  ps1: "code", // PowerShell
+  psm1: "code", // PowerShell
+  psd1: "code", // PowerShell
 
   // 音频
   mp3: "audio",
@@ -382,6 +456,20 @@ export const EXTENSION_TO_TYPE_MAP = {
   flac: "audio",
   aac: "audio",
   m4a: "audio",
+  wma: "audio",
+  opus: "audio",
+  ape: "audio",
+  alac: "audio",
+  dsd: "audio",
+  dsf: "audio",
+  dff: "audio",
+  mid: "audio",
+  midi: "audio",
+  kar: "audio",
+  ra: "audio",
+  ram: "audio",
+  au: "audio",
+  snd: "audio",
 
   // 视频
   mp4: "video",
@@ -393,6 +481,20 @@ export const EXTENSION_TO_TYPE_MAP = {
   flv: "video",
   m4v: "video",
   "3gp": "video",
+  "3g2": "video",
+  mpg: "video",
+  mpeg: "video",
+  mpe: "video",
+  ogv: "video",
+  vob: "video",
+  asf: "video",
+  rm: "video",
+  rmvb: "video",
+  f4v: "video",
+  m2ts: "video",
+  mts: "video",
+  divx: "video",
+  xvid: "video",
 
   // 数据库
   db: "database",
@@ -428,8 +530,50 @@ export const EXTENSION_TO_TYPE_MAP = {
   mobi: "ebook",
   azw3: "ebook", // Kindle
 
+  // 3D模型
+  obj: "model",
+  stl: "model",
+  gltf: "model",
+  glb: "model",
+
+  // 证书文件
+  crt: "certificate",
+  cer: "certificate",
+  pem: "certificate",
+  key: "certificate",
+  p12: "certificate",
+  pfx: "certificate",
+  jks: "certificate",
+
+  // 数据格式
+  protobuf: "data",
+  proto: "data",
+  avro: "data",
+  parquet: "data",
+  tsv: "data",
+  psv: "data",
+  ndjson: "data",
+  jsonl: "data",
+
+  // 文档格式
+  tex: "document",
+  bib: "document",
+  rst: "document",
+  adoc: "document",
+  org: "document",
+
+  // 虚拟化文件
+  iso: "archive",
+  img: "archive",
+  vhd: "archive",
+  vmdk: "archive",
+  ova: "archive",
+  ovf: "archive",
+
   // 其他
   log: "text", // 日志文件
+  bin: "executable", // 二进制文件
+  dat: "data", // 数据文件
 };
 
 // 文件类型到MIME类型的映射
@@ -451,6 +595,9 @@ export const FILE_TYPE_TO_MIME_TYPE_MAP = {
   font: "font/ttf",
   design: "image/vnd.adobe.photoshop",
   ebook: "application/epub+zip",
+  model: "model/obj",
+  certificate: "application/x-x509-ca-cert",
+  data: "application/octet-stream",
 };
 
 /**
@@ -688,11 +835,55 @@ export const formatMimeType = (mimeType, filename) => {
   }
 
   // 其他特殊类型
-  if (group === MIME_GROUPS.EBOOK) return "EPUB电子书";
+  if (group === MIME_GROUPS.EBOOK) {
+    if (mimeType.includes("epub")) return "EPUB电子书";
+    if (mimeType.includes("mobi")) return "Mobi电子书";
+    if (filename && filename.toLowerCase().includes("azw")) return "Kindle电子书";
+    return "电子书";
+  }
   if (group === MIME_GROUPS.DESIGN) {
     if (mimeType.includes("photoshop")) return "PSD设计文件";
     if (mimeType.includes("postscript")) return "AI矢量设计";
+    if (filename) {
+      const ext = getFileExtension(filename);
+      if (ext === "xd") return "Adobe XD设计";
+      if (ext === "sketch") return "Sketch设计";
+      if (ext === "fig") return "Figma设计";
+    }
     return "设计文件";
+  }
+  if (group === MIME_GROUPS.MODEL) {
+    if (filename) {
+      const ext = getFileExtension(filename);
+      if (ext === "obj") return "OBJ 3D模型";
+      if (ext === "stl") return "STL 3D模型";
+      if (ext === "gltf") return "glTF 3D模型";
+      if (ext === "glb") return "GLB 3D模型";
+    }
+    return "3D模型文件";
+  }
+  if (group === MIME_GROUPS.CERTIFICATE) {
+    if (filename) {
+      const ext = getFileExtension(filename);
+      if (ext === "crt" || ext === "cer") return "数字证书";
+      if (ext === "pem") return "PEM证书";
+      if (ext === "key") return "私钥文件";
+      if (ext === "p12" || ext === "pfx") return "PKCS#12证书";
+      if (ext === "jks") return "Java密钥库";
+    }
+    return "证书文件";
+  }
+  if (group === MIME_GROUPS.DATA) {
+    if (filename) {
+      const ext = getFileExtension(filename);
+      if (ext === "protobuf" || ext === "proto") return "Protocol Buffers";
+      if (ext === "avro") return "Apache Avro";
+      if (ext === "parquet") return "Apache Parquet";
+      if (ext === "tsv") return "制表符分隔值";
+      if (ext === "psv") return "管道分隔值";
+      if (ext === "ndjson" || ext === "jsonl") return "换行分隔JSON";
+    }
+    return "数据文件";
   }
   if (group === MIME_GROUPS.EXECUTABLE) {
     if (mimeType.includes("android")) return "APK安卓应用";
