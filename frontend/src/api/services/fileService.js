@@ -137,10 +137,10 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
         }
         // 判断是否是存储容量不足的错误
         else if (
-          presignedData.message.includes("存储空间不足") ||
-          presignedData.message.includes("insufficient storage") ||
-          presignedData.message.includes("exceed") ||
-          presignedData.message.includes("容量")
+            presignedData.message.includes("存储空间不足") ||
+            presignedData.message.includes("insufficient storage") ||
+            presignedData.message.includes("exceed") ||
+            presignedData.message.includes("容量")
         ) {
           throw new Error(`存储空间不足: ${presignedData.message}`);
         }
@@ -154,7 +154,7 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
       throw new Error("获取预签名URL失败：服务器未返回有效数据");
     }
 
-    const { upload_url, file_id, storage_path, s3_url, slug, provider_type } = presignedData.data;
+    const { upload_url, file_id, storage_path, s3_url, slug, provider_type, contentType } = presignedData.data;
 
     // 保存文件ID，用于错误处理时删除记录
     fileId = file_id;
@@ -210,7 +210,8 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
 
       // 配置请求
       xhr.open("PUT", upload_url, true);
-      xhr.setRequestHeader("Content-Type", accurateMimeType);
+      // 使用后端推断的正确MIME类型，而不是前端的 accurateMimeType
+      xhr.setRequestHeader("Content-Type", contentType || accurateMimeType);
 
       // 根据提供商类型添加特定的请求头
       if (provider_type === "Backblaze B2") {
@@ -235,7 +236,7 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
       storage_path,
       s3_url,
       filename: file.name,
-      mimetype: accurateMimeType,
+      mimetype: contentType || accurateMimeType, // 使用后端推断的正确MIME类型
       size: file.size.toString(), // 确保size是字符串
       etag: uploadResult.etag,
       slug,
@@ -285,8 +286,6 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
     throw error;
   }
 }
-
-
 
 /******************************************************************************
  * 管理员文件管理API

@@ -1012,8 +1012,13 @@ fsRoutes.post("/api/admin/fs/presign", authMiddleware, async (c) => {
 
     console.log(`生成预签名URL，路径: ${s3Path}`);
 
+    // 统一从文件名推断MIME类型，确保预签名上传使用正确的Content-Type
+    const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+    const finalContentType = getMimeTypeFromFilename(fileName);
+    console.log(`预签名上传：从文件名[${fileName}]推断MIME类型: ${finalContentType}`);
+
     // 生成预签名URL
-    const presignedUrl = await generatePresignedPutUrl(s3Config, s3Path, contentType, encryptionSecret);
+    const presignedUrl = await generatePresignedPutUrl(s3Config, s3Path, finalContentType, encryptionSecret);
 
     // 构建S3直接访问URL
     const s3Url = buildS3Url(s3Config, s3Path);
@@ -1032,6 +1037,7 @@ fsRoutes.post("/api/admin/fs/presign", authMiddleware, async (c) => {
         mountId: mount.id,
         s3ConfigId: s3Config.id,
         targetPath,
+        contentType: finalContentType,
       },
       success: true,
     });
@@ -1117,8 +1123,13 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
 
     console.log(`生成预签名URL，路径: ${s3Path}`);
 
+    // 统一从文件名推断MIME类型，确保预签名上传使用正确的Content-Type
+    const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+    const finalContentType = getMimeTypeFromFilename(fileName);
+    console.log(`预签名上传：从文件名[${fileName}]推断MIME类型: ${finalContentType}`);
+
     // 生成预签名URL
-    const presignedUrl = await generatePresignedPutUrl(s3Config, s3Path, contentType, encryptionSecret);
+    const presignedUrl = await generatePresignedPutUrl(s3Config, s3Path, finalContentType, encryptionSecret);
 
     // 构建S3直接访问URL
     const s3Url = buildS3Url(s3Config, s3Path);
@@ -1137,6 +1148,7 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
         mountId: mount.id,
         s3ConfigId: s3Config.id,
         targetPath,
+        contentType: finalContentType,
       },
       success: true,
     });
@@ -1165,7 +1177,6 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
     const s3ConfigId = body.s3ConfigId;
     const mountId = body.mountId;
     const etag = body.etag;
-    const contentType = body.contentType || "application/octet-stream";
     const fileSize = body.fileSize || 0;
 
     if (!fileId || !s3Path || !s3ConfigId || !targetPath) {
@@ -1190,6 +1201,11 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
     if (!fileName) {
       fileName = "unnamed_file";
     }
+
+    // 统一从文件名推断MIME类型，确保数据库存储正确的MIME类型
+    const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+    const contentType = getMimeTypeFromFilename(fileName);
+    console.log(`预签名上传提交：从文件名[${fileName}]推断MIME类型: ${contentType}`);
 
     // 生成slug（使用文件ID的前8位作为slug）
     const fileSlug = "M-" + fileId.substring(0, 5);
@@ -1255,7 +1271,6 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
     const s3ConfigId = body.s3ConfigId;
     const mountId = body.mountId;
     const etag = body.etag;
-    const contentType = body.contentType || "application/octet-stream";
     const fileSize = body.fileSize || 0;
 
     if (!fileId || !s3Path || !s3ConfigId || !targetPath) {
@@ -1285,6 +1300,11 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
     if (!fileName) {
       fileName = "unnamed_file";
     }
+
+    // 统一从文件名推断MIME类型，确保数据库存储正确的MIME类型
+    const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+    const contentType = getMimeTypeFromFilename(fileName);
+    console.log(`预签名上传提交：从文件名[${fileName}]推断MIME类型: ${contentType}`);
 
     // 生成slug（使用文件ID的前8位作为slug）
     const fileSlug = "M-" + fileId.substring(0, 5);

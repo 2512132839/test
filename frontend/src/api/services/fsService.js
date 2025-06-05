@@ -147,7 +147,7 @@ export async function initAdminMultipartUpload(path, contentType, fileSize, file
  */
 export async function uploadAdminPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/admin/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -406,7 +406,7 @@ export async function initUserMultipartUpload(path, contentType, fileSize, filen
  */
 export async function uploadUserPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/user/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -642,8 +642,8 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress, on
   const uploadedParts = [];
 
   try {
-    // 1. 初始化分片上传
-    const initResult = await initMultipartUpload(path, file.type, file.size, file.name);
+    // 1. 初始化分片上传（后端会从文件名推断MIME类型，不依赖file.type）
+    const initResult = await initMultipartUpload(path, null, file.size, file.name);
     if (!initResult.success) {
       throw new Error(initResult.message || "初始化分片上传失败");
     }
@@ -686,8 +686,8 @@ export async function performMultipartUpload(file, path, isAdmin, onProgress, on
       }
     }
 
-    // 3. 完成分片上传
-    const completeResult = await completeMultipartUpload(path, uploadId, uploadedParts, key, file.type, file.size);
+    // 3. 完成分片上传（后端会从文件名推断MIME类型，不依赖file.type）
+    const completeResult = await completeMultipartUpload(path, uploadId, uploadedParts, key, null, file.size);
 
     if (!completeResult.success) {
       throw new Error(completeResult.message || "完成分片上传失败");
@@ -778,7 +778,10 @@ export async function uploadWithPresignedUrl(url, data, contentType, onProgress,
     };
 
     xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType);
+    // 设置Content-Type头部，使用后端推断的正确MIME类型
+    if (contentType && contentType !== null) {
+      xhr.setRequestHeader("Content-Type", contentType);
+    }
     xhr.send(data);
   });
 }
@@ -800,21 +803,21 @@ export async function performPresignedUpload(file, path, isAdmin, onProgress, on
   let uploadXhr = null;
 
   try {
-    // 1. 获取预签名URL
-    const urlResult = await getPresignedUploadUrl(path, file.name, file.type, file.size);
+    // 1. 获取预签名URL（后端会从文件名推断正确的MIME类型）
+    const urlResult = await getPresignedUploadUrl(path, file.name, file.type || "application/octet-stream", file.size);
     if (!urlResult.success) {
       throw new Error(urlResult.message || "获取预签名URL失败");
     }
 
     const { presignedUrl: uploadUrl, ...uploadInfo } = urlResult.data;
 
-    // 2. 上传文件到预签名URL
-    const uploadResult = await uploadWithPresignedUrl(uploadUrl, file, file.type, onProgress, onCancel, (xhr) => {
+    // 2. 上传文件到预签名URL（使用后端推断的MIME类型）
+    const uploadResult = await uploadWithPresignedUrl(uploadUrl, file, uploadInfo.contentType, onProgress, onCancel, (xhr) => {
       uploadXhr = xhr;
     });
 
-    // 3. 提交上传完成信息
-    const commitResult = await commitPresignedUpload(uploadInfo, uploadResult.etag, file.type, file.size);
+    // 3. 提交上传完成信息（后端会从文件名推断正确的MIME类型）
+    const commitResult = await commitPresignedUpload(uploadInfo, uploadResult.etag, file.type || "application/octet-stream", file.size);
 
     if (!commitResult.success) {
       throw new Error(commitResult.message || "提交上传完成信息失败");
@@ -979,7 +982,10 @@ export async function uploadToPresignedUrl(options) {
     };
 
     xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
+    // 设置Content-Type头部，使用后端推断的正确MIME类型
+    if (contentType && contentType !== null) {
+      xhr.setRequestHeader("Content-Type", contentType);
+    }
     xhr.send(data);
   });
 }
@@ -1113,13 +1119,13 @@ export async function performClientSideCopy(options) {
       } else {
         // 处理多个文件的复制，使用handleDirectoryCopy函数
         return await handleDirectoryCopy(
-          {
-            items: allItems,
-            targetMount: targetMount,
-          },
-          commitBatchCopy,
-          onProgress,
-          onCancel
+            {
+              items: allItems,
+              targetMount: targetMount,
+            },
+            commitBatchCopy,
+            onProgress,
+            onCancel
         );
       }
     }
@@ -1398,7 +1404,7 @@ async function handleDirectoryCopy(copyResult, commitBatchCopy, onProgress, onCa
  */
 export function getFsApiByUserType(isAdmin) {
   return isAdmin
-    ? {
+      ? {
         getDirectoryList: getAdminDirectoryList,
         getFileInfo: getAdminFileInfo,
         getFileDownloadUrl: getAdminFileDownloadUrl,
@@ -1427,7 +1433,7 @@ export function getFsApiByUserType(isAdmin) {
         commitCopy: commitAdminCopy,
         commitBatchCopy: commitAdminBatchCopy,
       }
-    : {
+      : {
         getDirectoryList: getUserDirectoryList,
         getFileInfo: getUserFileInfo,
         getFileDownloadUrl: getUserFileDownloadUrl,

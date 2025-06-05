@@ -62,8 +62,8 @@ export async function handleInitMultipartUpload(c) {
       throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "路径不能为空" });
     }
 
-    // 初始化分片上传
-    const result = await initializeMultipartUpload(db, path, contentType || "application/octet-stream", fileSize, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET, filename);
+    // 初始化分片上传（后端会统一从文件名推断MIME类型，不依赖前端传来的contentType）
+    const result = await initializeMultipartUpload(db, path, null, fileSize, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET, filename);
 
     // 返回初始化信息
     return c.json({
@@ -157,18 +157,18 @@ export async function handleCompleteMultipartUpload(c) {
       throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "缺少必要参数或参数无效" });
     }
 
-    // 完成分片上传
+    // 完成分片上传（后端会统一从文件名推断MIME类型，不依赖前端传来的contentType）
     const result = await completeMultipartUpload(
-      db,
-      path,
-      uploadId,
-      parts,
-      userIdOrInfo,
-      userType,
-      c.env.ENCRYPTION_SECRET,
-      key,
-      contentType || "application/octet-stream", // 添加MIME类型
-      fileSize || 0 // 添加文件大小
+        db,
+        path,
+        uploadId,
+        parts,
+        userIdOrInfo,
+        userType,
+        c.env.ENCRYPTION_SECRET,
+        key,
+        null, // 不传递MIME类型，让后端统一推断
+        fileSize || 0
     );
 
     // 返回完成结果

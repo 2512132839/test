@@ -12,6 +12,7 @@ import {
   getMimeTypeAndGroupFromFile,
   shouldUseTextPlainForPreview,
   getContentTypeAndDisposition,
+  isOfficeFile,
 } from "../utils/fileUtils.js";
 
 /**
@@ -164,35 +165,6 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
     isExpired: false,
     file: updatedFile,
   };
-}
-
-/**
- * 检查文件是否为Office文件类型
- * @param {string} mimetype - MIME类型
- * @param {string} filename - 文件名
- * @returns {boolean} 是否为Office文件
- */
-function isOfficeFile(mimetype, filename) {
-  const mime = (mimetype || "").toLowerCase();
-  const name = (filename || "").toLowerCase();
-
-  return (
-      mime.includes("wordprocessing") ||
-      mime.includes("spreadsheet") ||
-      mime.includes("presentation") ||
-      mime === "application/msword" ||
-      mime === "application/vnd.ms-excel" ||
-      mime === "application/vnd.ms-powerpoint" ||
-      name.endsWith(".doc") ||
-      name.endsWith(".docx") ||
-      name.endsWith(".xls") ||
-      name.endsWith(".xlsx") ||
-      name.endsWith(".ppt") ||
-      name.endsWith(".pptx") ||
-      name.endsWith(".odt") ||
-      name.endsWith(".ods") ||
-      name.endsWith(".odp")
-  );
 }
 
 /**

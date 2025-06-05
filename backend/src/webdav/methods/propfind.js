@@ -1,7 +1,7 @@
 import { getMountsByAdmin, getMountsByApiKey } from "../../services/storageMountService.js";
 import { createS3Client } from "../../utils/s3Utils.js";
 import { ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { getMimeType } from "../../utils/fileUtils.js";
+import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
 import { handleWebDAVError } from "../utils/errorUtils.js";
 import { checkPathPermission, checkPathPermissionForNavigation } from "../../services/apiKeyService.js";
 
@@ -562,8 +562,9 @@ async function buildPropfindResponse(s3Client, bucketName, prefix, depth, reques
           // 编码文件路径
           const encodedFilePath = encodeUriPath(filePath);
 
-          // 获取文件的MIME类型
-          const contentType = getMimeType(fileName);
+          // 统一从文件名推断MIME类型
+          const contentType = getMimeTypeFromFilename(fileName);
+          console.log(`WebDAV PROPFIND - 从文件名[${fileName}]推断MIME类型: ${contentType}`);
 
           // 获取文件的修改时间和创建时间
           const fileModified = new Date(item.LastModified).toUTCString();
@@ -700,8 +701,8 @@ async function buildPropfindResponse(s3Client, bucketName, prefix, depth, reques
               const escapedFileName = escapeXmlChars(fileName);
               const encodedFilePath = encodeUriPath(filePath);
 
-              // 获取文件的MIME类型
-              const contentType = getMimeType(fileName);
+              // 统一从文件名推断MIME类型
+              const contentType = getMimeTypeFromFilename(fileName);
 
               // 获取文件的修改时间和创建时间
               const fileModified = new Date(item.LastModified).toUTCString();

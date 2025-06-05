@@ -9,6 +9,7 @@ import { createS3Client, buildS3Url } from "../utils/s3Utils.js";
 import { CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from "@aws-sdk/client-s3";
 import { generateFileId } from "../utils/common.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
+// 移除了 getLocalTimeString 导入，现在使用 CURRENT_TIMESTAMP
 
 /**
  * 获取S3资源（挂载点、配置、客户端）
@@ -135,11 +136,16 @@ export async function initializeMultipartUpload(db, path, contentType, fileSize,
           }
         }
 
+        // 统一从文件名推断MIME类型，不依赖前端传来的contentType
+        const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+        const finalContentType = getMimeTypeFromFilename(filename || path.split("/").pop());
+        console.log(`分片上传初始化：从文件名[${filename || path.split("/").pop()}]推断MIME类型: ${finalContentType}`);
+
         // 创建分片上传
         const createCommand = new CreateMultipartUploadCommand({
           Bucket: s3Config.bucket_name,
           Key: s3SubPath,
-          ContentType: contentType || "application/octet-stream",
+          ContentType: finalContentType,
         });
 
         const createResponse = await s3Client.send(createCommand);
@@ -327,7 +333,10 @@ export async function completeMultipartUpload(
           // 生成slug（使用文件ID的前5位作为slug）
           const fileSlug = "M-" + fileId.substring(0, 5);
 
-          // 获取当前时间，使用UTC时间
+          // 统一从文件名推断MIME类型，不依赖前端传来的contentType
+          const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+          const finalContentType = getMimeTypeFromFilename(fileName);
+          console.log(`分片上传完成：从文件名[${fileName}]推断MIME类型: ${finalContentType}`);
 
           // 记录文件信息到数据库
           await db
@@ -343,7 +352,7 @@ export async function completeMultipartUpload(
                   fileName,
                   s3SubPath,
                   s3Url,
-                  contentType,
+                  finalContentType,
                   fileSize,
                   s3Config.id,
                   fileSlug,

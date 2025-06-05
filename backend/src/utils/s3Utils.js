@@ -82,9 +82,9 @@ export async function createS3Client(config, encryptionSecret) {
 
   // 日志记录所选服务商和配置
   console.log(
-    `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
-      config.path_style ? "是" : "否"
-    }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
+      `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+          config.path_style ? "是" : "否"
+      }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
   );
 
   // 返回创建的S3客户端
@@ -145,6 +145,7 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
     const normalizedPath = storagePath.startsWith("/") ? storagePath.slice(1) : storagePath;
 
     // 创建PutObjectCommand
+    // 在预签名URL中指定ContentType，确保MIME类型正确传递
     const command = new PutObjectCommand({
       Bucket: s3Config.bucket_name,
       Key: normalizedPath,
@@ -167,6 +168,8 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
 
     // 生成预签名URL，应用服务商特定选项
     const url = await getSignedUrl(s3Client, command, commandOptions);
+
+    console.log(`生成预签名PUT URL - 文件[${normalizedPath}], ContentType[${mimetype}]`);
 
     return url;
   } catch (error) {
@@ -196,12 +199,9 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
     // 提取文件名，用于Content-Disposition头
     const fileName = normalizedPath.split("/").pop();
 
-    // 如果未提供MIME类型，从文件名推断
-    let effectiveMimetype = mimetype;
-    if (!effectiveMimetype || effectiveMimetype === "application/octet-stream") {
-      effectiveMimetype = getMimeTypeFromFilename(fileName);
-      console.log(`未提供MIME类型或为通用类型，从文件名[${fileName}]推断MIME类型: ${effectiveMimetype}`);
-    }
+    // 统一从文件名推断MIME类型，不依赖传入的mimetype参数
+    const effectiveMimetype = getMimeTypeFromFilename(fileName);
+    console.log(`S3文件下载：从文件名[${fileName}]推断MIME类型: ${effectiveMimetype}`);
 
     // 创建GetObjectCommand
     const commandParams = {
@@ -389,12 +389,19 @@ export async function getDirectoryPresignedUrls(s3Client, sourceS3Config, target
           console.warn(`获取文件元数据失败，使用默认content-type: ${error.message}`);
         }
 
-        // 生成上传预签名URL
-        const uploadUrl = await generatePresignedPutUrl(targetS3Config, targetKey, contentType, encryptionSecret, expiresIn);
-
         // 计算相对路径信息（用于前端构建目录结构）
         const pathParts = relativePath.split("/");
         const fileName = pathParts.pop();
+
+        // 统一从文件名推断MIME类型，不依赖源文件的MIME类型
+        const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+        contentType = getMimeTypeFromFilename(fileName);
+        console.log(`目录复制：从文件名[${fileName}]推断MIME类型: ${contentType}`);
+
+        // 生成上传预签名URL
+        const uploadUrl = await generatePresignedPutUrl(targetS3Config, targetKey, contentType, encryptionSecret, expiresIn);
+
+        // 计算相对目录路径
         const relativeDir = pathParts.join("/");
 
         // 添加到结果集

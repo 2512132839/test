@@ -1,7 +1,7 @@
 import { DbTables } from "../constants/index.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse, generateFileId, generateShortId, getSafeFileName, getFileNameAndExt, formatFileSize } from "../utils/common.js";
-import { getMimeType, getMimeTypeFromFilename, getFileExtension } from "../utils/fileUtils.js";
+import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
 import { generatePresignedPutUrl, buildS3Url, deleteFileFromS3, generatePresignedUrl, createS3Client } from "../utils/s3Utils.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
@@ -295,8 +295,9 @@ export function registerS3UploadRoutes(app) {
       // 组合最终路径 - 使用短ID-原始文件名的格式
       const storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
 
-      // 获取内容类型
-      const mimetype = body.mimetype || getMimeTypeFromFilename(body.filename);
+      // 统一从文件名推断MIME类型，不依赖前端传来的mimetype
+      const mimetype = getMimeTypeFromFilename(body.filename);
+      console.log(`S3预签名上传：从文件名[${body.filename}]推断MIME类型: ${mimetype}`);
 
       // 获取加密密钥
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -345,7 +346,8 @@ export function registerS3UploadRoutes(app) {
           storage_path: storagePath,
           s3_url,
           slug,
-          provider_type: s3Config.provider_type, // 添加提供商类型，便于前端适配不同S3服务
+          provider_type: s3Config.provider_type,
+          contentType: mimetype,
         },
         success: true,
       });
@@ -963,10 +965,9 @@ export function registerS3UploadRoutes(app) {
         contentType = contentType.split(";")[0].trim();
       }
 
-      // 如果没有Content-Type或者是通用类型，则根据文件扩展名推断
-      if (!contentType || contentType === "application/octet-stream") {
-        contentType = getMimeTypeFromFilename(filename);
-      }
+      // 统一从文件名推断MIME类型，不依赖客户端提供的Content-Type
+      contentType = getMimeTypeFromFilename(filename);
+      console.log(`S3直接上传：从文件名[${filename}]推断MIME类型: ${contentType}`);
 
       console.log(`文件上传 - 文件名: ${filename}, Content-Type: ${contentType}, 使用原始文件名: ${useOriginalFilename}`);
 

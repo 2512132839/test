@@ -306,6 +306,46 @@ export function isDocumentType(mimeType) {
 }
 
 /**
+ * 检查文件是否为Office文件类型
+ * @param {string} mimeType - MIME类型
+ * @param {string} filename - 文件名（可选）
+ * @returns {boolean} 是否为Office文件
+ */
+export function isOfficeFile(mimeType, filename) {
+  const mime = (mimeType || "").toLowerCase();
+  const name = (filename || "").toLowerCase();
+
+  // 通过MIME类型检查
+  if (
+      mime.includes("wordprocessing") ||
+      mime.includes("spreadsheet") ||
+      mime.includes("presentation") ||
+      mime === "application/msword" ||
+      mime === "application/vnd.ms-excel" ||
+      mime === "application/vnd.ms-powerpoint"
+  ) {
+    return true;
+  }
+
+  // 通过文件扩展名检查
+  if (
+      name.endsWith(".doc") ||
+      name.endsWith(".docx") ||
+      name.endsWith(".xls") ||
+      name.endsWith(".xlsx") ||
+      name.endsWith(".ppt") ||
+      name.endsWith(".pptx") ||
+      name.endsWith(".odt") ||
+      name.endsWith(".ods") ||
+      name.endsWith(".odp")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * 检查是否为配置文件类型
  * @param {string} mimeType - MIME类型
  * @param {string} filename - 文件名（可选）
@@ -486,44 +526,16 @@ export function getContentTypeAndDisposition(options) {
 export function getMimeTypeAndGroupFromFile(fileInfo) {
   const { filename, mimetype: originalMimeType = "application/octet-stream" } = fileInfo;
 
-  // 记录原始MIME类型
-  let resultMimeType = originalMimeType;
+  // 统一从文件名推断MIME类型，不依赖传入的mimetype参数
+  let resultMimeType = "application/octet-stream";
 
-  // 检查是否为通用MIME类型或未指定 (application/octet-stream 或 text/plain)
-  const isGenericMimeType = originalMimeType === "application/octet-stream" || originalMimeType === "text/plain";
-
-  // 如果是通用MIME类型，尝试从文件名推断
-  if (isGenericMimeType && filename) {
-    // 直接使用getMimeTypeFromFilename获取MIME类型
-    const inferredMimeType = getMimeTypeFromFilename(filename);
-
-    // 仅当推断的MIME类型不是通用类型时才使用推断的类型
-    if (inferredMimeType !== "application/octet-stream") {
-      resultMimeType = inferredMimeType;
-    }
+  if (filename) {
+    resultMimeType = getMimeTypeFromFilename(filename);
+    console.log(`getMimeTypeAndGroupFromFile：从文件名[${filename}]推断MIME类型: ${resultMimeType}`);
   }
 
   // 获取MIME分组
   const mimeGroup = getMimeTypeGroup(resultMimeType);
-
-  // 如果分组仍是UNKNOWN或EXECUTABLE，且有文件名，再次检查文件扩展名
-  if ((mimeGroup === MIME_GROUPS.UNKNOWN || mimeGroup === MIME_GROUPS.EXECUTABLE) && filename) {
-    const ext = getFileExtension(filename);
-
-    // 直接从UNIFIED_MIME_MAP获取MIME类型
-    if (UNIFIED_MIME_MAP[ext]) {
-      resultMimeType = UNIFIED_MIME_MAP[ext];
-
-      // 重新获取MIME分组
-      const updatedMimeGroup = getMimeTypeGroup(resultMimeType);
-
-      return {
-        mimeType: resultMimeType,
-        mimeGroup: updatedMimeGroup,
-        wasRefined: resultMimeType !== originalMimeType,
-      };
-    }
-  }
 
   return {
     mimeType: resultMimeType,

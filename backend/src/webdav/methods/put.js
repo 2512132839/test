@@ -6,7 +6,7 @@ import { findMountPointByPath, normalizeS3SubPath, updateMountLastUsed, checkDir
 import { createS3Client } from "../../utils/s3Utils.js";
 import { PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { getMimeType } from "../../utils/fileUtils.js";
+import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
 import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload } from "../../services/multipartUploadService.js";
 import { clearCacheAfterWebDAVOperation } from "../utils/cacheUtils.js";
 import { handleWebDAVError } from "../utils/errorUtils.js";
@@ -345,10 +345,9 @@ export async function handlePut(c, path, userId, userType, db) {
       contentType = contentType.split(";")[0].trim();
     }
 
-    // 如果Content-Type未设置或为通用类型，从文件名推断
-    if (!contentType || contentType === "application/octet-stream") {
-      contentType = getMimeType(filename);
-    }
+    // 统一从文件名推断MIME类型，不依赖客户端提供的Content-Type
+    contentType = getMimeTypeFromFilename(filename);
+    console.log(`WebDAV PUT - 从文件名[${filename}]推断MIME类型: ${contentType}`);
 
     console.log(`WebDAV PUT - 文件名: ${filename}, Content-Type: ${contentType}`);
 

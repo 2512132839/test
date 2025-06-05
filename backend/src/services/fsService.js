@@ -494,6 +494,8 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
               storage_type: mount.storage_type,
             };
 
+            console.log(`getFileInfo - 文件[${result.name}], S3 ContentType[${headResponse.ContentType}]`);
+
             return result;
           } catch (headError) {
             // 如果HEAD请求失败（可能是403 Forbidden或UnknownError），继续尝试GET请求
@@ -548,6 +550,8 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
                 mount_id: mount.id,
                 storage_type: mount.storage_type,
               };
+
+              console.log(`getFileInfo(GET) - 文件[${result.name}], S3 ContentType[${getResponse.ContentType}]`);
 
               return result;
             } else if (headError.$metadata?.httpStatusCode === 404) {
@@ -814,8 +818,8 @@ export async function uploadFile(db, path, file, userIdOrInfo, userType, encrypt
       async () => {
         // 根据useMultipart参数决定使用哪种上传方式
         if (useMultipart) {
-          // 使用分片上传
-          const multipartInfo = await initializeMultipartUpload(db, path, file.type || "application/octet-stream", file.size, userIdOrInfo, userType, encryptionSecret);
+          // 使用分片上传（后端会统一从文件名推断MIME类型，不依赖file.type）
+          const multipartInfo = await initializeMultipartUpload(db, path, null, file.size, userIdOrInfo, userType, encryptionSecret, file.name);
 
           // 返回包含必要信息的对象，前端将使用这些信息进行分片上传
           return {
@@ -894,12 +898,17 @@ export async function uploadFile(db, path, file, userIdOrInfo, userType, encrypt
             // 读取文件内容
             const fileContent = await file.arrayBuffer();
 
+            // 统一从文件名推断MIME类型，不依赖浏览器的file.type
+            const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
+            const contentType = getMimeTypeFromFilename(fileName);
+            console.log(`直接上传：从文件名[${fileName}]推断MIME类型: ${contentType}`);
+
             // 直接上传到S3
             const putParams = {
               Bucket: s3Config.bucket_name,
               Key: finalS3Path,
               Body: fileContent,
-              ContentType: file.type || "application/octet-stream",
+              ContentType: contentType,
             };
 
             console.log(`开始直接上传 ${file.size} 字节到 S3，路径: ${finalS3Path}`);
@@ -934,7 +943,7 @@ export async function uploadFile(db, path, file, userIdOrInfo, userType, encrypt
                     fileName,
                     finalS3Path,
                     s3Url,
-                    file.type || "application/octet-stream",
+                    contentType, // 使用推断后的正确MIME类型
                     file.size,
                     s3Config.id,
                     fileSlug,
@@ -955,7 +964,7 @@ export async function uploadFile(db, path, file, userIdOrInfo, userType, encrypt
               path: path,
               name: path.split("/").filter(Boolean).pop() || file.name,
               size: file.size,
-              mimetype: file.type || "application/octet-stream",
+              mimetype: contentType, // 使用推断后的正确MIME类型
               etag: result.ETag ? result.ETag.replace(/"/g, "") : undefined,
               fileId: fileId, // 添加fileId到返回值
               slug: fileSlug, // 添加slug到返回值
@@ -2443,6 +2452,10 @@ export async function handleCrossStorageCopy(db, sourcePath, targetPath, userIdO
           } catch (error) {
             console.warn(`获取源文件元数据失败，使用默认content-type: ${error.message}`);
           }
+
+          // 统一从文件名推断MIME类型，不依赖源文件的MIME类型
+          contentType = getMimeTypeFromFilename(fileName);
+          console.log(`跨存储桶复制：从文件名[${fileName}]推断MIME类型: ${contentType}`);
 
           // 生成目标文件的上传预签名URL
           const uploadUrl = await generatePresignedPutUrl(targetS3Config, uploadKey, contentType, encryptionSecret, expiresIn);
