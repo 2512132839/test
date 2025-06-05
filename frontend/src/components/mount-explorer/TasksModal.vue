@@ -409,11 +409,16 @@ const TIME_UNITS = {
 };
 
 // 导入统一的时间处理工具
-import { formatRelativeTime, formatDateTime } from "../../utils/timeUtils.js";
+import { formatRelativeTime, formatDateTime as formatDateTimeUtil } from "../../utils/timeUtils.js";
 
 // 获取相对时间文本 - 使用统一的时间处理工具
 const getTimeAgo = (dateString) => {
-  return formatRelativeTime(dateString);
+  return formatRelativeTime(dateString) || "未知时间";
+};
+
+// 格式化日期时间
+const formatDateTime = (dateString) => {
+  return formatDateTimeUtil(dateString) || "未知时间";
 };
 
 // 格式化进度数值

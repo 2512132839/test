@@ -792,22 +792,6 @@ const handlePreview = async (item) => {
 
     // 滚动到顶部
     window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // 对于文本文件，预加载内容
-    if (
-        fileInfo.contentType &&
-        (fileInfo.contentType.startsWith("text/") ||
-            fileInfo.contentType === "application/json" ||
-            fileInfo.contentType === "application/xml" ||
-            fileInfo.contentType === "application/javascript" ||
-            fileInfo.contentType === "application/typescript")
-    ) {
-      // 获取预览URL
-      const previewUrl = isAdmin.value ? api.fs.getAdminFilePreviewUrl(fileInfo.path) : api.fs.getUserFilePreviewUrl(fileInfo.path);
-
-      // 预加载文本内容
-      await fetch(previewUrl);
-    }
   } catch (error) {
     console.error("预览文件错误:", error);
     showMessage("error", `加载文件预览失败: ${error.message || "未知错误"}`);

@@ -1313,53 +1313,10 @@ const handleClickOutside = (event) => {
 
 // 监听全局点击事件来关闭下拉框
 onMounted(() => {
-  // 加载文本内容（如果是文本文件）
-  if (isText.value) {
-    loadTextContent();
-  }
-
   // 添加事件监听器
   document.addEventListener("click", handleClickOutside);
   document.addEventListener("keydown", handleKeyDown);
   document.addEventListener("fullscreenchange", handleFullscreenChange);
-
-  // 监听文件变更，自动加载预览
-  watch(
-      () => props.file,
-      () => {
-        // 重置状态
-        textContent.value = "";
-        loadError.value = false;
-        authenticatedPreviewUrl.value = null;
-        highlightedContent.value = "";
-        codeLanguage.value = "";
-        isMarkdownRendered.value = false;
-
-        // 重置Office预览状态
-        microsoftOfficePreviewUrl.value = "";
-        googleDocsPreviewUrl.value = "";
-        officePreviewLoading.value = false;
-        officePreviewError.value = "";
-        officePreviewTimedOut.value = false;
-        clearPreviewLoadTimeout();
-
-        // 如果文件是图片、视频、音频或PDF类型，则获取认证预览URL
-        if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
-          fetchAuthenticatedUrl();
-        }
-
-        // 如果是Office文件，更新Office预览URL
-        if (isOffice.value) {
-          updateOfficePreviewUrls();
-        }
-
-        // 对于文本文件，需要手动加载内容
-        if (isText.value) {
-          loadTextContent();
-        }
-      },
-      { immediate: true }
-  );
 });
 
 onUnmounted(() => {

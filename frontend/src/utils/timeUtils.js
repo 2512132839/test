@@ -2,7 +2,7 @@
  * 统一的时间处理工具函数
  * 用于处理从后端接收的 UTC 时间戳，并转换为用户本地时区的时间显示
  *
- * 后端统一使用 CURRENT_TIMESTAMP 存储 UTC 时间
+ * 后端现在统一使用 CURRENT_TIMESTAMP 存储 UTC 时间
  * 前端负责根据用户的时区设置进行本地化显示
  */
 
@@ -44,7 +44,7 @@ const TIME_FORMAT_OPTIONS = {
 
 /**
  * 将 UTC 时间字符串转换为本地 Date 对象
- * @param {string} utcDateString - UTC 时间字符串
+ * @param {string|Date|number} utcDateString - UTC 时间字符串、Date对象或时间戳
  * @returns {Date|null} 本地 Date 对象，如果无效则返回 null
  */
 export const parseUTCDate = (utcDateString) => {
@@ -53,6 +53,16 @@ export const parseUTCDate = (utcDateString) => {
   }
 
   try {
+    // 如果已经是 Date 对象，直接返回
+    if (utcDateString instanceof Date) {
+      return isNaN(utcDateString.getTime()) ? null : utcDateString;
+    }
+
+    // 如果不是字符串，说明数据类型不正确，返回 null
+    if (typeof utcDateString !== "string") {
+      return null;
+    }
+
     let dateString = utcDateString.trim();
 
     // 处理不同的UTC时间格式
