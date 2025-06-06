@@ -4,7 +4,6 @@ import { useRoute } from "vue-router";
 import EnvSwitcher from "./components/EnvSwitcher.vue";
 import LanguageSwitcher from "./components/LanguageSwitcher.vue";
 
-// 使用 Vue Router
 const route = useRoute();
 
 // 初始化主题模式状态
@@ -397,7 +396,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <main class="flex-1 flex flex-col">
+    <main class="flex-1 flex flex-col pb-8">
       <router-view :dark-mode="isDarkMode" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning }" />
     </main>
 

@@ -1,12 +1,12 @@
 <template>
   <div class="editor-container mx-auto px-3 sm:px-6 flex-1 flex flex-col pt-6 sm:pt-8 w-full max-w-full sm:max-w-6xl">
-    <!-- 添加隐藏的文件输入控件用于导入Markdown文件 -->
+    <!-- 隐藏的文件输入控件 -->
     <input type="file" ref="markdownImporter" accept=".md,.markdown,.mdown,.mkd" style="display: none" @change="importMarkdownFile" />
 
+    <!-- 页面标题和模式切换 -->
     <div class="header mb-4 border-b pb-2" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
       <div class="flex justify-between items-center">
         <h2 class="text-xl font-semibold">{{ $t("markdown.title") }}</h2>
-        <!-- 添加模式切换按钮 -->
         <button
             class="px-2 py-1 text-sm rounded transition-colors"
             :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
@@ -17,292 +17,80 @@
       </div>
     </div>
 
-    <!-- 管理员权限提示 -->
-    <div
-        v-if="!hasPermission"
-        class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
-    >
-      <div class="flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>
-          {{ $t("markdown.permissionRequired") }}
-          <a href="#" @click.prevent="navigateToAdmin" class="font-medium underline">{{ $t("markdown.loginOrAuth") }}</a
-          >。
-        </span>
-      </div>
-    </div>
+    <!-- 权限管理组件 -->
+    <PermissionManager :dark-mode="darkMode" @permission-change="handlePermissionChange" @navigate-to-admin="navigateToAdmin" />
 
+    <!-- 编辑器组件 -->
     <div class="editor-wrapper">
-      <!-- 编辑器区域 -->
       <div class="flex flex-col md:flex-row gap-4">
-        <!-- 纯文本编辑器 (在纯文本模式下显示) -->
-        <textarea
-            v-if="isPlainTextMode"
-            class="w-full h-[600px] p-4 font-mono text-base border rounded-lg resize-y focus:outline-none focus:ring-2"
-            :class="darkMode ? 'bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600' : 'bg-white border-gray-300 text-gray-900 focus:ring-primary-500'"
-            v-model="plainTextContent"
-            placeholder="在此输入纯文本内容..."
-            @input="syncContentFromPlainText"
-        ></textarea>
-
-        <!-- Markdown编辑器 (在Markdown模式下显示) -->
-        <div v-else id="vditor" class="w-full border rounded-lg" :class="darkMode ? 'border-gray-700' : 'border-gray-200'"></div>
+        <VditorEditor
+            ref="editorRef"
+            :dark-mode="darkMode"
+            :is-plain-text-mode="isPlainTextMode"
+            v-model="editorContent"
+            @editor-ready="handleEditorReady"
+            @content-change="handleContentChange"
+            @import-file="triggerImportFile"
+            @clear-content="clearEditorContent"
+            @show-copy-formats="showCopyFormatsMenu"
+        />
       </div>
     </div>
 
-    <!-- 底部表单 -->
-    <div class="mt-6 border-t pt-4 w-full overflow-hidden" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div class="form-group">
-          <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.remark") }}</label>
-          <input
-              type="text"
-              class="form-input"
-              :class="getInputClasses()"
-              :placeholder="$t('markdown.form.remarkPlaceholder')"
-              v-model="formData.remark"
-              :disabled="!hasPermission"
-          />
-        </div>
+    <!-- 表单组件 -->
+    <EditorForm
+        ref="formRef"
+        :dark-mode="darkMode"
+        :has-permission="hasPermission"
+        :is-submitting="isSubmitting"
+        :saving-status="savingStatus"
+        @submit="saveContent"
+        @form-change="handleFormChange"
+    />
 
-        <div class="form-group">
-          <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.customLink") }}</label>
-          <input
-              type="text"
-              class="form-input"
-              :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
-              :placeholder="$t('markdown.form.customLinkPlaceholder')"
-              v-model="formData.customLink"
-              :disabled="!hasPermission"
-              @input="validateCustomLink"
-          />
-          <p v-if="slugError" class="mt-1 text-sm" :class="darkMode ? 'text-red-400' : 'text-red-600'">{{ slugError }}</p>
-          <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t("markdown.onlyAllowedChars") }}</p>
-        </div>
+    <!-- 分享链接组件 -->
+    <ShareLinkBox
+        ref="shareLinkRef"
+        :dark-mode="darkMode"
+        :share-link="shareLink"
+        :share-password="currentSharePassword"
+        @show-qr-code="showQRCode"
+        @status-message="handleStatusMessage"
+        @countdown-end="handleCountdownEnd"
+    />
 
-        <div class="form-group">
-          <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.password") }}</label>
-          <input
-              type="text"
-              class="form-input"
-              :class="getInputClasses()"
-              :placeholder="$t('markdown.form.passwordPlaceholder')"
-              v-model="formData.password"
-              :disabled="!hasPermission"
-          />
-        </div>
+    <!-- 二维码弹窗组件 -->
+    <QRCodeModal :visible="showQRCodeModal" :share-link="shareLink" @close="closeQRCodeModal" @status-message="handleStatusMessage" />
 
-        <div class="form-group">
-          <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.expireTime") }}</label>
-          <select class="form-input" :class="getInputClasses()" v-model="formData.expiryTime" :disabled="!hasPermission">
-            <option value="1">{{ $t("markdown.form.expireOptions.hour1") }}</option>
-            <option value="24">{{ $t("markdown.form.expireOptions.day1") }}</option>
-            <option value="168">{{ $t("markdown.form.expireOptions.day7") }}</option>
-            <option value="720">{{ $t("markdown.form.expireOptions.day30") }}</option>
-            <option value="0">{{ $t("markdown.form.expireOptions.never") }}</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.maxViews") }}</label>
-          <input
-              type="number"
-              min="0"
-              step="1"
-              pattern="\d*"
-              class="form-input"
-              :class="getInputClasses()"
-              :placeholder="$t('markdown.form.maxViewsPlaceholder')"
-              v-model.number="formData.maxViews"
-              @input="validateMaxViews"
-              :disabled="!hasPermission"
-          />
-        </div>
-      </div>
-
-      <div class="submit-section mt-6 flex flex-row items-center gap-4">
-        <button class="btn-primary" @click="saveContent" :disabled="isSubmitting || !hasPermission">
-          {{ isSubmitting ? $t("markdown.processing") : $t("markdown.createShare") }}
-        </button>
-
-        <div class="saving-status ml-auto text-sm" v-if="savingStatus">
-          <span :class="[isErrorMessage(savingStatus) ? (darkMode ? 'text-red-400' : 'text-red-600') : darkMode ? 'text-gray-300' : 'text-gray-600']">{{ savingStatus }}</span>
-        </div>
-      </div>
-
-      <!-- 简化的分享链接区域 - 使用图标而非按钮 -->
-      <div v-if="shareLink" class="mt-4 p-3 rounded-md share-link-box" :class="darkMode ? 'bg-gray-800/50' : 'bg-gray-50'">
-        <div class="flex items-center">
-          <span class="text-sm mr-2" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ $t("markdown.shareLink") }}</span>
-          <a :href="shareLink" target="_blank" class="link-text text-sm flex-grow" :class="darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'">
-            {{ shareLink }}
-          </a>
-
-          <!-- 复制图标 -->
-          <button
-              @click="copyShareLink"
-              class="ml-2 p-1 rounded-md transition-colors"
-              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-              :title="$t('markdown.copyLink')"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-              />
-            </svg>
-          </button>
-
-          <!-- 二维码图标 -->
-          <button
-              @click="showQRCode"
-              class="ml-2 p-1 rounded-md transition-colors"
-              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-              :title="$t('markdown.showQRCode')"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-              />
-            </svg>
-          </button>
-
-          <!-- 复制原始文本直链按钮 -->
-          <button
-              @click="copyRawTextLink"
-              class="ml-2 p-1 rounded-md transition-colors"
-              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-              :title="$t('markdown.copyRawLink')"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
-            </svg>
-          </button>
-
-          <span class="ml-2 text-xs" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">{{ countdown }} {{ $t("markdown.disappearIn") }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 二维码弹窗 -->
-    <div v-if="showQRCodeModal" class="fixed inset-0 flex items-center justify-center z-50">
-      <div class="absolute inset-0 bg-black opacity-50" @click="closeQRCodeModal"></div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg max-w-md w-full relative z-10">
-        <button @click="closeQRCodeModal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">{{ $t("markdown.qrCodeTitle") }}</h3>
-
-        <div class="flex flex-col items-center">
-          <div v-if="qrCodeDataURL" class="bg-white p-4 rounded-lg mb-4">
-            <img :src="qrCodeDataURL" alt="分享二维码" class="w-48 h-48" />
-          </div>
-          <div v-else class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg mb-4 w-48 h-48 flex items-center justify-center">
-            <span class="text-gray-500 dark:text-gray-400">{{ $t("markdown.qrCodeGenerating") }}</span>
-          </div>
-
-          <div class="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center max-w-xs">{{ $t("markdown.qrCodeScanToAccess") }}</div>
-
-          <button @click="downloadQRCode" class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors" :disabled="!qrCodeDataURL">
-            {{ $t("markdown.downloadQRCode") }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 复制格式菜单 -->
-    <div
-        v-if="copyFormatMenuVisible"
-        id="copyFormatMenu"
-        class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
-        :style="{ top: `${copyFormatMenuPosition.y}px`, left: `${copyFormatMenuPosition.x}px` }"
-    >
-      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsMarkdown">
-        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 3v4a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M9 9h1v6h1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M15 15h-2v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>复制为Markdown</span>
-      </div>
-      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsHTML">
-        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path
-              d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-          />
-          <path d="M8 9l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M16 15l-3-3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>复制为HTML</span>
-      </div>
-      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsPlainText">
-        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 3v4a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M9 9h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M9 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M9 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>复制为纯文本</span>
-      </div>
-      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="exportWordDocument">
-        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M14 2v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M16 13H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M16 17H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>导出为Word文档</span>
-      </div>
-      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="exportAsPng">
-        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M17 21v-8h-8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M7 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>导出为PNG图片</span>
-      </div>
-    </div>
+    <!-- 复制格式菜单组件 -->
+    <CopyFormatMenu
+        :visible="copyFormatMenuVisible"
+        :position="copyFormatMenuPosition"
+        :editor="currentEditor"
+        :dark-mode="darkMode"
+        @close="closeCopyFormatMenu"
+        @status-message="handleStatusMessage"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, defineProps, getCurrentInstance, onUnmounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
-import Vditor from "vditor";
-import "vditor/dist/index.css";
 import { api } from "../api";
-// Vue Router 导入已移除，使用动态导入
-import QRCode from "qrcode";
-import { getFullApiUrl } from "../api/config.js";
 import { ApiStatus } from "../api/ApiStatus";
-// 导入Word导出服务
-import markdownToWord from "../utils/markdownToWord";
-// 导入FileSaver用于下载文件
-import { saveAs } from "file-saver";
-import htmlToImage from "@/utils/htmlToImage";
-import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
 
-// 使用i18n
+// 导入子组件
+import VditorEditor from "./markdown-editor/VditorEditor.vue";
+import PermissionManager from "./markdown-editor/PermissionManager.vue";
+import EditorForm from "./markdown-editor/EditorForm.vue";
+import ShareLinkBox from "./markdown-editor/ShareLinkBox.vue";
+import QRCodeModal from "./markdown-editor/QRCodeModal.vue";
+import CopyFormatMenu from "./markdown-editor/CopyFormatMenu.vue";
+
 const { t } = useI18n();
 
+// Props
 const props = defineProps({
   darkMode: {
     type: Boolean,
@@ -310,1602 +98,303 @@ const props = defineProps({
   },
 });
 
-let editor = null;
+// 组件引用
+const editorRef = ref(null);
+const formRef = ref(null);
+const shareLinkRef = ref(null);
+const markdownImporter = ref(null);
+
+// 状态变量
 const savingStatus = ref("");
 const isSubmitting = ref(false);
 const shareLink = ref("");
-const countdown = ref(15);
-let countdownTimer = null;
-const slugError = ref("");
-
-// 权限状态变量
-const isAdmin = ref(false);
-const hasApiKey = ref(false);
-const hasTextPermission = ref(false);
-const hasPermission = ref(false);
-
-const formData = ref({
-  remark: "",
-  customLink: "",
-  password: "",
-  expiryTime: "0", // 默认为1天
-  maxViews: 0,
-});
-
-// API密钥验证函数的防抖定时器
-let apiKeyValidationTimer = null;
-let lastValidatedApiKey = null;
-let lastValidationTime = 0;
-const VALIDATION_DEBOUNCE_TIME = 2000; // 2秒内不重复验证相同的密钥
-
-// 临时保存当前分享的密码
 const currentSharePassword = ref("");
+const hasPermission = ref(false);
+const isPlainTextMode = ref(false);
+const editorContent = ref("");
+const currentEditor = ref(null);
 
-// 复制为其他格式功能逻辑
+// 二维码弹窗状态
+const showQRCodeModal = ref(false);
+
+// 复制格式菜单状态
 const copyFormatMenuVisible = ref(false);
 const copyFormatMenuPosition = ref({ x: 0, y: 0 });
 
-// 添加ref引用
-const markdownImporter = ref(null);
+// 组件事件处理函数
+const handlePermissionChange = (permission) => {
+  hasPermission.value = permission;
+};
 
-// 检查用户权限状态
-const checkPermissionStatus = async () => {
-  console.log("检查用户权限状态...");
+const handleEditorReady = (editor) => {
+  currentEditor.value = editor;
 
-  // 检查管理员权限
-  const adminToken = localStorage.getItem("admin_token");
-  isAdmin.value = !!adminToken;
-
-  if (isAdmin.value) {
-    console.log("用户具有管理员权限");
-    hasPermission.value = true;
-    return;
+  // 验证编辑器实例
+  if (!editor || typeof editor.getValue !== "function" || typeof editor.getHTML !== "function") {
+    console.error("编辑器实例验证失败，缺少必要方法");
   }
+};
 
-  // 检查API密钥权限
-  const apiKey = localStorage.getItem("api_key");
-  hasApiKey.value = !!apiKey;
+const handleContentChange = (content) => {
+  editorContent.value = content;
+  autoSaveDebounce();
+};
 
-  if (hasApiKey.value) {
-    console.log("用户具有API密钥:", apiKey.substring(0, 3) + "..." + apiKey.substring(apiKey.length - 3));
+const handleFormChange = (formData) => {
+  // 表单数据变化处理
+  console.log("表单数据变化:", formData);
+};
 
-    // 首先从后端验证API密钥权限（实时验证）
-    try {
-      const hasTextPerm = await validateApiKey(apiKey);
-      hasTextPermission.value = hasTextPerm;
-      console.log("API密钥文本权限(后端验证):", hasTextPermission.value ? "有权限" : "无权限");
-    } catch (error) {
-      console.error("API密钥验证失败:", error);
+const handleStatusMessage = (message) => {
+  savingStatus.value = message;
+  setTimeout(() => {
+    savingStatus.value = "";
+  }, 3000);
+};
 
-      // 验证失败时，尝试回退到本地缓存
-      console.warn("后端验证失败，尝试使用本地缓存的权限信息");
-      const permissionsStr = localStorage.getItem("api_key_permissions");
-      if (permissionsStr) {
-        try {
-          const permissions = JSON.parse(permissionsStr);
-          hasTextPermission.value = !!permissions.text;
-          console.log("API密钥文本权限(本地缓存):", hasTextPermission.value ? "有权限" : "无权限");
-        } catch (e) {
-          console.error("解析权限数据失败:", e);
-          hasTextPermission.value = false;
-        }
-      } else {
-        console.warn("未找到API密钥权限信息");
-        hasTextPermission.value = false;
-      }
+const handleCountdownEnd = () => {
+  shareLink.value = "";
+  currentSharePassword.value = "";
+};
+
+// 导航到管理页面
+const navigateToAdmin = () => {
+  // 使用 Vue Router 进行导航
+  import("../router").then(({ routerUtils }) => {
+    routerUtils.navigateTo("admin");
+  });
+};
+
+// 编辑器模式切换
+const toggleEditorMode = () => {
+  isPlainTextMode.value = !isPlainTextMode.value;
+  console.log("切换编辑器模式:", isPlainTextMode.value ? "纯文本模式" : "Markdown模式");
+};
+
+// 触发文件导入
+const triggerImportFile = () => {
+  if (markdownImporter.value) {
+    markdownImporter.value.click();
+  }
+};
+
+// 导入Markdown文件
+const importMarkdownFile = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = e.target.result;
+    if (editorRef.value) {
+      editorRef.value.setValue(content);
     }
+    editorContent.value = content;
+  };
+  reader.readAsText(file);
+
+  // 清空文件输入
+  event.target.value = "";
+};
+
+// 清空编辑器内容
+const clearEditorContent = () => {
+  if (editorRef.value) {
+    editorRef.value.clearContent();
+  }
+  editorContent.value = "";
+};
+
+// 显示复制格式菜单
+const showCopyFormatsMenu = (position) => {
+  if (!currentEditor.value) return;
+
+  // 如果传入了位置参数，直接使用
+  if (position && position.x !== undefined && position.y !== undefined) {
+    copyFormatMenuPosition.value = position;
   } else {
-    hasTextPermission.value = false;
-  }
-
-  // 综合判断是否有创建权限
-  hasPermission.value = isAdmin.value || (hasApiKey.value && hasTextPermission.value);
-  console.log("用户创建文本分享权限:", hasPermission.value ? "有权限" : "无权限");
-};
-
-// 验证自定义链接后缀格式
-const validateCustomLink = () => {
-  // 清除现有错误
-  slugError.value = "";
-
-  // 如果为空则不验证（使用随机生成的slug）
-  if (!formData.value.customLink) {
-    return true;
-  }
-
-  // 验证格式：只允许字母、数字、连字符、下划线
-  const slugRegex = /^[a-zA-Z0-9_-]+$/;
-  if (!slugRegex.test(formData.value.customLink)) {
-    slugError.value = t("markdown.invalidFormat");
-    return false;
-  }
-
-  return true;
-};
-
-const getInputClasses = () => {
-  return props.darkMode
-      ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
-      : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
-};
-
-// 初始化编辑器
-const initEditor = () => {
-  // 检查vditor容器是否存在
-  const vditorContainer = document.getElementById("vditor");
-  if (!vditorContainer) {
-    console.error("找不到vditor容器元素，无法初始化编辑器");
-    return;
-  }
-
-  console.log("找到vditor容器，开始初始化编辑器");
-  const theme = props.darkMode ? "dark" : "light";
-
-  // 检测是否为移动设备
-  const isMobile = window.innerWidth <= 768;
-
-  // 根据设备类型设置默认编辑模式和大纲显示
-  const defaultMode = isMobile ? "ir" : "sv"; // 移动端使用即时渲染模式，桌面端使用分屏预览模式
-  const enableOutline = !isMobile; // 移动端默认不启用大纲
-
-  // 初始化Vditor编辑器 - 支持底部拖动调整高度
-  editor = new Vditor("vditor", {
-    height: 600,
-    minHeight: 400,
-    width: "100%",
-    mode: defaultMode, // 根据设备类型设置默认编辑模式
-    theme: theme,
-    // JS 文件使用 CDN，CSS 文件使用本地
-    // 如后续需要升级Vditor版本，需要同时更新预览页中的CDN版本号
-    cdn: "/assets/vditor",
-    resize: {
-      enable: true,
-      position: "bottom", // 只允许底部拖动
-    },
-    counter: {
-      enable: true, // 启用字符计数器
-      type: "text", // 统计类型：text（字符数）
-    },
-    tab: "\t", // 按Tab键时插入制表符而非缩进
-    indent: {
-      tab: "\t", // 使用制表符进行缩进
-      codeBlock: 4, // 代码块的缩进为4个空格
-    },
-    preview: {
-      theme: theme,
-      hljs: {
-        lineNumber: true, // 显示行号
-        style: props.darkMode ? "vs2015" : "github",
-        // ：JS 文件使用 CDN，CSS 文件使用本地
-        js: "/assets/vditor/dist/js/highlight.js/third-languages.js",
-        css: (style) => `/assets/vditor/dist/js/highlight.js/styles/${style}.min.css`,
-      },
-      actions: ["desktop", "tablet", "mobile", "mp-wechat", "zhihu"],
-      markdown: {
-        toc: true,
-        mark: true,
-        footnotes: true,
-        autoSpace: true,
-        listStyle: true, // 确保开启列表样式
-        task: true, // 启用任务列表交互
-        paragraphBeginningSpace: true, // 段落开头空格支持
-        fixTermTypo: true, // 术语修正
-        media: true, // 启用媒体链接解析
-        // 图表渲染相关配置
-        mermaid: {
-          theme: "default",
-          useMaxWidth: false,
-        },
-      },
-      math: {
-        engine: "KaTeX",
-        inlineDigit: true,
-      },
-    },
-    typewriterMode: true, // 启用打字机模式
-    outline: {
-      enable: enableOutline, // 根据设备类型决定是否默认启用大纲
-      position: "left",
-    },
-    hint: {
-      emoji: {
-        // 表情符号 - 基本表情
-        slight_smile: "🙂",
-        smile: "😊",
-        joy: "😂",
-        rofl: "🤣",
-        laughing: "😆",
-        wink: "😉",
-        blush: "😊",
-        heart_eyes: "😍",
-        kissing_heart: "😘",
-        kissing: "😗",
-        kissing_smiling_eyes: "😙",
-        kissing_closed_eyes: "😚",
-        yum: "😋",
-        stuck_out_tongue: "😛",
-        stuck_out_tongue_winking_eye: "😜",
-        stuck_out_tongue_closed_eyes: "😝",
-        grin: "😁",
-        satisfied: "😌",
-        sweat_smile: "😅",
-
-        // 情绪表情
-        thinking: "🤔",
-        confused: "😕",
-        worried: "😟",
-        frowning: "😦",
-        persevere: "😣",
-        confounded: "😖",
-        tired_face: "😫",
-        weary: "😩",
-        cry: "😢",
-        sob: "😭",
-        angry: "😠",
-        rage: "😡",
-        triumph: "😤",
-        sleepy: "😪",
-        yawning: "🥱",
-        mask: "😷",
-        sunglasses: "😎",
-        dizzy_face: "😵",
-        exploding_head: "🤯",
-        flushed: "😳",
-
-        // 手势表情
-        thumbsup: "👍",
-        thumbsdown: "👎",
-        ok_hand: "👌",
-        punch: "👊",
-        fist: "✊",
-        v: "✌️",
-        wave: "👋",
-        raised_hand: "✋",
-        clap: "👏",
-        muscle: "💪",
-        pray: "🙏",
-        point_up: "☝️",
-        point_down: "👇",
-        point_left: "👈",
-        point_right: "👉",
-
-        // 心形表情
-        heart: "❤️",
-        orange_heart: "🧡",
-        yellow_heart: "💛",
-        green_heart: "💚",
-        blue_heart: "💙",
-        purple_heart: "💜",
-        black_heart: "🖤",
-        broken_heart: "💔",
-        sparkling_heart: "💖",
-        heartbeat: "💓",
-        heartpulse: "💗",
-
-        // 动物表情
-        dog: "🐶",
-        cat: "🐱",
-        mouse: "🐭",
-        hamster: "🐹",
-        rabbit: "🐰",
-        fox: "🦊",
-        bear: "🐻",
-        panda: "🐼",
-        koala: "🐨",
-        tiger: "🐯",
-        lion: "🦁",
-
-        // 食物表情
-        apple: "🍎",
-        pizza: "🍕",
-        hamburger: "🍔",
-        fries: "🍟",
-        sushi: "🍣",
-        ramen: "🍜",
-        doughnut: "🍩",
-        cake: "🍰",
-        coffee: "☕",
-        beer: "🍺",
-
-        // 活动表情
-        soccer: "⚽",
-        basketball: "🏀",
-        football: "🏈",
-        baseball: "⚾",
-        tennis: "🎾",
-
-        // 物体表情
-        gift: "🎁",
-        book: "📚",
-        computer: "💻",
-        bulb: "💡",
-        rocket: "🚀",
-        hourglass: "⌛",
-        watch: "⌚",
-        moneybag: "💰",
-
-        // 符号表情
-        check: "✅",
-        x: "❌",
-        warning: "⚠️",
-        question: "❓",
-        exclamation: "❗",
-        star: "⭐",
-        sparkles: "✨",
-        fire: "🔥",
-        zap: "⚡",
-      },
-    },
-    toolbar: [
-      "emoji",
-      "headings",
-      "bold",
-      "italic",
-      "strike",
-      "link",
-      "|",
-      "list",
-      "ordered-list",
-      "check",
-      "outdent",
-      "indent",
-      "|",
-      "quote",
-      "line",
-      "code",
-      "inline-code",
-      "insert-before",
-      "insert-after",
-      "|",
-      // "upload",
-      "table",
-      "|",
-      "undo",
-      "redo",
-      "|",
-      {
-        name: "import-markdown",
-        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"></path></svg>',
-        tip: t("markdown.importMarkdown"),
-        click() {
-          triggerImportFile();
-        },
-      },
-      {
-        name: "clear-content",
-        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>',
-        tip: "清空内容",
-        click() {
-          // 添加确认对话框
-          if (confirm(t("markdown.confirmClearContent") || "确定要清空所有内容吗？")) {
-            clearEditorContent();
-          }
-        },
-      },
-      {
-        name: "copy-formats",
-        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg>',
-        tip: "复制为其他格式",
-        click() {
-          showCopyFormatsMenu();
-        },
-      },
-      "|",
-      "fullscreen",
-      "edit-mode",
-      "both",
-      "outline",
-      "preview",
-      "code-theme",
-      "export",
-      "help",
-    ],
-    placeholder: t("markdown.placeholder"),
-    cache: {
-      enable: true,
-      id: "cloudpaste-editor",
-    },
-    upload: {
-      accept: "image/*,.zip,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx",
-      token: "",
-      // url: "/api/upload",
-      linkToImgUrl: "/api/fetch?url=",
-      filename(name) {
-        return name.replace(/\W/g, "");
-      },
-    },
-    after: () => {
-      // 编辑器加载后，尝试保存在本地
-      autoSave();
-
-      // 在暗色模式下进一步调整一些细节样式
-      if (props.darkMode) {
-        // 这里可以添加一些额外的DOM操作来调整暗色模式下的特定元素
-        // 例如调整一些Vditor没有直接暴露样式接口的组件
-      }
-    },
-    input: () => {
-      // 输入时触发自动保存计时
-      autoSaveDebounce();
-    },
-    // 添加自定义键盘处理
-    customKeymap: {
-      // 自定义Tab键处理
-      Tab: (editor, event) => {
-        // 默认使用vditor自身的tab处理
-        return false;
-      },
-    },
-  });
-};
-
-// 监听暗色模式变化，重新初始化编辑器
-watch(
-    () => props.darkMode,
-    () => {
-      // 只有在Markdown模式下才需要处理编辑器重新初始化
-      if (!isPlainTextMode.value && editor) {
-        const currentValue = editor.getValue();
-        editor.destroy();
-        initEditor();
-        // 保留当前编辑的内容
-        setTimeout(() => {
-          if (editor && currentValue) {
-            editor.setValue(currentValue);
-          }
-        }, 100);
-      }
-    }
-);
-
-// 自动保存
-const autoSave = () => {
-  try {
-    let content;
-
-    if (isPlainTextMode.value) {
-      // 在纯文本模式下，保存原始纯文本内容
-      content = originalPlainTextContent.value || plainTextContent.value;
-    } else if (editor && editor.getValue) {
-      content = editor.getValue();
+    // 否则尝试获取工具栏中复制格式按钮的位置
+    const copyFormatBtn = document.querySelector('.vditor-toolbar .vditor-tooltipped[data-type="copy-formats"]');
+    if (copyFormatBtn) {
+      const rect = copyFormatBtn.getBoundingClientRect();
+      copyFormatMenuPosition.value = {
+        x: rect.left,
+        y: rect.bottom + 5,
+      };
     } else {
-      return; // 如果编辑器未初始化，不执行保存
-    }
-
-    localStorage.setItem("cloudpaste-content", content);
-    savingStatus.value = "正在自动保存...";
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 2000);
-  } catch (e) {
-    console.warn("自动保存时发生错误:", e);
-  }
-};
-
-// 验证API密钥权限（向后端发送请求进行实时验证）
-const validateApiKey = async (apiKey) => {
-  // 如果是相同的密钥且在短时间内验证过，直接返回上次的验证结果
-  const now = Date.now();
-  if (apiKey === lastValidatedApiKey && now - lastValidationTime < VALIDATION_DEBOUNCE_TIME) {
-    console.log("使用缓存的API密钥验证结果，距上次验证时间:", Math.floor((now - lastValidationTime) / 1000), "秒");
-    return hasTextPermission.value;
-  }
-
-  // 取消可能存在的验证定时器
-  if (apiKeyValidationTimer) {
-    clearTimeout(apiKeyValidationTimer);
-  }
-
-  // 创建防抖执行验证的Promise
-  return new Promise((resolve, reject) => {
-    apiKeyValidationTimer = setTimeout(async () => {
-      try {
-        // 导入API配置函数
-        const { getFullApiUrl } = await import("../api/config.js");
-        // 使用正确的API路径构建URL
-        const apiUrl = getFullApiUrl("test/api-key");
-
-        console.log("正在验证API密钥:", apiKey.substring(0, 3) + "..." + apiKey.substring(apiKey.length - 3));
-
-        const response = await fetch(apiUrl, {
-          method: "GET",
-          headers: {
-            Authorization: `ApiKey ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          credentials: "omit",
-        });
-
-        if (!response.ok) {
-          throw new Error(`API密钥验证失败 (${response.status})`);
-        }
-
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("服务器返回了无效的响应格式");
-        }
-
-        const data = await response.json();
-
-        if (!data.success) {
-          throw new Error(data.message || "密钥验证失败");
-        }
-
-        // 记录本次验证的密钥和时间
-        lastValidatedApiKey = apiKey;
-        lastValidationTime = Date.now();
-
-        // 更新本地缓存中的权限信息
-        if (data.data && data.data.permissions) {
-          const permissions = data.data.permissions;
-          localStorage.setItem("api_key_permissions", JSON.stringify(permissions));
-
-          // 更新权限状态
-          const textPermission = !!permissions.text;
-          hasTextPermission.value = textPermission;
-
-          // 触发自定义事件，通知其他组件权限已更新
-          window.dispatchEvent(
-              new CustomEvent("api-key-permissions-updated", {
-                detail: { permissions },
-              })
-          );
-
-          console.log("API密钥验证成功，文本权限:", textPermission ? "有权限" : "无权限");
-
-          // 解析Promise并返回权限状态
-          resolve(textPermission);
-          return;
-        }
-
-        // 如果没有权限数据，视为无权限
-        resolve(false);
-      } catch (error) {
-        console.error("API密钥验证出错:", error);
-        reject(error);
-      } finally {
-        apiKeyValidationTimer = null;
-      }
-    }, 50); // 短暂延迟，合并多个快速调用
-  });
-};
-
-// 防抖自动保存，输入停止后1秒再保存
-let autoSaveDebounceTimer;
-const autoSaveDebounce = () => {
-  if (autoSaveDebounceTimer) {
-    clearTimeout(autoSaveDebounceTimer);
-  }
-  autoSaveDebounceTimer = setTimeout(() => {
-    autoSave();
-  }, 1000);
-};
-
-// 每5分钟自动保存一次
-let autoSaveInterval;
-
-// 事件处理函数
-const handleApiKeyPermissionsUpdate = async (e) => {
-  console.log("接收到API密钥权限更新事件:", e.detail);
-  await checkPermissionStatus();
-};
-
-const handleStorageChange = async (e) => {
-  if (e.key === "admin_token" || e.key === "api_key" || e.key === "api_key_permissions") {
-    console.log("检测到存储变化，更新权限状态:", e.key);
-    await checkPermissionStatus();
-  }
-};
-
-// 组件挂载时初始化
-onMounted(async () => {
-  // 先执行权限检查，确保UI正确显示
-  await checkPermissionStatus();
-
-  // 恢复编辑器模式偏好设置
-  restoreEditorModePreference();
-  console.log("当前编辑器模式:", isPlainTextMode.value ? "纯文本模式" : "Markdown模式");
-
-  // 尝试恢复上次编辑的内容
-  const savedContent = localStorage.getItem("cloudpaste-content");
-  if (savedContent) {
-    // 同时更新纯文本内容和原始纯文本内容
-    plainTextContent.value = savedContent;
-    originalPlainTextContent.value = savedContent;
-    console.log("从本地存储恢复内容");
-  }
-
-  // 使用nextTick确保DOM已更新
-  nextTick(() => {
-    // 只有在非纯文本模式下才初始化编辑器
-    if (!isPlainTextMode.value) {
-      console.log("尝试初始化Markdown编辑器");
-
-      // 确保editor为空
-      editor = null;
-
-      // 初始化编辑器，并在回调中设置内容
-      setTimeout(() => {
-        initEditor();
-
-        // 如果有已保存的内容，设置到编辑器
-        if (savedContent && editor) {
-          setTimeout(() => {
-            try {
-              if (editor && editor.setValue) {
-                console.log("设置编辑器初始内容");
-                editor.setValue(savedContent);
-              }
-            } catch (e) {
-              console.warn("设置编辑器内容时出错:", e);
-            }
-          }, 300);
-        }
-      }, 100);
-    } else {
-      console.log("纯文本模式，不初始化编辑器");
-    }
-  });
-
-  // 监听storage事件，以便在其他标签页中登录/登出时更新状态
-  window.addEventListener("storage", handleStorageChange);
-
-  // 监听API密钥权限更新事件
-  window.addEventListener("api-key-permissions-updated", handleApiKeyPermissionsUpdate);
-
-  // 添加窗口大小变化监听
-  window.addEventListener("resize", handleResize);
-
-  // 设置自动保存
-  autoSaveInterval = setInterval(autoSave, 300000); // 5分钟
-
-  // 添加全局点击事件监听器
-  document.addEventListener("click", handleGlobalClick);
-});
-
-// 组件卸载时清理资源
-onUnmounted(() => {
-  // 移除窗口大小变化监听
-  window.removeEventListener("resize", handleResize);
-
-  // 移除API密钥权限更新事件监听
-  window.removeEventListener("api-key-permissions-updated", handleApiKeyPermissionsUpdate);
-
-  // 移除storage事件监听
-  window.removeEventListener("storage", handleStorageChange);
-
-  // 清除防抖定时器
-  if (resizeTimer) {
-    clearTimeout(resizeTimer);
-    resizeTimer = null;
-  }
-
-  // 清除自动保存定时器
-  if (autoSaveInterval) {
-    clearInterval(autoSaveInterval);
-    autoSaveInterval = null;
-  }
-
-  // 清除防抖定时器
-  if (autoSaveDebounceTimer) {
-    clearTimeout(autoSaveDebounceTimer);
-    autoSaveDebounceTimer = null;
-  }
-
-  // 清除倒计时定时器
-  if (countdownTimer) {
-    clearInterval(countdownTimer);
-    countdownTimer = null;
-  }
-
-  // 只有在非纯文本模式下才需要销毁编辑器实例
-  if (!isPlainTextMode.value) {
-    // 销毁编辑器实例 - 添加安全检查
-    try {
-      if (editor) {
-        // 检查是否有 destroy 方法并且 element 属性存在
-        if (editor.destroy && editor.element) {
-          editor.destroy();
-        } else {
-          // 如果没有 destroy 方法或 element 不存在，手动清除引用
-          console.warn("编辑器实例状态异常，手动清除引用");
-        }
-        editor = null;
-      }
-    } catch (e) {
-      console.warn("销毁编辑器时发生错误:", e);
-      editor = null;
+      // 使用默认位置
+      copyFormatMenuPosition.value = { x: 100, y: 100 };
     }
   }
 
-  // 移除全局点击事件监听器
-  document.removeEventListener("click", handleGlobalClick);
-});
+  copyFormatMenuVisible.value = true;
+};
 
-// 保存内容并创建分享
-const saveContent = async () => {
-  // 在执行保存前重新检查权限状态
-  await checkPermissionStatus();
+// 关闭复制格式菜单
+const closeCopyFormatMenu = () => {
+  copyFormatMenuVisible.value = false;
+};
 
+// 显示二维码
+const showQRCode = () => {
+  showQRCodeModal.value = true;
+};
+
+// 关闭二维码弹窗
+const closeQRCodeModal = () => {
+  showQRCodeModal.value = false;
+};
+
+// 保存内容
+const saveContent = async (formData) => {
   if (!hasPermission.value) {
-    savingStatus.value = t("markdown.errorNoPermission");
+    handleStatusMessage("没有权限创建分享");
     return;
   }
 
-  // 验证自定义链接格式
-  if (!validateCustomLink()) {
-    savingStatus.value = slugError.value;
-    return;
-  }
-
-  // 根据当前模式获取内容
-  const content = isPlainTextMode.value ? originalPlainTextContent.value || plainTextContent.value : editor.getValue();
-  if (!content || content.trim() === "") {
-    savingStatus.value = t("markdown.errorEmptyContent");
+  if (!editorContent.value.trim()) {
+    handleStatusMessage("内容不能为空");
     return;
   }
 
   isSubmitting.value = true;
-  savingStatus.value = t("markdown.creatingShare");
+  handleStatusMessage("正在创建分享...");
 
   try {
-    // 准备要提交的数据
+    // 准备要提交的数据 - 只传递有值的字段
     const pasteData = {
-      content,
-      slug: formData.value.customLink || undefined,
-      remark: formData.value.remark || undefined,
-      password: formData.value.password || undefined,
-      maxViews: formData.value.maxViews > 0 ? formData.value.maxViews : undefined,
+      content: editorContent.value,
     };
 
+    // 只有当字段有值时才添加到请求中
+    if (formData.customLink && formData.customLink.trim()) {
+      pasteData.slug = formData.customLink.trim();
+    }
+
+    if (formData.remark && formData.remark.trim()) {
+      pasteData.remark = formData.remark.trim();
+    }
+
+    if (formData.password && formData.password.trim()) {
+      pasteData.password = formData.password.trim();
+    }
+
+    if (formData.maxViews && parseInt(formData.maxViews) > 0) {
+      pasteData.maxViews = parseInt(formData.maxViews);
+    }
+
     // 处理过期时间
-    const expiryHours = parseInt(formData.value.expiryTime);
+    const expiryHours = parseInt(formData.expiryTime);
     if (expiryHours > 0) {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + expiryHours);
       pasteData.expiresAt = expiresAt.toISOString();
     }
 
-    console.log("创建分享，使用凭据类型:", isAdmin.value ? "管理员令牌" : hasApiKey.value ? "API密钥" : "无凭据");
+    console.log("创建分享，数据:", pasteData);
 
-    // 调用API函数，授权由client.js自动处理
+    // 调用API函数
     const result = await api.paste.createPaste(pasteData);
     console.log("创建分享结果:", result);
 
-    // 处理成功响应
-    savingStatus.value = t("markdown.shareCreatedSuccess");
+    // 处理API响应格式
+    let slug = null;
 
-    // 显示分享链接 - 从result中提取slug的方式
-    shareLink.value = `${window.location.origin}/paste/${result.slug}`;
+    //  {code: 200/201, message: "", data: {slug: "..."}}
+    if (result && typeof result === "object" && "code" in result) {
+      if ((result.code === 200 || result.code === 201) && result.data && result.data.slug) {
+        slug = result.data.slug;
+      } else {
+        throw new Error(result.message || "创建失败");
+      }
+    } else if (result && typeof result === "object" && result.slug) {
+      slug = result.slug;
+    } else if (result && typeof result === "object") {
+      const possibleFields = ["id", "key", "identifier"];
+      for (const field of possibleFields) {
+        if (result[field]) {
+          slug = result[field];
+          break;
+        }
+      }
+    }
 
-    // 保存当前分享的密码，用于复制直链
-    currentSharePassword.value = formData.value.password || "";
+    if (!slug) {
+      console.error("API响应格式异常:", result);
+      throw new Error("创建失败：无法获取分享标识");
+    }
 
-    // 启动倒计时，倒计时结束后隐藏分享链接
-    startCountdown();
+    // 构建分享链接
+    shareLink.value = `${window.location.origin}/paste/${slug}`;
+    currentSharePassword.value = formData.password || "";
 
-    // 重置表单数据
-    resetForm();
+    // 启动倒计时
+    if (shareLinkRef.value) {
+      shareLinkRef.value.startCountdown();
+    }
+
+    // 重置表单
+    if (formRef.value) {
+      formRef.value.resetForm();
+    }
+
+    handleStatusMessage("分享创建成功！");
   } catch (error) {
-    console.error("创建分享失败:", error);
+    console.error("保存失败:", error);
 
-    // 针对403权限错误进行特殊处理
-    if (
-        (error.message && error.message.includes("权限")) ||
-        error.status === ApiStatus.FORBIDDEN ||
-        error.response?.status === ApiStatus.FORBIDDEN ||
-        error.code === ApiStatus.FORBIDDEN ||
-        error.message.includes(ApiStatus.FORBIDDEN.toString())
-    ) {
-      // 清除权限缓存并重新验证
-      if (hasApiKey.value) {
-        localStorage.removeItem("api_key_permissions");
-        await checkPermissionStatus();
-      }
-      savingStatus.value = t("markdown.errorPermissionDenied");
+    // 根据错误消息内容进行分类处理
+    if (error.message && error.message.includes("已被占用")) {
+      handleStatusMessage("链接后缀已被占用，请更换其他后缀");
+    } else if (error.message && error.message.includes("权限")) {
+      handleStatusMessage("权限不足，无法创建分享");
+    } else if (error.message && error.message.includes("内容过大")) {
+      handleStatusMessage("内容过大，请减少内容长度");
     } else {
-      savingStatus.value = `${t("markdown.errorPrefix")}: ${error.message || t("markdown.errorCreateShareFailed")}`;
-
-      // 如果是链接后缀已被占用的错误，5秒后自动关闭提示
-      if (error.message && (error.message.includes("链接后缀已被占用") || error.message.includes("资源冲突"))) {
-        setTimeout(() => {
-          savingStatus.value = "";
-        }, 4000);
-      }
+      handleStatusMessage(`保存失败: ${error.message || "未知错误"}`);
     }
   } finally {
     isSubmitting.value = false;
   }
 };
 
-// 开始倒计时
-const startCountdown = () => {
-  // 清除可能存在的旧定时器
-  if (countdownTimer) {
-    clearInterval(countdownTimer);
+// 自动保存
+let autoSaveTimer = null;
+const autoSaveDebounce = () => {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
   }
 
-  countdown.value = 15; // 使用15秒倒计时
-
-  countdownTimer = setInterval(() => {
-    countdown.value--;
-
-    if (countdown.value <= 0) {
-      clearInterval(countdownTimer);
-      shareLink.value = "";
-      // 清除当前分享的密码
-      currentSharePassword.value = "";
+  autoSaveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem("cloudpaste-content", editorContent.value);
+      // 自动保存成功，无需日志
+    } catch (e) {
+      console.warn("自动保存失败:", e);
     }
   }, 1000);
 };
 
-// 复制分享链接到剪贴板
-const copyShareLink = async () => {
-  if (!shareLink.value) return;
-
+// 组件挂载
+onMounted(() => {
+  // 恢复保存的内容
   try {
-    const success = await clipboardCopy(shareLink.value);
-
-    if (success) {
-      savingStatus.value = t("markdown.linkCopied");
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 2000);
-    } else {
-      throw new Error("复制失败");
-    }
-  } catch (err) {
-    console.error("复制失败:", err);
-    savingStatus.value = t("markdown.copyFailed");
-  }
-};
-
-// 复制原始文本直链到剪贴板
-const copyRawTextLink = async () => {
-  if (!shareLink.value) return;
-
-  // 从shareLink中提取slug
-  const slug = shareLink.value.split("/").pop();
-
-  // 构建原始文本直链URL，使用当前分享的密码（如果有）
-  const rawLink = api.paste.getRawPasteUrl(slug, currentSharePassword.value || null);
-
-  try {
-    const success = await clipboardCopy(rawLink);
-
-    if (success) {
-      savingStatus.value = t("markdown.rawLinkCopied");
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 2000);
-    } else {
-      throw new Error("复制失败");
-    }
-  } catch (err) {
-    console.error("复制失败:", err);
-    savingStatus.value = t("markdown.copyFailed");
-  }
-};
-
-// 添加对maxViews的验证函数
-const validateMaxViews = (event) => {
-  // 获取输入的值
-  const value = event.target.value;
-
-  // 如果是负数，则设置为0
-  if (value < 0) {
-    formData.value.maxViews = 0;
-    return;
-  }
-
-  // 如果包含小数点，截取整数部分
-  if (value.toString().includes(".")) {
-    formData.value.maxViews = parseInt(value);
-  }
-
-  // 确保值为有效数字
-  if (isNaN(value) || value === "") {
-    formData.value.maxViews = 0;
-  } else {
-    // 确保是整数
-    formData.value.maxViews = parseInt(value);
-  }
-};
-
-// 添加错误消息样式
-const isErrorMessage = (message) => {
-  return message.includes("失败") || message.includes("错误") || message.includes("链接后缀已被占用") || message.includes("不能");
-};
-
-// 添加处理窗口大小变化的函数
-let resizeTimer;
-const handleResize = () => {
-  // 使用防抖，避免频繁触发
-  if (resizeTimer) {
-    clearTimeout(resizeTimer);
-  }
-
-  resizeTimer = setTimeout(() => {
-    // 检查是否需要根据窗口大小重新初始化编辑器
-    // 由于编辑器的模式切换可能导致内容丢失，这里只在必要时（如设备类型变化）才重新初始化
-    const wasMobile = window.innerWidth <= 768;
-
-    // 如果编辑器已创建但设备类型发生变化（如平板旋转），考虑让用户手动切换模式
-    // 这里我们不重新初始化编辑器，因为这可能导致用户丢失当前编辑的内容
-    // 只是记录日志供参考
-    if (editor) {
-      console.log(`窗口大小已变化，当前窗口宽度: ${window.innerWidth}px，设备类型: ${wasMobile ? "移动设备" : "桌面设备"}`);
-    }
-  }, 300);
-};
-
-// 重置表单
-const resetForm = () => {
-  formData.value = {
-    remark: "",
-    customLink: "",
-    password: "",
-    expiryTime: "0", // 默认永不过期
-    maxViews: 0,
-  };
-};
-
-// 二维码相关状态和方法
-const showQRCodeModal = ref(false);
-const qrCodeDataURL = ref("");
-
-const showQRCode = async () => {
-  showQRCodeModal.value = true;
-  qrCodeDataURL.value = ""; // 重置二维码图片
-
-  try {
-    // 使用 qrcode 库生成二维码
-    const dataURL = await QRCode.toDataURL(shareLink.value, {
-      width: 240,
-      margin: 1,
-      color: {
-        dark: "#000000",
-        light: "#FFFFFF",
-      },
-    });
-    qrCodeDataURL.value = dataURL;
-  } catch (error) {
-    console.error("生成二维码时出错:", error);
-    savingStatus.value = "生成二维码失败";
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 2000);
-  }
-};
-
-const closeQRCodeModal = () => {
-  showQRCodeModal.value = false;
-};
-
-const downloadQRCode = () => {
-  if (!qrCodeDataURL.value) return;
-
-  // 创建一个临时链接元素来下载图片
-  const link = document.createElement("a");
-  link.href = qrCodeDataURL.value;
-  link.download = `cloudpaste-qrcode-${new Date().getTime()}.png`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  // 显示下载成功消息
-  savingStatus.value = t("markdown.qrCodeDownloaded");
-  setTimeout(() => {
-    savingStatus.value = "";
-  }, 2000);
-};
-
-// 添加导航到管理员登录页面的方法
-const navigateToAdmin = () => {
-  import("../router").then(({ routerUtils }) => {
-    routerUtils.navigateTo("admin");
-    console.log("导航到管理员登录页面");
-  });
-};
-
-// 显示复制格式菜单
-const showCopyFormatsMenu = () => {
-  if (!editor) return;
-
-  // 获取工具栏中复制格式按钮的位置
-  const copyFormatBtn = document.querySelector('.vditor-toolbar .vditor-tooltipped[data-type="copy-formats"]');
-  if (!copyFormatBtn) return;
-
-  const rect = copyFormatBtn.getBoundingClientRect();
-
-  // 设置菜单位置
-  copyFormatMenuPosition.value = {
-    x: rect.left,
-    y: rect.bottom + 5,
-  };
-
-  // 显示菜单
-  copyFormatMenuVisible.value = true;
-
-  // 添加点击事件监听器，点击外部区域关闭菜单
-  setTimeout(() => {
-    document.addEventListener("click", closeCopyFormatMenu);
-  }, 0);
-};
-
-// 关闭复制格式菜单
-const closeCopyFormatMenu = (event) => {
-  // 如果没有传入event（如从复制函数中直接调用）
-  if (!event) {
-    copyFormatMenuVisible.value = false;
-    document.removeEventListener("click", closeCopyFormatMenu);
-    return;
-  }
-
-  const menu = document.getElementById("copyFormatMenu");
-  // 更新选择器以匹配自定义按钮
-  const copyFormatBtn = document.querySelector('.vditor-toolbar button[data-type="copy-formats"]')?.parentElement;
-
-  if (menu && !menu.contains(event.target) && (!copyFormatBtn || !copyFormatBtn.contains(event.target))) {
-    copyFormatMenuVisible.value = false;
-    document.removeEventListener("click", closeCopyFormatMenu);
-  }
-};
-
-// 复制为Markdown格式
-const copyAsMarkdown = () => {
-  if (!editor) return;
-  const mdContent = editor.getValue();
-  copyToClipboard(mdContent, "已复制为Markdown格式");
-  closeCopyFormatMenu();
-};
-
-// 复制为HTML格式
-const copyAsHTML = () => {
-  if (!editor) return;
-  const htmlContent = editor.getHTML();
-  copyToClipboard(htmlContent, "已复制为HTML格式");
-  closeCopyFormatMenu();
-};
-
-// 复制为纯文本格式
-const copyAsPlainText = () => {
-  if (!editor) return;
-  const htmlContent = editor.getHTML();
-  // 创建一个临时元素来去除HTML标签
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = htmlContent;
-  const plainText = tempDiv.textContent || tempDiv.innerText || "";
-  copyToClipboard(plainText, "已复制为纯文本格式");
-  closeCopyFormatMenu();
-};
-
-// 导出为Word文档
-const exportWordDocument = async () => {
-  if (!editor) return;
-
-  // 显示状态消息
-  savingStatus.value = t("common.generatingWord") || "正在生成Word文档...";
-
-  try {
-    // 获取Markdown内容
-    const markdownContent = editor.getValue();
-
-    if (!markdownContent) {
-      savingStatus.value = t("common.noContent") || "没有内容可导出";
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 3000);
-      return;
-    }
-
-    // 使用我们的服务转换成Word文档
-    const blob = await markdownToWord(markdownContent, {
-      title: "Markdown导出文档",
-    });
-
-    // 生成文件名 - 使用日期和时间
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "-");
-    const fileName = `markdown-${dateStr}-${timeStr}.docx`;
-
-    // 使用file-saver保存文件
-    saveAs(blob, fileName);
-
-    // 显示成功消息
-    savingStatus.value = t("common.wordSaved") || "Word文档已生成并下载";
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
-  } catch (error) {
-    console.error("导出Word文档时出错:", error);
-    savingStatus.value = t("common.wordExportFailed") || "导出失败，请稍后重试";
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
-  } finally {
-    closeCopyFormatMenu();
-  }
-};
-
-// 通用复制到剪贴板函数
-const copyToClipboard = async (text, successMessage) => {
-  if (!text) {
-    savingStatus.value = "没有可复制的内容";
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
-    return;
-  }
-
-  try {
-    const success = await clipboardCopy(text);
-
-    if (success) {
-      savingStatus.value = successMessage;
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 3000);
-    } else {
-      throw new Error("复制失败");
+    const savedContent = localStorage.getItem("cloudpaste-content");
+    if (savedContent) {
+      editorContent.value = savedContent;
     }
   } catch (e) {
-    console.error("复制失败:", e);
-    savingStatus.value = "复制失败，请手动选择内容复制";
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
+    console.warn("恢复内容失败:", e);
   }
-};
+});
 
-const handleGlobalClick = (event) => {
-  // 如果点击事件不是来自复制格式菜单，并且复制格式菜单可见，则关闭菜单
-  const menu = document.getElementById("copyFormatMenu");
-  if (
-      menu &&
-      !menu.contains(event.target) &&
-      // 更新选择器以匹配自定义按钮
-      !event.target.closest('.vditor-toolbar button[data-type="copy-formats"]') &&
-      copyFormatMenuVisible.value
-  ) {
-    closeCopyFormatMenu();
+// 组件卸载
+onUnmounted(() => {
+  // 清理定时器
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
   }
-};
-
-const exportAsPng = async () => {
-  // 统一超时时间常量
-  const MESSAGE_TIMEOUT = 3000;
-
-  if (!editor) {
-    console.error("导出PNG失败：编辑器实例不存在");
-    savingStatus.value = t("common.pngExportFailed") || "导出PNG失败：编辑器实例不存在";
-    return;
-  }
-
-  // 显示状态消息
-  savingStatus.value = t("common.exportingPng") || "正在导出PNG图片...";
-
-  try {
-    // 生成文件名 - 使用日期和时间
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "-");
-    const fileName = `markdown-${dateStr}-${timeStr}.png`;
-
-    // 获取编辑器容器
-    const editorContainer = document.getElementById("vditor");
-
-    // 等待内容渲染
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // 设置处理选项并调用导出函数
-    const result = await htmlToImage.editorContentToPng(editor, {
-      filename: fileName,
-      imageOptions: {
-        quality: 1.0,
-        backgroundColor: props.darkMode ? "#1e1e1e" : "#ffffff",
-        style: {
-          "max-width": "100%",
-          width: "auto",
-        },
-        cacheBust: true,
-        imagePlaceholder: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-        skipFonts: false,
-        pixelRatio: 4,
-        canvasWidth: editorContainer ? editorContainer.offsetWidth : undefined,
-        canvasHeight: undefined,
-      },
-      // 捕获前准备 - 添加临时样式
-      beforeCapture: async (targetElement) => {
-        // 添加临时样式以优化导出效果
-        const tempStyle = document.createElement("style");
-        tempStyle.id = "temp-export-style";
-        tempStyle.textContent = `
-          .vditor-reset {
-            padding: 20px !important;
-            box-sizing: border-box !important;
-          }
-          .vditor-reset pre {
-            white-space: pre-wrap !important;
-            word-break: break-all !important;
-            overflow: visible !important;
-            background-color: #f6f8fa !important;
-            border-radius: 4px !important;
-            padding: 12px 16px !important;
-            margin: 1em 0 !important;
-          }
-          .vditor-reset pre code {
-            font-family: monospace, Consolas, "Courier New", monospace !important;
-            font-size: 13px !important;
-            line-height: 1.5 !important;
-            white-space: pre-wrap !important;
-            tab-size: 4 !important;
-            word-break: keep-all !important;
-          }
-          .vditor-reset img {
-            max-width: 100% !important;
-            image-rendering: auto !important;
-          }
-          .vditor-reset table {
-            display: table !important;
-            width: auto !important;
-            max-width: 100% !important;
-            overflow: visible !important;
-            border-collapse: collapse !important;
-            margin: 1em 0 !important;
-          }
-          .vditor-reset table th,
-          .vditor-reset table td {
-            border: 1px solid #ddd !important;
-            padding: 8px 12px !important;
-          }
-        `;
-        document.head.appendChild(tempStyle);
-
-        // 处理图片以解决跨域问题
-        const images = targetElement.querySelectorAll("img");
-        images.forEach((img) => {
-          if (!img.hasAttribute("crossorigin")) {
-            img.setAttribute("crossorigin", "anonymous");
-          }
-        });
-
-        // 等待样式应用
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        return Promise.resolve();
-      },
-      // 捕获后清理 - 移除临时样式
-      afterCapture: (targetElement) => {
-        const tempStyle = document.getElementById("temp-export-style");
-        if (tempStyle) {
-          document.head.removeChild(tempStyle);
-        }
-        return Promise.resolve();
-      },
-      // 成功回调
-      onSuccess: (dataUrl, blob) => {
-        savingStatus.value = t("common.pngExported") || "PNG图片已导出并下载";
-        setTimeout(() => {
-          savingStatus.value = "";
-        }, MESSAGE_TIMEOUT);
-      },
-      // 错误回调
-      onError: (error) => {
-        console.error("导出PNG图片时出错:", error);
-
-        // 根据错误类型显示不同的错误信息
-        if (error instanceof Event && error.type === "error" && error.target instanceof HTMLImageElement) {
-          savingStatus.value = "由于跨域限制，部分图片可能无法正确显示在导出图片中";
-        } else {
-          savingStatus.value = (t("common.pngExportFailed") || "导出PNG失败") + ": " + (error.message || "未知错误");
-        }
-
-        setTimeout(() => {
-          savingStatus.value = "";
-        }, MESSAGE_TIMEOUT);
-      },
-    });
-
-    // 检查结果
-    if (!result || !result.success) {
-      const errorMsg =
-          result && result.error instanceof Event && result.error.type === "error" && result.error.target instanceof HTMLImageElement
-              ? "导出失败：图片加载出现跨域问题，部分图片可能无法正确显示"
-              : "导出失败";
-
-      throw result?.error || new Error(errorMsg);
-    }
-  } catch (error) {
-    console.error("导出PNG图片过程中发生错误:", error);
-
-    // 统一错误处理
-    if (error instanceof Event && error.type === "error") {
-      savingStatus.value = "由于跨域限制，无法导出包含外部图片的内容";
-    } else {
-      savingStatus.value = t("common.pngExportFailed") || "导出PNG失败，请稍后重试";
-    }
-
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, MESSAGE_TIMEOUT);
-  } finally {
-    closeCopyFormatMenu();
-  }
-};
-
-// 在script setup部分，添加一个清除内容的函数
-const clearEditorContent = () => {
-  // 清空编辑器内容
-  if (editor) {
-    editor.setValue("");
-  }
-
-  // 同时清空纯文本内容和原始纯文本内容
-  plainTextContent.value = "";
-  originalPlainTextContent.value = "";
-
-  // 显示提示信息
-  savingStatus.value = t("markdown.contentCleared") || "内容已清空";
-  setTimeout(() => {
-    savingStatus.value = "";
-  }, 2000);
-};
-
-// 导入Markdown文件的函数
-const importMarkdownFile = (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // 检查文件类型
-  const validTypes = [".md", ".markdown", ".mdown", ".mkd"];
-  const fileName = file.name.toLowerCase();
-  const isValidType = validTypes.some((type) => fileName.endsWith(type));
-
-  if (!isValidType) {
-    savingStatus.value = t("markdown.invalidFileType");
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
-    return;
-  }
-
-  // 文件大小检查（限制为10MB）
-  const maxSize = 10 * 1024 * 1024; // 10MB
-  if (file.size > maxSize) {
-    savingStatus.value = t("markdown.fileTooLarge");
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
-    return;
-  }
-
-  // 检查编辑器是否有内容
-  const currentContent = isPlainTextMode.value ? plainTextContent.value : editor ? editor.getValue() : "";
-  if (currentContent && currentContent.trim() !== "") {
-    if (!confirm(t("markdown.confirmOverwrite"))) {
-      // 重置文件输入
-      event.target.value = "";
-      return;
-    }
-  }
-
-  // 读取文件内容
-  const reader = new FileReader();
-  savingStatus.value = t("markdown.importingFile");
-
-  reader.onload = (e) => {
-    try {
-      const content = e.target.result;
-
-      // 更新纯文本内容和原始纯文本内容
-      plainTextContent.value = content;
-      originalPlainTextContent.value = content;
-
-      // 如果不在纯文本模式，也更新编辑器内容
-      if (!isPlainTextMode.value && editor) {
-        editor.setValue(content);
-      }
-
-      savingStatus.value = t("markdown.fileImported");
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 2000);
-    } catch (error) {
-      console.error("导入文件时出错:", error);
-      savingStatus.value = t("markdown.importFailed");
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 3000);
-    }
-  };
-
-  reader.onerror = () => {
-    console.error("读取文件时出错");
-    savingStatus.value = t("markdown.readError");
-    setTimeout(() => {
-      savingStatus.value = "";
-    }, 3000);
-  };
-
-  reader.readAsText(file);
-
-  // 重置文件输入，以便可以重新选择同一文件
-  event.target.value = "";
-};
-
-// 触发文件选择的函数
-const triggerImportFile = () => {
-  // 使用ref访问文件输入元素并触发点击
-  if (markdownImporter.value) {
-    markdownImporter.value.click();
-  }
-};
-
-// 切换编辑器模式
-const toggleEditorMode = () => {
-  // 保存当前内容
-  let currentContent = "";
-
-  if (isPlainTextMode.value) {
-    // 从纯文本切换到Markdown模式
-    currentContent = plainTextContent.value;
-
-    // 保存原始纯文本内容，以便切换回来时恢复
-    originalPlainTextContent.value = plainTextContent.value;
-
-    // 先切换模式标志
-    isPlainTextMode.value = false;
-
-    // 保存模式偏好
-    saveEditorModePreference();
-
-    // 使用nextTick确保DOM已更新
-    nextTick(() => {
-      console.log("开始初始化Markdown编辑器...");
-
-      // 强制销毁和重新初始化编辑器
-      if (editor) {
-        try {
-          if (editor.destroy) {
-            editor.destroy();
-          }
-        } catch (e) {
-          console.error("销毁编辑器时出错:", e);
-        }
-        editor = null;
-      }
-
-      // 等待DOM更新后初始化编辑器
-      setTimeout(() => {
-        initEditor();
-
-        // 初始化完成后设置内容
-        setTimeout(() => {
-          if (editor && editor.setValue) {
-            console.log("设置Markdown编辑器内容");
-            editor.setValue(currentContent || "");
-          } else {
-            console.error("编辑器初始化失败或未找到setValue方法");
-          }
-        }, 200);
-      }, 100);
-    });
-  } else {
-    // 从Markdown切换到纯文本模式
-    if (editor && editor.getValue) {
-      try {
-        currentContent = editor.getValue();
-
-        // 如果有保存的原始纯文本内容，优先使用它
-        if (originalPlainTextContent.value) {
-          console.log("恢复原始纯文本内容");
-          plainTextContent.value = originalPlainTextContent.value;
-        } else {
-          // 否则使用编辑器的当前内容
-          console.log("使用编辑器当前内容作为纯文本");
-          plainTextContent.value = currentContent;
-        }
-      } catch (e) {
-        console.error("获取编辑器内容时出错:", e);
-        // 出错时保留当前纯文本内容
-      }
-    }
-
-    // 切换模式标志
-    isPlainTextMode.value = true;
-
-    // 保存模式偏好
-    saveEditorModePreference();
-  }
-};
-
-const isPlainTextMode = ref(false);
-
-// 纯文本内容
-const plainTextContent = ref("");
-
-// 原始纯文本内容（保留格式，如首行缩进空格等）
-const originalPlainTextContent = ref("");
-
-// 同步纯文本内容到编辑器
-const syncContentFromPlainText = () => {
-  // 同时更新原始纯文本内容，保留格式
-  originalPlainTextContent.value = plainTextContent.value;
-
-  if (editor && editor.setValue) {
-    // 只有在编辑器实例存在时才更新
-    editor.setValue(plainTextContent.value);
-    // 触发自动保存计时
-    autoSaveDebounce();
-  }
-};
-
-// 从本地存储恢复编辑器模式偏好
-const restoreEditorModePreference = () => {
-  try {
-    const savedMode = localStorage.getItem("cloudpaste-editor-mode");
-    if (savedMode === "plain-text") {
-      isPlainTextMode.value = true;
-      console.log("从本地存储恢复编辑器模式: 纯文本模式");
-    } else {
-      isPlainTextMode.value = false;
-      console.log("从本地存储恢复编辑器模式: Markdown模式");
-    }
-  } catch (e) {
-    console.warn("恢复编辑器模式偏好时发生错误:", e);
-    // 默认使用Markdown模式
-    isPlainTextMode.value = false;
-  }
-};
-
-// 保存编辑器模式偏好到本地存储
-const saveEditorModePreference = () => {
-  try {
-    localStorage.setItem("cloudpaste-editor-mode", isPlainTextMode.value ? "plain-text" : "markdown");
-    console.log("保存编辑器模式偏好:", isPlainTextMode.value ? "纯文本模式" : "Markdown模式");
-  } catch (e) {
-    console.warn("保存编辑器模式偏好时发生错误:", e);
-  }
-};
-
-// 检查编辑器是否需要初始化
-const checkAndInitEditor = (content = "") => {
-  // 如果是纯文本模式，不需要初始化编辑器
-  if (isPlainTextMode.value) {
-    console.log("纯文本模式，不初始化编辑器");
-    return;
-  }
-
-  // 从纯文本模式切换到Markdown模式，总是重新初始化编辑器
-  // 确保销毁可能存在的编辑器实例
-  if (editor) {
-    try {
-      console.log("销毁现有编辑器实例");
-      if (editor.destroy) {
-        editor.destroy();
-      }
-      editor = null;
-    } catch (e) {
-      console.warn("销毁编辑器时发生错误:", e);
-      editor = null;
-    }
-  }
-
-  // 初始化新的编辑器实例
-  console.log("初始化新的编辑器实例");
-  initEditor();
-
-  // 如果有内容需要设置
-  if (content) {
-    setTimeout(() => {
-      if (editor && editor.setValue) {
-        console.log("设置初始化后的编辑器内容");
-        editor.setValue(content);
-      }
-    }, 200); // 增加延迟以确保编辑器完全初始化
-  }
-};
+});
 </script>
 
 <style scoped>
@@ -2438,6 +927,34 @@ const checkAndInitEditor = (content = "") => {
 
 :deep(.vditor-ir ul ul ul) {
   list-style-type: square;
+}
+
+/* 禁用编辑器点击时的背景色自动变化 */
+:deep(.vditor-input:focus),
+:deep(.vditor-textarea:focus),
+:deep(.vditor-sv:focus),
+:deep(.vditor-ir:focus),
+:deep(.vditor-wysiwyg:focus) {
+  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
+  outline: none !important;
+}
+
+/* 确保编辑区域在所有模式下都保持一致的背景色 */
+:deep(.vditor-sv),
+:deep(.vditor-ir),
+:deep(.vditor-wysiwyg) {
+  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
+}
+
+/* 禁用Vditor内置的focus背景色变化 */
+:deep(.vditor--dark .vditor-input:focus),
+:deep(.vditor--dark .vditor-textarea:focus) {
+  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
+}
+
+:deep(.vditor .vditor-input:focus),
+:deep(.vditor .vditor-textarea:focus) {
+  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
 }
 
 /* 制表符样式支持 */
