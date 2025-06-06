@@ -270,6 +270,45 @@ async function getVirtualDirectoryListing(mounts, path, basicPath = null) {
 }
 
 /**
+ * 递归计算S3目录大小
+ * @param {S3Client} s3Client - S3客户端实例
+ * @param {string} bucketName - 存储桶名称
+ * @param {string} prefix - 目录前缀
+ * @returns {Promise<number>} 目录总大小（字节）
+ */
+async function calculateS3DirectorySize(s3Client, bucketName, prefix) {
+  let totalSize = 0;
+  let continuationToken = undefined;
+  let fileCount = 0;
+
+  do {
+    const listParams = {
+      Bucket: bucketName,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    };
+
+    const command = new ListObjectsV2Command(listParams);
+    const response = await s3Client.send(command);
+
+    // 累加所有文件的大小
+    if (response.Contents) {
+      for (const content of response.Contents) {
+        // 跳过目录标记对象
+        if (!content.Key.endsWith("/") || content.Size > 0) {
+          totalSize += content.Size || 0;
+          fileCount++;
+        }
+      }
+    }
+
+    continuationToken = response.NextContinuationToken;
+  } while (continuationToken);
+
+  return totalSize;
+}
+
+/**
  * 获取S3目录内容
  * @param {D1Database} db - D1数据库实例
  * @param {Object} mount - 挂载点对象
@@ -278,11 +317,21 @@ async function getVirtualDirectoryListing(mounts, path, basicPath = null) {
  * @returns {Promise<Object>} S3目录内容
  */
 async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
-  // 如果启用了缓存（cache_ttl > 0），则尝试从缓存获取结果
+  // 检查缓存，但跳过没有文件夹大小信息的旧缓存
   if (mount.cache_ttl > 0) {
     const cachedResult = directoryCacheManager.get(mount.id, subPath);
-    if (cachedResult) {
-      return cachedResult;
+    if (cachedResult && cachedResult.items) {
+      // 检查缓存是否包含文件夹大小信息（新版本缓存）
+      // 对于真实目录（非虚拟目录），应该有size字段
+      const hasDirectorySizes = cachedResult.items.some((item) => item.isDirectory && !item.isVirtual && typeof item.size === "number");
+      const hasOnlyFiles = cachedResult.items.every((item) => !item.isDirectory);
+      const hasOnlyVirtualDirs = cachedResult.items.every((item) => !item.isDirectory || item.isVirtual);
+
+      if (hasDirectorySizes || hasOnlyFiles || hasOnlyVirtualDirs) {
+        return cachedResult;
+      }
+      // 如果缓存是旧版本（文件夹没有size字段），则重新计算
+      console.log("发现旧版本缓存，重新计算文件夹大小");
     }
   }
 
@@ -343,8 +392,8 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
       for (const prefix of response.CommonPrefixes) {
         if (prefix.Prefix) {
           // 从S3 key中提取相对路径和名称
-          const fullPrefix = prefix.Prefix;
-          const relativePath = fullPrefix.substring(rootPrefix.length);
+          const dirPrefix = prefix.Prefix;
+          const relativePath = dirPrefix.substring(rootPrefix.length);
           let dirName = relativePath;
 
           // 移除末尾的斜杠
@@ -361,11 +410,25 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
           // 例如：如果relativePath是"1/2"，只显示"2"
           const displayName = dirName.includes("/") ? dirName.split("/").pop() : dirName;
 
+          // 计算目录大小
+          let directorySize = 0;
+          try {
+            directorySize = await calculateS3DirectorySize(s3Client, s3Config.bucket_name, dirPrefix);
+            console.log(`目录 ${displayName} 大小: ${directorySize} 字节`);
+          } catch (error) {
+            console.warn(`计算目录 ${displayName} 大小失败:`, error);
+            // 如果计算失败，使用默认值0
+          }
+
+          // 构建正确的路径，避免双斜杠
+          const itemPath = mount.mount_path.endsWith("/") ? mount.mount_path + dirName + "/" : mount.mount_path + "/" + dirName + "/";
+
           result.items.push({
             name: displayName,
-            path: mount.mount_path + "/" + dirName + "/",
+            path: itemPath,
             isDirectory: true,
             isVirtual: false,
+            size: directorySize,
             modified: new Date().toISOString(),
           });
         }
@@ -494,6 +557,7 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
               storage_type: mount.storage_type,
             };
 
+            // 保留关键调试日志：确认S3返回的ContentType
             console.log(`getFileInfo - 文件[${result.name}], S3 ContentType[${headResponse.ContentType}]`);
 
             return result;
@@ -551,6 +615,7 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
                 storage_type: mount.storage_type,
               };
 
+              // 保留关键调试日志：确认S3返回的ContentType
               console.log(`getFileInfo(GET) - 文件[${result.name}], S3 ContentType[${getResponse.ContentType}]`);
 
               return result;

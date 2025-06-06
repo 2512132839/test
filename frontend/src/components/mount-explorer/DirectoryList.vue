@@ -150,8 +150,9 @@
           </div>
 
           <!-- 文件大小与修改时间提示 -->
-          <div v-if="!item.isDirectory" class="mt-1 text-xs text-center" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-            {{ formatFileSize(item.size) }}
+          <div class="mt-1 text-xs text-center" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            <span v-if="item.isDirectory && item.isVirtual">-</span>
+            <span v-else>{{ formatFileSize(item.size || 0) }}</span>
           </div>
         </div>
       </div>

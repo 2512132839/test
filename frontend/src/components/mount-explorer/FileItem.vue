@@ -23,15 +23,16 @@
       <div class="flex-grow truncate" @click="handleClick">
         <div class="font-medium truncate" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ item.name }}</div>
         <!-- 移动端文件大小显示 -->
-        <div v-if="!item.isDirectory" class="text-xs block sm:hidden mt-0.5" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          {{ formatFileSize(item.size) }}
+        <div class="text-xs block sm:hidden mt-0.5" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+          <span v-if="item.isDirectory && item.isVirtual">-</span>
+          <span v-else>{{ formatFileSize(item.size || 0) }}</span>
         </div>
       </div>
 
       <!-- 文件大小 -->
       <div class="min-w-24 text-center text-sm hidden sm:block" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-        <span v-if="item.isDirectory">-</span>
-        <span v-else>{{ formatFileSize(item.size) }}</span>
+        <span v-if="item.isDirectory && item.isVirtual">-</span>
+        <span v-else>{{ formatFileSize(item.size || 0) }}</span>
       </div>
 
       <!-- 修改时间 -->
