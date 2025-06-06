@@ -47,6 +47,9 @@
     { "src": "/paste/.*", "dest": "/index.html" },
     { "src": "/file/.*", "dest": "/index.html" },
     { "src": "/admin", "dest": "/index.html" },
+    { "src": "/admin/.*", "dest": "/index.html" },
+    { "src": "/mount-explorer", "dest": "/index.html" },
+    { "src": "/mount-explorer/.*", "dest": "/index.html" },
     { "src": "/upload", "dest": "/index.html" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { api } from "../../api";
 import TextManagement from "./TextManagement.vue";
 import SystemSettings from "./SystemSettings.vue";
@@ -10,8 +11,9 @@ import Dashboard from "./Dashboard.vue";
 import MountManagement from "./MountManagement.vue";
 import { useI18n } from "vue-i18n";
 
-// 初始化 i18n
+// 初始化 i18n 和路由
 const { t } = useI18n();
+const router = useRouter();
 
 // 定义props，接收父组件传递的darkMode和权限信息
 const props = defineProps({
@@ -31,13 +33,17 @@ const props = defineProps({
       file: false,
     }),
   },
+  activeModule: {
+    type: String,
+    default: "dashboard",
+  },
 });
 
 // 定义事件，用于通知父组件退出登录
 const emit = defineEmits(["logout"]);
 
-// 当前选中的菜单项
-const activeMenu = ref("dashboard");
+// 当前选中的菜单项 - 从 props 初始化
+const activeMenu = ref(props.activeModule);
 
 // 添加移动端侧边栏状态控制
 const isMobileSidebarOpen = ref(false);
@@ -84,9 +90,24 @@ const toggleMobileSidebar = () => {
 // 在移动端选择菜单项后自动关闭侧边栏
 const selectMenuItem = (menuId) => {
   activeMenu.value = menuId;
+
+  // 更新 URL
+  updateUrl(menuId);
+
   // 在移动端选择选项后自动关闭侧边栏
   if (window.innerWidth < 768) {
     isMobileSidebarOpen.value = false;
+  }
+};
+
+// 更新 URL 以反映当前模块
+const updateUrl = (moduleId) => {
+  if (moduleId === "dashboard") {
+    // 仪表板使用基础 admin 路由
+    router.push("/admin");
+  } else {
+    // 其他模块使用带参数的路由
+    router.push(`/admin/${moduleId}`);
   }
 };
 
@@ -145,6 +166,17 @@ watch(
       const menuExists = newMenuItems.some((item) => item.id === activeMenu.value);
       if (!menuExists && newMenuItems.length > 0) {
         activeMenu.value = newMenuItems[0].id;
+      }
+    },
+    { immediate: true }
+);
+
+// 监听 props.activeModule 变化
+watch(
+    () => props.activeModule,
+    (newModule) => {
+      if (newModule && newModule !== activeMenu.value) {
+        activeMenu.value = newModule;
       }
     },
     { immediate: true }

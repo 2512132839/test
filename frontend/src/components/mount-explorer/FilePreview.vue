@@ -2,10 +2,13 @@
   <div class="file-preview-container">
     <!-- 文件预览区域 -->
     <div class="file-preview mb-6 p-4 rounded-lg" :class="darkMode ? 'bg-gray-800/50' : 'bg-white'">
-      <!-- 操作按钮 -->
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-medium flex-1 min-w-0 truncate mr-2" :class="darkMode ? 'text-gray-200' : 'text-gray-700'" :title="file.name">{{ file.name }}</h3>
-        <div class="flex space-x-2">
+      <!-- 文件标题和操作按钮 -->
+      <div class="mb-4">
+        <h3 class="text-lg font-medium mb-3" :class="darkMode ? 'text-gray-200' : 'text-gray-700'" :title="file.name">
+          {{ file.name }}
+        </h3>
+        <div class="flex flex-wrap gap-2">
+          <!-- 下载按钮 -->
           <button
               @click="handleDownload"
               class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
@@ -15,6 +18,33 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>下载文件</span>
+          </button>
+
+          <!-- S3直链预览按钮 -->
+          <button
+              @click="handleS3DirectPreview"
+              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+              :class="darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'"
+              :disabled="isGeneratingPreview"
+          >
+            <svg v-if="!isGeneratingPreview" class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg>
+            <svg v-else class="animate-spin w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span>{{ isGeneratingPreview ? "生成中..." : "直链预览" }}</span>
           </button>
         </div>
       </div>
@@ -469,6 +499,9 @@ const textContent = ref("");
 const loadError = ref(false);
 // 认证预览URL
 const authenticatedPreviewUrl = ref(null);
+
+// 预览按钮相关状态
+const isGeneratingPreview = ref(false);
 
 // 编辑模式状态
 const isEditMode = ref(false);
@@ -1264,6 +1297,32 @@ const handleContentError = () => {
 // 处理下载按钮点击
 const handleDownload = () => {
   emit("download", props.file);
+};
+
+// 处理S3直链预览
+const handleS3DirectPreview = async () => {
+  if (isGeneratingPreview.value) return;
+
+  try {
+    isGeneratingPreview.value = true;
+
+    // 获取文件的S3直链
+    const fileLinkApi = props.isAdmin ? api.fs.getAdminFileLink : api.fs.getUserFileLink;
+    const response = await fileLinkApi(props.file.path, 3600, false); // 1小时过期，不强制下载
+
+    if (response && response.success && response.data && response.data.presignedUrl) {
+      // 在新窗口中打开S3直链
+      window.open(response.data.presignedUrl, "_blank");
+    } else {
+      console.error("获取S3直链失败:", response);
+      alert("获取S3直链失败: " + (response.message || "未知错误"));
+    }
+  } catch (error) {
+    console.error("S3直链预览错误:", error);
+    alert("S3直链预览失败: " + (error.message || "未知错误"));
+  } finally {
+    isGeneratingPreview.value = false;
+  }
 };
 
 /**

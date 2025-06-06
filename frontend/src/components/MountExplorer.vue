@@ -223,7 +223,7 @@
             <!-- 返回按钮 -->
             <div class="mb-4">
               <button
-                  @click="closePreview"
+                  @click="closePreviewWithUrl"
                   class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
                   :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
               >
@@ -284,6 +284,7 @@
 
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
+import { useRouter } from "vue-router";
 import { api } from "../api";
 import BreadcrumbNav from "./mount-explorer/BreadcrumbNav.vue";
 import DirectoryList from "./mount-explorer/DirectoryList.vue";
@@ -294,10 +295,21 @@ import CopyModal from "./mount-explorer/CopyModal.vue";
 import TasksModal from "./mount-explorer/TasksModal.vue";
 import { downloadFileWithAuth } from "../utils/fileUtils";
 
+// Vue Router
+const router = useRouter();
+
 const props = defineProps({
   darkMode: {
     type: Boolean,
     default: false,
+  },
+  pathMatch: {
+    type: [String, Array],
+    default: "",
+  },
+  previewFile: {
+    type: String,
+    default: null,
   },
 });
 
@@ -524,16 +536,95 @@ const loadDirectoryContents = async () => {
   }
 };
 
-// 初始化路径 - 对于API密钥用户，如果有基本路径限制，则导航到基本路径
+// 从 URL 参数中获取路径
+const getPathFromUrl = () => {
+  if (props.pathMatch) {
+    // 如果有 pathMatch 参数，构建完整路径
+    const pathArray = Array.isArray(props.pathMatch) ? props.pathMatch : [props.pathMatch];
+    const urlPath = "/" + pathArray.join("/");
+    return urlPath.endsWith("/") ? urlPath : urlPath + "/";
+  }
+  return "/";
+};
+
+// 初始化路径 - 优先从 URL 参数读取，然后考虑 API 密钥限制
 const initializePath = () => {
+  // 首先尝试从 URL 获取路径
+  const urlPath = getPathFromUrl();
+
   if (!isAdmin.value && apiKeyInfo.value) {
     const basicPath = apiKeyInfo.value.basic_path || "/";
-    // 只有当基本路径不是根路径时，才需要导航到基本路径
-    if (basicPath !== "/") {
-      console.log("API密钥用户有基本路径限制，导航到:", basicPath);
+    const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+    const normalizedUrlPath = urlPath.replace(/\/+$/, "") || "/";
+
+    // 检查 URL 路径是否在权限范围内
+    if (normalizedBasicPath !== "/" && normalizedUrlPath !== normalizedBasicPath && !normalizedUrlPath.startsWith(normalizedBasicPath + "/")) {
+      // URL 路径超出权限范围，使用基本路径
+      console.log("URL路径超出权限范围，使用基本路径:", basicPath);
       currentPath.value = basicPath;
+    } else {
+      // URL 路径在权限范围内，使用 URL 路径
+      currentPath.value = urlPath;
     }
-    // 如果基本路径是根路径，保持默认的根路径 "/"
+  } else {
+    // 管理员用户或无 API 密钥限制，直接使用 URL 路径
+    currentPath.value = urlPath;
+  }
+
+  console.log("初始化路径:", currentPath.value);
+};
+
+// 从 URL 初始化预览状态
+const initializePreviewFromUrl = async () => {
+  if (!props.previewFile || !hasPermission.value) {
+    return;
+  }
+
+  try {
+    // 构建完整的文件路径
+    let filePath;
+    if (currentPath.value === "/") {
+      filePath = "/" + props.previewFile;
+    } else {
+      const normalizedPath = currentPath.value.replace(/\/+$/, "");
+      filePath = normalizedPath + "/" + props.previewFile;
+    }
+
+    console.log("从 URL 初始化文件预览:", filePath);
+
+    // 检查权限：对于 API 密钥用户，验证文件路径是否在权限范围内
+    if (!isAdmin.value && apiKeyInfo.value) {
+      const basicPath = apiKeyInfo.value.basic_path || "/";
+      const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+
+      // 获取文件所在目录
+      const fileDir = filePath.substring(0, filePath.lastIndexOf("/")) || "/";
+      const normalizedFileDir = fileDir.replace(/\/+$/, "") || "/";
+
+      if (normalizedBasicPath !== "/" && normalizedFileDir !== normalizedBasicPath && !normalizedFileDir.startsWith(normalizedBasicPath + "/")) {
+        console.warn("文件超出权限范围:", filePath);
+        updateUrlSilently(currentPath.value);
+        return;
+      }
+    }
+
+    // 获取文件信息
+    const getFileInfo = isAdmin.value ? api.fs.getAdminFileInfo : api.fs.getUserFileInfo;
+    const response = await getFileInfo(filePath);
+
+    if (response.success) {
+      previewFile.value = response.data;
+      isPreviewMode.value = true;
+      console.log("文件预览初始化成功:", response.data.name);
+    } else {
+      console.warn("无法加载预览文件:", response.message);
+      // 如果文件不存在，清除 URL 中的预览参数
+      updateUrlSilently(currentPath.value);
+    }
+  } catch (error) {
+    console.error("初始化文件预览失败:", error);
+    // 如果出错，清除 URL 中的预览参数
+    updateUrlSilently(currentPath.value);
   }
 };
 
@@ -545,10 +636,60 @@ const navigateTo = (path) => {
   }
 
   currentPath.value = path;
+
+  // 更新 URL（清除预览参数）
+  updateUrl(path);
+
   // 加载新路径的内容
   loadDirectoryContents();
   // 平滑滚动到顶部
   window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+// 更新 URL 以反映当前路径和预览状态
+const updateUrl = (path, previewFileName = null) => {
+  const normalizedPath = path.replace(/\/+$/, "") || "/";
+
+  // 构建查询参数
+  const query = {};
+  if (previewFileName) {
+    query.preview = previewFileName;
+  }
+
+  if (normalizedPath === "/") {
+    // 根路径，导航到基础 mount-explorer 路由
+    router.push({ path: "/mount-explorer", query });
+  } else {
+    // 子路径，导航到带参数的路由
+    const pathSegments = normalizedPath
+        .replace(/^\/+/, "")
+        .split("/")
+        .filter((segment) => segment);
+    router.push({ path: `/mount-explorer/${pathSegments.join("/")}`, query });
+  }
+};
+
+// 静默更新 URL（使用 replace 而不是 push，避免触发路由监听）
+const updateUrlSilently = (path, previewFileName = null) => {
+  const normalizedPath = path.replace(/\/+$/, "") || "/";
+
+  // 构建查询参数
+  const query = {};
+  if (previewFileName) {
+    query.preview = previewFileName;
+  }
+
+  if (normalizedPath === "/") {
+    // 根路径，导航到基础 mount-explorer 路由
+    router.replace({ path: "/mount-explorer", query });
+  } else {
+    // 子路径，导航到带参数的路由
+    const pathSegments = normalizedPath
+        .replace(/^\/+/, "")
+        .split("/")
+        .filter((segment) => segment);
+    router.replace({ path: `/mount-explorer/${pathSegments.join("/")}`, query });
+  }
 };
 
 // 导航到管理页面
@@ -810,6 +951,9 @@ const handlePreview = async (item) => {
     previewFile.value = fileInfo;
     isPreviewMode.value = true; // 切换到预览模式
 
+    // 更新 URL 以包含预览文件信息
+    updateUrl(currentPath.value, fileInfo.name);
+
     // 滚动到顶部
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
@@ -826,6 +970,13 @@ const handlePreview = async (item) => {
 const closePreview = () => {
   isPreviewMode.value = false; // 退出预览模式
   previewFile.value = null;
+};
+
+// 关闭预览并更新 URL
+const closePreviewWithUrl = () => {
+  closePreview();
+  // 更新 URL，移除预览参数
+  updateUrl(currentPath.value);
 };
 
 // 显示消息
@@ -860,6 +1011,37 @@ watch([isAdmin, hasApiKey, hasMountPermission], () => {
   hasPermission.value = isAdmin.value || (hasApiKey.value && hasMountPermission.value);
 });
 
+// 监听路由参数变化
+watch(
+    () => [props.pathMatch, props.previewFile],
+    ([newPathMatch, newPreviewFile], [oldPathMatch, oldPreviewFile]) => {
+      if (hasPermission.value) {
+        console.log("路由参数变化:", { pathMatch: newPathMatch, previewFile: newPreviewFile });
+
+        // 如果路径发生变化
+        if (newPathMatch !== oldPathMatch) {
+          initializePath();
+          loadDirectoryContents().then(() => {
+            // 路径变化后，检查是否需要初始化预览
+            if (newPreviewFile) {
+              initializePreviewFromUrl();
+            }
+          });
+        }
+        // 如果只是预览文件发生变化
+        else if (newPreviewFile !== oldPreviewFile) {
+          if (newPreviewFile) {
+            initializePreviewFromUrl();
+          } else {
+            // 清除预览状态
+            closePreview();
+          }
+        }
+      }
+    },
+    { immediate: false }
+);
+
 // 添加全局事件监听
 const setupEventListeners = () => {
   // 监听管理员令牌过期
@@ -888,8 +1070,11 @@ onMounted(() => {
   if (hasPermission.value) {
     // 对于API密钥用户，如果有基本路径限制，则导航到基本路径
     initializePath();
-    // 加载目录内容
-    loadDirectoryContents();
+    // 加载目录内容，然后初始化文件预览
+    loadDirectoryContents().then(() => {
+      // 初始化文件预览（如果 URL 中有预览参数）
+      initializePreviewFromUrl();
+    });
   }
 });
 

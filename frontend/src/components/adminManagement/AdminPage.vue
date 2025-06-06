@@ -5,11 +5,15 @@ import AdminPanel from "./AdminPanel.vue";
 // 导入请求辅助函数
 import { fetchApi } from "../../api/client.js";
 
-// 定义props，接收父组件传递的darkMode
+// 定义props，接收父组件传递的darkMode和路由参数
 const props = defineProps({
   darkMode: {
     type: Boolean,
     required: true,
+  },
+  activeModule: {
+    type: String,
+    default: "dashboard",
   },
 });
 
@@ -247,9 +251,9 @@ const validateApiKey = async (apiKey) => {
       // 触发storage事件，通知其他组件权限已更新
       // localStorage事件只在其他窗口触发，这里我们手动触发一个自定义事件
       window.dispatchEvent(
-        new CustomEvent("api-key-permissions-updated", {
-          detail: { permissions },
-        })
+          new CustomEvent("api-key-permissions-updated", {
+            detail: { permissions },
+          })
       );
 
       console.log("API密钥验证成功，权限已更新:", permissions);
@@ -272,9 +276,9 @@ const validateApiKey = async (apiKey) => {
 
     // 通知其他组件权限已清除
     window.dispatchEvent(
-      new CustomEvent("api-key-permissions-updated", {
-        detail: { permissions: null },
-      })
+        new CustomEvent("api-key-permissions-updated", {
+          detail: { permissions: null },
+        })
     );
   }
 };
@@ -337,6 +341,6 @@ const handleLogout = () => {
   <div class="h-full flex flex-col">
     <!-- 根据登录状态显示登录页面或管理面板 -->
     <AdminLogin v-if="!isLoggedIn" :darkMode="darkMode" @login-success="handleLoginSuccess" class="flex-1" />
-    <AdminPanel v-else :darkMode="darkMode" :loginType="loginType" :permissions="userPermissions" @logout="handleLogout" class="flex-1" />
+    <AdminPanel v-else :darkMode="darkMode" :loginType="loginType" :permissions="userPermissions" :activeModule="activeModule" @logout="handleLogout" class="flex-1" />
   </div>
 </template>

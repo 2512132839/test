@@ -36,6 +36,22 @@ const routes = [
     path: "/admin",
     name: "Admin",
     component: AdminPage,
+    props: (route) => ({
+      activeModule: route.params.module || "dashboard",
+    }),
+    meta: {
+      title: "管理面板 - CloudPaste",
+      originalPage: "admin",
+      requiresAuth: true,
+    },
+  },
+  {
+    path: "/admin/:module",
+    name: "AdminModule",
+    component: AdminPage,
+    props: (route) => ({
+      activeModule: route.params.module,
+    }),
     meta: {
       title: "管理面板 - CloudPaste",
       originalPage: "admin",
@@ -66,8 +82,25 @@ const routes = [
     path: "/mount-explorer",
     name: "MountExplorer",
     component: MountExplorer,
+    props: (route) => ({
+      pathMatch: "",
+      previewFile: route.query.preview || null,
+    }),
     meta: {
-      title: "文件管理 - CloudPaste",
+      title: "挂载浏览 - CloudPaste",
+      originalPage: "mount-explorer",
+    },
+  },
+  {
+    path: "/mount-explorer/:pathMatch(.*)*",
+    name: "MountExplorerPath",
+    component: MountExplorer,
+    props: (route) => ({
+      pathMatch: route.params.pathMatch,
+      previewFile: route.query.preview || null,
+    }),
+    meta: {
+      title: "挂载浏览 - CloudPaste",
       originalPage: "mount-explorer",
     },
   },
@@ -97,8 +130,8 @@ const router = createRouter({
 
 // 路由守卫 - 保持原有的权限检查逻辑
 router.beforeEach(async (to, from, next) => {
-  // 管理页面权限检查 - 完全保持原有逻辑
-  if (to.meta.requiresAuth && to.name === "Admin") {
+  // 管理页面权限检查 - 检查所有管理相关路由
+  if (to.meta.requiresAuth && (to.name === "Admin" || to.name === "AdminModule")) {
     const adminToken = localStorage.getItem("admin_token");
     if (adminToken) {
       // 验证 token 有效性 - 保持原有验证逻辑
@@ -125,10 +158,26 @@ router.beforeEach(async (to, from, next) => {
 
 // 路由后置守卫 - 处理页面标题和调试信息
 router.afterEach((to, from) => {
-  // 更新页面标题
-  if (to.meta.title) {
-    document.title = to.meta.title;
+  // 更新页面标题 - 为深层路径提供更具体的标题
+  let title = to.meta.title || "CloudPaste";
+
+  // 为 Admin 子路由添加具体的标题
+  if (to.name === "AdminModule" && to.params.module) {
+    const moduleNames = {
+      dashboard: "仪表板",
+      "text-management": "文本管理",
+      "file-management": "文件管理",
+      "storage-config": "存储配置",
+      "mount-management": "挂载管理",
+      "key-management": "密钥管理",
+      settings: "系统设置",
+    };
+    const moduleName = moduleNames[to.params.module] || to.params.module;
+    title = `${moduleName} - CloudPaste`;
   }
+
+
+  document.title = title;
 
   const fromPage = from.meta?.originalPage || "unknown";
   const toPage = to.meta?.originalPage || "unknown";
@@ -150,7 +199,7 @@ export const routerUtils = {
   /**
    * 导航到指定页面
    * @param {string} page - 页面名称 ('home', 'upload', 'admin', 'paste-view', 'file-view', 'mount-explorer')
-   * @param {object} options - 可选参数 (如 slug)
+   * @param {object} options - 可选参数 (如 slug, path, module)
    */
   navigateTo(page, options = {}) {
     const routeMap = {
@@ -170,6 +219,38 @@ export const routerUtils = {
 
     const route = routeMap[page];
     if (route) {
+      // 特殊处理 admin 的模块参数
+      if (page === "admin") {
+        if (options.module && options.module !== "dashboard") {
+          router.push(`/admin/${options.module}`);
+        } else {
+          router.push("/admin");
+        }
+        return;
+      }
+
+      // 特殊处理 mount-explorer 的路径参数
+      if (page === "mount-explorer") {
+        const query = {};
+        let routePath = "/mount-explorer";
+
+        // 处理路径参数
+        if (options.path && options.path !== "/") {
+          const normalizedPath = options.path.replace(/^\/+|\/+$/g, "");
+          if (normalizedPath) {
+            routePath = `/mount-explorer/${normalizedPath}`;
+          }
+        }
+
+        // 处理预览文件参数
+        if (options.previewFile) {
+          query.preview = options.previewFile;
+        }
+
+        router.push({ path: routePath, query });
+        return;
+      }
+
       router.push(route);
     } else {
       console.warn(`未知页面: ${page}`);

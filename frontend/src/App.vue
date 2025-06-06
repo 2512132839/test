@@ -396,7 +396,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <main class="flex-1 flex flex-col pb-8">
+    <main class="flex-1 flex flex-col" :class="activePage !== 'admin' ? 'pb-8' : ''">
       <router-view :dark-mode="isDarkMode" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning }" />
     </main>
 
@@ -458,11 +458,4 @@ main {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 管理页面填充样式 */
-[v-if="activePage === 'admin'"] {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  height: 100%;
-}
 </style>
