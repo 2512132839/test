@@ -6,8 +6,8 @@
 
     <!-- 权限提示 -->
     <div
-      v-if="!hasPermission"
-      class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
+        v-if="!hasPermission"
+        class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
     >
       <div class="flex items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -25,20 +25,20 @@
       <!-- 文件上传区域 -->
       <div class="card mb-6" :class="darkMode ? 'bg-gray-800/50' : 'bg-white'">
         <FileUploader
-          :dark-mode="darkMode"
-          :s3-configs="s3Configs"
-          :loading="loadingConfigs"
-          :is-admin="isAdmin"
-          @upload-success="handleUploadSuccess"
-          @upload-error="handleUploadError"
+            :dark-mode="darkMode"
+            :s3-configs="s3Configs"
+            :loading="loadingConfigs"
+            :is-admin="isAdmin"
+            @upload-success="handleUploadSuccess"
+            @upload-error="handleUploadError"
         />
       </div>
 
       <!-- 错误消息 -->
       <div
-        v-if="message"
-        class="mb-4 p-3 rounded-md"
-        :class="
+          v-if="message"
+          class="mb-4 p-3 rounded-md"
+          :class="
           message.type === 'success'
             ? darkMode
               ? 'bg-green-900/40 border border-green-800 text-green-200'
@@ -60,30 +60,30 @@
 
           <!-- 存储容量不足图标 -->
           <svg
-            v-else-if="message.icon === 'storage-full'"
-            class="h-5 w-5 mr-2"
-            :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+              v-else-if="message.icon === 'storage-full'"
+              class="h-5 w-5 mr-2"
+              :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12V8a2 2 0 00-2-2H6a2 2 0 00-2 2v4M8 18h8M12 6v5m-2 3h4" />
           </svg>
 
           <!-- 普通警告图标 -->
           <svg
-            v-else-if="message.type === 'warning'"
-            class="h-5 w-5 mr-2"
-            :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+              v-else-if="message.type === 'warning'"
+              class="h-5 w-5 mr-2"
+              :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
           >
             <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
             />
           </svg>
 
@@ -212,9 +212,9 @@ const validateApiKey = async (apiKey) => {
 
           // 触发自定义事件，通知其他组件权限已更新
           window.dispatchEvent(
-            new CustomEvent("api-key-permissions-updated", {
-              detail: { permissions },
-            })
+              new CustomEvent("api-key-permissions-updated", {
+                detail: { permissions },
+              })
           );
 
           console.log("API密钥验证成功，文件权限:", filePermission ? "有权限" : "无权限");
@@ -238,8 +238,9 @@ const validateApiKey = async (apiKey) => {
 
 // 导航到管理页面
 const navigateToAdmin = () => {
-  window.history.pushState({}, "", "/admin");
-  window.dispatchEvent(new Event("popstate"));
+  import("../router").then(({ routerUtils }) => {
+    routerUtils.navigateTo("admin");
+  });
 };
 
 // 检查权限
@@ -382,9 +383,9 @@ const handleUploadSuccess = (fileData) => {
 const handleUploadError = (error) => {
   // 检查错误消息是否与存储容量相关
   if (
-    error &&
-    error.message &&
-    (error.message.includes("存储空间不足") || error.message.includes("insufficient storage") || error.message.includes("容量") || error.message.includes("storage limit"))
+      error &&
+      error.message &&
+      (error.message.includes("存储空间不足") || error.message.includes("insufficient storage") || error.message.includes("容量") || error.message.includes("storage limit"))
   ) {
     // 存储容量不足错误，使用特殊样式
     message.value = {

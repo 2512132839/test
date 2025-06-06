@@ -289,7 +289,7 @@ import { useI18n } from "vue-i18n";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import { api } from "../api";
-import { useRouter, useRoute } from "vue-router";
+// Vue Router 导入已移除，使用动态导入
 import QRCode from "qrcode";
 import { getFullApiUrl } from "../api/config.js";
 import { ApiStatus } from "../api/ApiStatus";
@@ -1302,10 +1302,10 @@ const downloadQRCode = () => {
 
 // 添加导航到管理员登录页面的方法
 const navigateToAdmin = () => {
-  // 使用历史API更新URL并触发popstate事件
-  window.history.pushState({}, "", "/admin");
-  window.dispatchEvent(new Event("popstate"));
-  console.log("导航到管理员登录页面");
+  import("../router").then(({ routerUtils }) => {
+    routerUtils.navigateTo("admin");
+    console.log("导航到管理员登录页面");
+  });
 };
 
 // 显示复制格式菜单

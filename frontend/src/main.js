@@ -3,6 +3,7 @@ import "./style.css";
 import App from "./App.vue";
 import api, { getEnvironmentInfo } from "./api";
 import i18n from "./i18n"; // 导入i18n配置
+import router from "./router"; // 导入路由配置
 
 // 创建应用实例
 const app = createApp(App);
@@ -61,6 +62,16 @@ app.config.errorHandler = (err, vm, info) => {
 
 // 挂载i18n - 必须在挂载应用前使用
 app.use(i18n);
+
+// 挂载路由 - 在i18n之后挂载
+app.use(router);
+
+// 导入路由工具函数
+import { routerUtils } from "./router";
+
+// 提供全局 navigateTo 函数，保持向后兼容
+app.config.globalProperties.$navigateTo = routerUtils.navigateTo;
+app.config.globalProperties.$routerUtils = routerUtils;
 
 // 将API服务挂载到全局对象，方便在组件中使用
 app.config.globalProperties.$api = api;

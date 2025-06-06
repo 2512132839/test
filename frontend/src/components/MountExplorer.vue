@@ -553,7 +553,9 @@ const navigateTo = (path) => {
 
 // 导航到管理页面
 const navigateToAdmin = () => {
-  window.dispatchEvent(new CustomEvent("navigate-to-admin"));
+  import("../router").then(({ routerUtils }) => {
+    routerUtils.navigateTo("admin");
+  });
 };
 
 // 处理打开上传弹窗
@@ -865,11 +867,7 @@ const setupEventListeners = () => {
     checkPermissions();
   });
 
-  // 监听导航到管理页面事件
-  window.addEventListener("navigate-to-admin", () => {
-    window.history.pushState({}, "", "/admin");
-    window.dispatchEvent(new Event("popstate"));
-  });
+  // 导航事件现在由 Vue Router 处理，移除手动事件监听
 };
 
 // 组件挂载时执行
