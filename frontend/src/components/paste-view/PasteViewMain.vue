@@ -1,7 +1,7 @@
 <script setup>
 // PasteViewMain组件 - 主组件，整合各个功能模块
 // 负责协调预览、大纲和编辑功能，管理全局状态和数据流
-import { ref, onMounted, onBeforeUnmount, watch, nextTick, computed } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 
 import PasteViewPreview from "./PasteViewPreview.vue";
 import PasteViewOutline from "./PasteViewOutline.vue";
@@ -269,6 +269,9 @@ const loadPaste = async (password = null) => {
 // 提取文档大纲 - 由预览组件渲染完成后调用
 // 分析DOM结构生成大纲数据
 const extractOutline = () => {
+  // 使用更安全的DOM查询，避免在组件卸载时出错
+  if (!mounted) return;
+
   const previewElement = document.querySelector(".vditor-reset");
   if (!previewElement) return;
 

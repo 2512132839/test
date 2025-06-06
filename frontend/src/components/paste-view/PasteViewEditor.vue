@@ -2,9 +2,64 @@
 // PasteViewEditor组件 - 提供Markdown编辑及相关配置功能
 // 该组件使用Vditor作为编辑器，允许用户修改内容并设置过期时间等元数据
 import { ref, onMounted, watch, onBeforeUnmount, nextTick } from "vue";
-import Vditor from "vditor";
-import "vditor/dist/index.css";
 import { getInputClasses, debugLog } from "./PasteViewUtils";
+
+// 懒加载Vditor和CSS
+let VditorClass = null;
+let vditorCSSLoaded = false;
+
+const loadVditor = async () => {
+  if (!VditorClass) {
+    const [vditorModule] = await Promise.all([import("vditor"), loadVditorCSS()]);
+    VditorClass = vditorModule.default;
+  }
+  return VditorClass;
+};
+
+const loadVditorCSS = async () => {
+  if (!vditorCSSLoaded) {
+    await import("vditor/dist/index.css");
+    vditorCSSLoaded = true;
+  }
+};
+
+// 优化的表情配置 - 只包含最常用的表情
+const getOptimizedEmojis = () => ({
+  // 基本表情 (10个)
+  smile: "😊",
+  joy: "😂",
+  laughing: "😆",
+  wink: "😉",
+  heart_eyes: "😍",
+  thinking: "🤔",
+  worried: "😟",
+  cry: "😢",
+  angry: "😠",
+  sunglasses: "😎",
+  // 手势表情 (5个)
+  thumbsup: "👍",
+  thumbsdown: "👎",
+  ok_hand: "👌",
+  clap: "👏",
+  muscle: "💪",
+  // 心形表情 (5个)
+  heart: "❤️",
+  yellow_heart: "💛",
+  green_heart: "💚",
+  blue_heart: "💙",
+  broken_heart: "💔",
+  // 符号表情 (10个)
+  check: "✅",
+  x: "❌",
+  warning: "⚠️",
+  question: "❓",
+  exclamation: "❗",
+  star: "⭐",
+  fire: "🔥",
+  zap: "⚡",
+  rocket: "🚀",
+  bulb: "💡",
+});
 // 导入Word导出服务
 import markdownToWord from "../../utils/markdownToWord";
 // 导入FileSaver用于下载文件
@@ -92,6 +147,38 @@ const notification = ref("");
 const lastCopyFormatsBtnElement = ref(null);
 // 添加markdownImporter的ref引用
 const markdownImporter = ref(null);
+// 缓存复制格式按钮选择器，避免重复查询
+const copyFormatBtnSelector = '.vditor-toolbar button[data-type="copy-formats"]';
+// 存储定时器ID，用于清理
+const timeoutIds = new Set();
+// 缓存DOM元素引用，避免重复查询
+let editorContainerCache = null;
+// 内容变化缓存 - 优化性能
+let lastKnownValue = "";
+
+// 安全的setTimeout，会自动清理
+const safeSetTimeout = (callback, delay) => {
+  const id = setTimeout(() => {
+    timeoutIds.delete(id);
+    callback();
+  }, delay);
+  timeoutIds.add(id);
+  return id;
+};
+
+// 清理所有定时器
+const clearAllTimeouts = () => {
+  timeoutIds.forEach((id) => clearTimeout(id));
+  timeoutIds.clear();
+};
+
+// 获取编辑器容器，使用缓存优化性能
+const getEditorContainer = () => {
+  if (!editorContainerCache || !document.body.contains(editorContainerCache)) {
+    editorContainerCache = document.querySelector(".vditor-content");
+  }
+  return editorContainerCache;
+};
 
 // 监听父组件传入的isPlainTextMode变化
 watch(
@@ -142,26 +229,32 @@ const toggleEditorMode = () => {
         vditorInstance.value = null;
       }
 
-      // 等待DOM更新后初始化编辑器
-      setTimeout(() => {
-        initEditor();
+      // 使用requestIdleCallback优化初始化时机
+      const initializeEditor = async () => {
+        try {
+          await initEditor();
 
-        // 初始化完成后设置内容
-        setTimeout(() => {
-          if (vditorInstance.value && vditorInstance.value.setValue) {
-            console.log("设置Markdown编辑器内容");
-            vditorInstance.value.setValue(currentContent || "");
-          } else {
-            console.error("编辑器初始化失败或未找到setValue方法");
+          // 初始化完成后设置内容
+          if (currentContent) {
+            safeSetValue(currentContent);
           }
-        }, 200);
-      }, 100);
+        } catch (error) {
+          console.error("初始化编辑器时出错:", error);
+        }
+      };
+
+      if (window.requestIdleCallback) {
+        window.requestIdleCallback(initializeEditor, { timeout: 1000 });
+      } else {
+        // 降级方案
+        safeSetTimeout(initializeEditor, 50);
+      }
     });
   } else {
     // 从Markdown切换到纯文本模式
-    if (vditorInstance.value && vditorInstance.value.getValue) {
+    if (vditorInstance.value) {
       try {
-        currentContent = vditorInstance.value.getValue();
+        currentContent = safeGetValue();
 
         // 如果有保存的原始纯文本内容，优先使用它
         if (originalPlainTextContent.value) {
@@ -183,6 +276,21 @@ const toggleEditorMode = () => {
   }
 };
 
+// 安全设置编辑器内容
+const safeSetValue = (content) => {
+  if (!vditorInstance.value || !vditorInstance.value.setValue || typeof vditorInstance.value.setValue !== "function") return;
+
+  safeSetTimeout(() => {
+    if (vditorInstance.value && vditorInstance.value.setValue && typeof vditorInstance.value.setValue === "function") {
+      try {
+        vditorInstance.value.setValue(content);
+      } catch (error) {
+        console.error("设置编辑器内容失败:", error);
+      }
+    }
+  }, 100);
+};
+
 // 同步纯文本内容到编辑器
 const syncContentFromPlainText = () => {
   // 同时更新原始纯文本内容，保留格式
@@ -190,7 +298,7 @@ const syncContentFromPlainText = () => {
 
   if (vditorInstance.value && vditorInstance.value.setValue) {
     // 只有在编辑器实例存在时才更新
-    vditorInstance.value.setValue(plainTextContent.value);
+    safeSetValue(plainTextContent.value);
   }
 };
 
@@ -241,7 +349,7 @@ watch(
 );
 
 // 初始化Vditor编辑器，配置主题、工具栏等选项
-const initEditor = () => {
+const initEditor = async () => {
   if (vditorInstance.value) return;
 
   const editorElement = document.getElementById("vditor-editor");
@@ -250,280 +358,241 @@ const initEditor = () => {
     return;
   }
 
-  // 创建并配置Vditor实例
-  vditorInstance.value = new Vditor("vditor-editor", {
-    height: 500,
-    minHeight: 400,
-    value: props.content, // 设置初始内容
-    theme: props.darkMode ? "dark" : "classic", // 根据主题设置
-    mode: "ir", // 即时渲染模式，兼顾编辑体验和所见即所得
-    cdn: "/assets/vditor",
-    resize: {
-      enable: true,
-      position: "bottom", // 只允许底部拖动
-    },
-    preview: {
-      theme: {
-        current: props.darkMode ? "dark" : "light",
+  try {
+    // 懒加载Vditor
+    const VditorConstructor = await loadVditor();
+
+    // 检测是否为移动设备
+    const isMobile = window.innerWidth <= 768;
+    const defaultMode = isMobile ? "ir" : "sv";
+    const enableOutline = !isMobile;
+
+    // 创建并配置Vditor实例
+    vditorInstance.value = new VditorConstructor("vditor-editor", {
+      height: 500,
+      minHeight: 400,
+      value: props.content, // 设置初始内容
+      theme: props.darkMode ? "dark" : "classic", // 根据主题设置
+      mode: defaultMode, // 根据设备类型选择模式
+      cdn: "/assets/vditor",
+      resize: {
+        enable: true,
+        position: "bottom", // 只允许底部拖动
       },
-      hljs: {
-        style: props.darkMode ? "vs2015" : "github",
-        lineNumber: true,
-      },
-      actions: ["desktop", "tablet", "mobile", "both"],
-      markdown: {
-        toc: true, // 启用目录
-        mark: true, // 启用标记
-        footnotes: true, // 启用脚注
-        autoSpace: true, // 自动空格
-        media: true, // 启用媒体链接解析
-        listStyle: true, // 确保开启列表样式
-        task: true, // 启用任务列表交互
-        paragraphBeginningSpace: true, // 段落开头空格支持
-        fixTermTypo: true, // 术语修正
-        // 图表渲染相关配置
-        mermaid: {
-          theme: "default", // 使用固定的主题，不跟随暗色模式变化
-          useMaxWidth: false, // 不使用最大宽度限制
+      preview: {
+        delay: 800, // 优化预览延迟
+        maxWidth: 800,
+        mode: "both",
+        theme: {
+          current: props.darkMode ? "dark" : "light",
         },
-        flowchart: {
-          theme: "default", // 使用固定的主题
+        hljs: {
+          style: props.darkMode ? "vs2015" : "github",
+          lineNumber: true,
+          js: "/assets/vditor/dist/js/highlight.js/third-languages.js",
+          css: (style) => `/assets/vditor/dist/js/highlight.js/styles/${style}.min.css`,
         },
-        // 固定图表样式
-        fixDiagramTheme: true, // 自定义属性，用于CSS选择器中识别
-      },
-      math: {
-        engine: "KaTeX", // 数学公式引擎
-        inlineDigit: true,
-      },
-    },
-    typewriterMode: true, // 启用打字机模式，光标总在屏幕中间
-    outline: {
-      enable: false, // 默认关闭大纲，避免与自定义大纲冲突
-      position: "left",
-    },
-    counter: {
-      enable: true, // 启用计数器
-      type: "text", // 文本类型计数
-    },
-    tab: "\t", // 按Tab键时插入制表符而非缩进
-    indent: {
-      tab: "\t", // 使用制表符进行缩进
-      codeBlock: 4, // 代码块的缩进为4个空格
-    },
-    hint: {
-      emoji: {
-        // 表情符号 - 基本表情
-        slight_smile: "🙂",
-        smile: "😊",
-        joy: "😂",
-        rofl: "🤣",
-        laughing: "😆",
-        wink: "😉",
-        blush: "😊",
-        heart_eyes: "😍",
-        kissing_heart: "😘",
-        kissing: "😗",
-        kissing_smiling_eyes: "😙",
-        kissing_closed_eyes: "😚",
-        yum: "😋",
-        stuck_out_tongue: "😛",
-        stuck_out_tongue_winking_eye: "😜",
-        stuck_out_tongue_closed_eyes: "😝",
-        grin: "😁",
-        satisfied: "😌",
-        sweat_smile: "😅",
-
-        // 情绪表情
-        thinking: "🤔",
-        confused: "😕",
-        worried: "😟",
-        frowning: "😦",
-        persevere: "😣",
-        confounded: "😖",
-        tired_face: "😫",
-        weary: "😩",
-        cry: "😢",
-        sob: "😭",
-        angry: "😠",
-        rage: "😡",
-        triumph: "😤",
-        sleepy: "😪",
-        yawning: "🥱",
-        mask: "😷",
-        sunglasses: "😎",
-        dizzy_face: "😵",
-        exploding_head: "🤯",
-        flushed: "😳",
-
-        // 手势表情
-        thumbsup: "👍",
-        thumbsdown: "👎",
-        ok_hand: "👌",
-        punch: "👊",
-        fist: "✊",
-        v: "✌️",
-        wave: "👋",
-        raised_hand: "✋",
-        clap: "👏",
-        muscle: "💪",
-        pray: "🙏",
-        point_up: "☝️",
-        point_down: "👇",
-        point_left: "👈",
-        point_right: "👉",
-
-        // 心形表情
-        heart: "❤️",
-        orange_heart: "🧡",
-        yellow_heart: "💛",
-        green_heart: "💚",
-        blue_heart: "💙",
-        purple_heart: "💜",
-        black_heart: "🖤",
-        broken_heart: "💔",
-        sparkling_heart: "💖",
-        heartbeat: "💓",
-        heartpulse: "💗",
-
-        // 动物表情
-        dog: "🐶",
-        cat: "🐱",
-        mouse: "🐭",
-        hamster: "🐹",
-        rabbit: "🐰",
-        fox: "🦊",
-        bear: "🐻",
-        panda: "🐼",
-        koala: "🐨",
-        tiger: "🐯",
-        lion: "🦁",
-
-        // 食物表情
-        apple: "🍎",
-        pizza: "🍕",
-        hamburger: "🍔",
-        fries: "🍟",
-        sushi: "🍣",
-        ramen: "🍜",
-        doughnut: "🍩",
-        cake: "🍰",
-        coffee: "☕",
-        beer: "🍺",
-
-        // 活动表情
-        soccer: "⚽",
-        basketball: "🏀",
-        football: "🏈",
-        baseball: "⚾",
-        tennis: "🎾",
-
-        // 物体表情
-        gift: "🎁",
-        book: "📚",
-        computer: "💻",
-        bulb: "💡",
-        rocket: "🚀",
-        hourglass: "⌛",
-        watch: "⌚",
-        moneybag: "💰",
-
-        // 符号表情
-        check: "✅",
-        x: "❌",
-        warning: "⚠️",
-        question: "❓",
-        exclamation: "❗",
-        star: "⭐",
-        sparkles: "✨",
-        fire: "🔥",
-        zap: "⚡",
-      },
-    },
-    // 配置工具栏按钮
-    toolbar: [
-      "emoji",
-      "headings",
-      "bold",
-      "italic",
-      "strike",
-      "link",
-      "|",
-      "list",
-      "ordered-list",
-      "check",
-      "outdent",
-      "indent",
-      "|",
-      "quote",
-      "line",
-      "code",
-      "inline-code",
-      "insert-before",
-      "insert-after",
-      "|",
-      "table",
-      "|",
-      "undo",
-      "redo",
-      "|",
-      {
-        name: "import-markdown",
-        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"></path></svg>',
-        tip: "导入Markdown文件",
-        click() {
-          triggerImportFile();
+        actions: ["desktop", "tablet", "mobile", "mp-wechat", "zhihu"],
+        markdown: {
+          toc: true, // 启用目录
+          mark: true, // 启用标记
+          footnotes: true, // 启用脚注
+          autoSpace: true, // 自动空格
+          media: true, // 启用媒体链接解析
+          listStyle: true, // 确保开启列表样式
+          task: true, // 启用任务列表交互
+          paragraphBeginningSpace: true, // 段落开头空格支持
+          fixTermTypo: true, // 术语修正
+          // 图表渲染相关配置
+          mermaid: {
+            theme: "default", // 使用固定的主题，不跟随暗色模式变化
+            useMaxWidth: false, // 不使用最大宽度限制
+          },
+          flowchart: {
+            theme: "default", // 使用固定的主题
+          },
+          // 固定图表样式
+          fixDiagramTheme: true, // 自定义属性，用于CSS选择器中识别
+        },
+        math: {
+          engine: "KaTeX", // 数学公式引擎
+          inlineDigit: true,
         },
       },
-      {
-        name: "clear-content",
-        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>',
-        tip: "清空内容",
-        click() {
-          clearEditorContent();
+      typewriterMode: true, // 启用打字机模式，光标总在屏幕中间
+      outline: {
+        enable: enableOutline, // 根据设备类型启用大纲
+        position: "left",
+      },
+      counter: {
+        enable: true, // 启用计数器
+        type: "text", // 文本类型计数
+      },
+      tab: "\t", // 按Tab键时插入制表符而非缩进
+      indent: {
+        tab: "\t", // 使用制表符进行缩进
+        codeBlock: 4, // 代码块的缩进为4个空格
+      },
+      hint: {
+        delay: 200,
+        emoji: getOptimizedEmojis(),
+      },
+      // 配置工具栏按钮
+      toolbar: [
+        "emoji",
+        "headings",
+        "bold",
+        "italic",
+        "strike",
+        "link",
+        "|",
+        "list",
+        "ordered-list",
+        "check",
+        "outdent",
+        "indent",
+        "|",
+        "quote",
+        "line",
+        "code",
+        "inline-code",
+        "insert-before",
+        "insert-after",
+        "|",
+        "table",
+        "|",
+        "undo",
+        "redo",
+        "|",
+        {
+          name: "import-markdown",
+          icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"></path></svg>',
+          tip: "导入Markdown文件",
+          click() {
+            triggerImportFile();
+          },
+        },
+        {
+          name: "clear-content",
+          icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>',
+          tip: "清空内容",
+          click() {
+            clearEditorContent();
+          },
+        },
+        {
+          name: "copy-formats",
+          icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg>',
+          tip: "复制为其他格式",
+          click(event) {
+            // 获取按钮位置信息 - 与首页编辑器保持一致
+            const buttonElement = event.target.closest(".vditor-tooltipped");
+            if (buttonElement) {
+              const rect = buttonElement.getBoundingClientRect();
+              showCopyFormatsMenu({
+                x: rect.left,
+                y: rect.bottom + 5,
+              });
+            } else {
+              showCopyFormatsMenu();
+            }
+          },
+        },
+        "|",
+        "fullscreen",
+        "outline", // 保留大纲按钮，用户可以手动开启
+        "edit-mode",
+        "both",
+        "preview",
+        "export",
+        "help",
+      ],
+      upload: {
+        accept: "image/*,.zip,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx",
+        token: "",
+        linkToImgUrl: "/api/fetch?url=",
+        filename(name) {
+          return name.replace(/\W/g, "");
         },
       },
-      {
-        name: "copy-formats",
-        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg>',
-        tip: "复制为其他格式",
-        click() {
-          showCopyFormatsMenu();
+      cache: {
+        enable: false, // 禁用缓存，避免数据混乱
+      },
+      customKeymap: {
+        Tab: (editor, event) => {
+          return false;
         },
       },
-      "|",
-      "fullscreen",
-      "outline", // 保留大纲按钮，用户可以手动开启
-      "edit-mode",
-      "both",
-      "preview",
-      "export",
-      "help",
-    ],
-    cache: {
-      enable: false, // 禁用缓存，避免数据混乱
-    },
-    after: () => {
-      debugLog(props.enableDebug, props.isDev, "编辑器初始化完成");
+      input: () => {
+        try {
+          // 确保编辑器完全初始化后再获取内容
+          if (vditorInstance.value && vditorInstance.value.getValue && typeof vditorInstance.value.getValue === "function") {
+            const content = vditorInstance.value.getValue();
+            // 避免重复emit相同内容
+            if (content !== lastKnownValue) {
+              lastKnownValue = content;
+              // 这里可以添加内容变化的处理逻辑
+            }
+          }
+        } catch (error) {
+          console.error("获取编辑器内容时出错:", error);
+          debugLog(props.enableDebug, props.isDev, "编辑器内容获取失败:", error);
+        }
+      },
+      after: () => {
+        debugLog(props.enableDebug, props.isDev, "编辑器初始化完成");
 
-      // 添加一个延迟，确保所有图表渲染完成后应用固定样式
-      setTimeout(() => {
-        // 添加固定样式类到所有图表容器
-        const diagramContainers = document.querySelectorAll(".language-mermaid, .language-flow, .language-plantuml, .language-gantt");
-        diagramContainers.forEach((container) => {
-          container.classList.add("diagram-fixed-theme");
-        });
-      }, 1000);
-    },
-  });
+        // 添加一个延迟，确保所有图表渲染完成后应用固定样式
+        safeSetTimeout(() => {
+          // 添加固定样式类到所有图表容器 - 使用编辑器容器范围查询
+          const editorContainer = document.getElementById("vditor-editor");
+          if (editorContainer) {
+            const diagramContainers = editorContainer.querySelectorAll(".language-mermaid, .language-flow, .language-plantuml, .language-gantt");
+            diagramContainers.forEach((container) => {
+              container.classList.add("diagram-fixed-theme");
+            });
+          }
+        }, 300);
+      },
+    });
+  } catch (error) {
+    console.error("Vditor编辑器初始化失败:", error);
+  }
 };
 
-// 监听暗色模式变化，实时更新编辑器主题
+// 监听暗色模式变化 - 与首页编辑器保持一致
 watch(
     () => props.darkMode,
-    (newDarkMode) => {
-      if (vditorInstance.value) {
-        vditorInstance.value.setTheme(newDarkMode ? "dark" : "classic", newDarkMode ? "dark" : "light");
+    async (newDarkMode, oldDarkMode) => {
+      if (!isPlainTextMode.value && vditorInstance.value && newDarkMode !== oldDarkMode) {
+        try {
+          let currentValue = "";
+
+          // 安全地获取当前内容
+          if (vditorInstance.value && vditorInstance.value.getValue && typeof vditorInstance.value.getValue === "function") {
+            try {
+              currentValue = vditorInstance.value.getValue();
+            } catch (e) {
+              console.warn("获取编辑器内容失败，使用空内容:", e);
+              currentValue = "";
+            }
+          }
+
+          // 重新初始化编辑器以应用新主题
+          if (vditorInstance.value.destroy) {
+            vditorInstance.value.destroy();
+          }
+          vditorInstance.value = null;
+
+          await initEditor();
+
+          // 设置内容
+          if (currentValue) {
+            safeSetValue(currentValue);
+          }
+        } catch (error) {
+          console.error("切换主题时出错:", error);
+        }
       }
     }
 );
@@ -538,7 +607,7 @@ const saveEdit = async () => {
     newContent = originalPlainTextContent.value || plainTextContent.value;
   } else if (vditorInstance.value) {
     // Markdown模式下，从编辑器获取内容
-    newContent = vditorInstance.value.getValue();
+    newContent = safeGetValue();
   } else {
     emit("update:error", "编辑器未初始化");
     return;
@@ -584,7 +653,7 @@ const cancelEdit = () => {
 };
 
 // 验证可打开次数输入，确保输入合法
-const validateMaxViews = (event) => {
+const validateMaxViews = () => {
   const value = editForm.value.maxViews;
 
   // 如果是负数，则设置为0
@@ -602,12 +671,26 @@ const validateMaxViews = (event) => {
   }
 };
 
+// 安全获取编辑器内容
+const safeGetValue = () => {
+  if (!vditorInstance.value || !vditorInstance.value.getValue || typeof vditorInstance.value.getValue !== "function") {
+    return "";
+  }
+
+  try {
+    return vditorInstance.value.getValue();
+  } catch (error) {
+    console.error("获取编辑器内容失败:", error);
+    return "";
+  }
+};
+
 // 获取当前编辑内容的辅助方法
 const getCurrentContent = () => {
   if (isPlainTextMode.value) {
     return originalPlainTextContent.value || plainTextContent.value;
   } else if (vditorInstance.value) {
-    return vditorInstance.value.getValue();
+    return safeGetValue();
   }
   return props.content;
 };
@@ -618,15 +701,36 @@ defineExpose({
   toggleEditorMode,
 });
 
-// 组件挂载时初始化编辑器或纯文本内容
-onMounted(() => {
+// 组件挂载时初始化编辑器或纯文本内容 - 优化性能
+onMounted(async () => {
   // 初始化纯文本内容
   plainTextContent.value = props.content || "";
   originalPlainTextContent.value = props.content || "";
 
   // 根据模式初始化编辑器
   if (!isPlainTextMode.value) {
-    initEditor();
+    await nextTick();
+
+    // 使用requestIdleCallback优化初始化时机
+    const initializeEditor = async () => {
+      try {
+        await initEditor();
+
+        // 设置初始内容
+        if (props.content && vditorInstance.value) {
+          safeSetValue(props.content);
+        }
+      } catch (error) {
+        console.error("初始化编辑器时出错:", error);
+      }
+    };
+
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(initializeEditor, { timeout: 1000 });
+    } else {
+      // 降级方案
+      safeSetTimeout(initializeEditor, 100);
+    }
   }
 
   // 添加全局点击事件监听器
@@ -636,59 +740,74 @@ onMounted(() => {
   window.addEventListener("resize", updateCopyFormatMenuPosition);
 
   // 添加编辑器容器滚动事件监听器
-  setTimeout(() => {
-    const editorContainer = document.querySelector(".vditor-content");
+  safeSetTimeout(() => {
+    const editorContainer = getEditorContainer();
     if (editorContainer) {
       editorContainer.addEventListener("scroll", updateCopyFormatMenuPosition);
     }
-  }, 1000); // 给编辑器足够的初始化时间
+  }, 200);
 });
 
 // 组件卸载时销毁编辑器实例，避免内存泄漏
 onBeforeUnmount(() => {
-  // 只有在非纯文本模式下才需要销毁编辑器实例
-  if (!isPlainTextMode.value && vditorInstance.value) {
-    vditorInstance.value.destroy();
+  // 1. 首先移除所有事件监听器，避免在清理过程中触发事件
+  document.removeEventListener("click", handleGlobalClick);
+  document.removeEventListener("click", closeCopyFormatMenu);
+  window.removeEventListener("resize", updateCopyFormatMenuPosition);
+
+  // 2. 移除编辑器容器滚动事件监听器 - 使用缓存的引用
+  if (editorContainerCache) {
+    editorContainerCache.removeEventListener("scroll", updateCopyFormatMenuPosition);
+    editorContainerCache = null;
+  }
+
+  // 3. 清理所有定时器
+  clearAllTimeouts();
+
+  // 4. 销毁编辑器实例
+  if (vditorInstance.value) {
+    try {
+      vditorInstance.value.destroy();
+    } catch (e) {
+      console.warn("销毁编辑器时出错:", e);
+      debugLog(props.enableDebug, props.isDev, "编辑器销毁失败:", e);
+    }
     vditorInstance.value = null;
   }
 
-  // 移除全局点击事件监听器
-  document.removeEventListener("click", handleGlobalClick);
-
-  // 移除窗口大小调整事件监听器
-  window.removeEventListener("resize", updateCopyFormatMenuPosition);
-
-  // 移除编辑器容器滚动事件监听器
-  const editorContainer = document.querySelector(".vditor-content");
-  if (editorContainer) {
-    editorContainer.removeEventListener("scroll", updateCopyFormatMenuPosition);
-  }
+  // 5. 最后清理内容缓存和状态
+  lastKnownValue = "";
+  copyFormatMenuVisible.value = false;
+  lastCopyFormatsBtnElement.value = null;
 });
 
 // 显示复制格式菜单
-const showCopyFormatsMenu = () => {
+const showCopyFormatsMenu = (position = null) => {
   if (!vditorInstance.value) return;
 
-  // 获取工具栏中复制格式按钮的位置
-  const copyFormatBtn = document.querySelector('.vditor-toolbar button[data-type="copy-formats"]');
-  if (!copyFormatBtn) return;
+  if (position) {
+    // 如果传入了位置参数，直接使用（来自按钮点击事件）
+    copyFormatMenuPosition.value = position;
+  } else {
+    // 降级方案：使用选择器查找按钮位置
+    const copyFormatBtn = document.querySelector(copyFormatBtnSelector);
+    if (!copyFormatBtn) return;
 
-  // 保存按钮元素引用
-  lastCopyFormatsBtnElement.value = copyFormatBtn;
+    // 保存按钮元素引用
+    lastCopyFormatsBtnElement.value = copyFormatBtn;
 
-  const rect = copyFormatBtn.getBoundingClientRect();
-
-  // 设置菜单位置
-  copyFormatMenuPosition.value = {
-    x: rect.left,
-    y: rect.bottom + 5,
-  };
+    const rect = copyFormatBtn.getBoundingClientRect();
+    copyFormatMenuPosition.value = {
+      x: rect.left,
+      y: rect.bottom + 5,
+    };
+  }
 
   // 显示菜单
   copyFormatMenuVisible.value = true;
 
   // 添加点击事件监听器，点击外部区域关闭菜单
-  setTimeout(() => {
+  safeSetTimeout(() => {
     document.addEventListener("click", closeCopyFormatMenu);
   }, 0);
 };
@@ -697,9 +816,9 @@ const showCopyFormatsMenu = () => {
 const updateCopyFormatMenuPosition = () => {
   if (!copyFormatMenuVisible.value) return;
 
-  // 如果按钮引用无效，尝试重新获取
+  // 如果按钮引用无效，尝试重新获取 - 使用缓存的选择器
   if (!lastCopyFormatsBtnElement.value || !document.body.contains(lastCopyFormatsBtnElement.value)) {
-    const newBtn = document.querySelector('.vditor-toolbar button[data-type="copy-formats"]');
+    const newBtn = document.querySelector(copyFormatBtnSelector);
     if (!newBtn) {
       // 如果找不到按钮，隐藏菜单并返回
       copyFormatMenuVisible.value = false;
@@ -727,8 +846,8 @@ const closeCopyFormatMenu = (event) => {
   }
 
   const menu = document.getElementById("copyFormatMenu");
-  // 更新选择器以匹配自定义按钮
-  const copyFormatBtn = document.querySelector('.vditor-toolbar button[data-type="copy-formats"]')?.parentElement;
+  // 更新选择器以匹配自定义按钮 - 使用缓存的选择器
+  const copyFormatBtn = document.querySelector(copyFormatBtnSelector)?.parentElement;
 
   if (menu && !menu.contains(event.target) && (!copyFormatBtn || !copyFormatBtn.contains(event.target))) {
     copyFormatMenuVisible.value = false;
@@ -739,7 +858,7 @@ const closeCopyFormatMenu = (event) => {
 // 复制为Markdown格式
 const copyAsMarkdown = () => {
   if (!vditorInstance.value) return;
-  const mdContent = vditorInstance.value.getValue();
+  const mdContent = safeGetValue();
   copyToClipboard(mdContent, "已复制为Markdown格式");
   closeCopyFormatMenu();
 };
@@ -773,11 +892,11 @@ const exportWordDocument = async () => {
 
   try {
     // 获取Markdown内容
-    const markdownContent = vditorInstance.value.getValue();
+    const markdownContent = safeGetValue();
 
     if (!markdownContent) {
       notification.value = "没有内容可导出";
-      setTimeout(() => {
+      safeSetTimeout(() => {
         notification.value = "";
       }, 3000);
       return;
@@ -802,13 +921,13 @@ const exportWordDocument = async () => {
 
     // 显示成功消息
     notification.value = "Word文档已生成并下载";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 3000);
   } catch (error) {
     console.error("导出Word文档时出错:", error);
     notification.value = "导出失败，请稍后重试";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 3000);
   } finally {
@@ -829,7 +948,7 @@ const exportAsPng = async () => {
 
     if (!htmlContent) {
       notification.value = "没有内容可导出";
-      setTimeout(() => {
+      safeSetTimeout(() => {
         notification.value = "";
       }, 3000);
       return;
@@ -861,10 +980,10 @@ const exportAsPng = async () => {
         padding: "20px",
         maxWidth: "1920px", // 限制最大宽度
       },
-      beforeCapture: (element) => {
+      beforeCapture: () => {
         debugLog(props.enableDebug, props.isDev, "准备捕获编辑器内容...");
       },
-      afterCapture: (capturedElement) => {
+      afterCapture: () => {
         debugLog(props.enableDebug, props.isDev, "内容已捕获，准备转换为PNG");
         // 恢复编辑器容器的原始ID
         if (editorContainer) {
@@ -892,7 +1011,7 @@ const exportAsPng = async () => {
 
     // 显示成功消息
     notification.value = "PNG图片已生成并下载";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 3000);
   } catch (error) {
@@ -904,7 +1023,7 @@ const exportAsPng = async () => {
     }
 
     notification.value = "导出失败，请稍后重试";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 3000);
   } finally {
@@ -925,7 +1044,7 @@ const copyToClipboard = async (text, successMessage) => {
     if (success) {
       // 使用notification显示成功消息，而非error
       notification.value = successMessage;
-      setTimeout(() => {
+      safeSetTimeout(() => {
         notification.value = "";
       }, 3000);
     } else {
@@ -934,7 +1053,7 @@ const copyToClipboard = async (text, successMessage) => {
   } catch (e) {
     console.error("复制失败:", e);
     emit("update:error", "复制失败，请手动选择内容复制");
-    setTimeout(() => {
+    safeSetTimeout(() => {
       emit("update:error", "");
     }, 3000);
   }
@@ -946,8 +1065,8 @@ const handleGlobalClick = (event) => {
   if (
       menu &&
       !menu.contains(event.target) &&
-      // 更新选择器以匹配自定义按钮
-      !event.target.closest('.vditor-toolbar button[data-type="copy-formats"]') &&
+      // 更新选择器以匹配自定义按钮 - 使用缓存的选择器
+      !event.target.closest(copyFormatBtnSelector) &&
       copyFormatMenuVisible.value
   ) {
     closeCopyFormatMenu();
@@ -968,7 +1087,7 @@ const importMarkdownFile = (event) => {
 
   if (!isValidType) {
     notification.value = "不支持的文件类型，请选择Markdown文件";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 3000);
     return;
@@ -978,14 +1097,14 @@ const importMarkdownFile = (event) => {
   const maxSize = 10 * 1024 * 1024; // 10MB
   if (file.size > maxSize) {
     notification.value = "文件过大，请选择小于10MB的文件";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 3000);
     return;
   }
 
   // 检查编辑器是否有内容
-  const currentContent = vditorInstance.value.getValue();
+  const currentContent = safeGetValue();
   if (currentContent && currentContent.trim() !== "") {
     if (!confirm("当前编辑器已有内容，导入将覆盖现有内容。是否继续？")) {
       // 重置文件输入
@@ -1001,15 +1120,15 @@ const importMarkdownFile = (event) => {
   reader.onload = (e) => {
     try {
       const content = e.target.result;
-      vditorInstance.value.setValue(content);
+      safeSetValue(content);
       notification.value = "文件导入成功";
-      setTimeout(() => {
+      safeSetTimeout(() => {
         notification.value = "";
       }, 2000);
     } catch (error) {
       console.error("导入文件时出错:", error);
       notification.value = "导入失败，请重试";
-      setTimeout(() => {
+      safeSetTimeout(() => {
         notification.value = "";
       }, 3000);
     }
@@ -1018,7 +1137,7 @@ const importMarkdownFile = (event) => {
   reader.onerror = () => {
     console.error("读取文件时出错");
     notification.value = "读取文件时出错，请重试";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 3000);
   };
@@ -1044,11 +1163,11 @@ const clearEditorContent = () => {
   // 添加确认对话框
   if (confirm("确定要清空所有内容吗？")) {
     // 清空编辑器内容
-    vditorInstance.value.setValue("");
+    safeSetValue("");
 
     // 显示成功消息
     notification.value = "内容已清空";
-    setTimeout(() => {
+    safeSetTimeout(() => {
       notification.value = "";
     }, 2000);
   }

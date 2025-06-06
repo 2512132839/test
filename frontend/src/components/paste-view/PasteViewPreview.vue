@@ -1,11 +1,28 @@
 <script setup>
 // PasteViewPreview组件 - 用于渲染Markdown内容并提供预览功能
 // 该组件使用Vditor库渲染复杂的Markdown内容，支持代码高亮、数学公式等高级特性
-import { ref, onMounted, watch, nextTick } from "vue";
-import Vditor from "vditor";
-import "vditor/dist/index.css"; // 引入Vditor样式
+import { ref, onMounted, watch, nextTick, onBeforeUnmount } from "vue";
 import { debugLog } from "./PasteViewUtils";
 import HtmlPreviewModal from "./preview/HtmlPreviewModal.vue"; // 引入HTML预览弹窗组件
+
+// 懒加载Vditor和CSS
+let VditorClass = null;
+let vditorCSSLoaded = false;
+
+const loadVditor = async () => {
+  if (!VditorClass) {
+    const [vditorModule] = await Promise.all([import("vditor"), loadVditorCSS()]);
+    VditorClass = vditorModule.default;
+  }
+  return VditorClass;
+};
+
+const loadVditorCSS = async () => {
+  if (!vditorCSSLoaded) {
+    await import("vditor/dist/index.css");
+    vditorCSSLoaded = true;
+  }
+};
 
 // 定义组件接收的属性
 const props = defineProps({
@@ -51,6 +68,26 @@ const previewElement = ref(null);
 const contentRendered = ref(false);
 // 存储滚动位置
 const savedScrollPosition = ref({ window: 0, content: 0 });
+// MutationObserver实例，用于清理
+let mutationObserver = null;
+// 存储定时器ID，用于清理
+const timeoutIds = new Set();
+
+// 安全的setTimeout，会自动清理
+const safeSetTimeout = (callback, delay) => {
+  const id = setTimeout(() => {
+    timeoutIds.delete(id);
+    callback();
+  }, delay);
+  timeoutIds.add(id);
+  return id;
+};
+
+// 清理所有定时器
+const clearAllTimeouts = () => {
+  timeoutIds.forEach((id) => clearTimeout(id));
+  timeoutIds.clear();
+};
 
 // 保存当前滚动位置
 const saveScrollPosition = () => {
@@ -92,11 +129,21 @@ watch(
     }
 );
 
+// 缓存上次渲染的内容，避免重复渲染
+let lastRenderedContent = "";
+// DOM查询缓存
+let diagramContainersCache = null;
+let checkboxesCache = null;
+let imagesCache = null;
+let codeBlocksCache = null;
+
 // 监听内容变化，当内容改变时重新渲染
 watch(
     () => props.content,
-    (newContent) => {
-      if (newContent) {
+    (newContent, oldContent) => {
+      // 避免重复渲染相同内容
+      if (newContent && newContent !== lastRenderedContent && newContent !== oldContent) {
+        lastRenderedContent = newContent;
         contentRendered.value = false;
         nextTick(() => {
           renderContent(newContent);
@@ -153,7 +200,7 @@ const renderContent = (content) => {
 };
 
 // 内部渲染实现，使用Vditor的API渲染Markdown
-const renderContentInternal = (content) => {
+const renderContentInternal = async (content) => {
   // 清空之前的内容，避免重复渲染
   if (previewElement.value) {
     // 完全清除之前的内容和样式
@@ -161,183 +208,175 @@ const renderContentInternal = (content) => {
     // 移除可能残留的主题相关类
     previewElement.value.classList.remove("vditor-reset--dark", "vditor-reset--light");
 
+    // 清理DOM缓存，强制重新查询
+    diagramContainersCache = null;
+    checkboxesCache = null;
+    imagesCache = null;
+    codeBlocksCache = null;
+
     try {
-      // 添加一个小延迟确保DOM更新完成
-      setTimeout(() => {
-        // 使用 Vditor 的预览 API 渲染内容
-        // 配置了主题、代码高亮、数学公式等渲染选项
-        Vditor.preview(previewElement.value, content, {
-          mode: "dark-light", // 支持明暗主题
-          theme: {
-            current: props.darkMode ? "dark" : "light", // 根据darkMode设置主题
-          },
-          cdn: "/assets/vditor",
-          hljs: {
-            lineNumber: true, // 代码块显示行号
-            style: props.darkMode ? "vs2015" : "github", // 代码高亮样式
-          },
-          markdown: {
-            toc: true, // 启用目录
-            mark: true, // 启用标记
-            footnotes: true, // 启用脚注
-            autoSpace: true, // 自动空格
-            media: true, // 启用媒体链接解析（视频、音频等）
-            listStyle: true, // 启用列表样式支持
-            // 添加任务列表支持
-            task: true, // 启用任务列表
-            // 图表渲染相关配置
-            mermaid: {
-              theme: "default", // 使用固定的主题，不跟随暗色模式变化
-              useMaxWidth: false, // 不使用最大宽度限制
+      // 懒加载Vditor
+      const VditorConstructor = await loadVditor();
+
+      // 安全的预览渲染
+      safeSetTimeout(() => {
+        try {
+          // 使用 Vditor 的预览 API 渲染内容
+          // 配置了主题、代码高亮、数学公式等渲染选项
+          VditorConstructor.preview(previewElement.value, content, {
+            mode: "dark-light", // 支持明暗主题
+            theme: {
+              current: props.darkMode ? "dark" : "light", // 根据darkMode设置主题
             },
-            flowchart: {
-              theme: "default", // 使用固定的主题
+            cdn: "/assets/vditor",
+            hljs: {
+              lineNumber: true, // 代码块显示行号
+              style: props.darkMode ? "vs2015" : "github", // 代码高亮样式
             },
-            // 固定图表样式
-            fixDiagramTheme: true, // 自定义属性，用于CSS选择器中识别
-          },
-          math: {
-            engine: "KaTeX", // 数学公式渲染引擎
-            inlineDigit: true, // 启用行内数学公式
-          },
-          after: () => {
-            // 渲染完成后的回调
-            debugLog(props.enableDebug, props.isDev, "Markdown 内容渲染完成");
+            markdown: {
+              toc: true, // 启用目录
+              mark: true, // 启用标记
+              footnotes: true, // 启用脚注
+              autoSpace: true, // 自动空格
+              media: true, // 启用媒体链接解析（视频、音频等）
+              listStyle: true, // 启用列表样式支持
+              // 添加任务列表支持
+              task: true, // 启用任务列表
+              // 图表渲染相关配置
+              mermaid: {
+                theme: "default", // 使用固定的主题，不跟随暗色模式变化
+                useMaxWidth: false, // 不使用最大宽度限制
+              },
+              flowchart: {
+                theme: "default", // 使用固定的主题
+              },
+              // 固定图表样式
+              fixDiagramTheme: true, // 自定义属性，用于CSS选择器中识别
+            },
+            math: {
+              engine: "KaTeX", // 数学公式渲染引擎
+              inlineDigit: true, // 启用行内数学公式
+            },
+            after: () => {
+              // 渲染完成后的回调
+              debugLog(props.enableDebug, props.isDev, "Markdown 内容渲染完成");
 
-            // 强制添加对应主题的类
-            if (props.darkMode) {
-              previewElement.value.classList.add("vditor-reset--dark");
-              previewElement.value.classList.remove("vditor-reset--light");
-            } else {
-              previewElement.value.classList.add("vditor-reset--light");
-              previewElement.value.classList.remove("vditor-reset--dark");
-            }
-
-            // 为所有图表容器添加固定样式类
-            const diagramContainers = previewElement.value.querySelectorAll(".language-mermaid, .language-flow, .language-plantuml, .language-gantt");
-            diagramContainers.forEach((container) => {
-              container.classList.add("diagram-fixed-theme");
-            });
-
-            // 添加任务列表的交互功能
-            const setupTaskListInteraction = () => {
-              // 添加非空检查，如果预览元素不存在则直接返回
-              if (!previewElement.value) {
-                console.warn("setupTaskListInteraction: 预览元素不存在，跳过任务列表交互设置");
-                return;
+              // 强制添加对应主题的类
+              if (props.darkMode) {
+                previewElement.value.classList.add("vditor-reset--dark");
+                previewElement.value.classList.remove("vditor-reset--light");
+              } else {
+                previewElement.value.classList.add("vditor-reset--light");
+                previewElement.value.classList.remove("vditor-reset--dark");
               }
 
-              // 根据用户反馈，使用已知有效的选择器
-              const checkboxes = previewElement.value.querySelectorAll('.vditor-task input[type="checkbox"]');
+              // 为所有图表容器添加固定样式类 - 使用缓存优化
+              if (!diagramContainersCache || diagramContainersCache.length === 0) {
+                diagramContainersCache = previewElement.value.querySelectorAll(".language-mermaid, .language-flow, .language-plantuml, .language-gantt");
+              }
+              diagramContainersCache.forEach((container) => {
+                container.classList.add("diagram-fixed-theme");
+              });
 
-              // 处理所有找到的复选框
-              checkboxes.forEach((checkbox) => {
-                // 强制确保可交互性
-                checkbox.disabled = false;
-                checkbox.style.pointerEvents = "auto";
-                checkbox.style.cursor = "pointer";
+              // 添加任务列表的交互功能
+              const setupTaskListInteraction = () => {
+                // 添加非空检查，如果预览元素不存在则直接返回
+                if (!previewElement.value) {
+                  console.warn("setupTaskListInteraction: 预览元素不存在，跳过任务列表交互设置");
+                  return;
+                }
 
-                // 找到父级li元素
-                const parentLi = checkbox.closest("li");
-                if (parentLi) {
-                  // 如果已经勾选，添加样式属性
-                  if (checkbox.checked) {
-                    parentLi.setAttribute("data-task-checked", "true");
+                // 根据用户反馈，使用已知有效的选择器 - 使用缓存优化
+                if (!checkboxesCache || checkboxesCache.length === 0) {
+                  checkboxesCache = previewElement.value.querySelectorAll('.vditor-task input[type="checkbox"]');
+                }
+
+                // 处理所有找到的复选框
+                checkboxesCache.forEach((checkbox) => {
+                  // 强制确保可交互性
+                  checkbox.disabled = false;
+                  checkbox.style.pointerEvents = "auto";
+                  checkbox.style.cursor = "pointer";
+
+                  // 找到父级li元素
+                  const parentLi = checkbox.closest("li");
+                  if (parentLi) {
+                    // 如果已经勾选，添加样式属性
+                    if (checkbox.checked) {
+                      parentLi.setAttribute("data-task-checked", "true");
+                    }
+
+                    // 添加change事件处理
+                    checkbox.addEventListener("change", (e) => {
+                      const isChecked = e.target.checked;
+                      // 更新父元素的数据属性，启用样式
+                      parentLi.setAttribute("data-task-checked", isChecked.toString());
+                    });
                   }
+                });
+              };
 
-                  // 添加change事件处理
-                  checkbox.addEventListener("change", (e) => {
-                    const isChecked = e.target.checked;
-                    // 更新父元素的数据属性，启用样式
-                    parentLi.setAttribute("data-task-checked", isChecked.toString());
-                  });
+              // 运行初始设置
+              setupTaskListInteraction();
+
+              // 清理之前的观察器
+              if (mutationObserver) {
+                mutationObserver.disconnect();
+              }
+
+              // 设置DOM观察器，处理动态变化 - 优化性能
+              mutationObserver = new MutationObserver((mutations) => {
+                // 只在有相关变化时才处理
+                const hasRelevantChanges = mutations.some((mutation) => mutation.type === "childList" && (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0));
+
+                if (hasRelevantChanges) {
+                  // 清理缓存，强制重新查询
+                  checkboxesCache = null;
+                  diagramContainersCache = null;
+                  codeBlocksCache = null;
+                  // 延迟短暂时间后运行，确保DOM更新完成
+                  safeSetTimeout(setupTaskListInteraction, 50);
                 }
               });
-            };
 
-            // 运行初始设置
-            setupTaskListInteraction();
-
-            // 设置DOM观察器，处理动态变化
-            const observer = new MutationObserver(() => {
-              // 延迟短暂时间后运行，确保DOM更新完成
-              setTimeout(setupTaskListInteraction, 50);
-            });
-
-            // 监听DOM变化
-            if (previewElement.value) {
-              observer.observe(previewElement.value, {
-                childList: true,
-                subtree: true,
-              });
-            } else {
-              console.warn("无法设置MutationObserver：预览元素不存在");
-            }
-
-            // 添加代码块折叠功能
-            setupCodeBlockCollapse();
-
-            // 自定义图片点击放大功能
-            const images = previewElement.value.querySelectorAll("img");
-            images.forEach((img) => {
-              // 避免重复添加事件
-              if (!img.getAttribute("data-preview-bound")) {
-                img.setAttribute("data-preview-bound", "true");
-                img.style.cursor = "pointer"; // 显示为可点击的样式
-
-                img.addEventListener("click", (e) => {
-                  e.preventDefault();
-
-                  // 创建图片预览容器
-                  const previewContainer = document.createElement("div");
-                  previewContainer.className = "image-preview-container";
-                  previewContainer.style.position = "fixed";
-                  previewContainer.style.top = "0";
-                  previewContainer.style.left = "0";
-                  previewContainer.style.width = "100%";
-                  previewContainer.style.height = "100%";
-                  previewContainer.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
-                  previewContainer.style.zIndex = "10000";
-                  previewContainer.style.display = "flex";
-                  previewContainer.style.justifyContent = "center";
-                  previewContainer.style.alignItems = "center";
-                  previewContainer.style.cursor = "zoom-out";
-
-                  // 创建图片元素
-                  const previewImg = document.createElement("img");
-                  previewImg.src = img.src;
-                  previewImg.style.maxWidth = "90%";
-                  previewImg.style.maxHeight = "90%";
-                  previewImg.style.objectFit = "contain";
-                  previewImg.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.5)";
-                  previewImg.style.transition = "transform 0.3s ease";
-
-                  // 添加点击关闭功能
-                  previewContainer.addEventListener("click", () => {
-                    document.body.removeChild(previewContainer);
-                  });
-
-                  // 防止点击图片时冒泡事件关闭预览
-                  previewImg.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                  });
-
-                  // 添加到DOM
-                  previewContainer.appendChild(previewImg);
-                  document.body.appendChild(previewContainer);
+              // 监听DOM变化 - 只监听必要的变化
+              if (previewElement.value) {
+                mutationObserver.observe(previewElement.value, {
+                  childList: true,
+                  subtree: true,
+                  attributes: false, // 不监听属性变化
+                  characterData: false, // 不监听文本变化
                 });
+              } else {
+                console.warn("无法设置MutationObserver：预览元素不存在");
               }
-            });
 
-            // 标记内容已渲染，并触发渲染完成事件
+              // 添加代码块折叠功能
+              setupCodeBlockCollapse();
+
+              // 自定义图片点击放大功能 - 使用事件委托优化性能
+              setupImagePreview();
+
+              // 标记内容已渲染，并触发渲染完成事件
+              contentRendered.value = true;
+              emit("rendered");
+
+              // 恢复滚动位置
+              restoreScrollPosition();
+            },
+          });
+        } catch (previewError) {
+          console.error("Vditor预览渲染失败:", previewError);
+          // 降级到基本文本显示
+          if (previewElement.value) {
+            const safeContent = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            previewElement.value.innerHTML = `<pre class="whitespace-pre-wrap">${safeContent}</pre>`;
             contentRendered.value = true;
             emit("rendered");
-
-            // 恢复滚动位置
             restoreScrollPosition();
-          },
-        });
-      }, 10); // 短延迟，确保DOM更新
+          }
+        }
+      }, 100); // 增加延迟确保DOM稳定
     } catch (e) {
       console.error("渲染 Markdown 内容时发生错误:", e);
       // 回退到基本的文本显示
@@ -356,7 +395,7 @@ const renderContentInternal = (content) => {
   } else {
     debugLog(props.enableDebug, props.isDev, "renderContentInternal: 预览元素不存在");
     // 在DOM可用时重试（仅重试一次，避免无限循环）
-    setTimeout(() => {
+    safeSetTimeout(() => {
       if (previewElement.value && !contentRendered.value) {
         debugLog(props.enableDebug, props.isDev, "延迟后重试渲染");
         renderContentInternal(content);
@@ -402,12 +441,102 @@ onMounted(() => {
   }
 });
 
+// 设置图片预览功能 - 使用事件委托优化性能
+const setupImagePreview = () => {
+  if (!previewElement.value) return;
+
+  // 移除之前的事件监听器（如果存在）
+  previewElement.value.removeEventListener("click", handleImageClick);
+
+  // 添加事件委托
+  previewElement.value.addEventListener("click", handleImageClick);
+
+  // 为所有图片添加可点击样式
+  const images = previewElement.value.querySelectorAll("img");
+  images.forEach((img) => {
+    img.style.cursor = "pointer";
+  });
+};
+
+// 处理图片点击事件
+const handleImageClick = (e) => {
+  if (e.target.tagName === "IMG") {
+    e.preventDefault();
+
+    const img = e.target;
+
+    // 创建图片预览容器
+    const previewContainer = document.createElement("div");
+    previewContainer.className = "image-preview-container";
+    previewContainer.style.position = "fixed";
+    previewContainer.style.top = "0";
+    previewContainer.style.left = "0";
+    previewContainer.style.width = "100%";
+    previewContainer.style.height = "100%";
+    previewContainer.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    previewContainer.style.zIndex = "10000";
+    previewContainer.style.display = "flex";
+    previewContainer.style.justifyContent = "center";
+    previewContainer.style.alignItems = "center";
+    previewContainer.style.cursor = "zoom-out";
+
+    // 创建图片元素
+    const previewImg = document.createElement("img");
+    previewImg.src = img.src;
+    previewImg.style.maxWidth = "90%";
+    previewImg.style.maxHeight = "90%";
+    previewImg.style.objectFit = "contain";
+    previewImg.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.5)";
+    previewImg.style.transition = "transform 0.3s ease";
+
+    // 添加点击关闭功能
+    previewContainer.addEventListener("click", () => {
+      document.body.removeChild(previewContainer);
+    });
+
+    // 防止点击图片时冒泡事件关闭预览
+    previewImg.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
+    // 添加到DOM
+    previewContainer.appendChild(previewImg);
+    document.body.appendChild(previewContainer);
+  }
+};
+
+// 组件卸载时清理资源
+onBeforeUnmount(() => {
+  // 清理所有定时器
+  clearAllTimeouts();
+
+  // 清理MutationObserver
+  if (mutationObserver) {
+    mutationObserver.disconnect();
+    mutationObserver = null;
+  }
+
+  // 清理图片预览事件监听器
+  if (previewElement.value) {
+    previewElement.value.removeEventListener("click", handleImageClick);
+  }
+
+  // 清理DOM缓存
+  diagramContainersCache = null;
+  checkboxesCache = null;
+  imagesCache = null;
+  codeBlocksCache = null;
+});
+
 // 设置代码块折叠功能
 const setupCodeBlockCollapse = () => {
   if (!previewElement.value) return;
 
-  // 查找所有代码块
-  const codeBlocks = previewElement.value.querySelectorAll('pre code[class*="language-"]');
+  // 查找所有代码块 - 使用缓存优化性能
+  if (!codeBlocksCache || codeBlocksCache.length === 0) {
+    codeBlocksCache = previewElement.value.querySelectorAll('pre code[class*="language-"]');
+  }
+  const codeBlocks = codeBlocksCache;
 
   codeBlocks.forEach((codeBlock) => {
     // 避免重复处理
@@ -529,7 +658,7 @@ const setupCodeBlockCollapse = () => {
       e.stopPropagation();
 
       // 更新操作文本
-      setTimeout(() => {
+      safeSetTimeout(() => {
         actionText.textContent = details.open ? "折叠" : "展开";
       }, 0);
     });
@@ -571,7 +700,7 @@ const openHtmlInExternalBrowser = (htmlContent) => {
   window.open(url, "_blank");
 
   // 清理 Blob URL
-  setTimeout(() => URL.revokeObjectURL(url), 100);
+  safeSetTimeout(() => URL.revokeObjectURL(url), 100);
 };
 
 // 在外部浏览器中打开 SVG
@@ -615,7 +744,7 @@ const openSvgInExternalBrowser = (svgContent) => {
   window.open(url, "_blank");
 
   // 清理 Blob URL
-  setTimeout(() => URL.revokeObjectURL(url), 100);
+  safeSetTimeout(() => URL.revokeObjectURL(url), 100);
 };
 </script>
 
