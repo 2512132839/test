@@ -350,7 +350,11 @@ const resetFormData = () => {
 <template>
   <!-- 模态框背景 -->
   <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black bg-opacity-50 overflow-y-auto" @click.self="closeForm">
-    <div class="w-full max-w-lg rounded-lg shadow-xl overflow-hidden transition-colors" :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'" @click.stop>
+    <div
+        class="w-full max-w-sm sm:max-w-lg rounded-lg shadow-xl overflow-hidden transition-colors max-h-[95vh] sm:max-h-[85vh]"
+        :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'"
+        @click.stop
+    >
       <!-- 表单标题 -->
       <div class="px-3 sm:px-6 py-2 sm:py-4 border-b sticky top-0 z-10" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <div class="flex justify-between items-center">
@@ -366,7 +370,7 @@ const resetFormData = () => {
       </div>
 
       <!-- 表单内容区域 -->
-      <div class="p-3 sm:p-6 space-y-2 sm:space-y-4 max-h-[calc(90vh-120px)] overflow-y-auto">
+      <div class="p-3 sm:p-6 space-y-2 sm:space-y-4 max-h-[calc(95vh-180px)] overflow-y-auto">
         <!-- 全局错误提示 -->
         <div v-if="globalError" class="p-2 sm:p-3 rounded-md bg-red-100 border border-red-300 text-red-700 text-sm">
           {{ globalError }}

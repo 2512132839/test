@@ -282,13 +282,17 @@ const closeModal = () => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 overflow-y-auto" @click.self="closeModal">
-    <div class="w-full max-w-lg rounded-lg shadow-xl overflow-hidden transition-colors" :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'" @click.stop>
-      <div class="px-6 py-4 border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
-        <h2 class="text-lg font-semibold">{{ formTitle }}</h2>
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black bg-opacity-50 overflow-y-auto" @click.self="closeModal">
+    <div
+        class="w-full max-w-sm sm:max-w-lg rounded-lg shadow-xl overflow-hidden transition-colors max-h-[95vh] sm:max-h-[85vh]"
+        :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'"
+        @click.stop
+    >
+      <div class="px-4 sm:px-6 py-3 sm:py-4 border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
+        <h2 class="text-base sm:text-lg font-semibold">{{ formTitle }}</h2>
       </div>
 
-      <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+      <div class="p-4 sm:p-6 space-y-3 sm:space-y-4 max-h-[calc(95vh-180px)] overflow-y-auto">
         <div v-if="success" class="p-3 rounded-md text-sm font-medium mb-4 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
           {{ success }}
         </div>
@@ -495,10 +499,13 @@ const closeModal = () => {
         </form>
       </div>
 
-      <div class="px-4 py-3 border-t transition-colors duration-200 flex justify-end space-x-3" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
+      <div
+          class="px-3 sm:px-4 py-2 sm:py-3 border-t transition-colors duration-200 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0"
+          :class="darkMode ? 'border-gray-700' : 'border-gray-200'"
+      >
         <button
             @click="closeModal"
-            class="px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+            class="w-full sm:w-auto px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
             :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
         >
           取消
@@ -507,7 +514,7 @@ const closeModal = () => {
         <button
             @click="submitForm"
             :disabled="!formValid || loading"
-            class="flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 bg-primary-500 hover:bg-primary-600 text-white"
+            class="w-full sm:w-auto flex justify-center items-center px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 bg-primary-500 hover:bg-primary-600 text-white"
             :class="{ 'opacity-50 cursor-not-allowed': !formValid || loading }"
         >
           <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

@@ -675,7 +675,11 @@ defineExpose({
 </script>
 
 <template>
-  <div class="relative rounded-lg shadow-xl w-full max-h-[75vh] overflow-hidden" :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'" style="max-width: 420px">
+  <div
+      class="relative rounded-lg shadow-xl w-full max-h-[95vh] sm:max-h-[85vh] overflow-hidden max-w-xs sm:max-w-md"
+      :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'"
+      style="min-width: 300px"
+  >
     <!-- 弹窗头部带关闭按钮 -->
     <div class="px-4 py-3 sm:py-4 border-b flex justify-between items-center sticky top-0 z-10" :class="[darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white']">
       <h3 class="text-lg leading-6 font-medium" :class="darkMode ? 'text-white' : 'text-gray-900'">
@@ -735,7 +739,7 @@ defineExpose({
     </div>
 
     <!-- 弹窗内容区 - 增加滚动条 -->
-    <div class="px-4 py-4 overflow-y-auto" style="max-height: calc(75vh - 100px)">
+    <div class="px-3 sm:px-4 py-3 sm:py-4 overflow-y-auto" style="max-height: calc(95vh - 140px)">
       <!-- 基本信息标签页 -->
       <div v-if="activeTab === 'basic'" class="space-y-4">
         <!-- 密钥名称 -->

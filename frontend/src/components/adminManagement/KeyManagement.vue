@@ -365,7 +365,7 @@ onBeforeUnmount(() => {
     <!-- 创建密钥模态框 -->
     <div
         v-if="showCreateModal"
-        class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center"
+        class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-4"
         :class="darkMode ? 'bg-gray-900/75' : 'bg-black/50'"
         @click="showCreateModal = false"
     >
@@ -383,7 +383,7 @@ onBeforeUnmount(() => {
     <!-- 编辑密钥模态框 -->
     <div
         v-if="showEditModal"
-        class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center"
+        class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-4"
         :class="darkMode ? 'bg-gray-900/75' : 'bg-black/50'"
         @click="showEditModal = false"
     >

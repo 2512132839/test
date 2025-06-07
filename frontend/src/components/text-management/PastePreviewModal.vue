@@ -138,7 +138,7 @@ const viewPaste = (slug) => {
 <template>
   <!-- 预览弹窗 - 仅在showPreview为true时显示 -->
   <div v-if="showPreview" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-center sm:items-center justify-center min-h-screen pt-1 px-2 sm:px-4 pb-10 sm:pb-20 text-center sm:p-0">
+    <div class="flex items-center sm:items-center justify-center min-h-screen pt-2 px-2 sm:px-4 pb-4 sm:pb-20 text-center sm:p-0">
       <!-- 背景蒙层 - 点击时关闭弹窗 -->
       <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75 transition-opacity" aria-hidden="true" @click="closePreview"></div>
 
@@ -147,7 +147,7 @@ const viewPaste = (slug) => {
 
       <!-- 弹窗主体内容 -->
       <div
-          class="inline-block align-middle sm:align-middle bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:max-w-3xl max-h-[80vh] sm:max-h-[80vh] my-1 sm:my-8"
+          class="inline-block align-middle sm:align-middle bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-sm sm:max-w-2xl lg:max-w-3xl max-h-[95vh] sm:max-h-[85vh] my-1 sm:my-8"
           :class="darkMode ? 'dark' : ''"
       >
         <!-- 弹窗头部带关闭按钮 -->
@@ -166,7 +166,7 @@ const viewPaste = (slug) => {
         </div>
 
         <!-- 弹窗内容区 - 带滚动条 -->
-        <div class="bg-white dark:bg-gray-800 px-4 py-4 overflow-y-auto" style="max-height: calc(90vh - 130px)">
+        <div class="bg-white dark:bg-gray-800 px-3 sm:px-4 py-3 sm:py-4 overflow-y-auto" style="max-height: calc(95vh - 140px); min-height: 200px">
           <div class="flex flex-col space-y-4 w-full">
             <!-- 元数据展示区域 - 网格布局 -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg text-sm">
