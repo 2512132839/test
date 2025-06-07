@@ -20,9 +20,73 @@
         />
       </div>
       <div class="mr-2 sm:mr-3 font-medium text-center" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">类型</div>
-      <div class="font-medium truncate" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">名称</div>
-      <div class="min-w-24 text-center font-medium hidden sm:block" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">大小</div>
-      <div class="min-w-36 text-center font-medium hidden sm:block" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">修改时间</div>
+
+      <!-- 可排序的名称列 -->
+      <div
+          class="font-medium cursor-pointer select-none flex items-center hover:opacity-75 transition-opacity"
+          :class="darkMode ? 'text-gray-300' : 'text-gray-700'"
+          @click="handleSort('name')"
+          title="点击排序"
+      >
+        <span class="truncate">名称</span>
+        <!-- 排序图标 -->
+        <svg v-if="getSortIcon('name')" class="ml-1 w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path
+              v-if="sortField === 'name' && sortOrder === 'asc'"
+              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+          />
+          <path v-else d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" />
+        </svg>
+        <!-- 默认排序提示图标 -->
+        <svg v-else class="ml-1 w-3 h-3 flex-shrink-0 opacity-40" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zM3 16a1 1 0 011-1h4a1 1 0 110 2H4a1 1 0 01-1-1z" />
+        </svg>
+      </div>
+
+      <!-- 可排序的大小列 -->
+      <div
+          class="min-w-24 text-center font-medium hidden sm:flex cursor-pointer select-none items-center justify-center hover:opacity-75 transition-opacity"
+          :class="darkMode ? 'text-gray-300' : 'text-gray-700'"
+          @click="handleSort('size')"
+          title="点击排序"
+      >
+        <span>大小</span>
+        <!-- 排序图标 -->
+        <svg v-if="getSortIcon('size')" class="ml-1 w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path
+              v-if="sortField === 'size' && sortOrder === 'asc'"
+              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+          />
+          <path v-else d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" />
+        </svg>
+        <!-- 默认排序提示图标 -->
+        <svg v-else class="ml-1 w-3 h-3 flex-shrink-0 opacity-40" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zM3 16a1 1 0 011-1h4a1 1 0 110 2H4a1 1 0 01-1-1z" />
+        </svg>
+      </div>
+
+      <!-- 可排序的修改时间列 -->
+      <div
+          class="min-w-36 text-center font-medium hidden sm:flex cursor-pointer select-none items-center justify-center hover:opacity-75 transition-opacity"
+          :class="darkMode ? 'text-gray-300' : 'text-gray-700'"
+          @click="handleSort('modified')"
+          title="点击排序"
+      >
+        <span>修改时间</span>
+        <!-- 排序图标 -->
+        <svg v-if="getSortIcon('modified')" class="ml-1 w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path
+              v-if="sortField === 'modified' && sortOrder === 'asc'"
+              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+          />
+          <path v-else d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" />
+        </svg>
+        <!-- 默认排序提示图标 -->
+        <svg v-else class="ml-1 w-3 h-3 flex-shrink-0 opacity-40" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zM3 16a1 1 0 011-1h4a1 1 0 110 2H4a1 1 0 01-1-1z" />
+        </svg>
+      </div>
+
       <div class="min-w-[80px] sm:min-w-32 text-center font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">操作</div>
     </div>
 
@@ -241,7 +305,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, inject } from "vue";
+import { ref, computed, nextTick, inject, onMounted } from "vue";
 import FileItem from "./FileItem.vue";
 import { getFileIcon } from "../../utils/fileTypeIcons";
 import { api } from "../../api";
@@ -280,15 +344,110 @@ const props = defineProps({
 
 const emit = defineEmits(["navigate", "download", "rename", "delete", "preview", "item-select", "toggle-select-all"]);
 
-// 排序后的项目列表（目录在前，文件在后，按名称排序）
+// 排序状态
+const sortField = ref("name"); // 当前排序字段：'name', 'size', 'modified'
+const sortOrder = ref("default"); // 当前排序顺序：'asc', 'desc', 'default'
+
+// 排序字段的状态循环：default -> asc -> desc -> default
+const sortStates = ["default", "asc", "desc"];
+
+// 初始化排序状态（从localStorage恢复）
+const initializeSortState = () => {
+  try {
+    const savedSortField = localStorage.getItem("file_explorer_sort_field");
+    const savedSortOrder = localStorage.getItem("file_explorer_sort_order");
+
+    if (savedSortField && ["name", "size", "modified"].includes(savedSortField)) {
+      sortField.value = savedSortField;
+    }
+
+    if (savedSortOrder && sortStates.includes(savedSortOrder)) {
+      sortOrder.value = savedSortOrder;
+    }
+  } catch (error) {
+    console.warn("恢复排序状态失败:", error);
+  }
+};
+
+// 保存排序状态到localStorage
+const saveSortState = () => {
+  try {
+    localStorage.setItem("file_explorer_sort_field", sortField.value);
+    localStorage.setItem("file_explorer_sort_order", sortOrder.value);
+  } catch (error) {
+    console.warn("保存排序状态失败:", error);
+  }
+};
+
+// 点击表头排序
+const handleSort = (field) => {
+  if (sortField.value === field) {
+    // 同一字段，切换排序状态
+    const currentIndex = sortStates.indexOf(sortOrder.value);
+    const nextIndex = (currentIndex + 1) % sortStates.length;
+    sortOrder.value = sortStates[nextIndex];
+  } else {
+    // 不同字段，重置为升序
+    sortField.value = field;
+    sortOrder.value = "asc";
+  }
+
+  // 保存排序状态
+  saveSortState();
+};
+
+// 获取排序图标
+const getSortIcon = (field) => {
+  if (sortField.value !== field || sortOrder.value === "default") {
+    return ""; // 默认状态不显示图标
+  }
+  return sortOrder.value === "asc" ? "↑" : "↓";
+};
+
+// 排序后的项目列表
 const sortedItems = computed(() => {
-  return [...props.items].sort((a, b) => {
-    // 先按类型排序（目录在前，文件在后）
+  let items = [...props.items];
+
+  // 如果是默认排序，按名称排序
+  if (sortOrder.value === "default") {
+    return items.sort((a, b) => {
+      // 先按类型排序（目录在前，文件在后）
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+      // 再按名称字母排序
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  // 自定义排序
+  return items.sort((a, b) => {
+    // 文件夹始终优先（除非两个都是文件夹或都是文件）
     if (a.isDirectory && !b.isDirectory) return -1;
     if (!a.isDirectory && b.isDirectory) return 1;
 
-    // 再按名称字母排序
-    return a.name.localeCompare(b.name);
+    let comparison = 0;
+
+    switch (sortField.value) {
+      case "name":
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case "size":
+        // 虚拟目录的大小视为0
+        const aSize = a.isDirectory && a.isVirtual ? 0 : a.size || 0;
+        const bSize = b.isDirectory && b.isVirtual ? 0 : b.size || 0;
+        comparison = aSize - bSize;
+        break;
+      case "modified":
+        // 虚拟目录没有修改时间，视为最早
+        const aTime = a.isDirectory && a.isVirtual ? 0 : new Date(a.modified || 0).getTime();
+        const bTime = b.isDirectory && b.isVirtual ? 0 : new Date(b.modified || 0).getTime();
+        comparison = aTime - bTime;
+        break;
+      default:
+        comparison = a.name.localeCompare(b.name);
+    }
+
+    return sortOrder.value === "asc" ? comparison : -comparison;
   });
 });
 
@@ -441,4 +600,9 @@ const handleGetLink = async (item) => {
     alert("获取文件直链错误: " + (error.message || "未知错误"));
   }
 };
+
+// 组件挂载时初始化排序状态
+onMounted(() => {
+  initializeSortState();
+});
 </script>
