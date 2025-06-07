@@ -282,7 +282,7 @@ const closeModal = () => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black bg-opacity-50 overflow-y-auto" @click.self="closeModal">
+  <div class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4 bg-black bg-opacity-50 overflow-y-auto" @click.self="closeModal">
     <div
         class="w-full max-w-sm sm:max-w-lg rounded-lg shadow-xl overflow-hidden transition-colors max-h-[95vh] sm:max-h-[85vh]"
         :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'"

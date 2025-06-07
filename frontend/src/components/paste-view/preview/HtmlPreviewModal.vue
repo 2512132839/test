@@ -125,20 +125,20 @@ const openInNewWindow = () => {
 // 复制 HTML 代码
 const copyHtml = () => {
   navigator.clipboard
-    .writeText(props.htmlContent)
-    .then(() => {
-      // 显示复制成功提示
-      const copyButton = document.querySelector(".copy-button");
-      if (copyButton) {
-        copyButton.textContent = "已复制";
-        setTimeout(() => {
-          copyButton.textContent = "复制代码";
-        }, 2000);
-      }
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-    });
+      .writeText(props.htmlContent)
+      .then(() => {
+        // 显示复制成功提示
+        const copyButton = document.querySelector(".copy-button");
+        if (copyButton) {
+          copyButton.textContent = "已复制";
+          setTimeout(() => {
+            copyButton.textContent = "复制代码";
+          }, 2000);
+        }
+      })
+      .catch((err) => {
+        console.error("复制失败:", err);
+      });
 };
 
 // 组件挂载时，如果弹窗显示就渲染内容
@@ -160,30 +160,30 @@ onMounted(() => {
           <button class="action-button" @click="openInNewWindow">在新窗口打开</button>
           <button class="action-button" @click="toggleFullscreen">
             <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
             >
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
             </svg>
           </button>
           <button class="close-button" @click="closeModal">
             <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
             >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -220,10 +220,19 @@ onMounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 1000;
+  z-index: 1060;
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 8px;
+  padding-top: 80px;
+}
+
+@media (min-width: 640px) {
+  .html-preview-modal {
+    padding: 16px;
+    padding-top: 16px;
+  }
 }
 
 .modal-overlay {
@@ -240,14 +249,22 @@ onMounted(() => {
   background-color: #ffffff;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  width: 90%;
-  max-width: 900px;
-  height: 80%;
-  max-height: 700px;
+  width: 100%;
+  max-width: 320px;
+  height: 85%;
+  max-height: 600px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transition: all 0.3s ease;
+}
+
+@media (min-width: 640px) {
+  .modal-container {
+    max-width: 900px;
+    height: 80%;
+    max-height: 700px;
+  }
 }
 
 .modal-container.dark-mode {

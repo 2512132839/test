@@ -165,8 +165,8 @@ const saveEdit = () => {
 
 <template>
   <!-- 编辑弹窗 - 仅在showEdit为true时显示 -->
-  <div v-if="showEdit" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="edit-modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-center justify-center min-h-screen pt-2 px-2 sm:px-4 pb-4 sm:pb-20 text-center sm:p-0">
+  <div v-if="showEdit" class="fixed inset-0 z-[60] overflow-y-auto" aria-labelledby="edit-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen pt-20 sm:pt-2 px-2 sm:px-4 pb-4 sm:pb-20 text-center sm:p-0">
       <!-- 背景蒙层 - 点击时关闭弹窗 -->
       <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75 transition-opacity" aria-hidden="true" @click="closeEditModal"></div>
 

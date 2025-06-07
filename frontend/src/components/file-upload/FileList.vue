@@ -320,9 +320,9 @@
     </div>
 
     <!-- 删除确认对话框 -->
-    <div v-if="showDeleteConfirm" class="fixed inset-0 flex items-center justify-center z-50">
+    <div v-if="showDeleteConfirm" class="fixed inset-0 flex items-center justify-center z-[60] p-2 sm:p-4 pt-20 sm:pt-4">
       <div class="absolute inset-0 bg-black opacity-50" @click="cancelDelete"></div>
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg max-w-md w-full relative z-10">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-lg max-w-xs sm:max-w-md w-full relative z-10">
         <h3 class="text-lg font-medium mb-4" :class="darkMode ? 'text-white' : 'text-gray-900'">{{ t("file.confirmDelete") }}</h3>
         <p class="mb-6" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">{{ t("file.confirmDeleteMessage") }}</p>
         <div class="flex justify-end space-x-3">

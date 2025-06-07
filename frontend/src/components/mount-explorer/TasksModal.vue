@@ -1,6 +1,6 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl">
+  <div v-if="isOpen" class="fixed inset-0 z-[60] overflow-auto bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4">
+    <div class="relative w-full max-w-sm sm:max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[85vh] sm:max-h-[80vh] overflow-hidden">
       <!-- 标题栏 -->
       <div class="px-4 py-3 border-b flex justify-between items-center" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">任务管理</h3>
@@ -12,7 +12,7 @@
       </div>
 
       <!-- 内容区 -->
-      <div class="p-4">
+      <div class="p-3 sm:p-4 overflow-y-auto" style="max-height: calc(85vh - 140px)">
         <div v-if="activeTasks.length === 0 && completedTasks.length === 0" class="text-center py-6" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
           <svg class="h-12 w-12 mx-auto mb-3 opacity-30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path

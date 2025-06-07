@@ -1,6 +1,9 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-lg shadow-xl" :class="darkMode ? 'bg-gray-800' : 'bg-white'">
+  <div v-if="isOpen" class="fixed inset-0 z-[60] overflow-auto bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4">
+    <div
+        class="relative w-full max-w-sm sm:max-w-lg bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[85vh] sm:max-h-[80vh] overflow-hidden"
+        :class="darkMode ? 'bg-gray-800' : 'bg-white'"
+    >
       <!-- 标题栏 -->
       <div class="px-4 py-3 border-b flex justify-between items-center" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
         <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">选择目标文件夹</h3>
@@ -12,7 +15,7 @@
       </div>
 
       <!-- 内容区 -->
-      <div class="p-4">
+      <div class="p-3 sm:p-4 overflow-y-auto" style="max-height: calc(85vh - 140px)">
         <!-- 已选项目信息 -->
         <div class="mb-3 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">
           已选择: {{ selectedItems.length }} 个项目 ({{ selectedItems.filter((item) => item.isDirectory).length }} 个文件夹,

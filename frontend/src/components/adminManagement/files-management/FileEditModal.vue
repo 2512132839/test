@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4">
+  <div class="fixed inset-0 z-[60] overflow-auto bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4">
     <div class="relative rounded-lg max-w-sm sm:max-w-lg w-full mx-auto shadow-xl overflow-hidden bg-white dark:bg-gray-800 max-h-[95vh] sm:max-h-[85vh]">
       <!-- 标题栏 -->
       <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700">
