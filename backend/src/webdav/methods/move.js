@@ -206,6 +206,12 @@ export async function handleMove(c, path, userId, userType, db) {
         await s3Client.send(deleteCommand);
       }
 
+      // 更新父目录的修改时间
+      const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+      const { updateParentDirectoriesModifiedTime } = await import("../../services/fsService.js");
+      await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, sourceS3SubPath, rootPrefix);
+      await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, destS3SubPath, rootPrefix);
+
       // 清理缓存 - 对于移动目录操作，需要清理源路径和目标路径的缓存
       await clearCacheAfterWebDAVOperation(db, sourceS3SubPath, s3Config, true, mount.id);
       await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, mount.id);
@@ -245,6 +251,12 @@ export async function handleMove(c, path, userId, userType, db) {
 
       const deleteCommand = new DeleteObjectCommand(deleteParams);
       await s3Client.send(deleteCommand);
+
+      // 更新父目录的修改时间
+      const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+      const { updateParentDirectoriesModifiedTime } = await import("../../services/fsService.js");
+      await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, sourceS3SubPath, rootPrefix);
+      await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, destS3SubPath, rootPrefix);
 
       // 清理缓存 - 对于移动文件操作，需要清理源路径和目标路径的缓存
       await clearCacheAfterWebDAVOperation(db, sourceS3SubPath, s3Config, false, mount.id);

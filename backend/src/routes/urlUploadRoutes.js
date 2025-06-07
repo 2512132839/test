@@ -524,6 +524,18 @@ export function registerUrlUploadRoutes(app) {
         }
       }
 
+      // 更新父目录的修改时间
+      try {
+        const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+        if (s3Config) {
+          const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+          const { updateParentDirectoriesModifiedTimeHelper } = await import("../services/fsService.js");
+          await updateParentDirectoriesModifiedTimeHelper(s3Config, file.storage_path, encryptionSecret);
+        }
+      } catch (error) {
+        console.warn(`更新父目录修改时间失败:`, error);
+      }
+
       // 清除与文件相关的缓存 - 使用统一的clearCache函数
       await clearCache({ db, s3ConfigId: file.s3_config_id });
 

@@ -307,6 +307,11 @@ export async function completeMultipartUpload(
           }
         }
 
+        // 更新父目录的修改时间
+        const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+        const { updateParentDirectoriesModifiedTime } = await import("./fsService.js");
+        await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
+
         // 更新最后使用时间
         await updateMountLastUsed(db, mount.id);
 
@@ -352,7 +357,7 @@ export async function completeMultipartUpload(
                   fileName,
                   s3SubPath,
                   s3Url,
-                  finalContentType,
+                  finalContentType, // 使用推断后的正确MIME类型
                   fileSize,
                   s3Config.id,
                   fileSlug,

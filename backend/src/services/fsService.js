@@ -257,7 +257,7 @@ async function getVirtualDirectoryListing(mounts, path, basicPath = null) {
       path: path + dir + "/",
       isDirectory: true,
       isVirtual: true,
-      modified: new Date().toISOString(),
+      // 虚拟目录不设置modified字段，前端会显示"-"
     });
   }
 
@@ -306,6 +306,141 @@ async function calculateS3DirectorySize(s3Client, bucketName, prefix) {
   } while (continuationToken);
 
   return totalSize;
+}
+
+/**
+ * 获取S3目录的修改时间（仅从目录标记对象获取）
+ * @param {S3Client} s3Client - S3客户端实例
+ * @param {string} bucketName - 存储桶名称
+ * @param {string} prefix - 目录前缀
+ * @returns {Promise<string>} 目录修改时间的ISO字符串
+ */
+async function getS3DirectoryModifiedTime(s3Client, bucketName, prefix) {
+  try {
+    // 检查是否存在目录标记对象
+    const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+    const headParams = {
+      Bucket: bucketName,
+      Key: prefix, // prefix 应该已经以 '/' 结尾
+    };
+
+    const headCommand = new HeadObjectCommand(headParams);
+    const headResponse = await s3Client.send(headCommand);
+
+    // 如果目录标记对象存在，使用其修改时间
+    if (headResponse.LastModified) {
+      return headResponse.LastModified.toISOString();
+    }
+  } catch (error) {
+    // 如果目录标记对象不存在，返回当前时间
+    if (error.$metadata?.httpStatusCode === 404) {
+      return new Date().toISOString();
+    }
+    console.warn(`检查目录标记对象失败:`, error);
+  }
+
+  // 兜底返回当前时间
+  return new Date().toISOString();
+}
+
+/**
+ * 统一的父目录时间更新工具函数
+ * 根据S3配置和文件路径自动创建S3客户端并更新父目录时间
+ * @param {Object} s3Config - S3配置对象
+ * @param {string} filePath - 文件或目录路径
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Promise<void>}
+ */
+export async function updateParentDirectoriesModifiedTimeHelper(s3Config, filePath, encryptionSecret) {
+  try {
+    const { createS3Client } = await import("../utils/s3Utils.js");
+    const s3Client = await createS3Client(s3Config, encryptionSecret);
+    const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+    await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, filePath, rootPrefix);
+  } catch (error) {
+    console.warn(`更新父目录修改时间失败:`, error);
+  }
+}
+
+/**
+ * 更新目录及其所有父目录的修改时间
+ * @param {S3Client} s3Client - S3客户端实例
+ * @param {string} bucketName - 存储桶名称
+ * @param {string} filePath - 文件或目录路径
+ * @param {string} rootPrefix - 根前缀
+ */
+export async function updateParentDirectoriesModifiedTime(s3Client, bucketName, filePath, rootPrefix = "") {
+  try {
+    // 获取文件所在的目录路径
+    let currentPath = filePath;
+
+    // 如果是文件，获取其父目录
+    if (!filePath.endsWith("/")) {
+      const lastSlashIndex = filePath.lastIndexOf("/");
+      if (lastSlashIndex > 0) {
+        currentPath = filePath.substring(0, lastSlashIndex + 1);
+      } else {
+        // 文件在根目录，无需更新父目录
+        return;
+      }
+    }
+
+    const updatedPaths = new Set();
+
+    // 从当前目录开始，逐级向上更新父目录
+    while (currentPath && currentPath !== rootPrefix && currentPath.length > rootPrefix.length) {
+      // 避免重复更新同一个目录
+      if (updatedPaths.has(currentPath)) {
+        break;
+      }
+
+      try {
+        // 检查目录标记对象是否存在
+        const { HeadObjectCommand, PutObjectCommand } = await import("@aws-sdk/client-s3");
+
+        // 尝试获取现有目录标记对象
+        let directoryExists = false;
+        try {
+          const headParams = {
+            Bucket: bucketName,
+            Key: currentPath,
+          };
+          const headCommand = new HeadObjectCommand(headParams);
+          await s3Client.send(headCommand);
+          directoryExists = true;
+        } catch (error) {
+          if (error.$metadata?.httpStatusCode !== 404) {
+            console.warn(`检查目录标记对象失败: ${currentPath}`, error);
+          }
+        }
+
+        // 更新或创建目录标记对象
+        const putParams = {
+          Bucket: bucketName,
+          Key: currentPath,
+          Body: "",
+          ContentType: "application/x-directory",
+        };
+
+        const putCommand = new PutObjectCommand(putParams);
+        await s3Client.send(putCommand);
+
+        updatedPaths.add(currentPath);
+      } catch (error) {
+        console.warn(`更新目录修改时间失败: ${currentPath}`, error);
+      }
+
+      // 移动到父目录
+      // 找到倒数第二个斜杠的位置（因为当前路径以斜杠结尾）
+      const parentEndIndex = currentPath.lastIndexOf("/", currentPath.length - 2);
+      if (parentEndIndex < 0 || parentEndIndex < rootPrefix.length) {
+        break;
+      }
+      currentPath = currentPath.substring(0, parentEndIndex + 1);
+    }
+  } catch (error) {
+    console.warn(`更新父目录修改时间失败:`, error);
+  }
 }
 
 /**
@@ -420,6 +555,15 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
             // 如果计算失败，使用默认值0
           }
 
+          // 获取目录的真实修改时间
+          let directoryModified = new Date().toISOString();
+          try {
+            directoryModified = await getS3DirectoryModifiedTime(s3Client, s3Config.bucket_name, dirPrefix);
+          } catch (error) {
+            console.warn(`获取目录 ${displayName} 修改时间失败:`, error);
+            // 如果获取失败，使用当前时间
+          }
+
           // 构建正确的路径，避免双斜杠
           const itemPath = mount.mount_path.endsWith("/") ? mount.mount_path + dirName + "/" : mount.mount_path + "/" + dirName + "/";
 
@@ -429,7 +573,7 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
             isDirectory: true,
             isVirtual: false,
             size: directorySize,
-            modified: new Date().toISOString(),
+            modified: directoryModified,
           });
         }
       }
@@ -645,12 +789,21 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
 
             // 如果有内容，说明是目录
             if (listResponse.Contents && listResponse.Contents.length > 0) {
+              // 获取目录的真实修改时间
+              let directoryModified = new Date().toISOString();
+              try {
+                directoryModified = await getS3DirectoryModifiedTime(s3Client, s3Config.bucket_name, dirPath);
+              } catch (error) {
+                console.warn(`获取目录修改时间失败:`, error);
+                // 如果获取失败，使用当前时间
+              }
+
               const result = {
                 path: path,
                 name: path.split("/").filter(Boolean).pop() || "/",
                 isDirectory: true,
                 size: 0,
-                modified: new Date().toISOString(),
+                modified: directoryModified,
                 contentType: "application/x-directory",
                 mount_id: mount.id,
                 storage_type: mount.storage_type,
@@ -846,6 +999,10 @@ export async function createDirectory(db, path, userIdOrInfo, userType, encrypti
             const putCommand = new PutObjectCommand(putParams);
             await s3Client.send(putCommand);
 
+            // 更新父目录的修改时间
+            const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+            await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
+
             // 更新最后使用时间
             await updateMountLastUsed(db, mount.id);
 
@@ -982,6 +1139,10 @@ export async function uploadFile(db, path, file, userIdOrInfo, userType, encrypt
             const putCommand = new PutObjectCommand(putParams);
             const result = await s3Client.send(putCommand);
 
+            // 更新父目录的修改时间
+            const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+            await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, finalS3Path, rootPrefix);
+
             // 更新最后使用时间
             await updateMountLastUsed(db, mount.id);
 
@@ -1103,6 +1264,10 @@ export async function removeItem(db, path, userIdOrInfo, userType, encryptionSec
             throw error;
           }
         }
+
+        // 更新父目录的修改时间
+        const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+        await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
 
         // 尝试删除文件记录表中的对应记录
         try {
@@ -1345,6 +1510,11 @@ export async function renameItem(db, oldPath, newPath, userIdOrInfo, userType, e
           const deleteCommand = new DeleteObjectCommand(deleteParams);
           await s3Client.send(deleteCommand);
         }
+
+        // 更新父目录的修改时间
+        const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+        await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3OldPath, rootPrefix);
+        await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3NewPath, rootPrefix);
 
         // 更新最后使用时间
         await updateMountLastUsed(db, mount.id);
@@ -1746,6 +1916,10 @@ export async function updateFile(db, path, content, userIdOrInfo, userType, encr
           const putCommand = new PutObjectCommand(putParams);
           const result = await s3Client.send(putCommand);
 
+          // 更新父目录的修改时间
+          const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+          await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
+
           // 清除文件缓存
           if (mount.cache_ttl > 0) {
             // 清除缓存 - 使用统一的clearCache函数
@@ -1987,20 +2161,15 @@ export async function copyItem(db, sourcePath, targetPath, userIdOrInfo, userTyp
           }
         }
 
+        // 更新目标父目录的修改时间
+        const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+        await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3TargetPath, rootPrefix);
+
         // 更新最后使用时间
         await updateMountLastUsed(db, mount.id);
 
         // 清除目标路径所在目录的缓存
         if (targetSubPath !== "/" && targetSubPath.includes("/")) {
-          let parentSubPath;
-          if (targetIsDirectory) {
-            // 对于目录，清除其父目录缓存
-            parentSubPath = targetSubPath.substring(0, targetSubPath.lastIndexOf("/", targetSubPath.length - 2) + 1);
-          } else {
-            // 对于文件，清除其所在目录缓存
-            parentSubPath = targetSubPath.substring(0, targetSubPath.lastIndexOf("/") + 1);
-          }
-
           // 清除缓存 - 使用统一的clearCache函数
           await clearCache({ mountId: mount.id });
         }

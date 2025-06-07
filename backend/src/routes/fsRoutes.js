@@ -24,7 +24,7 @@ import {
   batchCopyItems,
 } from "../services/fsService.js";
 import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
-import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
+import { generatePresignedPutUrl, buildS3Url, createS3Client } from "../utils/s3Utils.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
 import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
 import { checkPathPermissionForOperation } from "../services/apiKeyService.js";
@@ -1222,8 +1222,10 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
         .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId)
         .run();
 
-    // 提取父路径
-    const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
+    // 更新父目录的修改时间
+    const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+    const { updateParentDirectoriesModifiedTimeHelper } = await import("../services/fsService.js");
+    await updateParentDirectoriesModifiedTimeHelper(s3Config, s3Path, encryptionSecret);
 
     // 刷新目录缓存 - 使用统一的clearCache函数
     try {
@@ -1321,8 +1323,10 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
         .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`)
         .run();
 
-    // 提取父路径
-    const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
+    // 更新父目录的修改时间
+    const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+    const { updateParentDirectoriesModifiedTimeHelper } = await import("../services/fsService.js");
+    await updateParentDirectoriesModifiedTimeHelper(s3Config, s3Path, encryptionSecret);
 
     // 刷新目录缓存 - 使用统一的clearCache函数
     try {

@@ -797,6 +797,10 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
         )
         .run();
 
+    // 更新父目录的修改时间
+    const { updateParentDirectoriesModifiedTimeHelper } = await import("./fsService.js");
+    await updateParentDirectoriesModifiedTimeHelper(s3Config, file.storage_path, encryptionSecret);
+
     // 清除与文件相关的缓存 - 使用统一的clearCache函数
     try {
       await clearCache({ db, s3ConfigId: file.s3_config_id });

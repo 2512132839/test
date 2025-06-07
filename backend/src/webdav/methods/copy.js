@@ -250,6 +250,11 @@ export async function handleCopy(c, path, userId, userType, db) {
             await s3Client.send(copyCommand);
           }
 
+          // 更新目标父目录的修改时间
+          const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+          const { updateParentDirectoriesModifiedTime } = await import("../../services/fsService.js");
+          await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, destS3SubPath, rootPrefix);
+
           // 清理缓存 - 目录复制完成
           await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, true, mount.id);
         }
@@ -281,6 +286,11 @@ export async function handleCopy(c, path, userId, userType, db) {
 
       const copyCommand = new CopyObjectCommand(copyParams);
       await s3Client.send(copyCommand);
+
+      // 更新目标父目录的修改时间
+      const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+      const { updateParentDirectoriesModifiedTime } = await import("../../services/fsService.js");
+      await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, destS3SubPath, rootPrefix);
 
       // 清理缓存 - 文件复制后清理目标路径的缓存
       await clearCacheAfterWebDAVOperation(db, destS3SubPath, s3Config, false, mount.id);

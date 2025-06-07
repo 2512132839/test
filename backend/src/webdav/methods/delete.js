@@ -89,6 +89,11 @@ export async function handleDelete(c, path, userId, userType, db) {
         }
       }
 
+      // 更新父目录的修改时间
+      const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+      const { updateParentDirectoriesModifiedTime } = await import("../../services/fsService.js");
+      await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
+
       // 清理缓存 - 对于目录操作，应清理该目录的缓存
       await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, true, mount.id);
     } else {
@@ -116,6 +121,11 @@ export async function handleDelete(c, path, userId, userType, db) {
 
       const deleteCommand = new DeleteObjectCommand(deleteParams);
       await s3Client.send(deleteCommand);
+
+      // 更新父目录的修改时间
+      const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+      const { updateParentDirectoriesModifiedTime } = await import("../../services/fsService.js");
+      await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
 
       // 清理缓存 - 对于文件操作，应清理文件所在目录的缓存
       await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, false, mount.id);

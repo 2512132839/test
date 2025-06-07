@@ -37,7 +37,8 @@
 
       <!-- 修改时间 -->
       <div class="min-w-36 text-center text-sm hidden sm:block" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-        {{ formatDate(item.modified) }}
+        <span v-if="item.isDirectory && item.isVirtual">-</span>
+        <span v-else>{{ formatDate(item.modified) }}</span>
       </div>
 
       <!-- 操作按钮 - 移动端下减少按钮大小和间距 -->

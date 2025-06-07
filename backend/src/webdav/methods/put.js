@@ -713,12 +713,17 @@ async function proxyUploadToS3(c, presignedUrl, contentType) {
 
 async function finalizePutOperation(db, s3Client, s3Config, s3SubPath, mountId) {
   try {
+    // 更新父目录的修改时间
+    const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+    const { updateParentDirectoriesModifiedTime } = await import("../../services/fsService.js");
+    await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
+
     // 更新缓存 - 清除相关目录的缓存
     await clearCacheAfterWebDAVOperation(db, s3SubPath, s3Config, false, mountId);
     return true;
   } catch (error) {
-    console.error("PUT操作后清理缓存错误:", error);
-    // 即使缓存清理失败也返回true，不影响主流程
+    console.error("PUT操作后处理错误:", error);
+    // 即使处理失败也返回true，不影响主流程
     return true;
   }
 }

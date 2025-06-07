@@ -346,8 +346,8 @@ export function registerS3UploadRoutes(app) {
           storage_path: storagePath,
           s3_url,
           slug,
-          provider_type: s3Config.provider_type,
-          contentType: mimetype,
+          provider_type: s3Config.provider_type, // 添加提供商类型，便于前端适配不同S3服务
+          contentType: mimetype, // 添加后端推断的MIME类型，供前端使用
         },
         success: true,
       });
@@ -557,6 +557,7 @@ export function registerS3UploadRoutes(app) {
 
       // 更新ETag和创建者
       const creator = authorizedBy === "admin" ? adminId : `apikey:${apiKeyId}`;
+      // 移除 getLocalTimeString 使用，改用 CURRENT_TIMESTAMP
 
       // 更新文件记录
       await db
@@ -604,6 +605,11 @@ export function registerS3UploadRoutes(app) {
               .run();
         }
       }
+
+      // 更新父目录的修改时间
+      const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+      const { updateParentDirectoriesModifiedTimeHelper } = await import("../services/fsService.js");
+      await updateParentDirectoriesModifiedTimeHelper(s3Config, file.storage_path, encryptionSecret);
 
       // 清除与文件相关的缓存 - 使用统一的clearCache函数
       await clearCache({ db, s3ConfigId: file.s3_config_id });
@@ -1142,6 +1148,10 @@ export function registerS3UploadRoutes(app) {
             .bind(fileId, password)
             .run();
       }
+
+      // 更新父目录的修改时间
+      const { updateParentDirectoriesModifiedTimeHelper } = await import("../services/fsService.js");
+      await updateParentDirectoriesModifiedTimeHelper(s3Config, storagePath, encryptionSecret);
 
       // 清除与文件相关的缓存 - 使用统一的clearCache函数
       await clearCache({ db, s3ConfigId });
