@@ -12,17 +12,17 @@
     <div v-if="error" class="error-container py-12 px-4 max-w-4xl mx-auto text-center">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-red-600 dark:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="1.5"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
       </svg>
       <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("file.error") }}</h2>
       <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ error }}</p>
       <a
-        href="/"
-        class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+          href="/"
+          class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
       >
         {{ t("common.back") }}
       </a>
@@ -61,6 +61,9 @@
       <!-- 编辑模态框 (仅管理员可见) -->
       <FileEditModal v-if="showEditModal" :file="fileInfo" @close="closeEditModal" @save="saveFileChanges" />
     </div>
+
+    <!-- 错误提示组件 -->
+    <ErrorToast :visible="showErrorToast" :title="errorTitle" :message="errorMessage" @close="closeErrorToast" />
   </div>
 </template>
 
@@ -75,6 +78,7 @@ import FileViewInfo from "./file-view/FileViewInfo.vue";
 import FileViewPassword from "./file-view/FileViewPassword.vue";
 import FileViewActions from "./file-view/FileViewActions.vue";
 import FileEditModal from "./adminManagement/files-management/FileEditModal.vue";
+import ErrorToast from "./common/ErrorToast.vue";
 
 // 初始化i18n
 const { t } = useI18n();
@@ -106,6 +110,25 @@ const showEditModal = ref(false);
 const showDeleteSuccess = ref(false);
 const redirectCountdown = ref(3);
 let countdownTimer = null;
+
+// 错误提示状态
+const showErrorToast = ref(false);
+const errorTitle = ref("");
+const errorMessage = ref("");
+
+// 显示错误提示
+const showError = (title, message) => {
+  errorTitle.value = title;
+  errorMessage.value = message;
+  showErrorToast.value = true;
+};
+
+// 关闭错误提示
+const closeErrorToast = () => {
+  showErrorToast.value = false;
+  errorTitle.value = "";
+  errorMessage.value = "";
+};
 
 // 获取用户权限
 const { isAdmin } = getAuthStatus();
@@ -220,8 +243,8 @@ const handlePasswordVerified = (data) => {
     if (data.currentPassword && !previewUrl.includes("password=")) {
       // 添加密码参数到预览URL
       previewUrl = previewUrl.includes("?")
-        ? `${previewUrl}&password=${encodeURIComponent(data.currentPassword)}`
-        : `${previewUrl}?password=${encodeURIComponent(data.currentPassword)}`;
+          ? `${previewUrl}&password=${encodeURIComponent(data.currentPassword)}`
+          : `${previewUrl}?password=${encodeURIComponent(data.currentPassword)}`;
       console.log("已在验证阶段为代理预览URL添加密码参数");
     }
   }
@@ -280,7 +303,7 @@ const openEditModal = async () => {
         };
       } else {
         console.error("获取文件详情失败:", response.message);
-        alert("获取文件详情失败，将使用当前显示的信息");
+        showError("获取详情失败", "获取文件详情失败，将使用当前显示的信息");
       }
     }
 
@@ -288,7 +311,7 @@ const openEditModal = async () => {
     showEditModal.value = true;
   } catch (err) {
     console.error("获取文件详情出错:", err);
-    alert("获取文件详情时发生错误，将使用当前显示的信息");
+    showError("获取详情失败", "获取文件详情时发生错误，将使用当前显示的信息");
     showEditModal.value = true;
   }
 };
@@ -324,11 +347,11 @@ const saveFileChanges = async (updatedFile) => {
     } else {
       // 处理错误情况
       console.error("更新文件信息失败:", response.message);
-      alert(`更新文件信息失败: ${response.message}`);
+      showError("更新失败", `更新文件信息失败: ${response.message}`);
     }
   } catch (err) {
     console.error("更新文件错误:", err);
-    alert("更新文件时发生错误，请稍后重试");
+    showError("更新失败", "更新文件时发生错误，请稍后重试");
   }
 };
 
@@ -374,5 +397,3 @@ onUnmounted(() => {
   }
 });
 </script>
-
-// 密码错误清除令牌 //

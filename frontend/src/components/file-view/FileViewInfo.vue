@@ -7,10 +7,10 @@
         <div class="file-icon flex items-center justify-center w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" :class="iconClass" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
             />
           </svg>
         </div>
@@ -30,193 +30,17 @@
       <p class="text-blue-600 dark:text-blue-400 break-words whitespace-pre-wrap">{{ fileInfo.remark }}</p>
     </div>
 
-    <!-- 文件预览区域 -->
-    <div v-if="fileUrls.previewUrl" class="file-preview mb-6 flex-grow flex flex-col justify-center items-center">
-      <!-- 图片预览 -->
-      <div v-if="isImage" class="image-preview rounded-lg overflow-hidden mb-2 flex justify-center">
-        <img :src="processedPreviewUrl" :alt="fileInfo.filename" class="max-w-full max-h-[calc(100vh-350px)] h-auto object-contain" />
-      </div>
-
-      <!-- 视频预览 -->
-      <div v-else-if="isVideo" class="video-preview rounded-lg overflow-hidden mb-2 flex justify-center">
-        <video controls class="max-w-full max-h-[calc(100vh-350px)]">
-          <source :src="processedPreviewUrl" :type="fileInfo.mimetype" />
-          您的浏览器不支持视频标签
-        </video>
-      </div>
-
-      <!-- 音频预览 -->
-      <div v-else-if="isAudio" class="audio-preview rounded-lg p-4 mb-2 bg-gray-100 dark:bg-gray-700 w-full">
-        <audio controls class="w-full">
-          <source :src="processedPreviewUrl" :type="fileInfo.mimetype" />
-          您的浏览器不支持音频标签
-        </audio>
-      </div>
-
-      <!-- PDF预览 -->
-      <div v-else-if="isPdf" class="pdf-preview rounded-lg overflow-hidden mb-2 flex-grow w-full">
-        <iframe :src="processedPreviewUrl" frameborder="0" class="w-full h-[calc(100vh-350px)] min-h-[300px]"></iframe>
-      </div>
-
-      <!-- 文本文件预览 -->
-      <div
-        v-else-if="isText"
-        class="text-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
-      >
-        <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">文本文件预览</span>
-        </div>
-        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
-          <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
-        </div>
-      </div>
-
-      <!-- Markdown预览 -->
-      <div
-        v-else-if="isMarkdown"
-        class="markdown-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
-      >
-        <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Markdown预览</span>
-        </div>
-        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
-          <iframe v-if="processedPreviewUrl" :src="processedPreviewUrl" frameborder="0" class="w-full h-[calc(100vh-400px)] min-h-[200px]"></iframe>
-          <pre v-else class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
-        </div>
-      </div>
-
-      <!-- HTML预览 -->
-      <div v-else-if="isHtml" class="html-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col w-full">
-        <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">HTML预览</span>
-          <div>
-            <button
-              @click="toggleHtmlPreview"
-              class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-700 text-blue-700 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600 transition-colors"
-            >
-              {{ showHtmlIframe ? "查看源码" : "查看渲染" }}
-            </button>
-          </div>
-        </div>
-        <div v-if="showHtmlIframe" class="html-iframe flex-grow" style="height: calc(100vh - 350px); min-height: 300px">
-          <iframe :src="processedPreviewUrl" sandbox="allow-same-origin allow-scripts" frameborder="0" class="w-full h-full"></iframe>
-        </div>
-        <div v-else class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
-          <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
-        </div>
-      </div>
-
-      <!-- 代码文件预览 -->
-      <div
-        v-else-if="isCode"
-        class="code-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
-      >
-        <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">代码预览</span>
-          <span class="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{{ getCodeLanguage }}</span>
-        </div>
-        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
-          <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
-        </div>
-      </div>
-
-      <!-- 配置文件预览 -->
-      <div
-        v-else-if="isConfig"
-        class="config-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
-      >
-        <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">配置文件预览</span>
-          <span class="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{{ getConfigLanguage }}</span>
-        </div>
-        <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
-          <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
-        </div>
-      </div>
-
-      <!-- Office文档预览 -->
-      <div v-else-if="isOfficeFile" class="office-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col w-full">
-        <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {{ isOfficeDocument ? "Word文档预览" : isSpreadsheet ? "Excel表格预览" : "PowerPoint演示文稿预览" }}
-          </span>
-          <div>
-            <button
-              @click="toggleOfficePreviewService"
-              class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-700 text-blue-700 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600 transition-colors"
-            >
-              {{ useGoogleDocsPreview ? "使用Microsoft预览" : "使用Google预览" }}
-            </button>
-          </div>
-        </div>
-        <div class="office-iframe flex-grow relative" style="height: calc(100vh - 400px); min-height: 300px; background-color: white">
-          <iframe
-            v-if="currentOfficePreviewUrl"
-            :src="currentOfficePreviewUrl"
-            frameborder="0"
-            class="w-full h-full"
-            sandbox="allow-scripts allow-same-origin allow-forms"
-            @load="handleOfficePreviewLoad"
-            @error="handleOfficePreviewError"
-          ></iframe>
-          <div v-else class="w-full h-full flex items-center justify-center">
-            <div class="text-center p-4">
-              <p class="text-gray-500 mb-2">{{ officePreviewError || "加载预览中..." }}</p>
-              <div v-if="officePreviewError && officePreviewError.includes('401')">
-                <p class="text-amber-500 text-sm mb-2">似乎是密码验证问题，请尝试：</p>
-                <ul class="text-left text-sm text-gray-600 dark:text-gray-300 list-disc pl-5 mb-2">
-                  <li>刷新页面后重新输入密码</li>
-                  <li>确认您输入的密码正确</li>
-                  <li>尝试在URL中直接添加密码参数</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <!-- 加载中状态遮罩 -->
-          <div v-if="officePreviewLoading && currentOfficePreviewUrl" class="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center">
-            <div class="text-center">
-              <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <p class="text-blue-600">加载Office预览中，请稍候...</p>
-              <p class="text-gray-500 text-sm mt-1">
-                {{ useGoogleDocsPreview ? "使用Google Docs服务" : "使用Microsoft Office服务" }}
-                {{ props.fileInfo.use_proxy ? " (Worker代理模式)" : " (直接访问模式)" }}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div class="p-2 bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 text-center">
-          <p v-if="officePreviewError" class="text-red-500 mb-1">{{ officePreviewError }}</p>
-          <p>
-            如果预览不正常，请尝试
-            <button @click="updateOfficePreviewUrls" class="text-blue-500 hover:underline">刷新预览</button>
-            或切换预览服务，或
-            <a :href="props.fileUrls.downloadUrl" class="text-blue-500 hover:underline" target="_blank">下载文件</a>
-            后查看
-          </p>
-        </div>
-      </div>
-
-      <!-- 其他文件类型 -->
-      <div v-else class="generic-preview text-center py-6 w-full self-center flex flex-col items-center justify-center" style="min-height: 200px">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-3" :class="iconClass" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-          />
-        </svg>
-        <p class="text-gray-600 dark:text-gray-300">此文件类型不支持在线预览</p>
-        <p class="text-gray-500 dark:text-gray-400 text-sm mt-2">请下载后查看</p>
-      </div>
+    <!--使用动态组件进行文件预览 -->
+    <div v-if="shouldShowPreview" class="file-preview mb-6 flex-grow flex flex-col justify-center items-center">
+      <component
+          :is="currentPreviewComponent"
+          v-bind="previewComponentProps"
+          @load="handlePreviewLoad"
+          @error="handlePreviewError"
+          @toggle-mode="handleToggleMode"
+          @toggle-service="handleToggleService"
+          @update-urls="handleUpdateUrls"
+      />
     </div>
 
     <!-- 文件元数据 -->
@@ -238,10 +62,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
             />
           </svg>
           <span class="text-sm font-medium text-gray-600 dark:text-gray-200">访问次数</span>
@@ -268,10 +92,10 @@
         <div class="flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
             />
           </svg>
           <span class="text-sm font-medium text-gray-600 dark:text-gray-200">访问模式</span>
@@ -288,10 +112,10 @@
         <div class="flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
             />
           </svg>
           <span class="text-sm font-medium text-gray-600 dark:text-gray-200">文件链接</span>
@@ -301,25 +125,25 @@
             {{ shareUrl || "需要密码访问" }}
           </p>
           <button
-            v-if="shareUrl"
-            @click="copyToClipboard(shareUrl)"
-            class="ml-2 p-1 rounded hover:bg-opacity-80 transition-colors bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
-            title="复制链接"
+              v-if="shareUrl"
+              @click="copyToClipboard(shareUrl)"
+              class="ml-2 p-1 rounded hover:bg-opacity-80 transition-colors bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
+              title="复制链接"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
               />
             </svg>
           </button>
 
           <!-- 复制成功提示 -->
           <div
-            v-if="showCopyToast"
-            class="absolute right-0 -top-10 px-3 py-2 rounded-md shadow-md text-sm transition-opacity duration-300 bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-600"
+              v-if="showCopyToast"
+              class="absolute right-0 -top-10 px-3 py-2 rounded-md shadow-md text-sm transition-opacity duration-300 bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-600"
           >
             <div class="flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -335,7 +159,7 @@
 </template>
 
 <script setup>
-import { computed, ref, defineProps, onMounted } from "vue";
+import { computed, ref, defineProps, onMounted, watch, onUnmounted } from "vue";
 import { getFullApiUrl } from "../../api/config.js";
 import {
   formatFileSize,
@@ -355,8 +179,19 @@ import {
   isSpreadsheetType,
   isPresentationType,
   isOfficeFileType,
-} from "./FileViewUtils";
+} from "./FileViewUtils.js";
 import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
+
+//导入预览组件
+import ImagePreview from "./previews/ImagePreview.vue";
+import VideoPreview from "./previews/VideoPreview.vue";
+import AudioPreview from "./previews/AudioPreview.vue";
+import PdfPreview from "./previews/PdfPreview.vue";
+import TextPreview from "./previews/TextPreview.vue";
+import MarkdownPreview from "./previews/MarkdownPreview.vue";
+import HtmlPreview from "./previews/HtmlPreview.vue";
+import OfficePreview from "./previews/OfficePreview.vue";
+import GenericPreview from "./previews/GenericPreview.vue";
 
 const props = defineProps({
   fileInfo: {
@@ -384,16 +219,13 @@ const shareUrl = computed(() => {
 // 复制成功提示状态
 const showCopyToast = ref(false);
 
-// 文件内容状态
-const fileContent = ref("");
+// 文件内容现在由各个预览组件内部管理
 
-// HTML预览状态
-const showHtmlIframe = ref(true);
+// HTML预览状态现在由 HtmlPreview 组件内部管理
 
-// 切换HTML预览模式（源码/渲染）
-const toggleHtmlPreview = () => {
-  showHtmlIframe.value = !showHtmlIframe.value;
-};
+// 加载状态现在由各个预览组件内部管理
+
+// 图片显示控制现在由 ImagePreview 组件内部管理
 
 // 辅助函数：获取文件密码
 const getFilePassword = () => {
@@ -482,139 +314,26 @@ const isSpreadsheet = computed(() => isSpreadsheetType(props.fileInfo.mimetype, 
 const isPresentation = computed(() => isPresentationType(props.fileInfo.mimetype, props.fileInfo.filename));
 const isOfficeFile = computed(() => isOfficeFileType(props.fileInfo.mimetype, props.fileInfo.filename));
 
-// Office预览URL状态
-const microsoftOfficePreviewUrl = ref("");
-const googleDocsPreviewUrl = ref("");
+// 动态组件逻辑
+const currentPreviewComponent = computed(() => {
+  if (isImage.value) return ImagePreview;
+  if (isVideo.value) return VideoPreview;
+  if (isAudio.value) return AudioPreview;
+  if (isPdf.value) return PdfPreview;
+  if (isMarkdown.value) return MarkdownPreview;
+  if (isHtml.value) return HtmlPreview;
+  if (isText.value || isCode.value || isConfig.value) return TextPreview;
+  if (isOfficeFile.value) return OfficePreview;
 
-// 当前使用的Office预览URL
-const currentOfficePreviewUrl = computed(() => {
-  return useGoogleDocsPreview.value ? googleDocsPreviewUrl.value : microsoftOfficePreviewUrl.value;
+  return GenericPreview;
 });
 
-// 更新Office预览URL
-const updateOfficePreviewUrls = async () => {
-  // 重置加载状态
-  officePreviewLoading.value = true;
-  officePreviewError.value = "";
-
-  // 调试信息：记录密码状态
-  const filePassword = getFilePassword();
-  console.log("调试: 更新Office预览URL", {
-    isUseProxy: props.fileInfo.use_proxy,
-    hasPassword: !!props.fileInfo.password,
-    hasCurrentPassword: !!props.fileInfo.currentPassword,
-    hasFilePassword: !!filePassword,
-    passwordLength: filePassword ? filePassword.length : 0,
-  });
-
-  try {
-    // 如果是Worker代理模式，需要特殊处理
-    if (props.fileInfo.use_proxy) {
-      // 使用专门的API获取临时直接URL
-      const directUrl = await getOfficeDirectUrlForPreview();
-
-      if (directUrl) {
-        // 确保URL是完整的绝对URL
-        const encodedUrl = encodeURIComponent(directUrl);
-        microsoftOfficePreviewUrl.value = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
-        googleDocsPreviewUrl.value = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
-      } else {
-        microsoftOfficePreviewUrl.value = "";
-        googleDocsPreviewUrl.value = "";
-        officePreviewError.value = "获取Office预览URL失败";
-      }
-    } else {
-      // S3直链模式，正常处理
-      if (!processedPreviewUrl.value) {
-        microsoftOfficePreviewUrl.value = "";
-        googleDocsPreviewUrl.value = "";
-        return;
-      }
-
-      // 确保URL是完整的绝对URL
-      let url = processedPreviewUrl.value;
-      if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        // 如果是相对URL，转换为绝对URL
-        const baseUrl = window.location.origin;
-        url = url.startsWith("/") ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
-      }
-
-      // 使用encodeURIComponent对URL进行编码，确保安全
-      const encodedUrl = encodeURIComponent(url);
-      microsoftOfficePreviewUrl.value = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
-      googleDocsPreviewUrl.value = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
-    }
-
-    // 开始预览加载超时计时
-    startPreviewLoadTimeout();
-  } catch (error) {
-    console.error("更新Office预览URL出错:", error);
-    officePreviewError.value = `更新预览URL失败: ${error.message || "未知错误"}`;
-    officePreviewLoading.value = false;
-  }
-};
-
-// 切换Office预览服务（Microsoft/Google）
-const toggleOfficePreviewService = () => {
-  useGoogleDocsPreview.value = !useGoogleDocsPreview.value;
-
-  // 重置加载状态
-  officePreviewLoading.value = true;
-  officePreviewError.value = "";
-
-  // 重新开始超时计时
-  startPreviewLoadTimeout();
-};
-
-// 计算属性：检查是否可预览
-const isPreviewable = computed(() => {
-  return isImage.value || isVideo.value || isAudio.value || isPdf.value || isMarkdown.value || isHtml.value || isText.value || isCode.value || isConfig.value || isOfficeFile.value;
+// 是否应该显示预览
+const shouldShowPreview = computed(() => {
+  return props.fileUrls.previewUrl || isOfficeFile.value;
 });
 
-// 复制到剪贴板函数
-const copyToClipboard = async (text) => {
-  try {
-    const success = await clipboardCopy(text);
-
-    if (success) {
-      // 显示复制成功提示
-      showCopyToast.value = true;
-      // 3秒后自动隐藏提示
-      setTimeout(() => {
-        showCopyToast.value = false;
-      }, 3000);
-      console.log("复制成功");
-    } else {
-      throw new Error("复制失败");
-    }
-  } catch (err) {
-    console.error("复制失败:", err);
-    // 复制失败时也显示提示，但内容不同
-    alert("复制失败，请手动复制链接");
-  }
-};
-
-// 在组件挂载时，如果是文本类型，获取文件内容
-const fetchTextContent = async () => {
-  try {
-    // 如果是文本/代码/配置文件且有预览URL
-    if ((isText.value || isCode.value || isMarkdown.value || isConfig.value) && props.fileUrls.previewUrl) {
-      // 获取文件内容
-      const response = await fetch(processedPreviewUrl.value);
-      if (response.ok) {
-        fileContent.value = await response.text();
-      } else {
-        fileContent.value = `无法加载文件内容：${response.status} ${response.statusText}`;
-      }
-    }
-  } catch (err) {
-    console.error("获取文件内容失败:", err);
-    fileContent.value = "获取文件内容时出错，请刷新页面重试。";
-  }
-};
-
-// 使用onMounted钩子在组件挂载时获取文本内容
-onMounted(fetchTextContent);
+// 注意：预览能力检查现在通过 shouldShowPreview 计算属性处理
 
 // 获取代码文件的语言类型
 const getCodeLanguage = computed(() => {
@@ -669,27 +388,62 @@ const getConfigLanguage = computed(() => {
   return configLanguageMap[extension] || "配置";
 });
 
-// Office预览加载成功处理
-const handleOfficePreviewLoad = () => {
-  console.log("Office预览加载成功");
-  officePreviewError.value = ""; // 清除错误信息
-  officePreviewLoading.value = false; // 标记加载完成
-  clearTimeout(previewTimeoutId.value); // 清除超时计时器
-};
+// 动态组件属性配置
+const previewComponentProps = computed(() => {
+  const baseProps = {
+    previewUrl: processedPreviewUrl.value,
+    filename: props.fileInfo.filename,
+    mimetype: props.fileInfo.mimetype,
+  };
 
-// Office预览加载失败处理
-const handleOfficePreviewError = (event) => {
-  console.error("Office预览加载失败:", event);
-  officePreviewError.value = "Office预览加载失败，请尝试切换预览服务或下载文件后查看。";
-
-  // 如果启用了自动故障转移，且当前未处于加载超时状态，则尝试切换服务
-  if (officePreviewConfig.value.enableAutoFailover && !officePreviewTimedOut.value) {
-    console.log("自动故障转移到", useGoogleDocsPreview.value ? "Microsoft预览" : "Google预览");
-    useGoogleDocsPreview.value = !useGoogleDocsPreview.value;
-    officePreviewLoading.value = true; // 重新标记为加载中
-    startPreviewLoadTimeout(); // 重新开始超时计时
+  if (isText.value || isCode.value || isConfig.value) {
+    return {
+      ...baseProps,
+      title: isCode.value ? "代码预览" : isConfig.value ? "配置文件预览" : "文本文件预览",
+      language: isCode.value ? getCodeLanguage.value : isConfig.value ? getConfigLanguage.value : "",
+      loadingText: isCode.value ? "加载代码内容中..." : isConfig.value ? "加载配置文件中..." : "加载文本内容中...",
+    };
   }
-};
+
+  if (isMarkdown.value) {
+    return baseProps;
+  }
+
+  if (isHtml.value) {
+    return baseProps;
+  }
+
+  if (isOfficeFile.value) {
+    return {
+      microsoftOfficePreviewUrl: microsoftOfficePreviewUrl.value,
+      googleDocsPreviewUrl: googleDocsPreviewUrl.value,
+      isOfficeDocument: isOfficeDocument.value,
+      isSpreadsheet: isSpreadsheet.value,
+      isPresentation: isPresentation.value,
+      useProxy: props.fileInfo.use_proxy,
+      downloadUrl: props.fileUrls.downloadUrl,
+    };
+  }
+
+  if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
+    return baseProps;
+  }
+
+  return {
+    iconClass: iconClass.value,
+    filename: props.fileInfo.filename,
+    mimetype: props.fileInfo.mimetype,
+  };
+});
+
+// Office预览URL状态
+const microsoftOfficePreviewUrl = ref("");
+const googleDocsPreviewUrl = ref("");
+
+// 导入 LRU 缓存
+import { officePreviewCache } from "../../utils/lruCache.js";
+
+//当前Office预览URL现在由 OfficePreview 组件内部管理
 
 // Office预览错误状态
 const officePreviewError = ref("");
@@ -699,25 +453,6 @@ const officePreviewLoading = ref(true);
 const officePreviewTimedOut = ref(false);
 // 预览超时计时器ID
 const previewTimeoutId = ref(null);
-
-// 开始预览加载超时计时
-const startPreviewLoadTimeout = () => {
-  // 清除可能存在的上一个计时器
-  if (previewTimeoutId.value) {
-    clearTimeout(previewTimeoutId.value);
-  }
-
-  // 重置超时状态
-  officePreviewTimedOut.value = false;
-
-  // 设置新的超时计时器
-  previewTimeoutId.value = setTimeout(() => {
-    console.warn("Office预览加载超时");
-    officePreviewError.value = "预览加载超时，请尝试切换预览服务或下载文件后查看。";
-    officePreviewTimedOut.value = true;
-    officePreviewLoading.value = false;
-  }, officePreviewConfig.value.loadTimeout);
-};
 
 // 是否使用Google Docs预览 (可以通过配置或自动检测确定)
 const useGoogleDocsPreview = ref(false);
@@ -732,24 +467,60 @@ const officePreviewConfig = ref({
   loadTimeout: 10000,
 });
 
-// 初始化时，根据配置设置预览服务
-onMounted(() => {
-  // 根据默认配置设置预览服务
-  useGoogleDocsPreview.value = officePreviewConfig.value.defaultService === "google";
+// 当前Office直接访问URL (用于Worker代理模式)
+const officeDirectUrl = ref("");
 
-  // 确保密码被保存到会话存储
-  savePasswordToSessionStorage();
+//具体的加载处理函数现在由各个预览组件内部管理
 
-  // 获取文本内容
-  fetchTextContent();
+// 动态组件事件处理
+const handlePreviewLoad = () => {
+  console.log("预览加载完成");
+};
 
-  // 如果是Office文件，更新预览URL
+const handlePreviewError = (error) => {
+  console.error("预览加载失败:", error);
+};
+
+const handleToggleMode = (mode) => {
+  console.log("HTML预览模式切换:", mode);
+  //模式切换现在由 HtmlPreview 组件内部处理
+};
+
+const handleToggleService = (useGoogle) => {
+  useGoogleDocsPreview.value = useGoogle;
+};
+
+const handleUpdateUrls = () => {
   if (isOfficeFile.value) {
     updateOfficePreviewUrls();
   }
+};
 
-  // 后续可以添加从localStorage或后端获取配置的逻辑
-});
+// 复制到剪贴板函数
+const copyToClipboard = async (text) => {
+  try {
+    const success = await clipboardCopy(text);
+
+    if (success) {
+      // 显示复制成功提示
+      showCopyToast.value = true;
+      // 3秒后自动隐藏提示
+      setTimeout(() => {
+        showCopyToast.value = false;
+      }, 3000);
+      console.log("复制成功");
+    } else {
+      throw new Error("复制失败");
+    }
+  } catch (err) {
+    console.error("复制失败:", err);
+    // 复制失败时也显示提示，但内容不同
+    console.error("复制失败，需要手动复制");
+    // 这里可以添加更友好的错误提示，比如显示一个模态框让用户手动复制
+  }
+};
+
+//文本内容获取现在由 TextPreview 组件内部处理
 
 // 确保密码被保存到会话存储
 const savePasswordToSessionStorage = () => {
@@ -842,6 +613,173 @@ const getOfficeDirectUrlForPreview = async () => {
   }
 };
 
-// 当前Office直接访问URL (用于Worker代理模式)
-const officeDirectUrl = ref("");
+// 更新Office预览URL
+const updateOfficePreviewUrls = async () => {
+  // 重置加载状态
+  officePreviewLoading.value = true;
+  officePreviewError.value = "";
+
+  // 记录密码状态
+  const filePassword = getFilePassword();
+
+  try {
+    // 生成缓存键
+    const cacheKey = `${props.fileInfo.slug}_${props.fileInfo.use_proxy ? "proxy" : "direct"}_${filePassword || "no_password"}`;
+
+    // 检查缓存
+    if (officePreviewCache.has(cacheKey)) {
+      const cachedUrls = officePreviewCache.get(cacheKey);
+      console.log("使用缓存的Office预览URL", { cacheKey });
+
+      microsoftOfficePreviewUrl.value = cachedUrls.microsoft;
+      googleDocsPreviewUrl.value = cachedUrls.google;
+
+      // 开始预览加载超时计时
+      startPreviewLoadTimeout();
+      return;
+    }
+
+    // 如果是Worker代理模式，需要特殊处理
+    if (props.fileInfo.use_proxy) {
+      // 使用专门的API获取临时直接URL
+      const directUrl = await getOfficeDirectUrlForPreview();
+
+      if (directUrl) {
+        // 确保URL是完整的绝对URL
+        const encodedUrl = encodeURIComponent(directUrl);
+        const microsoftUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
+        const googleUrl = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
+
+        microsoftOfficePreviewUrl.value = microsoftUrl;
+        googleDocsPreviewUrl.value = googleUrl;
+
+        // 缓存URL（代理模式的URL有时效性，缓存时间较短 - 10分钟）
+        officePreviewCache.set(
+            cacheKey,
+            {
+              microsoft: microsoftUrl,
+              google: googleUrl,
+            },
+            10 * 60 * 1000
+        );
+
+        console.log("缓存Office预览URL (代理模式)", { cacheKey });
+      } else {
+        microsoftOfficePreviewUrl.value = "";
+        googleDocsPreviewUrl.value = "";
+        officePreviewError.value = "获取Office预览URL失败";
+      }
+    } else {
+      // S3直链模式，正常处理
+      if (!processedPreviewUrl.value) {
+        microsoftOfficePreviewUrl.value = "";
+        googleDocsPreviewUrl.value = "";
+        return;
+      }
+
+      // 确保URL是完整的绝对URL
+      let url = processedPreviewUrl.value;
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        // 如果是相对URL，转换为绝对URL
+        const baseUrl = window.location.origin;
+        url = url.startsWith("/") ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+      }
+
+      // 使用encodeURIComponent对URL进行编码，确保安全
+      const encodedUrl = encodeURIComponent(url);
+      const microsoftUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
+      const googleUrl = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
+
+      microsoftOfficePreviewUrl.value = microsoftUrl;
+      googleDocsPreviewUrl.value = googleUrl;
+
+      // 缓存URL（直链模式的URL相对稳定，可以缓存更长时间 - 30分钟）
+      officePreviewCache.set(
+          cacheKey,
+          {
+            microsoft: microsoftUrl,
+            google: googleUrl,
+          },
+          30 * 60 * 1000
+      );
+
+      console.log("缓存Office预览URL (直链模式)", { cacheKey });
+    }
+
+    // 开始预览加载超时计时
+    startPreviewLoadTimeout();
+  } catch (error) {
+    console.error("更新Office预览URL出错:", error);
+    officePreviewError.value = `更新预览URL失败: ${error.message || "未知错误"}`;
+    officePreviewLoading.value = false;
+  }
+};
+
+// 开始预览加载超时计时
+const startPreviewLoadTimeout = () => {
+  // 清除可能存在的上一个计时器
+  if (previewTimeoutId.value) {
+    clearTimeout(previewTimeoutId.value);
+  }
+
+  // 重置超时状态
+  officePreviewTimedOut.value = false;
+
+  // 设置新的超时计时器
+  previewTimeoutId.value = setTimeout(() => {
+    console.warn("Office预览加载超时");
+    officePreviewError.value = "预览加载超时，请尝试切换预览服务或下载文件后查看。";
+    officePreviewTimedOut.value = true;
+    officePreviewLoading.value = false;
+  }, officePreviewConfig.value.loadTimeout);
+};
+
+// 清理过期的Office预览URL缓存（现在由 LRU 缓存自动处理）
+const cleanExpiredCache = () => {
+  const cleaned = officePreviewCache.cleanup();
+  if (cleaned > 0) {
+    console.log(`清理了 ${cleaned} 个过期的Office预览URL缓存项`);
+  }
+};
+
+// 初始化
+onMounted(() => {
+  // 根据默认配置设置预览服务
+  useGoogleDocsPreview.value = officePreviewConfig.value.defaultService === "google";
+
+  // 确保密码被保存到会话存储
+  savePasswordToSessionStorage();
+
+  // 清理过期缓存
+  cleanExpiredCache();
+
+  // 如果是Office文件，更新预览URL
+  if (isOfficeFile.value) {
+    updateOfficePreviewUrls();
+  }
+});
+
+// 监听预览URL变化（预览组件会自动响应URL变化）
+watch(
+    () => processedPreviewUrl.value,
+    (newUrl) => {
+      console.log("预览URL变化:", newUrl);
+      // 注意：加载状态重置现在由各个预览组件内部处理
+    },
+    { immediate: true }
+);
+
+// 组件卸载时清理资源
+onUnmounted(() => {
+  // 清理预览超时计时器
+  if (previewTimeoutId.value) {
+    clearTimeout(previewTimeoutId.value);
+    previewTimeoutId.value = null;
+  }
+
+  // 清理复制提示定时器
+  if (showCopyToast.value) {
+    showCopyToast.value = false;
+  }
+});
 </script>
