@@ -368,8 +368,9 @@ export async function updateParentDirectoriesModifiedTimeHelper(s3Config, filePa
  * @param {string} bucketName - 存储桶名称
  * @param {string} filePath - 文件或目录路径
  * @param {string} rootPrefix - 根前缀
+ * @param {boolean} skipMissingDirectories - 是否跳过不存在的目录（用于删除操作）
  */
-export async function updateParentDirectoriesModifiedTime(s3Client, bucketName, filePath, rootPrefix = "") {
+export async function updateParentDirectoriesModifiedTime(s3Client, bucketName, filePath, rootPrefix = "", skipMissingDirectories = false) {
   try {
     // 获取文件所在的目录路径
     let currentPath = filePath;
@@ -414,18 +415,23 @@ export async function updateParentDirectoriesModifiedTime(s3Client, bucketName, 
           }
         }
 
-        // 更新或创建目录标记对象
-        const putParams = {
-          Bucket: bucketName,
-          Key: currentPath,
-          Body: "",
-          ContentType: "application/x-directory",
-        };
+        // 如果skipMissingDirectories为true且目录不存在，则跳过
+        if (skipMissingDirectories && !directoryExists) {
+          console.log(`跳过不存在的目录: ${currentPath}`);
+          updatedPaths.add(currentPath); // 标记为已处理，避免重复检查
+        } else {
+          // 更新或创建目录标记对象
+          const putParams = {
+            Bucket: bucketName,
+            Key: currentPath,
+            Body: "",
+            ContentType: "application/x-directory",
+          };
 
-        const putCommand = new PutObjectCommand(putParams);
-        await s3Client.send(putCommand);
-
-        updatedPaths.add(currentPath);
+          const putCommand = new PutObjectCommand(putParams);
+          await s3Client.send(putCommand);
+          updatedPaths.add(currentPath);
+        }
       } catch (error) {
         console.warn(`更新目录修改时间失败: ${currentPath}`, error);
       }
@@ -1265,9 +1271,9 @@ export async function removeItem(db, path, userIdOrInfo, userType, encryptionSec
           }
         }
 
-        // 更新父目录的修改时间
+        // 更新父目录的修改时间（只更新存在的目录，不创建新目录）
         const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
-        await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix);
+        await updateParentDirectoriesModifiedTime(s3Client, s3Config.bucket_name, s3SubPath, rootPrefix, true);
 
         // 尝试删除文件记录表中的对应记录
         try {
