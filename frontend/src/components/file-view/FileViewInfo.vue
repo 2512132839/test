@@ -219,14 +219,6 @@ const shareUrl = computed(() => {
 // 复制成功提示状态
 const showCopyToast = ref(false);
 
-// 文件内容现在由各个预览组件内部管理
-
-// HTML预览状态现在由 HtmlPreview 组件内部管理
-
-// 加载状态现在由各个预览组件内部管理
-
-// 图片显示控制现在由 ImagePreview 组件内部管理
-
 // 辅助函数：获取文件密码
 const getFilePassword = () => {
   // 优先使用文件信息中存储的已验证密码
@@ -443,8 +435,6 @@ const googleDocsPreviewUrl = ref("");
 // 导入 LRU 缓存
 import { officePreviewCache } from "../../utils/lruCache.js";
 
-//当前Office预览URL现在由 OfficePreview 组件内部管理
-
 // Office预览错误状态
 const officePreviewError = ref("");
 // Office预览加载状态
@@ -470,8 +460,6 @@ const officePreviewConfig = ref({
 // 当前Office直接访问URL (用于Worker代理模式)
 const officeDirectUrl = ref("");
 
-//具体的加载处理函数现在由各个预览组件内部管理
-
 // 动态组件事件处理
 const handlePreviewLoad = () => {
   console.log("预览加载完成");
@@ -483,7 +471,6 @@ const handlePreviewError = (error) => {
 
 const handleToggleMode = (mode) => {
   console.log("HTML预览模式切换:", mode);
-  //模式切换现在由 HtmlPreview 组件内部处理
 };
 
 const handleToggleService = (useGoogle) => {
@@ -519,8 +506,6 @@ const copyToClipboard = async (text) => {
     // 这里可以添加更友好的错误提示，比如显示一个模态框让用户手动复制
   }
 };
-
-//文本内容获取现在由 TextPreview 组件内部处理
 
 // 确保密码被保存到会话存储
 const savePasswordToSessionStorage = () => {
@@ -764,7 +749,6 @@ watch(
     () => processedPreviewUrl.value,
     (newUrl) => {
       console.log("预览URL变化:", newUrl);
-      // 注意：加载状态重置现在由各个预览组件内部处理
     },
     { immediate: true }
 );
