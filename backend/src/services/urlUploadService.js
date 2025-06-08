@@ -9,6 +9,7 @@ import { buildS3Url, generatePresignedPutUrl } from "../utils/s3Utils.js";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { createS3Client } from "../utils/s3Utils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
+import { getEnhancedUrlMetadata as getEnhancedMimeMetadata } from "../utils/enhancedMimeUtils.js";
 
 // 分片上传配置
 const DEFAULT_PART_SIZE = 5 * 1024 * 1024; // 5MB默认分片大小
@@ -51,12 +52,15 @@ function calculateOptimalPartSize(fileSize) {
 }
 
 /**
- * 验证URL并获取文件元信息
+ * 验证URL并获取文件元信息（增强版）
  * @param {string} url - 要验证的URL
+ * @param {Object} options - 选项
  * @returns {Promise<Object>} 包含文件元信息的对象
  * @throws {Error} 如果URL无效或无法访问
  */
-export async function validateAndGetUrlMetadata(url) {
+export async function validateAndGetUrlMetadata(url, options = {}) {
+  const { enableEnhancedMimeDetection = true } = options;
+
   try {
     // 验证URL格式
     const parsedUrl = new URL(url);
@@ -65,6 +69,39 @@ export async function validateAndGetUrlMetadata(url) {
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
       throw new Error("仅支持HTTP/HTTPS协议的URL");
     }
+
+    // 如果启用增强MIME检测，优先使用增强检测
+    if (enableEnhancedMimeDetection) {
+      try {
+        console.log(`🚀 使用增强MIME检测: ${url}`);
+        const enhancedMetadata = await getEnhancedMimeMetadata(url, options);
+
+        if (enhancedMetadata && !enhancedMetadata.error) {
+          // 转换为兼容格式
+          const metadata = {
+            url: enhancedMetadata.url,
+            filename: enhancedMetadata.filename,
+            contentType: enhancedMetadata.enhancedContentType || enhancedMetadata.contentType,
+            size: enhancedMetadata.size,
+            lastModified: enhancedMetadata.lastModified,
+            method: "ENHANCED",
+            corsSupported: enhancedMetadata.corsSupported,
+            // 增强信息
+            detectionMethod: enhancedMetadata.detectionMethod,
+            detectionConfidence: enhancedMetadata.detectionConfidence,
+            fileTypeLibraryUsed: enhancedMetadata.fileTypeLibraryUsed,
+          };
+
+          console.log(`✅ 增强检测成功: ${metadata.contentType} (置信度: ${metadata.detectionConfidence})`);
+          return metadata;
+        }
+      } catch (enhancedError) {
+        console.warn("增强MIME检测失败，回退到传统方法:", enhancedError.message);
+      }
+    }
+
+    // 回退到传统检测方法
+    console.log(`📡 使用传统HEAD/Range检测: ${url}`);
 
     // 首先尝试HEAD请求获取元信息
     let response;

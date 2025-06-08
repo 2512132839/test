@@ -462,6 +462,8 @@ import { api } from "../../api";
 // 导入文件类型工具
 import { getFileIcon } from "../../utils/fileTypeIcons";
 import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
+// 导入URL验证API（后端增强检测）
+import { validateUrlInfo } from "../../api/services/urlUploadService.js";
 
 const { t } = useI18n(); // 初始化i18n
 
@@ -598,10 +600,6 @@ watch(
 const getFileIconHtml = (filename) => {
   if (!filename) return getDefaultFileIcon();
 
-  // 使用 MimeTypeUtils 获取文件类型
-  const ext = MimeTypeUtils.getFileExtension(filename);
-  const fileType = MimeTypeUtils.getFileTypeFromExtension(ext);
-
   // 为了使用 getFileIcon 函数，需要构造一个模拟的文件项对象
   const mockFileItem = {
     name: filename,
@@ -626,7 +624,7 @@ const getDefaultFileIcon = () => {
 };
 
 /**
- * 解析URL获取文件信息
+ * 解析URL获取文件信息（增强版）
  */
 const analyzeUrl = async () => {
   if (!urlInput.value || isAnalyzing.value || isUploading.value) return;
@@ -644,32 +642,55 @@ const analyzeUrl = async () => {
       return;
     }
 
-    // 调用API获取URL文件信息
-    const response = await api.urlUpload.validateUrlInfo(urlInput.value);
+    console.log("开始URL验证和增强检测:", urlInput.value);
+
+    // 使用后端API进行URL验证和增强MIME检测
+    const response = await validateUrlInfo(urlInput.value);
+
     if (response.success && response.data) {
-      // 转换后端返回的contentType字段为前端使用的mimetype字段，确保兼容性
+      const metadata = response.data;
+
+      // 构建兼容的文件信息对象
       const data = {
-        ...response.data,
-        mimetype: response.data.contentType || response.data.mimetype,
+        url: metadata.url,
+        filename: metadata.filename,
+        contentType: metadata.contentType,
+        size: metadata.size,
+        lastModified: metadata.lastModified,
+        corsSupported: metadata.corsSupported,
+        // 兼容性字段
+        mimetype: metadata.contentType,
+        // 增强检测信息
+        detectionMethod: metadata.detectionMethod,
+        detectionConfidence: metadata.detectionConfidence,
+        fileTypeLibraryUsed: metadata.fileTypeLibraryUsed,
       };
 
       fileInfo.value = data;
-      // 复位定制文件名，解码URL编码的文件名
-      if (fileInfo.value.filename) {
-        try {
-          customFilename.value = decodeURIComponent(fileInfo.value.filename);
-        } catch (e) {
-          console.warn("解码文件名失败:", e);
-          customFilename.value = fileInfo.value.filename || "";
-        }
+
+      // 显示检测信息
+      if (metadata.fileTypeLibraryUsed) {
+        console.log(`✅ 后端file-type检测成功: ${metadata.contentType} (置信度: ${metadata.detectionConfidence})`);
       } else {
-        customFilename.value = "";
+        console.log(`📡 传统检测: ${metadata.contentType}`);
       }
     } else {
-      urlError.value = t("file.urlAnalysisFailed");
+      throw new Error(response.message || "URL验证失败");
+    }
+
+    // 设置自定义文件名
+    if (fileInfo.value.filename) {
+      try {
+        customFilename.value = decodeURIComponent(fileInfo.value.filename);
+      } catch (e) {
+        console.warn("解码文件名失败:", e);
+        customFilename.value = fileInfo.value.filename || "";
+      }
+    } else {
+      customFilename.value = "";
     }
   } catch (error) {
-    console.error("URL解析失败:", error);
+    console.error("URL验证失败:", error);
     urlError.value = error.message || t("file.urlAnalysisFailed");
   } finally {
     isAnalyzing.value = false;
@@ -887,7 +908,7 @@ const presignedDirectUpload = async () => {
     const uploadResult = await api.urlUpload.uploadFromUrlToS3({
       url: urlInput.value,
       uploadUrl: presignedResponse.data.upload_url,
-      onProgress: (progress, loaded, total, phase) => {
+      onProgress: (progress, loaded, _total, phase) => {
         // 如果已取消，不再更新进度
         if (isCancelled.value) return;
 
@@ -997,7 +1018,7 @@ const chunkedMultipartUpload = async () => {
     // 使用统一的URL内容获取函数，会先尝试直接获取，失败则自动使用代理
     const blob = await api.urlUpload.fetchUrlContent({
       url: urlInput.value,
-      onProgress: (progress, loaded, total, phase, phaseType) => {
+      onProgress: (progress, loaded, _total, _phase, phaseType) => {
         if (isCancelled.value) return;
 
         // 下载阶段占总进度的30%（从5%到35%），计算公式需要适应fetchUrlContent的进度范围变化(0-49%)
