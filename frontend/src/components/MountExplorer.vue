@@ -357,6 +357,9 @@ const showCopyModal = ref(false);
 // 任务管理弹窗相关变量
 const showTasksModal = ref(false);
 
+// 是否正在内部导航（防止路由监听器重复调用）
+const isInternalNavigation = ref(false);
+
 // 计算已选中项数量
 const selectedCount = computed(() => selectedItems.value.length);
 
@@ -635,19 +638,28 @@ const navigateTo = (path) => {
     closePreview();
   }
 
+  // 设置内部导航标志，防止路由监听器重复调用
+  isInternalNavigation.value = true;
+
   currentPath.value = path;
 
-  // 更新 URL（清除预览参数）
-  updateUrl(path);
+  // 静默更新 URL（清除预览参数），避免触发路由监听器导致重复请求
+  updateUrlSilently(path);
 
   // 加载新路径的内容
   loadDirectoryContents();
+
+  // 重置内部导航标志
+  setTimeout(() => {
+    isInternalNavigation.value = false;
+  }, 100);
+
   // 平滑滚动到顶部
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 // 更新 URL 以反映当前路径和预览状态
-const updateUrl = (path, previewFileName = null) => {
+const updateUrl = (path, previewFileName = null, silent = false) => {
   const normalizedPath = path.replace(/\/+$/, "") || "/";
 
   // 构建查询参数
@@ -656,40 +668,31 @@ const updateUrl = (path, previewFileName = null) => {
     query.preview = previewFileName;
   }
 
+  // 构建路由对象
+  let routeObject;
   if (normalizedPath === "/") {
     // 根路径，导航到基础 mount-explorer 路由
-    router.push({ path: "/mount-explorer", query });
+    routeObject = { path: "/mount-explorer", query };
   } else {
     // 子路径，导航到带参数的路由
     const pathSegments = normalizedPath
         .replace(/^\/+/, "")
         .split("/")
         .filter((segment) => segment);
-    router.push({ path: `/mount-explorer/${pathSegments.join("/")}`, query });
+    routeObject = { path: `/mount-explorer/${pathSegments.join("/")}`, query };
+  }
+
+  // 根据 silent 参数选择使用 push 还是 replace
+  if (silent) {
+    router.replace(routeObject);
+  } else {
+    router.push(routeObject);
   }
 };
 
 // 静默更新 URL（使用 replace 而不是 push，避免触发路由监听）
 const updateUrlSilently = (path, previewFileName = null) => {
-  const normalizedPath = path.replace(/\/+$/, "") || "/";
-
-  // 构建查询参数
-  const query = {};
-  if (previewFileName) {
-    query.preview = previewFileName;
-  }
-
-  if (normalizedPath === "/") {
-    // 根路径，导航到基础 mount-explorer 路由
-    router.replace({ path: "/mount-explorer", query });
-  } else {
-    // 子路径，导航到带参数的路由
-    const pathSegments = normalizedPath
-        .replace(/^\/+/, "")
-        .split("/")
-        .filter((segment) => segment);
-    router.replace({ path: `/mount-explorer/${pathSegments.join("/")}`, query });
-  }
+  updateUrl(path, previewFileName, true);
 };
 
 // 导航到管理页面
@@ -975,8 +978,8 @@ const closePreview = () => {
 // 关闭预览并更新 URL
 const closePreviewWithUrl = () => {
   closePreview();
-  // 更新 URL，移除预览参数
-  updateUrl(currentPath.value);
+  // 静默更新 URL，移除预览参数，避免触发路由监听器
+  updateUrlSilently(currentPath.value);
 };
 
 // 显示消息
@@ -1016,10 +1019,16 @@ watch(
     () => [props.pathMatch, props.previewFile],
     ([newPathMatch, newPreviewFile], [oldPathMatch, oldPreviewFile]) => {
       if (hasPermission.value) {
-        console.log("路由参数变化:", { pathMatch: newPathMatch, previewFile: newPreviewFile });
+        console.log("路由参数变化:", { pathMatch: newPathMatch, previewFile: newPreviewFile, isInternalNavigation: isInternalNavigation.value });
 
         // 如果路径发生变化
         if (newPathMatch !== oldPathMatch) {
+          // 如果是内部导航触发的路由变化，跳过重复加载
+          if (isInternalNavigation.value) {
+            console.log("跳过内部导航触发的重复加载");
+            return;
+          }
+
           initializePath();
           loadDirectoryContents().then(() => {
             // 路径变化后，检查是否需要初始化预览
