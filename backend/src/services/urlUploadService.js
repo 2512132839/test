@@ -73,8 +73,32 @@ export async function validateAndGetUrlMetadata(url, options = {}) {
     // 如果启用增强MIME检测，优先使用增强检测
     if (enableEnhancedMimeDetection) {
       try {
-        console.log(`🚀 使用增强MIME检测: ${url}`);
-        const enhancedMetadata = await getEnhancedMimeMetadata(url, options);
+        // 先获取基本元数据以获取真实文件名
+        let realFilename = null;
+        try {
+          const headResponse = await fetch(url, { method: "HEAD" });
+          if (headResponse.ok) {
+            const contentDisposition = headResponse.headers.get("Content-Disposition");
+            realFilename = extractFilenameFromContentDisposition(contentDisposition);
+
+            if (!realFilename) {
+              const urlObj = new URL(url);
+              realFilename = urlObj.pathname.split("/").pop();
+              try {
+                realFilename = decodeURIComponent(realFilename);
+              } catch (e) {
+                // 解码失败，保持原样
+              }
+            }
+          }
+        } catch (headError) {
+          // HEAD请求失败，从URL提取文件名
+          const urlObj = new URL(url);
+          realFilename = urlObj.pathname.split("/").pop();
+        }
+
+        console.log(`🚀 使用增强MIME检测: ${url}, 真实文件名: ${realFilename}`);
+        const enhancedMetadata = await getEnhancedMimeMetadata(url, realFilename, options);
 
         if (enhancedMetadata && !enhancedMetadata.error) {
           // 转换为兼容格式

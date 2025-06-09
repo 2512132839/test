@@ -524,11 +524,11 @@ const formData = reactive({
 // 计算属性：显示友好的文件大小
 const displayFileSize = computed(() => {
   // 如果有明确的大小信息，使用它
-  if (fileInfo.value && fileInfo.value.size && fileInfo.value.size > 1024) {
+  if (fileInfo.value && fileInfo.value.size !== null && fileInfo.value.size !== undefined && fileInfo.value.size > 0) {
     return formatFileSize(fileInfo.value.size);
   }
 
-  // 如果没有明确的大小或大小太小（可能是Range请求的1KB），显示"未知大小"或"估计大小"
+  // 如果没有大小信息，显示"未知大小"
   return t("file.unknownSize") || "未知大小";
 });
 
@@ -654,12 +654,12 @@ const analyzeUrl = async () => {
       const data = {
         url: metadata.url,
         filename: metadata.filename,
-        contentType: metadata.contentType,
+        contentType: metadata.enhancedContentType || metadata.contentType,
         size: metadata.size,
         lastModified: metadata.lastModified,
         corsSupported: metadata.corsSupported,
         // 兼容性字段
-        mimetype: metadata.contentType,
+        mimetype: metadata.enhancedContentType || metadata.contentType,
         // 增强检测信息
         detectionMethod: metadata.detectionMethod,
         detectionConfidence: metadata.detectionConfidence,
