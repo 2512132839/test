@@ -238,11 +238,64 @@ export function registerS3UploadRoutes(app) {
       // 生成短ID
       const shortId = generateShortId();
 
-      // 获取默认文件夹路径
-      const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+      // 组合最终路径
+      let storagePath;
+      if (authType === "apikey") {
+        // 对于API密钥用户，需要检查权限并从basic_path中提取实际的存储路径
+        const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
+        if (apiKeyInfo && apiKeyInfo.basicPath && apiKeyInfo.basicPath !== "/") {
+          // 获取API密钥可访问的挂载点
+          const { getAccessibleMountsByBasicPath } = await import("../services/apiKeyService.js");
+          const mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
 
-      // 组合最终路径 - 使用短ID-原始文件名的格式
-      const storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
+          // 检查当前S3配置是否在API密钥的权限范围内
+          const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
+          if (!hasPermission) {
+            return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限使用此存储配置"), ApiStatus.FORBIDDEN);
+          }
+
+          // 按照路径长度降序排序，以便优先匹配最长的路径
+          mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
+
+          let actualStoragePath = "";
+
+          // 查找匹配的挂载点
+          for (const mount of mounts) {
+            // 只处理与当前S3配置匹配的挂载点
+            if (mount.storage_config_id !== s3Config.id) continue;
+
+            const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
+
+            // 如果basic_path匹配挂载点或者是挂载点的子路径
+            if (apiKeyInfo.basicPath === mountPath || apiKeyInfo.basicPath === mountPath + "/" || apiKeyInfo.basicPath.startsWith(mountPath + "/")) {
+              // 计算子路径
+              let subPath = apiKeyInfo.basicPath.substring(mountPath.length);
+              if (!subPath.startsWith("/")) {
+                subPath = "/" + subPath;
+              }
+
+              // 使用normalizeS3SubPath来规范化子路径
+              const { normalizeS3SubPath } = await import("../webdav/utils/webdavUtils.js");
+              actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
+              break;
+            }
+          }
+
+          // 获取默认文件夹路径
+          const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+
+          // 路径组合：实际存储路径 + 默认文件夹 + 用户自定义路径 + 文件名
+          storagePath = actualStoragePath + folderPath + customPath + shortId + "-" + safeFileName + fileExt;
+        } else {
+          // 如果没有basic_path，使用默认文件夹
+          const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+          storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
+        }
+      } else {
+        // 对于管理员用户，使用默认文件夹
+        const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+        storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
+      }
 
       // 统一从文件名推断MIME类型，不依赖前端传来的mimetype
       const mimetype = getMimeTypeFromFilename(body.filename);
@@ -780,11 +833,64 @@ export function registerS3UploadRoutes(app) {
       // 生成短ID
       const shortId = generateShortId();
 
-      // 获取默认文件夹路径
-      const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+      // 组合最终路径
+      let storagePath;
+      if (authType === "apikey") {
+        // 对于API密钥用户，需要检查权限并从basic_path中提取实际的存储路径
+        const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
+        if (apiKeyInfo && apiKeyInfo.basicPath && apiKeyInfo.basicPath !== "/") {
+          // 获取API密钥可访问的挂载点
+          const { getAccessibleMountsByBasicPath } = await import("../services/apiKeyService.js");
+          const mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
 
-      // 组合最终路径 - 根据useOriginalFilename决定是否添加随机ID
-      const storagePath = folderPath + customPath + (useOriginalFilename ? "" : shortId + "-") + safeFileName + fileExt;
+          // 检查当前S3配置是否在API密钥的权限范围内
+          const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
+          if (!hasPermission) {
+            return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限使用此存储配置"), ApiStatus.FORBIDDEN);
+          }
+
+          // 按照路径长度降序排序，以便优先匹配最长的路径
+          mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
+
+          let actualStoragePath = "";
+
+          // 查找匹配的挂载点
+          for (const mount of mounts) {
+            // 只处理与当前S3配置匹配的挂载点
+            if (mount.storage_config_id !== s3Config.id) continue;
+
+            const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
+
+            // 如果basic_path匹配挂载点或者是挂载点的子路径
+            if (apiKeyInfo.basicPath === mountPath || apiKeyInfo.basicPath === mountPath + "/" || apiKeyInfo.basicPath.startsWith(mountPath + "/")) {
+              // 计算子路径
+              let subPath = apiKeyInfo.basicPath.substring(mountPath.length);
+              if (!subPath.startsWith("/")) {
+                subPath = "/" + subPath;
+              }
+
+              // 使用normalizeS3SubPath来规范化子路径
+              const { normalizeS3SubPath } = await import("../webdav/utils/webdavUtils.js");
+              actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
+              break;
+            }
+          }
+
+          // 获取默认文件夹路径
+          const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+
+          // 路径组合：实际存储路径 + 默认文件夹 + 用户自定义路径 + 文件名
+          storagePath = actualStoragePath + folderPath + customPath + (useOriginalFilename ? "" : shortId + "-") + safeFileName + fileExt;
+        } else {
+          // 如果没有basic_path，使用默认文件夹
+          const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+          storagePath = folderPath + customPath + (useOriginalFilename ? "" : shortId + "-") + safeFileName + fileExt;
+        }
+      } else {
+        // 对于管理员用户，使用默认文件夹
+        const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
+        storagePath = folderPath + customPath + (useOriginalFilename ? "" : shortId + "-") + safeFileName + fileExt;
+      }
 
       // 获取加密密钥
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";

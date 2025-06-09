@@ -235,6 +235,8 @@ export default {
     slugConflict: "Custom link is already taken, please try another one",
     allSlugConflicts: "All uploads failed: custom links already taken",
     someSlugConflicts: "{count} uploads failed: custom links already taken",
+    permissionError: "No permission to use this storage configuration, please select another one",
+    allPermissionErrors: "All uploads failed: no permission to use this storage configuration",
     retry: "Retry",
     retrySuccessful: "File upload retry successful!",
     cancelUpload: "Cancel this file upload",

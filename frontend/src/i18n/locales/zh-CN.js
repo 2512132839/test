@@ -234,6 +234,8 @@ export default {
     slugConflict: "链接后缀已被占用，请尝试其他后缀",
     allSlugConflicts: "所有文件上传失败：链接后缀已被占用",
     someSlugConflicts: "{count}个文件上传失败：链接后缀已被占用",
+    permissionError: "没有权限使用此存储配置，请选择其他存储配置",
+    allPermissionErrors: "所有文件上传失败：没有权限使用此存储配置",
     retry: "重试",
     retrySuccessful: "文件重试上传成功！",
     cancelUpload: "取消此文件上传",

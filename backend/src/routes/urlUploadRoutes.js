@@ -159,6 +159,8 @@ export function registerUrlUploadRoutes(app) {
         slug: body.slug || null,
         remark: body.remark || null,
         path: body.path || null,
+        authType: authType, // 传递认证类型
+        apiKeyInfo: authType === "apikey" ? PermissionUtils.getApiKeyInfo(c) : null, // 传递API密钥信息
       };
 
       // 准备URL上传
@@ -471,6 +473,7 @@ export function registerUrlUploadRoutes(app) {
     // 获取认证信息
     const isAdmin = PermissionUtils.isAdmin(c);
     const userId = PermissionUtils.getUserId(c);
+    const authType = PermissionUtils.getAuthType(c);
 
     try {
       const body = await c.req.json();
@@ -533,6 +536,8 @@ export function registerUrlUploadRoutes(app) {
         totalSize: body.total_size || metadata.size || 0,
         partCount: body.part_count || null,
         path: body.path || null,
+        authType: authType, // 传递认证类型
+        apiKeyInfo: authType === "apikey" ? PermissionUtils.getApiKeyInfo(c) : null, // 传递API密钥信息
       };
 
       // 初始化分片上传

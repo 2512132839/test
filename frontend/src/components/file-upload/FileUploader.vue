@@ -1059,6 +1059,15 @@ const submitUpload = async () => {
           errorMessage.includes("exceeds") ||
           (errorMessage.includes("storage") && (errorMessage.includes("limit") || errorMessage.includes("full") || errorMessage.includes("quota")));
 
+      // 检查是否是权限错误
+      const isPermissionError =
+          errorMessage.includes("没有权限使用此存储配置") ||
+          errorMessage.includes("没有权限") ||
+          errorMessage.includes("权限不足") ||
+          errorMessage.includes("permission denied") ||
+          errorMessage.includes("forbidden") ||
+          errorMessage.includes("unauthorized");
+
       // 更新文件状态为错误
       fileItem.status = "error";
       // 如果是链接后缀冲突，提供更具体的错误消息
@@ -1067,6 +1076,9 @@ const submitUpload = async () => {
       } else if (isInsufficientStorage) {
         // 处理存储空间不足的错误消息
         fileItem.message = processInsufficientStorageError(errorMessage);
+      } else if (isPermissionError) {
+        // 处理权限错误
+        fileItem.message = t("file.permissionError");
       } else {
         fileItem.message = errorMessage;
       }
@@ -1076,6 +1088,7 @@ const submitUpload = async () => {
         error: error,
         isSlugConflict: isSlugConflict,
         isInsufficientStorage: isInsufficientStorage,
+        isPermissionError: isPermissionError,
       });
 
       // 文件上传失败后也检查上传是否被取消
@@ -1096,6 +1109,8 @@ const submitUpload = async () => {
     const hasSlugConflicts = errors.some((err) => err.isSlugConflict);
     // 检查是否所有错误都是存储空间不足
     const allInsufficientStorage = errors.every((err) => err.isInsufficientStorage);
+    // 检查是否所有错误都是权限错误
+    const allPermissionErrors = errors.every((err) => err.isPermissionError);
     // 获取第一个存储空间不足错误（如果有的话）
     const firstStorageError = errors.find((err) => err.isInsufficientStorage);
 
@@ -1116,6 +1131,13 @@ const submitUpload = async () => {
           content: processInsufficientStorageError(firstStorageError.error.message),
         };
         emit("upload-error", new Error(processInsufficientStorageError(firstStorageError.error.message)));
+      } else if (allPermissionErrors) {
+        // 如果所有失败都是因为权限错误
+        message.value = {
+          type: "error",
+          content: t("file.allPermissionErrors"),
+        };
+        emit("upload-error", new Error(t("file.allPermissionErrors")));
       } else {
         message.value = {
           type: "error",
@@ -1342,6 +1364,15 @@ const retryUpload = async (index) => {
         errorMessage.includes("exceeds") ||
         (errorMessage.includes("storage") && (errorMessage.includes("limit") || errorMessage.includes("full") || errorMessage.includes("quota")));
 
+    // 检查是否是权限错误
+    const isPermissionError =
+        errorMessage.includes("没有权限使用此存储配置") ||
+        errorMessage.includes("没有权限") ||
+        errorMessage.includes("权限不足") ||
+        errorMessage.includes("permission denied") ||
+        errorMessage.includes("forbidden") ||
+        errorMessage.includes("unauthorized");
+
     // 更新文件状态为错误
     fileItem.status = "error";
 
@@ -1351,6 +1382,9 @@ const retryUpload = async (index) => {
     } else if (isInsufficientStorage) {
       // 处理存储空间不足的错误消息
       fileItem.message = processInsufficientStorageError(errorMessage);
+    } else if (isPermissionError) {
+      // 处理权限错误
+      fileItem.message = t("file.permissionError");
     } else {
       fileItem.message = errorMessage;
     }
