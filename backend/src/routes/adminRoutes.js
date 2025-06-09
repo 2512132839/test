@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares/authMiddleware.js";
-import { apiKeyMountMiddleware } from "../middlewares/apiKeyMiddleware.js";
+import { baseAuthMiddleware, requireAdminMiddleware, requireMountPermissionMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
 import { login, logout, changePassword, testAdminToken } from "../services/adminService.js";
 import { ApiStatus } from "../constants/index.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
@@ -26,7 +26,7 @@ adminRoutes.post("/api/admin/login", async (c) => {
 });
 
 // 管理员登出
-adminRoutes.post("/api/admin/logout", authMiddleware, async (c) => {
+adminRoutes.post("/api/admin/logout", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const authHeader = c.req.header("Authorization");
   const token = authHeader.substring(7);
@@ -40,9 +40,9 @@ adminRoutes.post("/api/admin/logout", authMiddleware, async (c) => {
 });
 
 // 更改管理员密码（需要认证）
-adminRoutes.post("/api/admin/change-password", authMiddleware, async (c) => {
+adminRoutes.post("/api/admin/change-password", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const { currentPassword, newPassword, newUsername } = await c.req.json();
 
   await changePassword(db, adminId, currentPassword, newPassword, newUsername);
@@ -54,27 +54,12 @@ adminRoutes.post("/api/admin/change-password", authMiddleware, async (c) => {
 });
 
 // 测试管理员令牌路由
-adminRoutes.get("/api/test/admin-token", async (c) => {
-  const db = c.env.DB;
-  const authHeader = c.req.header("Authorization") || "";
+adminRoutes.get("/api/test/admin-token", baseAuthMiddleware, async (c) => {
+  // 使用新的权限工具检查管理员权限
+  const permissionResult = PermissionUtils.checkAdminPermission(c);
 
-  if (!authHeader.startsWith("Bearer ")) {
-    return c.json({
-      code: ApiStatus.UNAUTHORIZED,
-      message: "令牌无效",
-      success: false,
-    });
-  }
-
-  const token = authHeader.substring(7);
-  const isValid = await testAdminToken(db, token);
-
-  if (!isValid) {
-    return c.json({
-      code: ApiStatus.UNAUTHORIZED,
-      message: "令牌无效",
-      success: false,
-    });
+  if (!permissionResult.success) {
+    return c.json(permissionResult.response, permissionResult.status);
   }
 
   return c.json({
@@ -108,7 +93,7 @@ adminRoutes.get("/api/admin/cache/stats", async (c) => {
 });
 
 // 清理目录缓存（管理员）
-adminRoutes.post("/api/admin/cache/clear", authMiddleware, async (c) => {
+adminRoutes.post("/api/admin/cache/clear", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
@@ -156,9 +141,9 @@ adminRoutes.post("/api/admin/cache/clear", authMiddleware, async (c) => {
 });
 
 // 清理目录缓存（API密钥用户）
-adminRoutes.post("/api/user/cache/clear", apiKeyMountMiddleware, async (c) => {
+adminRoutes.post("/api/user/cache/clear", baseAuthMiddleware, requireMountPermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   try {
     // 获取请求参数

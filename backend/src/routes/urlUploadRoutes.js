@@ -5,8 +5,8 @@
 import { DbTables } from "../constants/index.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse, formatFileSize } from "../utils/common.js";
-import { validateAdminToken } from "../services/adminService.js";
-import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
+import { baseAuthMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
 import {
   validateAndGetUrlMetadata,
   proxyUrlContent,
@@ -18,6 +18,12 @@ import {
 import { hashPassword } from "../utils/crypto.js";
 import { deleteFileFromS3 } from "../utils/s3Utils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
+
+// 创建文件权限中间件（管理员或API密钥文件权限）
+const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
+  permissions: [PermissionType.FILE],
+  allowAdmin: true,
+});
 
 /**
  * 注册URL上传相关API路由
@@ -90,72 +96,15 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：为URL上传准备预签名URL和文件记录
-  app.post("/api/url/presign", async (c) => {
+  app.post("/api/url/presign", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
 
-    // 身份验证
-    const authHeader = c.req.header("Authorization");
-    let isAuthorized = false;
-    let authorizedBy = "";
-    let adminId = null;
-    let apiKeyId = null;
-
-    // 检查Bearer令牌 (管理员)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      adminId = await validateAdminToken(db, token);
-
-      if (adminId) {
-        isAuthorized = true;
-        authorizedBy = "admin";
-      }
-    }
-    // 检查API密钥
-    else if (authHeader && authHeader.startsWith("ApiKey ")) {
-      const apiKey = authHeader.substring(7);
-
-      // 查询数据库中的API密钥记录
-      const keyRecord = await db
-          .prepare(
-              `
-          SELECT id, name, file_permission, expires_at
-          FROM ${DbTables.API_KEYS}
-          WHERE key = ?
-        `
-          )
-          .bind(apiKey)
-          .first();
-
-      // 如果密钥存在且有文件权限
-      if (keyRecord && keyRecord.file_permission === 1) {
-        // 检查是否过期
-        if (!(await checkAndDeleteExpiredApiKey(db, keyRecord))) {
-          isAuthorized = true;
-          authorizedBy = "apikey";
-          // 记录API密钥ID
-          apiKeyId = keyRecord.id;
-
-          // 更新最后使用时间
-          await db
-              .prepare(
-                  `
-              UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `
-              )
-              .bind(keyRecord.id)
-              .run();
-        }
-      }
-    }
-
-    // 如果都没有授权，则返回权限错误
-    if (!isAuthorized) {
-      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "需要管理员权限或有效的API密钥才能使用URL上传功能"), ApiStatus.FORBIDDEN);
-    }
-
     try {
+      // 获取认证信息
+      const isAdmin = PermissionUtils.isAdmin(c);
+      const userId = PermissionUtils.getUserId(c);
+      const authType = PermissionUtils.getAuthType(c);
+
       const body = await c.req.json();
 
       // 验证必要参数
@@ -172,10 +121,10 @@ export function registerUrlUploadRoutes(app) {
           .prepare(
               `
           SELECT id FROM ${DbTables.S3_CONFIGS}
-          WHERE id = ? AND ${authorizedBy === "admin" ? "admin_id = ?" : "is_public = 1"}
+          WHERE id = ? AND ${isAdmin ? "admin_id = ?" : "is_public = 1"}
         `
           )
-          .bind(...(authorizedBy === "admin" ? [body.s3_config_id, adminId] : [body.s3_config_id]))
+          .bind(...(isAdmin ? [body.s3_config_id, userId] : [body.s3_config_id]))
           .first();
 
       if (!s3Config) {
@@ -200,7 +149,7 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 准备创建者标识
-      const createdBy = authorizedBy === "admin" ? adminId : `apikey:${apiKeyId}`;
+      const createdBy = authType === "admin" ? userId : `apikey:${userId}`;
 
       // 获取加密密钥
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -240,72 +189,15 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：URL上传完成后的提交确认
-  app.post("/api/url/commit", async (c) => {
+  app.post("/api/url/commit", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
 
-    // 身份验证
-    const authHeader = c.req.header("Authorization");
-    let isAuthorized = false;
-    let authorizedBy = "";
-    let adminId = null;
-    let apiKeyId = null;
-
-    // 检查Bearer令牌 (管理员)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      adminId = await validateAdminToken(db, token);
-
-      if (adminId) {
-        isAuthorized = true;
-        authorizedBy = "admin";
-      }
-    }
-    // 检查API密钥
-    else if (authHeader && authHeader.startsWith("ApiKey ")) {
-      const apiKey = authHeader.substring(7);
-
-      // 查询数据库中的API密钥记录
-      const keyRecord = await db
-          .prepare(
-              `
-          SELECT id, name, file_permission, expires_at
-          FROM ${DbTables.API_KEYS}
-          WHERE key = ?
-        `
-          )
-          .bind(apiKey)
-          .first();
-
-      // 如果密钥存在且有文件权限
-      if (keyRecord && keyRecord.file_permission === 1) {
-        // 检查是否过期
-        if (!(await checkAndDeleteExpiredApiKey(db, keyRecord))) {
-          isAuthorized = true;
-          authorizedBy = "apikey";
-          // 记录API密钥ID
-          apiKeyId = keyRecord.id;
-
-          // 更新最后使用时间
-          await db
-              .prepare(
-                  `
-              UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `
-              )
-              .bind(keyRecord.id)
-              .run();
-        }
-      }
-    }
-
-    // 如果都没有授权，则返回权限错误
-    if (!isAuthorized) {
-      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "需要管理员权限或有效的API密钥才能完成文件上传"), ApiStatus.FORBIDDEN);
-    }
-
     try {
+      // 获取认证信息
+      const isAdmin = PermissionUtils.isAdmin(c);
+      const userId = PermissionUtils.getUserId(c);
+      const authType = PermissionUtils.getAuthType(c);
+
       const body = await c.req.json();
 
       // 验证必要字段
@@ -334,19 +226,18 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 验证权限
-      if (authorizedBy === "admin" && file.created_by && file.created_by !== adminId) {
+      if (isAdmin && file.created_by && file.created_by !== userId) {
         return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "您无权更新此文件"), ApiStatus.FORBIDDEN);
       }
 
-      if (authorizedBy === "apikey" && file.created_by && file.created_by !== `apikey:${apiKeyId}`) {
+      if (authType === "apikey" && file.created_by && file.created_by !== `apikey:${userId}`) {
         return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "此API密钥无权更新此文件"), ApiStatus.FORBIDDEN);
       }
 
       // 获取S3配置
-      const s3ConfigQuery =
-          authorizedBy === "admin" ? `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?` : `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND is_public = 1`;
+      const s3ConfigQuery = isAdmin ? `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?` : `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND is_public = 1`;
 
-      const s3ConfigParams = authorizedBy === "admin" ? [file.s3_config_id, adminId] : [file.s3_config_id];
+      const s3ConfigParams = isAdmin ? [file.s3_config_id, userId] : [file.s3_config_id];
       const s3Config = await db
           .prepare(s3ConfigQuery)
           .bind(...s3ConfigParams)
@@ -458,7 +349,7 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 更新ETag和创建者
-      const creator = authorizedBy === "admin" ? adminId : `apikey:${apiKeyId}`;
+      const creator = authType === "admin" ? userId : `apikey:${userId}`;
 
       // 构建SQL更新语句
       let updateSql = `
@@ -574,70 +465,12 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：初始化分片上传流程
-  app.post("/api/url/multipart/init", async (c) => {
+  app.post("/api/url/multipart/init", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
 
-    // 身份验证
-    const authHeader = c.req.header("Authorization");
-    let isAuthorized = false;
-    let authorizedBy = "";
-    let adminId = null;
-    let apiKeyId = null;
-
-    // 检查Bearer令牌 (管理员)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      adminId = await validateAdminToken(db, token);
-
-      if (adminId) {
-        isAuthorized = true;
-        authorizedBy = "admin";
-      }
-    }
-    // 检查API密钥
-    else if (authHeader && authHeader.startsWith("ApiKey ")) {
-      const apiKey = authHeader.substring(7);
-
-      // 查询数据库中的API密钥记录
-      const keyRecord = await db
-          .prepare(
-              `
-          SELECT id, name, file_permission, expires_at
-          FROM ${DbTables.API_KEYS}
-          WHERE key = ?
-        `
-          )
-          .bind(apiKey)
-          .first();
-
-      // 如果密钥存在且有文件权限
-      if (keyRecord && keyRecord.file_permission === 1) {
-        // 检查是否过期
-        if (!(await checkAndDeleteExpiredApiKey(db, keyRecord))) {
-          isAuthorized = true;
-          authorizedBy = "apikey";
-          // 记录API密钥ID
-          apiKeyId = keyRecord.id;
-
-          // 更新最后使用时间
-          await db
-              .prepare(
-                  `
-              UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `
-              )
-              .bind(keyRecord.id)
-              .run();
-        }
-      }
-    }
-
-    // 如果都没有授权，则返回权限错误
-    if (!isAuthorized) {
-      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "需要管理员权限或有效的API密钥才能初始化分片上传"), ApiStatus.FORBIDDEN);
-    }
+    // 获取认证信息
+    const isAdmin = PermissionUtils.isAdmin(c);
+    const userId = PermissionUtils.getUserId(c);
 
     try {
       const body = await c.req.json();
@@ -656,10 +489,10 @@ export function registerUrlUploadRoutes(app) {
           .prepare(
               `
           SELECT id FROM ${DbTables.S3_CONFIGS}
-          WHERE id = ? AND ${authorizedBy === "admin" ? "admin_id = ?" : "is_public = 1"}
+          WHERE id = ? AND ${isAdmin ? "admin_id = ?" : "is_public = 1"}
         `
           )
-          .bind(...(authorizedBy === "admin" ? [body.s3_config_id, adminId] : [body.s3_config_id]))
+          .bind(...(isAdmin ? [body.s3_config_id, userId] : [body.s3_config_id]))
           .first();
 
       if (!s3Config) {
@@ -684,7 +517,7 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 准备创建者标识
-      const createdBy = authorizedBy === "admin" ? adminId : `apikey:${apiKeyId}`;
+      const createdBy = isAdmin ? userId : `apikey:${userId}`;
 
       // 获取加密密钥
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -732,70 +565,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：完成分片上传流程
-  app.post("/api/url/multipart/complete", async (c) => {
+  app.post("/api/url/multipart/complete", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
 
-    // 身份验证
-    const authHeader = c.req.header("Authorization");
-    let isAuthorized = false;
-    let authorizedBy = "";
-    let adminId = null;
-    let apiKeyId = null;
-
-    // 检查Bearer令牌 (管理员)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      adminId = await validateAdminToken(db, token);
-
-      if (adminId) {
-        isAuthorized = true;
-        authorizedBy = "admin";
-      }
-    }
-    // 检查API密钥
-    else if (authHeader && authHeader.startsWith("ApiKey ")) {
-      const apiKey = authHeader.substring(7);
-
-      // 查询数据库中的API密钥记录
-      const keyRecord = await db
-          .prepare(
-              `
-          SELECT id, name, file_permission, expires_at
-          FROM ${DbTables.API_KEYS}
-          WHERE key = ?
-        `
-          )
-          .bind(apiKey)
-          .first();
-
-      // 如果密钥存在且有文件权限
-      if (keyRecord && keyRecord.file_permission === 1) {
-        // 检查是否过期
-        if (!(await checkAndDeleteExpiredApiKey(db, keyRecord))) {
-          isAuthorized = true;
-          authorizedBy = "apikey";
-          // 记录API密钥ID
-          apiKeyId = keyRecord.id;
-
-          // 更新最后使用时间
-          await db
-              .prepare(
-                  `
-              UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `
-              )
-              .bind(keyRecord.id)
-              .run();
-        }
-      }
-    }
-
-    // 如果都没有授权，则返回权限错误
-    if (!isAuthorized) {
-      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "需要管理员权限或有效的API密钥才能完成分片上传"), ApiStatus.FORBIDDEN);
-    }
+    // 获取认证信息
+    const isAdmin = PermissionUtils.isAdmin(c);
+    const userId = PermissionUtils.getUserId(c);
+    const authType = PermissionUtils.getAuthType(c);
 
     try {
       const body = await c.req.json();
@@ -830,11 +606,11 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 验证权限
-      if (authorizedBy === "admin" && file.created_by && file.created_by !== adminId) {
+      if (isAdmin && file.created_by && file.created_by !== userId) {
         return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "您无权完成此文件的上传"), ApiStatus.FORBIDDEN);
       }
 
-      if (authorizedBy === "apikey" && file.created_by && file.created_by !== `apikey:${apiKeyId}`) {
+      if (authType === "apikey" && file.created_by && file.created_by !== `apikey:${userId}`) {
         return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "此API密钥无权完成此文件的上传"), ApiStatus.FORBIDDEN);
       }
 
@@ -868,70 +644,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：终止分片上传流程
-  app.post("/api/url/multipart/abort", async (c) => {
+  app.post("/api/url/multipart/abort", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
 
-    // 身份验证
-    const authHeader = c.req.header("Authorization");
-    let isAuthorized = false;
-    let authorizedBy = "";
-    let adminId = null;
-    let apiKeyId = null;
-
-    // 检查Bearer令牌 (管理员)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      adminId = await validateAdminToken(db, token);
-
-      if (adminId) {
-        isAuthorized = true;
-        authorizedBy = "admin";
-      }
-    }
-    // 检查API密钥
-    else if (authHeader && authHeader.startsWith("ApiKey ")) {
-      const apiKey = authHeader.substring(7);
-
-      // 查询数据库中的API密钥记录
-      const keyRecord = await db
-          .prepare(
-              `
-          SELECT id, name, file_permission, expires_at
-          FROM ${DbTables.API_KEYS}
-          WHERE key = ?
-        `
-          )
-          .bind(apiKey)
-          .first();
-
-      // 如果密钥存在且有文件权限
-      if (keyRecord && keyRecord.file_permission === 1) {
-        // 检查是否过期
-        if (!(await checkAndDeleteExpiredApiKey(db, keyRecord))) {
-          isAuthorized = true;
-          authorizedBy = "apikey";
-          // 记录API密钥ID
-          apiKeyId = keyRecord.id;
-
-          // 更新最后使用时间
-          await db
-              .prepare(
-                  `
-              UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `
-              )
-              .bind(keyRecord.id)
-              .run();
-        }
-      }
-    }
-
-    // 如果都没有授权，则返回权限错误
-    if (!isAuthorized) {
-      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "需要管理员权限或有效的API密钥才能终止分片上传"), ApiStatus.FORBIDDEN);
-    }
+    // 获取认证信息
+    const isAdmin = PermissionUtils.isAdmin(c);
+    const userId = PermissionUtils.getUserId(c);
+    const authType = PermissionUtils.getAuthType(c);
 
     try {
       const body = await c.req.json();
@@ -962,11 +681,11 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 验证权限
-      if (authorizedBy === "admin" && file.created_by && file.created_by !== adminId) {
+      if (isAdmin && file.created_by && file.created_by !== userId) {
         return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "您无权终止此文件的上传"), ApiStatus.FORBIDDEN);
       }
 
-      if (authorizedBy === "apikey" && file.created_by && file.created_by !== `apikey:${apiKeyId}`) {
+      if (authType === "apikey" && file.created_by && file.created_by !== `apikey:${userId}`) {
         return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "此API密钥无权终止此文件的上传"), ApiStatus.FORBIDDEN);
       }
 
@@ -998,68 +717,25 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：取消URL上传并删除文件记录
-  app.post("/api/url/cancel", async (c) => {
+  app.post("/api/url/cancel", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
 
-    // 身份验证
-    const authHeader = c.req.header("Authorization");
-    let isAuthorized = false;
+    // 使用新的权限工具获取用户信息
+    const isAdmin = PermissionUtils.isAdmin(c);
+    const userId = PermissionUtils.getUserId(c);
+    const authType = PermissionUtils.getAuthType(c);
+
     let authorizedBy = "";
     let adminId = null;
     let apiKeyId = null;
 
-    // 检查Bearer令牌 (管理员)
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
-      adminId = await validateAdminToken(db, token);
-
-      if (adminId) {
-        isAuthorized = true;
-        authorizedBy = "admin";
-      }
-    }
-    // 检查API密钥
-    else if (authHeader && authHeader.startsWith("ApiKey ")) {
-      const apiKey = authHeader.substring(7);
-
-      // 查询数据库中的API密钥记录
-      const keyRecord = await db
-          .prepare(
-              `
-          SELECT id, name, file_permission, expires_at
-          FROM ${DbTables.API_KEYS}
-          WHERE key = ?
-        `
-          )
-          .bind(apiKey)
-          .first();
-
-      // 如果密钥存在且有文件权限
-      if (keyRecord && keyRecord.file_permission === 1) {
-        // 检查是否过期
-        if (!(await checkAndDeleteExpiredApiKey(db, keyRecord))) {
-          isAuthorized = true;
-          authorizedBy = "apikey";
-          // 记录API密钥ID
-          apiKeyId = keyRecord.id;
-
-          // 更新最后使用时间
-          await db
-              .prepare(
-                  `
-              UPDATE ${DbTables.API_KEYS}
-              SET last_used = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `
-              )
-              .bind(keyRecord.id)
-              .run();
-        }
-      }
-    }
-
-    // 如果都没有授权，则返回权限错误
-    if (!isAuthorized) {
+    if (isAdmin) {
+      authorizedBy = "admin";
+      adminId = userId;
+    } else if (authType === "apikey") {
+      authorizedBy = "apikey";
+      apiKeyId = userId;
+    } else {
       return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "需要管理员权限或有效的API密钥才能取消URL上传"), ApiStatus.FORBIDDEN);
     }
 

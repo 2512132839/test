@@ -5,6 +5,14 @@ import { deleteFileFromS3 } from "../utils/s3Utils.js";
 import { hashPassword, verifyPassword } from "../utils/crypto.js";
 import { getFileBySlug, isFileAccessible, incrementAndCheckFileViews, generateFileDownloadUrl, getPublicFileInfo } from "../services/fileService.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
+import { baseAuthMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
+
+// 创建文件权限中间件（管理员或API密钥文件权限）
+const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
+  permissions: [PermissionType.FILE],
+  allowAdmin: true,
+});
 
 /**
  * 用户文件路由
@@ -172,10 +180,10 @@ export function registerUserFilesRoutes(app) {
   });
 
   // API密钥用户获取自己的文件列表
-  app.get("/api/user/files", async (c) => {
+  app.get("/api/user/files", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = c.get("apiKeyId");
-    const apiKeyInfo = c.get("apiKeyInfo");
+    const apiKeyId = PermissionUtils.getUserId(c);
+    const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
     try {
       // 查询用户文件（支持分页）
@@ -184,8 +192,8 @@ export function registerUserFilesRoutes(app) {
 
       // 获取用户文件列表
       const files = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -200,9 +208,9 @@ export function registerUserFilesRoutes(app) {
           ORDER BY f.created_at DESC
           LIMIT ? OFFSET ?
         `
-        )
-        .bind(`apikey:${apiKeyId}`, limit, offset)
-        .all();
+          )
+          .bind(`apikey:${apiKeyId}`, limit, offset)
+          .all();
 
       // 获取总数
       const countResult = await db.prepare(`SELECT COUNT(*) as total FROM ${DbTables.FILES} WHERE created_by = ?`).bind(`apikey:${apiKeyId}`).first();
@@ -211,23 +219,23 @@ export function registerUserFilesRoutes(app) {
 
       // 处理文件信息，包括密码
       let processedFiles = await Promise.all(
-        files.results.map(async (file) => {
-          const result = { ...file };
+          files.results.map(async (file) => {
+            const result = { ...file };
 
-          // 确保has_password是布尔类型
-          result.has_password = !!result.has_password;
+            // 确保has_password是布尔类型
+            result.has_password = !!result.has_password;
 
-          // 如果文件有密码保护，获取明文密码
-          if (result.has_password) {
-            const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(result.id).first();
+            // 如果文件有密码保护，获取明文密码
+            if (result.has_password) {
+              const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(result.id).first();
 
-            if (passwordEntry && passwordEntry.plain_password) {
-              result.plain_password = passwordEntry.plain_password;
+              if (passwordEntry && passwordEntry.plain_password) {
+                result.plain_password = passwordEntry.plain_password;
+              }
             }
-          }
 
-          return result;
-        })
+            return result;
+          })
       );
 
       // 为API密钥创建者添加密钥名称
@@ -285,17 +293,17 @@ export function registerUserFilesRoutes(app) {
   });
 
   // API密钥用户获取单个文件详情
-  app.get("/api/user/files/:id", async (c) => {
+  app.get("/api/user/files/:id", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = c.get("apiKeyId");
+    const apiKeyId = PermissionUtils.getUserId(c);
     const { id } = c.req.param();
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
     try {
       // 查询文件详情
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -308,9 +316,9 @@ export function registerUserFilesRoutes(app) {
           LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
           WHERE f.id = ? AND f.created_by = ?
         `
-        )
-        .bind(id, `apikey:${apiKeyId}`)
-        .first();
+          )
+          .bind(id, `apikey:${apiKeyId}`)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -361,24 +369,24 @@ export function registerUserFilesRoutes(app) {
   });
 
   // API密钥用户删除自己的文件
-  app.delete("/api/user/files/:id", async (c) => {
+  app.delete("/api/user/files/:id", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = c.get("apiKeyId");
+    const apiKeyId = PermissionUtils.getUserId(c);
     const { id } = c.req.param();
 
     try {
       // 获取文件信息
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
           FROM ${DbTables.FILES} f
           LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
           WHERE f.id = ? AND f.created_by = ?
         `
-        )
-        .bind(id, `apikey:${apiKeyId}`)
-        .first();
+          )
+          .bind(id, `apikey:${apiKeyId}`)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权删除"), ApiStatus.NOT_FOUND);
@@ -422,9 +430,9 @@ export function registerUserFilesRoutes(app) {
   });
 
   // API密钥用户更新自己文件的元数据
-  app.put("/api/user/files/:id", async (c) => {
+  app.put("/api/user/files/:id", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = c.get("apiKeyId");
+    const apiKeyId = PermissionUtils.getUserId(c);
     const { id } = c.req.param();
     const body = await c.req.json();
 
@@ -496,9 +504,9 @@ export function registerUserFilesRoutes(app) {
           } else {
             // 插入新的密码记录
             await db
-              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-              .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
-              .run();
+                .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+                .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
+                .run();
           }
         } else {
           // 明确提供了空密码，表示要清除密码
@@ -525,15 +533,15 @@ export function registerUserFilesRoutes(app) {
 
       // 执行更新
       await db
-        .prepare(
-          `
+          .prepare(
+              `
           UPDATE ${DbTables.FILES}
           SET ${updateFields.join(", ")}
           WHERE id = ? AND created_by = ?
         `
-        )
-        .bind(...bindParams)
-        .run();
+          )
+          .bind(...bindParams)
+          .run();
 
       return c.json({
         code: ApiStatus.SUCCESS,

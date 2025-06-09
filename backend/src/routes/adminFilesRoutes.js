@@ -5,6 +5,8 @@ import { deleteFileFromS3 } from "../utils/s3Utils.js";
 import { hashPassword } from "../utils/crypto.js";
 import { generateFileDownloadUrl } from "../services/fileService.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
+import { baseAuthMiddleware, requireAdminMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
 
 /**
  * 管理员文件路由
@@ -17,9 +19,8 @@ import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
  */
 export function registerAdminFilesRoutes(app) {
   // 获取文件列表（仅管理员权限）
-  app.get("/api/admin/files", async (c) => {
+  app.get("/api/admin/files", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
     const db = c.env.DB;
-    const adminId = c.get("adminId");
 
     try {
       // 查询所有文件（可选带分页）
@@ -47,8 +48,8 @@ export function registerAdminFilesRoutes(app) {
 
       // 获取文件列表
       const files = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -63,16 +64,16 @@ export function registerAdminFilesRoutes(app) {
           ORDER BY f.created_at DESC
           LIMIT ? OFFSET ?
         `
-        )
-        .bind(...queryParams, limit, offset)
-        .all();
+          )
+          .bind(...queryParams, limit, offset)
+          .all();
 
       // 获取总数
       const countParams = [...queryParams];
       const countResult = await db
-        .prepare(`SELECT COUNT(*) as total FROM ${DbTables.FILES} ${whereClause}`)
-        .bind(...countParams)
-        .first();
+          .prepare(`SELECT COUNT(*) as total FROM ${DbTables.FILES} ${whereClause}`)
+          .bind(...countParams)
+          .first();
 
       const total = countResult ? countResult.total : 0;
 
@@ -144,7 +145,7 @@ export function registerAdminFilesRoutes(app) {
   });
 
   // 获取单个文件详情（仅管理员权限）
-  app.get("/api/admin/files/:id", async (c) => {
+  app.get("/api/admin/files/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
     const db = c.env.DB;
     const { id } = c.req.param();
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -152,8 +153,8 @@ export function registerAdminFilesRoutes(app) {
     try {
       // 查询文件详情
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.updated_at,
@@ -167,9 +168,9 @@ export function registerAdminFilesRoutes(app) {
           LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
           WHERE f.id = ?
         `
-        )
-        .bind(id)
-        .first();
+          )
+          .bind(id)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
@@ -215,23 +216,23 @@ export function registerAdminFilesRoutes(app) {
   });
 
   // 删除文件（管理员）
-  app.delete("/api/admin/files/:id", async (c) => {
+  app.delete("/api/admin/files/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
     const db = c.env.DB;
     const { id } = c.req.param();
 
     try {
       // 获取文件信息
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
           FROM ${DbTables.FILES} f
           LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
           WHERE f.id = ?
         `
-        )
-        .bind(id)
-        .first();
+          )
+          .bind(id)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
@@ -278,7 +279,7 @@ export function registerAdminFilesRoutes(app) {
   });
 
   // 管理员更新文件元数据
-  app.put("/api/admin/files/:id", async (c) => {
+  app.put("/api/admin/files/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
     const db = c.env.DB;
     const { id } = c.req.param();
     const body = await c.req.json();
@@ -351,9 +352,9 @@ export function registerAdminFilesRoutes(app) {
           } else {
             // 插入新的密码记录
             await db
-              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-              .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
-              .run();
+                .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+                .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
+                .run();
           }
         } else {
           // 明确提供了空密码，表示要清除密码
@@ -379,15 +380,15 @@ export function registerAdminFilesRoutes(app) {
 
       // 执行更新
       await db
-        .prepare(
-          `
+          .prepare(
+              `
           UPDATE ${DbTables.FILES}
           SET ${updateFields.join(", ")}
           WHERE id = ?
         `
-        )
-        .bind(...bindParams)
-        .run();
+          )
+          .bind(...bindParams)
+          .run();
 
       return c.json({
         code: ApiStatus.SUCCESS,

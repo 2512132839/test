@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares/authMiddleware.js";
-import { apiKeyMiddleware } from "../middlewares/apiKeyMiddleware.js";
+import { baseAuthMiddleware, requireAdminMiddleware, requireAuthMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
 import { getAllApiKeys, createApiKey, updateApiKey, deleteApiKey } from "../services/apiKeyService.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
@@ -8,10 +8,10 @@ import { createErrorResponse } from "../utils/common.js";
 const apiKeyRoutes = new Hono();
 
 // 测试API密钥验证路由
-apiKeyRoutes.get("/api/test/api-key", apiKeyMiddleware, async (c) => {
+apiKeyRoutes.get("/api/test/api-key", baseAuthMiddleware, requireAuthMiddleware, async (c) => {
   // 获取密钥信息
-  const apiKeyInfo = c.get("apiKeyInfo");
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
+  const apiKeyId = PermissionUtils.getUserId(c);
 
   return c.json({
     code: ApiStatus.SUCCESS,
@@ -35,7 +35,7 @@ apiKeyRoutes.get("/api/test/api-key", apiKeyMiddleware, async (c) => {
 });
 
 // 获取所有API密钥列表
-apiKeyRoutes.get("/api/admin/api-keys", authMiddleware, async (c) => {
+apiKeyRoutes.get("/api/admin/api-keys", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
@@ -55,7 +55,7 @@ apiKeyRoutes.get("/api/admin/api-keys", authMiddleware, async (c) => {
 });
 
 // 创建新的API密钥
-apiKeyRoutes.post("/api/admin/api-keys", authMiddleware, async (c) => {
+apiKeyRoutes.post("/api/admin/api-keys", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
@@ -92,7 +92,7 @@ apiKeyRoutes.post("/api/admin/api-keys", authMiddleware, async (c) => {
 });
 
 // 修改API密钥
-apiKeyRoutes.put("/api/admin/api-keys/:id", authMiddleware, async (c) => {
+apiKeyRoutes.put("/api/admin/api-keys/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const id = c.req.param("id");
 
@@ -124,7 +124,7 @@ apiKeyRoutes.put("/api/admin/api-keys/:id", authMiddleware, async (c) => {
 });
 
 // 删除API密钥
-apiKeyRoutes.delete("/api/admin/api-keys/:id", authMiddleware, async (c) => {
+apiKeyRoutes.delete("/api/admin/api-keys/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const id = c.req.param("id");
 

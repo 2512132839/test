@@ -2,7 +2,8 @@
  * 用户存储挂载路由
  */
 import { Hono } from "hono";
-import { apiKeyMountMiddleware } from "../middlewares/apiKeyMiddleware.js";
+import { baseAuthMiddleware, requireMountPermissionMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
 import { getAccessibleMountsByBasicPath, checkPathPermission } from "../services/apiKeyService.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
@@ -31,9 +32,9 @@ const handleApiError = (c, error, defaultMessage) => {
 };
 
 // 通过API密钥获取可访问的挂载点列表（基于basic_path权限）
-userStorageMountRoutes.get("/api/user/mounts", apiKeyMountMiddleware, async (c) => {
+userStorageMountRoutes.get("/api/user/mounts", baseAuthMiddleware, requireMountPermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   try {
     // 根据API密钥的基本路径获取可访问的挂载点
@@ -51,24 +52,24 @@ userStorageMountRoutes.get("/api/user/mounts", apiKeyMountMiddleware, async (c) 
 });
 
 // 通过API密钥获取单个挂载点详情（基于basic_path权限）
-userStorageMountRoutes.get("/api/user/mounts/:id", apiKeyMountMiddleware, async (c) => {
+userStorageMountRoutes.get("/api/user/mounts/:id", baseAuthMiddleware, requireMountPermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const { id } = c.req.param();
 
   try {
     // 首先获取挂载点信息
     const mount = await db
-      .prepare(
-        `SELECT
+        .prepare(
+            `SELECT
           id, name, storage_type, storage_config_id, mount_path,
           remark, is_active, created_by, sort_order, cache_ttl,
           created_at, updated_at, last_used
          FROM storage_mounts
          WHERE id = ? AND is_active = 1`
-      )
-      .bind(id)
-      .first();
+        )
+        .bind(id)
+        .first();
 
     if (!mount) {
       throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在" });

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { baseAuthMiddleware, requireAdminMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
 import { getAllSystemSettings, updateSystemSettings, getMaxUploadSize, getDashboardStats } from "../services/systemService.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
@@ -7,7 +8,7 @@ import { createErrorResponse } from "../utils/common.js";
 const systemRoutes = new Hono();
 
 // 获取系统设置
-systemRoutes.get("/api/admin/system-settings", authMiddleware, async (c) => {
+systemRoutes.get("/api/admin/system-settings", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
@@ -27,7 +28,7 @@ systemRoutes.get("/api/admin/system-settings", authMiddleware, async (c) => {
 });
 
 // 更新系统设置
-systemRoutes.put("/api/admin/system-settings", authMiddleware, async (c) => {
+systemRoutes.put("/api/admin/system-settings", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
@@ -93,10 +94,10 @@ systemRoutes.get("/api/system/max-upload-size", async (c) => {
 });
 
 // 仪表盘统计数据API
-systemRoutes.get("/api/admin/dashboard/stats", authMiddleware, async (c) => {
+systemRoutes.get("/api/admin/dashboard/stats", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   try {
     const db = c.env.DB;
-    const adminId = c.get("adminId");
+    const adminId = PermissionUtils.getUserId(c);
 
     const stats = await getDashboardStats(db, adminId);
 

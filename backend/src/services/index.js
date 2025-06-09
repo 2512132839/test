@@ -5,5 +5,6 @@ import * as systemService from "./systemService.js";
 import * as pasteService from "./pasteService.js";
 import * as fileService from "./fileService.js";
 import * as urlUploadService from "./urlUploadService.js";
+import * as authService from "./authService.js";
 
-export { adminService, apiKeyService, s3ConfigService, systemService, pasteService, fileService, urlUploadService };
+export { adminService, apiKeyService, s3ConfigService, systemService, pasteService, fileService, urlUploadService, authService };

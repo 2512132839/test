@@ -3,8 +3,8 @@
  * 提供RESTful API接口用于前端访问和操作挂载的文件系统
  */
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares/authMiddleware.js";
-import { apiKeyFileMiddleware } from "../middlewares/apiKeyMiddleware.js";
+import { baseAuthMiddleware, requireAdminMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
 import { createErrorResponse, generateFileId } from "../utils/common.js";
 import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
@@ -32,6 +32,12 @@ import { checkPathPermissionForOperation } from "../services/apiKeyService.js";
 // 创建文件系统路由处理程序
 const fsRoutes = new Hono();
 
+// 创建文件权限中间件（管理员或API密钥文件权限）
+const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
+  permissions: [PermissionType.FILE],
+  allowAdmin: true,
+});
+
 /**
  * 设置CORS标头
  * @param {HonoContext} c - Hono上下文
@@ -54,10 +60,10 @@ function setCorsHeaders(c) {
 }
 
 // 管理员文件系统访问
-fsRoutes.use("/api/admin/fs/*", authMiddleware);
+fsRoutes.use("/api/admin/fs/*", baseAuthMiddleware, requireAdminMiddleware);
 
 // API密钥用户文件系统访问
-fsRoutes.use("/api/user/fs/*", apiKeyFileMiddleware);
+fsRoutes.use("/api/user/fs/*", baseAuthMiddleware, requireFilePermissionMiddleware);
 
 // 处理预览和下载接口的OPTIONS请求 - 管理员版本
 fsRoutes.options("/api/admin/fs/preview", (c) => {
@@ -85,7 +91,7 @@ fsRoutes.options("/api/user/fs/download", (c) => {
 fsRoutes.get("/api/admin/fs/list", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path") || "/";
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
 
   try {
     const result = await listDirectory(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
@@ -108,7 +114,7 @@ fsRoutes.get("/api/admin/fs/list", async (c) => {
 fsRoutes.get("/api/user/fs/list", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path") || "/";
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   try {
     const result = await listDirectory(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
@@ -131,7 +137,7 @@ fsRoutes.get("/api/user/fs/list", async (c) => {
 fsRoutes.get("/api/admin/fs/get", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
 
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
@@ -158,7 +164,7 @@ fsRoutes.get("/api/admin/fs/get", async (c) => {
 fsRoutes.get("/api/user/fs/get", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
@@ -185,7 +191,7 @@ fsRoutes.get("/api/user/fs/get", async (c) => {
 fsRoutes.get("/api/admin/fs/download", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
 
   // 设置CORS头部
   setCorsHeaders(c);
@@ -220,7 +226,7 @@ fsRoutes.get("/api/admin/fs/download", async (c) => {
 fsRoutes.get("/api/admin/fs/preview", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
 
   // 设置CORS头部
   setCorsHeaders(c);
@@ -255,7 +261,7 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
 fsRoutes.get("/api/user/fs/download", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   // 设置CORS头部
   setCorsHeaders(c);
@@ -290,7 +296,7 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
 fsRoutes.get("/api/user/fs/preview", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   // 设置CORS头部
   setCorsHeaders(c);
@@ -324,7 +330,7 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
 // 创建目录 - 管理员版本
 fsRoutes.post("/api/admin/fs/mkdir", async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const body = await c.req.json();
   const path = body.path;
 
@@ -351,7 +357,7 @@ fsRoutes.post("/api/admin/fs/mkdir", async (c) => {
 // 创建目录 - API密钥用户版本
 fsRoutes.post("/api/user/fs/mkdir", async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const body = await c.req.json();
   const path = body.path;
 
@@ -383,7 +389,7 @@ fsRoutes.post("/api/user/fs/mkdir", async (c) => {
 // 上传文件 - 管理员版本
 fsRoutes.post("/api/admin/fs/upload", async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
 
   try {
     const formData = await c.req.formData();
@@ -426,7 +432,7 @@ fsRoutes.post("/api/admin/fs/upload", async (c) => {
 // 上传文件 - API密钥用户版本
 fsRoutes.post("/api/user/fs/upload", async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   try {
     const formData = await c.req.formData();
@@ -474,7 +480,7 @@ fsRoutes.post("/api/user/fs/upload", async (c) => {
 // 删除文件或目录 - 管理员版本
 fsRoutes.delete("/api/admin/fs/remove", async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const path = c.req.query("path");
 
   if (!path) {
@@ -506,7 +512,7 @@ fsRoutes.delete("/api/admin/fs/remove", async (c) => {
 // 删除文件或目录 - API密钥用户版本
 fsRoutes.delete("/api/user/fs/remove", async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const path = c.req.query("path");
 
   if (!path) {
@@ -543,7 +549,7 @@ fsRoutes.delete("/api/user/fs/remove", async (c) => {
 // 批量删除文件或目录 - 管理员版本
 fsRoutes.post("/api/admin/fs/batch-remove", async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const body = await c.req.json();
   const paths = body.paths;
 
@@ -571,7 +577,7 @@ fsRoutes.post("/api/admin/fs/batch-remove", async (c) => {
 // 批量删除文件或目录 - API密钥用户版本
 fsRoutes.post("/api/user/fs/batch-remove", async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const body = await c.req.json();
   const paths = body.paths;
 
@@ -606,7 +612,7 @@ fsRoutes.post("/api/user/fs/batch-remove", async (c) => {
 // 重命名文件或目录 - 管理员版本
 fsRoutes.post("/api/admin/fs/rename", async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const body = await c.req.json();
   const oldPath = body.oldPath;
   const newPath = body.newPath;
@@ -634,7 +640,7 @@ fsRoutes.post("/api/admin/fs/rename", async (c) => {
 // 重命名文件或目录 - API密钥用户版本
 fsRoutes.post("/api/user/fs/rename", async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const body = await c.req.json();
   const oldPath = body.oldPath;
   const newPath = body.newPath;
@@ -687,7 +693,7 @@ fsRoutes.options("/api/admin/fs/multipart/part", (c) => {
 });
 
 // 初始化分片上传 - 管理员版本
-fsRoutes.post("/api/admin/fs/multipart/init", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/multipart/init", async (c) => {
   try {
     setCorsHeaders(c);
     return await handleInitMultipartUpload(c);
@@ -716,7 +722,7 @@ fsRoutes.post("/api/admin/fs/multipart/init", authMiddleware, async (c) => {
 
 // 上传分片 - 管理员版本
 // 确保可以处理大型请求
-fsRoutes.post("/api/admin/fs/multipart/part", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/multipart/part", async (c) => {
   try {
     // 设置CORS头部
     setCorsHeaders(c);
@@ -751,7 +757,7 @@ fsRoutes.post("/api/admin/fs/multipart/part", authMiddleware, async (c) => {
 });
 
 // 完成分片上传 - 管理员版本
-fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/multipart/complete", async (c) => {
   try {
     setCorsHeaders(c);
     return await handleCompleteMultipartUpload(c);
@@ -779,7 +785,7 @@ fsRoutes.post("/api/admin/fs/multipart/complete", authMiddleware, async (c) => {
 });
 
 // 中止分片上传 - 管理员版本
-fsRoutes.post("/api/admin/fs/multipart/abort", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/multipart/abort", async (c) => {
   try {
     setCorsHeaders(c);
     return await handleAbortMultipartUpload(c);
@@ -823,7 +829,7 @@ fsRoutes.options("/api/user/fs/multipart/part", (c) => {
 });
 
 // 初始化分片上传 - API密钥用户版本
-fsRoutes.post("/api/user/fs/multipart/init", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/multipart/init", async (c) => {
   try {
     setCorsHeaders(c);
     return await handleInitMultipartUpload(c);
@@ -852,7 +858,7 @@ fsRoutes.post("/api/user/fs/multipart/init", apiKeyFileMiddleware, async (c) => 
 
 // 上传分片 - API密钥用户版本
 // 确保可以处理大型请求
-fsRoutes.post("/api/user/fs/multipart/part", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/multipart/part", async (c) => {
   try {
     // 设置CORS头部
     setCorsHeaders(c);
@@ -887,7 +893,7 @@ fsRoutes.post("/api/user/fs/multipart/part", apiKeyFileMiddleware, async (c) => 
 });
 
 // 完成分片上传 - API密钥用户版本
-fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/multipart/complete", async (c) => {
   try {
     setCorsHeaders(c);
     return await handleCompleteMultipartUpload(c);
@@ -915,7 +921,7 @@ fsRoutes.post("/api/user/fs/multipart/complete", apiKeyFileMiddleware, async (c)
 });
 
 // 中止分片上传 - API密钥用户版本
-fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/multipart/abort", async (c) => {
   try {
     setCorsHeaders(c);
     return await handleAbortMultipartUpload(c);
@@ -945,11 +951,11 @@ fsRoutes.post("/api/user/fs/multipart/abort", apiKeyFileMiddleware, async (c) =>
 // ================ 预签名URL直传相关路由 ================
 
 // 获取预签名上传URL - 管理员版本
-fsRoutes.post("/api/admin/fs/presign", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/presign", async (c) => {
   try {
     // 获取必要的上下文
     const db = c.env.DB;
-    const adminId = c.get("adminId");
+    const adminId = PermissionUtils.getUserId(c);
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
     // 解析请求数据
@@ -1051,11 +1057,11 @@ fsRoutes.post("/api/admin/fs/presign", authMiddleware, async (c) => {
 });
 
 // 获取预签名上传URL - API密钥用户版本
-fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/presign", async (c) => {
   try {
     // 获取必要的上下文
     const db = c.env.DB;
-    const apiKeyInfo = c.get("apiKeyInfo");
+    const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
     // 解析请求数据
@@ -1162,11 +1168,11 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
 });
 
 // 提交预签名URL上传完成 - 管理员版本
-fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/presign/commit", async (c) => {
   try {
     // 获取必要的上下文
     const db = c.env.DB;
-    const adminId = c.get("adminId");
+    const adminId = PermissionUtils.getUserId(c);
 
     // 解析请求数据
     const body = await c.req.json();
@@ -1258,11 +1264,11 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
 });
 
 // 提交预签名URL上传完成 - API密钥用户版本
-fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/presign/commit", async (c) => {
   try {
     // 获取必要的上下文
     const db = c.env.DB;
-    const apiKeyInfo = c.get("apiKeyInfo");
+    const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
     // 解析请求数据
     const body = await c.req.json();
@@ -1359,10 +1365,10 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
 });
 
 // 获取文件直链(预签名URL) - 管理员版本
-fsRoutes.get("/api/admin/fs/file-link", async (c) => {
+fsRoutes.get("/api/admin/fs/file-link", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const expiresIn = parseInt(c.req.query("expires_in") || "604800"); // 默认7天
   const forceDownload = c.req.query("force_download") === "true";
 
@@ -1388,10 +1394,10 @@ fsRoutes.get("/api/admin/fs/file-link", async (c) => {
 });
 
 // 获取文件直链(预签名URL) - API密钥用户版本
-fsRoutes.get("/api/user/fs/file-link", async (c) => {
+fsRoutes.get("/api/user/fs/file-link", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const expiresIn = parseInt(c.req.query("expires_in") || "604800"); // 默认7天
   const forceDownload = c.req.query("force_download") === "true";
 
@@ -1417,9 +1423,9 @@ fsRoutes.get("/api/user/fs/file-link", async (c) => {
 });
 
 // 更新文件内容 - 管理员版本
-fsRoutes.post("/api/admin/fs/update", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/update", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
 
   try {
     // 解析请求体
@@ -1459,9 +1465,9 @@ fsRoutes.post("/api/admin/fs/update", authMiddleware, async (c) => {
 });
 
 // 更新文件内容 - API密钥用户版本
-fsRoutes.post("/api/user/fs/update", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/update", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   try {
     // 解析请求体
@@ -1506,9 +1512,9 @@ fsRoutes.post("/api/user/fs/update", apiKeyFileMiddleware, async (c) => {
 });
 
 // 批量复制文件或目录 - 管理员版本
-fsRoutes.post("/api/admin/fs/batch-copy", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/batch-copy", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const body = await c.req.json();
   const items = body.items;
   const skipExisting = body.skipExisting !== false; // 默认为true
@@ -1574,9 +1580,9 @@ fsRoutes.post("/api/admin/fs/batch-copy", authMiddleware, async (c) => {
 });
 
 // 批量复制文件或目录 - API密钥用户版本
-fsRoutes.post("/api/user/fs/batch-copy", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/batch-copy", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const body = await c.req.json();
   const items = body.items;
   const skipExisting = body.skipExisting !== false; // 默认为true
@@ -1652,9 +1658,9 @@ fsRoutes.post("/api/user/fs/batch-copy", apiKeyFileMiddleware, async (c) => {
 });
 
 // 提交批量跨存储复制完成 - 管理员版本
-fsRoutes.post("/api/admin/fs/batch-copy-commit", authMiddleware, async (c) => {
+fsRoutes.post("/api/admin/fs/batch-copy-commit", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
-  const adminId = c.get("adminId");
+  const adminId = PermissionUtils.getUserId(c);
   const body = await c.req.json();
   const { targetMountId, files } = body;
 
@@ -1752,9 +1758,9 @@ fsRoutes.post("/api/admin/fs/batch-copy-commit", authMiddleware, async (c) => {
 });
 
 // 提交批量跨存储复制完成 - API密钥用户版本
-fsRoutes.post("/api/user/fs/batch-copy-commit", apiKeyFileMiddleware, async (c) => {
+fsRoutes.post("/api/user/fs/batch-copy-commit", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
   const body = await c.req.json();
   const { targetMountId, files } = body;
 

@@ -283,7 +283,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, provide } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api";
 import BreadcrumbNav from "./mount-explorer/BreadcrumbNav.vue";
@@ -1060,6 +1060,9 @@ const setupEventListeners = () => {
 
   // 导航事件现在由 Vue Router 处理，移除手动事件监听
 };
+
+// 提供 isAdmin 值给子组件
+provide("isAdmin", isAdmin);
 
 // 组件挂载时执行
 onMounted(() => {

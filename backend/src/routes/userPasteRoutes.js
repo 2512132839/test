@@ -1,7 +1,6 @@
 import { Hono } from "hono";
-import { apiKeyTextMiddleware } from "../middlewares/apiKeyMiddleware.js";
-import { validateAdminToken } from "../services/adminService.js";
-import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
+import { baseAuthMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
+import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
 import {
   createPaste,
   getPasteBySlug,
@@ -19,75 +18,25 @@ import { createErrorResponse } from "../utils/common.js";
 
 const userPasteRoutes = new Hono();
 
+// 创建文本权限中间件（管理员或API密钥文本权限）
+const requireTextPermissionMiddleware = createFlexiblePermissionMiddleware({
+  permissions: [PermissionType.TEXT],
+  allowAdmin: true,
+});
+
 // 创建新的文本分享
-userPasteRoutes.post("/api/paste", async (c) => {
+userPasteRoutes.post("/api/paste", baseAuthMiddleware, requireTextPermissionMiddleware, async (c) => {
   const db = c.env.DB;
   const body = await c.req.json();
 
-  // 添加管理员权限验证
-  const authHeader = c.req.header("Authorization");
-  let isAuthorized = false;
-  let authorizedBy = "";
-  let authorizedId = null;
-
-  // 检查Bearer令牌 (管理员)
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.substring(7);
-    const adminId = await validateAdminToken(c.env.DB, token);
-
-    if (adminId) {
-      isAuthorized = true;
-      authorizedBy = "admin";
-      authorizedId = adminId;
-    }
-  }
-  // 检查API密钥
-  else if (authHeader && authHeader.startsWith("ApiKey ")) {
-    const apiKey = authHeader.substring(7);
-
-    // 查询数据库中的API密钥记录
-    const keyRecord = await db
-        .prepare(
-            `
-      SELECT id, name, text_permission, expires_at
-      FROM ${DbTables.API_KEYS}
-      WHERE key = ?
-    `
-        )
-        .bind(apiKey)
-        .first();
-
-    // 如果密钥存在且有文本权限
-    if (keyRecord && keyRecord.text_permission === 1) {
-      // 检查是否过期
-      if (!(await checkAndDeleteExpiredApiKey(db, keyRecord))) {
-        isAuthorized = true;
-        authorizedBy = "apikey";
-        authorizedId = keyRecord.id;
-
-        // 更新最后使用时间
-        await db
-            .prepare(
-                `
-          UPDATE ${DbTables.API_KEYS}
-          SET last_used = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `
-            )
-            .bind(keyRecord.id)
-            .run();
-      }
-    }
-  }
-
-  // 如果都没有授权，则返回权限错误
-  if (!isAuthorized) {
-    throw new HTTPException(ApiStatus.FORBIDDEN, { message: "需要管理员权限或有效的API密钥才能创建分享" });
-  }
-
   try {
+    // 获取认证信息
+    const authResult = PermissionUtils.getAuthResult(c);
+    const userId = PermissionUtils.getUserId(c);
+    const authType = PermissionUtils.getAuthType(c);
+
     // 创建者信息
-    const createdBy = authorizedBy === "admin" ? authorizedId : authorizedBy === "apikey" ? `apikey:${authorizedId}` : null;
+    const createdBy = authType === "admin" ? userId : authType === "apikey" ? `apikey:${userId}` : null;
 
     // 创建文本分享
     const paste = await createPaste(db, body, createdBy);
@@ -95,7 +44,7 @@ userPasteRoutes.post("/api/paste", async (c) => {
     // 返回创建结果
     return c.json({
       ...paste,
-      authorizedBy, // 添加授权方式信息，方便调试
+      authorizedBy: authType, // 添加授权方式信息，方便调试
     });
   } catch (error) {
     // 处理特定错误
@@ -237,10 +186,10 @@ userPasteRoutes.get("/api/raw/:slug", async (c) => {
 });
 
 // API密钥用户获取自己的文本列表
-userPasteRoutes.get("/api/user/pastes", apiKeyTextMiddleware, async (c) => {
+userPasteRoutes.get("/api/user/pastes", baseAuthMiddleware, requireTextPermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
-  const apiKeyInfo = c.get("apiKeyInfo");
+  const apiKeyId = PermissionUtils.getUserId(c);
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
 
   try {
     // 查询用户文本（支持分页）
@@ -264,9 +213,9 @@ userPasteRoutes.get("/api/user/pastes", apiKeyTextMiddleware, async (c) => {
 });
 
 // API密钥用户获取单个文本详情
-userPasteRoutes.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
+userPasteRoutes.get("/api/user/pastes/:id", baseAuthMiddleware, requireTextPermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyId = PermissionUtils.getUserId(c);
   const { id } = c.req.param();
 
   try {
@@ -274,7 +223,7 @@ userPasteRoutes.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
     const paste = await db
         .prepare(
             `
-        SELECT 
+        SELECT
           id, slug, content, remark,
           password IS NOT NULL as has_password,
           expires_at, max_views, views, created_at, updated_at, created_by
@@ -326,9 +275,9 @@ userPasteRoutes.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
 });
 
 // API密钥用户删除自己的文本
-userPasteRoutes.delete("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
+userPasteRoutes.delete("/api/user/pastes/:id", baseAuthMiddleware, requireTextPermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyId = PermissionUtils.getUserId(c);
   const { id } = c.req.param();
 
   try {
@@ -354,9 +303,9 @@ userPasteRoutes.delete("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) =
 });
 
 // API密钥用户批量删除自己的文本
-userPasteRoutes.post("/api/user/pastes/batch-delete", apiKeyTextMiddleware, async (c) => {
+userPasteRoutes.post("/api/user/pastes/batch-delete", baseAuthMiddleware, requireTextPermissionMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyId = PermissionUtils.getUserId(c);
 
   try {
     // 从请求体中获取要删除的ID数组
@@ -377,10 +326,10 @@ userPasteRoutes.post("/api/user/pastes/batch-delete", apiKeyTextMiddleware, asyn
 });
 
 // API密钥用户修改自己的文本
-userPasteRoutes.put("/api/user/pastes/:slug", apiKeyTextMiddleware, async (c) => {
+userPasteRoutes.put("/api/user/pastes/:slug", baseAuthMiddleware, requireTextPermissionMiddleware, async (c) => {
   const db = c.env.DB;
   const slug = c.req.param("slug");
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyId = PermissionUtils.getUserId(c);
   const body = await c.req.json();
 
   try {

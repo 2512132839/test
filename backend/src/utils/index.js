@@ -2,8 +2,8 @@
  * 导出所有工具函数
  */
 
-export * from "./common";
-export * from "./crypto";
-export * from "./fileUtils";
-export * from "./s3Utils";
-
+export * from "./common.js";
+export * from "./crypto.js";
+export * from "./fileUtils.js";
+export * from "./s3Utils.js";
+export * from "./permissionUtils.js";

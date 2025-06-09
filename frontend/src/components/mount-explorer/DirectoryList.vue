@@ -567,13 +567,13 @@ const handleItemSelect = (item, selected) => {
 const showLinkCopiedNotification = ref(false);
 
 // 判断当前用户类型（是管理员还是普通用户）
-const isAdmin = inject("isAdmin", true); // 默认为管理员
+const isAdmin = inject("isAdmin", ref(true)); // 默认为管理员
 
 const handleGetLink = async (item) => {
   if (item.isDirectory) return; // 文件夹不提供直链
 
   try {
-    const getFileLink = isAdmin ? api.admin.getFileLink : api.user.fs.getFileLink;
+    const getFileLink = isAdmin.value ? api.admin.getFileLink : api.user.fs.getFileLink;
     const response = await getFileLink(item.path, 86400, true);
 
     if (response.success && response.data?.presignedUrl) {

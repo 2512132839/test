@@ -1,12 +1,12 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { baseAuthMiddleware, requireAdminMiddleware } from "../middlewares/permissionMiddleware.js";
 import { getAllPastes, getPasteById, deletePaste, batchDeletePastes, updatePaste } from "../services/pasteService.js";
 import { ApiStatus } from "../constants/index.js";
 
 const adminPasteRoutes = new Hono();
 
 // 获取所有文本分享列表（需要认证）
-adminPasteRoutes.get("/api/admin/pastes", authMiddleware, async (c) => {
+adminPasteRoutes.get("/api/admin/pastes", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const page = parseInt(c.req.query("page") || "1");
   const limit = parseInt(c.req.query("limit") || "10");
@@ -29,7 +29,7 @@ adminPasteRoutes.get("/api/admin/pastes", authMiddleware, async (c) => {
 });
 
 // 删除文本分享（需要认证）
-adminPasteRoutes.delete("/api/admin/pastes/:id", authMiddleware, async (c) => {
+adminPasteRoutes.delete("/api/admin/pastes/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const id = c.req.param("id");
 
@@ -47,7 +47,7 @@ adminPasteRoutes.delete("/api/admin/pastes/:id", authMiddleware, async (c) => {
 });
 
 // 批量删除文本分享（需要认证）
-adminPasteRoutes.post("/api/admin/pastes/batch-delete", authMiddleware, async (c) => {
+adminPasteRoutes.post("/api/admin/pastes/batch-delete", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
@@ -68,7 +68,7 @@ adminPasteRoutes.post("/api/admin/pastes/batch-delete", authMiddleware, async (c
 });
 
 // 清理过期文本分享（需要认证）
-adminPasteRoutes.post("/api/admin/pastes/clear-expired", authMiddleware, async (c) => {
+adminPasteRoutes.post("/api/admin/pastes/clear-expired", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
 
   try {
@@ -86,7 +86,7 @@ adminPasteRoutes.post("/api/admin/pastes/clear-expired", authMiddleware, async (
 });
 
 // 修改文本分享（需要认证）
-adminPasteRoutes.put("/api/admin/pastes/:slug", authMiddleware, async (c) => {
+adminPasteRoutes.put("/api/admin/pastes/:slug", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const slug = c.req.param("slug");
   const body = await c.req.json();
@@ -109,7 +109,7 @@ adminPasteRoutes.put("/api/admin/pastes/:slug", authMiddleware, async (c) => {
 });
 
 // 获取单个文本分享详情（需要认证）
-adminPasteRoutes.get("/api/admin/pastes/:id", authMiddleware, async (c) => {
+adminPasteRoutes.get("/api/admin/pastes/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   const db = c.env.DB;
   const id = c.req.param("id");
 
