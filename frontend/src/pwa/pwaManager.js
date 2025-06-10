@@ -25,6 +25,16 @@ class OfflineStorage {
   }
 
   async init() {
+    // 请求持久化存储权限
+    if ("storage" in navigator && "persist" in navigator.storage) {
+      try {
+        const persistent = await navigator.storage.persist();
+        console.log(`[PWA] 持久化存储: ${persistent ? "已启用" : "未启用"}`);
+      } catch (error) {
+        console.warn("[PWA] 无法请求持久化存储:", error);
+      }
+    }
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
 

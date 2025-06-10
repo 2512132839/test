@@ -32,12 +32,20 @@ export default defineConfig(({ command, mode }) => {
               options: {
                 cacheName: "cloudpaste-api-cache",
                 expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24, // 24小时
+                  maxEntries: 200, // 增加缓存条目
+                  maxAgeSeconds: 60 * 60 * 24 * 3, // 延长到3天
                 },
-                networkTimeoutSeconds: 10,
+                networkTimeoutSeconds: 5, // 减少超时时间，更快回退到缓存
                 cacheableResponse: {
-                  statuses: [0, 200],
+                  statuses: [0, 200, 201, 202], // 增加更多成功状态码
+                },
+                // 添加缓存键策略，忽略某些查询参数
+                cacheKeyWillBeUsed: async ({ request }) => {
+                  const url = new URL(request.url);
+                  // 移除时间戳等动态参数，保持缓存键稳定
+                  url.searchParams.delete("_t");
+                  url.searchParams.delete("timestamp");
+                  return url.href;
                 },
               },
             },
@@ -65,6 +73,166 @@ export default defineConfig(({ command, mode }) => {
                 },
               },
             },
+            // 管理员API缓存策略 - 专门处理管理员接口
+            {
+              urlPattern: /^.*\/api\/admin\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-admin-cache",
+                expiration: {
+                  maxEntries: 200, // 增加缓存条目
+                  maxAgeSeconds: 60 * 60 * 2, // 2小时，管理员数据更新频繁
+                },
+                networkTimeoutSeconds: 3, // 更短超时，快速回退
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202],
+                },
+              },
+            },
+            // 文件系统API缓存策略 - 处理fs相关接口
+            {
+              urlPattern: /^.*\/api\/(admin|user)\/fs\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-fs-cache",
+                expiration: {
+                  maxEntries: 300,
+                  maxAgeSeconds: 60 * 60 * 1, // 1小时，文件系统数据变化较频繁
+                },
+                networkTimeoutSeconds: 5,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202],
+                },
+              },
+            },
+            // S3配置API缓存策略
+            {
+              urlPattern: /^.*\/api\/s3-configs.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-s3-cache",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 4, // 4小时，配置变化不频繁
+                },
+                networkTimeoutSeconds: 3,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202],
+                },
+              },
+            },
+            // 系统API缓存策略 - 处理系统设置和测试接口
+            {
+              urlPattern: /^.*\/api\/(system|test|health|version)\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-system-cache",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 6, // 6小时，系统设置变化不频繁
+                },
+                networkTimeoutSeconds: 3,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202],
+                },
+              },
+            },
+            // 缓存管理API缓存策略 - 处理缓存统计和清理接口
+            {
+              urlPattern: /^.*\/api\/(admin|user)\/cache\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-cache-mgmt-cache",
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 60 * 10, // 10分钟，缓存管理数据短期有效
+                },
+                networkTimeoutSeconds: 5,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202],
+                },
+              },
+            },
+            // 文件查看API缓存策略 - 处理文件下载和预览
+            {
+              urlPattern: /^.*\/api\/(file-download|file-view|office-preview)\/.*/i,
+              handler: "CacheFirst", // 文件内容缓存优先
+              options: {
+                cacheName: "cloudpaste-fileview-cache",
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天，文件内容相对稳定
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            // Paste内容API缓存策略 - 处理paste和raw内容
+            {
+              urlPattern: /^.*\/api\/(paste|raw)\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-paste-cache",
+                expiration: {
+                  maxEntries: 200,
+                  maxAgeSeconds: 60 * 60 * 24 * 3, // 3天，内容可能更新
+                },
+                networkTimeoutSeconds: 5,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            // 用户管理API缓存策略 - 处理用户文件和挂载点
+            {
+              urlPattern: /^.*\/api\/user\/(files|mounts|pastes).*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-user-mgmt-cache",
+                expiration: {
+                  maxEntries: 150,
+                  maxAgeSeconds: 60 * 60 * 2, // 2小时，用户数据更新频繁
+                },
+                networkTimeoutSeconds: 4,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202],
+                },
+              },
+            },
+            // 公共文件API缓存策略
+            {
+              urlPattern: /^.*\/api\/public\/.*/i,
+              handler: "CacheFirst", // 公共文件缓存优先
+              options: {
+                cacheName: "cloudpaste-public-cache",
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天，公共内容相对稳定
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // URL代理API缓存策略 - 处理其他URL相关接口
+            {
+              urlPattern: /^.*\/api\/url\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-url-cache",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 1, // 1小时，URL内容可能变化
+                },
+                networkTimeoutSeconds: 10, // URL代理可能较慢
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
             // CDN资源缓存
             {
               urlPattern: /^https:\/\/cdn\./,
@@ -135,6 +303,8 @@ export default defineConfig(({ command, mode }) => {
         },
         devOptions: {
           enabled: true,
+          type: "module", // 使用模块类型，避免开发时缓存冲突
+          suppressWarnings: true, // 抑制开发环境警告
         },
       }),
     ],

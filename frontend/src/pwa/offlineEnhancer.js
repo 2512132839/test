@@ -33,9 +33,14 @@ export class OfflineApiInterceptor {
           const cachedData = await self.getCachedResponse(url);
           if (cachedData) {
             console.log(`[离线模式] 网络请求失败，从缓存返回数据: ${url}`);
+            // 添加缓存标识头
             return new Response(JSON.stringify(cachedData), {
               status: 200,
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "X-Cache-Source": "offline-enhancer",
+                "X-Cache-Time": new Date().toISOString(),
+              },
             });
           }
         }
@@ -73,9 +78,9 @@ export class OfflineApiInterceptor {
       } else if (url.includes("s3-configs")) {
         // S3配置API缓存
         await this.cacheS3ConfigApi(url, data);
-      } else if (url.includes("url/")) {
-        // URL上传API缓存
-        await this.cacheUrlApi(url, data);
+      } else if (url.includes("/api/dashboard/")) {
+        // 仪表盘统计API缓存
+        await this.cacheDashboardApi(url, data);
       } else if (url.includes("public/files/")) {
         // 公共文件访问API缓存
         await this.cachePublicFileApi(url, data);
@@ -88,6 +93,15 @@ export class OfflineApiInterceptor {
       } else if (url.includes("/test/")) {
         // 测试API缓存
         await this.cacheTestApi(url, data);
+      } else if (url.includes("/file-download/") || url.includes("/file-view/") || url.includes("/office-preview/")) {
+        // 文件查看API缓存
+        await this.cacheFileViewApi(url, data);
+      } else if (url.includes("/public/")) {
+        // 公共文件API缓存
+        await this.cachePublicFileApi(url, data);
+      } else if (url.includes("url/")) {
+        // URL相关API缓存（兼容旧版本）
+        await this.cacheUrlApi(url, data);
       }
     } catch (error) {
       console.warn("缓存响应失败:", error);
@@ -114,9 +128,9 @@ export class OfflineApiInterceptor {
       } else if (url.includes("s3-configs")) {
         // S3配置API缓存获取
         return await this.getCachedS3ConfigApi(url);
-      } else if (url.includes("url/")) {
-        // URL上传API缓存获取
-        return await this.getCachedUrlApi(url);
+      } else if (url.includes("/api/dashboard/")) {
+        // 仪表盘统计API缓存获取
+        return await this.getCachedDashboardApi(url);
       } else if (url.includes("public/files/")) {
         // 公共文件访问API缓存获取
         return await this.getCachedPublicFileApi(url);
@@ -129,6 +143,15 @@ export class OfflineApiInterceptor {
       } else if (url.includes("/test/")) {
         // 测试API缓存获取
         return await this.getCachedTestApi(url);
+      } else if (url.includes("/file-download/") || url.includes("/file-view/") || url.includes("/office-preview/")) {
+        // 文件查看API缓存获取
+        return await this.getCachedFileViewApi(url);
+      } else if (url.includes("/public/")) {
+        // 公共文件API缓存获取
+        return await this.getCachedPublicFileApi(url);
+      } else if (url.includes("url/")) {
+        // URL相关API缓存获取（兼容旧版本）
+        return await this.getCachedUrlApi(url);
       }
       return null;
     } catch (error) {
@@ -194,6 +217,44 @@ export class OfflineApiInterceptor {
           // 文本分享列表
           await pwaUtils.storage.saveSetting("admin_pastes_list", data);
         }
+      } else if (url.includes("/admin/fs/list")) {
+        // 管理员文件系统列表
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "root";
+        await pwaUtils.storage.saveSetting(`admin_fs_list_${pathKey}`, data);
+      } else if (url.includes("/admin/fs/get")) {
+        // 管理员文件信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`admin_fs_get_${pathKey}`, data);
+      } else if (url.includes("/admin/fs/preview")) {
+        // 管理员文件预览 - 这通常是二进制数据，不适合缓存到localStorage
+        // 但我们可以缓存预览请求的元信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`admin_fs_preview_${pathKey}`, {
+          cached: true,
+          timestamp: Date.now(),
+          path: path,
+        });
+      } else if (url.includes("/admin/fs/download")) {
+        // 管理员文件下载 - 这通常是二进制数据，不适合缓存到localStorage
+        // 但我们可以缓存下载请求的元信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`admin_fs_download_${pathKey}`, {
+          cached: true,
+          timestamp: Date.now(),
+          path: path,
+        });
+      } else if (url.includes("/admin/fs/file-link")) {
+        // 管理员文件直链获取
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`admin_fs_file_link_${pathKey}`, data);
+      } else if (url.includes("/admin/cache/stats")) {
+        // 管理员缓存统计
+        await pwaUtils.storage.saveSetting("admin_cache_stats", data);
       } else {
         // 通用管理员API缓存
         await pwaUtils.storage.saveSetting(cacheKey, data);
@@ -238,6 +299,34 @@ export class OfflineApiInterceptor {
         } else {
           return await pwaUtils.storage.getSetting("admin_pastes_list");
         }
+      } else if (url.includes("/admin/fs/list")) {
+        // 管理员文件系统列表
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "root";
+        return await pwaUtils.storage.getSetting(`admin_fs_list_${pathKey}`);
+      } else if (url.includes("/admin/fs/get")) {
+        // 管理员文件信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`admin_fs_get_${pathKey}`);
+      } else if (url.includes("/admin/fs/preview")) {
+        // 管理员文件预览 - 返回缓存信息而不是实际内容
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`admin_fs_preview_${pathKey}`);
+      } else if (url.includes("/admin/fs/download")) {
+        // 管理员文件下载 - 返回缓存信息而不是实际内容
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`admin_fs_download_${pathKey}`);
+      } else if (url.includes("/admin/fs/file-link")) {
+        // 管理员文件直链获取
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`admin_fs_file_link_${pathKey}`);
+      } else if (url.includes("/admin/cache/stats")) {
+        // 管理员缓存统计
+        return await pwaUtils.storage.getSetting("admin_cache_stats");
       } else {
         return await pwaUtils.storage.getSetting(cacheKey);
       }
@@ -280,6 +369,41 @@ export class OfflineApiInterceptor {
           // 文本分享列表
           await pwaUtils.storage.saveSetting("user_pastes_list", data);
         }
+      } else if (url.includes("/user/fs/list")) {
+        // 用户文件系统列表
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "root";
+        await pwaUtils.storage.saveSetting(`user_fs_list_${pathKey}`, data);
+      } else if (url.includes("/user/fs/get")) {
+        // 用户文件信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`user_fs_get_${pathKey}`, data);
+      } else if (url.includes("/user/fs/preview")) {
+        // 用户文件预览 - 这通常是二进制数据，不适合缓存到localStorage
+        // 但我们可以缓存预览请求的元信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`user_fs_preview_${pathKey}`, {
+          cached: true,
+          timestamp: Date.now(),
+          path: path,
+        });
+      } else if (url.includes("/user/fs/download")) {
+        // 用户文件下载 - 这通常是二进制数据，不适合缓存到localStorage
+        // 但我们可以缓存下载请求的元信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`user_fs_download_${pathKey}`, {
+          cached: true,
+          timestamp: Date.now(),
+          path: path,
+        });
+      } else if (url.includes("/user/fs/file-link")) {
+        // 用户文件直链获取
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        await pwaUtils.storage.saveSetting(`user_fs_file_link_${pathKey}`, data);
       } else {
         // 通用用户API缓存
         await pwaUtils.storage.saveSetting(cacheKey, data);
@@ -316,6 +440,31 @@ export class OfflineApiInterceptor {
         } else {
           return await pwaUtils.storage.getSetting("user_pastes_list");
         }
+      } else if (url.includes("/user/fs/list")) {
+        // 用户文件系统列表
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "root";
+        return await pwaUtils.storage.getSetting(`user_fs_list_${pathKey}`);
+      } else if (url.includes("/user/fs/get")) {
+        // 用户文件信息
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`user_fs_get_${pathKey}`);
+      } else if (url.includes("/user/fs/preview")) {
+        // 用户文件预览 - 返回缓存信息而不是实际内容
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`user_fs_preview_${pathKey}`);
+      } else if (url.includes("/user/fs/download")) {
+        // 用户文件下载 - 返回缓存信息而不是实际内容
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`user_fs_download_${pathKey}`);
+      } else if (url.includes("/user/fs/file-link")) {
+        // 用户文件直链获取
+        const path = this.extractPathFromUrl(url);
+        const pathKey = path ? path.replace(/[^a-zA-Z0-9]/g, "_") : "unknown";
+        return await pwaUtils.storage.getSetting(`user_fs_file_link_${pathKey}`);
       } else {
         return await pwaUtils.storage.getSetting(cacheKey);
       }
@@ -334,6 +483,12 @@ export class OfflineApiInterceptor {
         await pwaUtils.storage.saveSetting("system_health", data);
       } else if (url.includes("/version")) {
         await pwaUtils.storage.saveSetting("system_version", data);
+      } else if (url.includes("/cache/stats")) {
+        // 缓存统计信息
+        await pwaUtils.storage.saveSetting("cache_stats", data);
+      } else if (url.includes("/cache/clear")) {
+        // 缓存清理结果
+        await pwaUtils.storage.saveSetting("cache_clear_result", data);
       }
 
       console.log(`[离线模式] 系统API已缓存: ${url}`);
@@ -350,6 +505,10 @@ export class OfflineApiInterceptor {
         return await pwaUtils.storage.getSetting("system_health");
       } else if (url.includes("/version")) {
         return await pwaUtils.storage.getSetting("system_version");
+      } else if (url.includes("/cache/stats")) {
+        return await pwaUtils.storage.getSetting("cache_stats");
+      } else if (url.includes("/cache/clear")) {
+        return await pwaUtils.storage.getSetting("cache_clear_result");
       }
       return null;
     } catch (error) {
@@ -423,6 +582,17 @@ export class OfflineApiInterceptor {
       if (url.includes("url/info")) {
         // URL信息验证
         await pwaUtils.storage.saveSetting("url_info_cache", data);
+      } else if (url.includes("url/proxy")) {
+        // URL代理内容 - 这个通常是二进制数据，不适合缓存到localStorage
+        // 但我们可以缓存URL映射关系
+        const proxyUrl = this.extractProxyUrlFromQuery(url);
+        if (proxyUrl) {
+          await pwaUtils.storage.saveSetting(`url_proxy_${proxyUrl}`, {
+            cached: true,
+            timestamp: Date.now(),
+            originalUrl: proxyUrl,
+          });
+        }
       } else {
         // 通用URL API缓存
         await pwaUtils.storage.saveSetting(cacheKey, data);
@@ -440,11 +610,29 @@ export class OfflineApiInterceptor {
 
       if (url.includes("url/info")) {
         return await pwaUtils.storage.getSetting("url_info_cache");
+      } else if (url.includes("url/proxy")) {
+        // URL代理内容获取 - 返回缓存信息而不是实际内容
+        const proxyUrl = this.extractProxyUrlFromQuery(url);
+        if (proxyUrl) {
+          return await pwaUtils.storage.getSetting(`url_proxy_${proxyUrl}`);
+        }
+        return null;
       } else {
         return await pwaUtils.storage.getSetting(cacheKey);
       }
     } catch (error) {
       console.warn("获取URL API缓存失败:", error);
+      return null;
+    }
+  }
+
+  // 从URL查询参数中提取代理URL
+  extractProxyUrlFromQuery(url) {
+    try {
+      const urlObj = new URL(url, window.location.origin);
+      return urlObj.searchParams.get("url");
+    } catch (error) {
+      console.warn("提取代理URL失败:", error);
       return null;
     }
   }
@@ -499,6 +687,70 @@ export class OfflineApiInterceptor {
       return null;
     } catch (error) {
       console.warn("获取原始文本API缓存失败:", error);
+      return null;
+    }
+  }
+
+  // 文件查看API缓存方法
+  async cacheFileViewApi(url, data) {
+    try {
+      const slug = this.extractSlugFromUrl(url);
+      if (slug) {
+        if (url.includes("/file-download/")) {
+          await pwaUtils.storage.saveSetting(`file_download_${slug}`, data);
+        } else if (url.includes("/file-view/")) {
+          await pwaUtils.storage.saveSetting(`file_view_${slug}`, data);
+        } else if (url.includes("/office-preview/")) {
+          await pwaUtils.storage.saveSetting(`office_preview_${slug}`, data);
+        }
+      }
+
+      console.log(`[离线模式] 文件查看API已缓存: ${url}`);
+    } catch (error) {
+      console.warn("缓存文件查看API失败:", error);
+    }
+  }
+
+  async getCachedFileViewApi(url) {
+    try {
+      const slug = this.extractSlugFromUrl(url);
+      if (slug) {
+        if (url.includes("/file-download/")) {
+          return await pwaUtils.storage.getSetting(`file_download_${slug}`);
+        } else if (url.includes("/file-view/")) {
+          return await pwaUtils.storage.getSetting(`file_view_${slug}`);
+        } else if (url.includes("/office-preview/")) {
+          return await pwaUtils.storage.getSetting(`office_preview_${slug}`);
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn("获取文件查看API缓存失败:", error);
+      return null;
+    }
+  }
+
+  // 仪表盘API缓存方法
+  async cacheDashboardApi(url, data) {
+    try {
+      if (url.includes("/dashboard/stats")) {
+        await pwaUtils.storage.saveSetting("dashboard_stats", data);
+      }
+
+      console.log(`[离线模式] 仪表盘API已缓存: ${url}`);
+    } catch (error) {
+      console.warn("缓存仪表盘API失败:", error);
+    }
+  }
+
+  async getCachedDashboardApi(url) {
+    try {
+      if (url.includes("/dashboard/stats")) {
+        return await pwaUtils.storage.getSetting("dashboard_stats");
+      }
+      return null;
+    } catch (error) {
+      console.warn("获取仪表盘API缓存失败:", error);
       return null;
     }
   }
