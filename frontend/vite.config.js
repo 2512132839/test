@@ -22,7 +22,8 @@ export default defineConfig(({ command, mode }) => {
       VitePWA({
         registerType: "autoUpdate",
         workbox: {
-          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}"],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 增加到 5MB
           runtimeCaching: [
             // API 缓存策略 - 网络优先，失败时使用缓存
             {
@@ -49,6 +50,18 @@ export default defineConfig(({ command, mode }) => {
                 expiration: {
                   maxEntries: 200,
                   maxAgeSeconds: 60 * 60 * 24 * 30, // 30天
+                },
+              },
+            },
+            // 字体文件缓存 - 缓存优先，字体很少变化
+            {
+              urlPattern: /\.(?:woff|woff2|ttf|eot)$/,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "cloudpaste-fonts-cache",
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1年
                 },
               },
             },
@@ -150,7 +163,7 @@ export default defineConfig(({ command, mode }) => {
             proxy.on("error", (err, _req, _res) => {
               console.log("代理错误", err);
             });
-            proxy.on("proxyReq", (proxyReq, req, _res) => {
+            proxy.on("proxyReq", (_proxyReq, req, _res) => {
               console.log("代理请求:", req.method, req.url);
             });
             proxy.on("proxyRes", (proxyRes, req, _res) => {
@@ -175,13 +188,26 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     optimizeDeps: {
-      include: ["vue-i18n"],
+      include: ["vue-i18n", "chart.js", "qrcode"],
+      exclude: ["vditor"], // Vditor 较大，避免预构建
     },
     build: {
       minify: "terser",
       terserOptions: {
         compress: {
           drop_console: true,
+        },
+      },
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // 将大型库分离到单独的 chunk
+            "vendor-vue": ["vue", "vue-router", "vue-i18n"],
+            "vendor-editor": ["vditor"],
+            "vendor-charts": ["chart.js", "vue-chartjs"],
+            "vendor-utils": ["axios", "qrcode", "file-saver", "docx", "html-to-image"],
+          },
         },
       },
     },
