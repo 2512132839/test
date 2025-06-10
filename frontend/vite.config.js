@@ -123,7 +123,7 @@ export default defineConfig(({ command, mode }) => {
             },
             // 系统API缓存策略 - 处理系统设置和测试接口
             {
-              urlPattern: /^.*\/api\/(system|test|health|version)\/.*/i,
+              urlPattern: /^.*\/api\/(system|test)\/.*/i,
               handler: "NetworkFirst",
               options: {
                 cacheName: "cloudpaste-system-cache",
@@ -134,6 +134,22 @@ export default defineConfig(({ command, mode }) => {
                 networkTimeoutSeconds: 3,
                 cacheableResponse: {
                   statuses: [0, 200, 201, 202],
+                },
+              },
+            },
+            // 健康检查API缓存策略 - 处理独立的健康检查接口
+            {
+              urlPattern: /^.*\/api\/(health|version)$/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-health-cache",
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 5, // 5分钟，健康检查数据需要较新
+                },
+                networkTimeoutSeconds: 2,
+                cacheableResponse: {
+                  statuses: [0, 200],
                 },
               },
             },
@@ -215,8 +231,7 @@ export default defineConfig(({ command, mode }) => {
                 },
               },
             },
-
-            // URL代理API缓存策略 - 处理其他URL相关接口
+            // URL代理API缓存策略
             {
               urlPattern: /^.*\/api\/url\/.*/i,
               handler: "NetworkFirst",
@@ -232,7 +247,6 @@ export default defineConfig(({ command, mode }) => {
                 },
               },
             },
-
             // CDN资源缓存
             {
               urlPattern: /^https:\/\/cdn\./,
