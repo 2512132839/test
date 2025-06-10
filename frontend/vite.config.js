@@ -24,6 +24,8 @@ export default defineConfig(({ command, mode }) => {
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}"],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 增加到 5MB
+          skipWaiting: true,
+          clientsClaim: true,
           runtimeCaching: [
             // API 缓存策略 - 网络优先，失败时使用缓存
             {
@@ -37,15 +39,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 networkTimeoutSeconds: 5, // 减少超时时间，更快回退到缓存
                 cacheableResponse: {
-                  statuses: [0, 200, 201, 202], // 增加更多成功状态码
-                },
-                // 添加缓存键策略，忽略某些查询参数
-                cacheKeyWillBeUsed: async ({ request }) => {
-                  const url = new URL(request.url);
-                  // 移除时间戳等动态参数，保持缓存键稳定
-                  url.searchParams.delete("_t");
-                  url.searchParams.delete("timestamp");
-                  return url.href;
+                  statuses: [0, 200],
                 },
               },
             },
@@ -85,7 +79,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 networkTimeoutSeconds: 3, // 更短超时，快速回退
                 cacheableResponse: {
-                  statuses: [0, 200, 201, 202],
+                  statuses: [0, 200],
                 },
               },
             },
@@ -101,7 +95,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 networkTimeoutSeconds: 5,
                 cacheableResponse: {
-                  statuses: [0, 200, 201, 202],
+                  statuses: [0, 200],
                 },
               },
             },
@@ -117,7 +111,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 networkTimeoutSeconds: 3,
                 cacheableResponse: {
-                  statuses: [0, 200, 201, 202],
+                  statuses: [0, 200],
                 },
               },
             },
@@ -133,7 +127,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 networkTimeoutSeconds: 3,
                 cacheableResponse: {
-                  statuses: [0, 200, 201, 202],
+                  statuses: [0, 200],
                 },
               },
             },
@@ -165,7 +159,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 networkTimeoutSeconds: 5,
                 cacheableResponse: {
-                  statuses: [0, 200, 201, 202],
+                  statuses: [0, 200],
                 },
               },
             },
@@ -212,7 +206,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 networkTimeoutSeconds: 4,
                 cacheableResponse: {
-                  statuses: [0, 200, 201, 202],
+                  statuses: [0, 200],
                 },
               },
             },
@@ -317,8 +311,7 @@ export default defineConfig(({ command, mode }) => {
         },
         devOptions: {
           enabled: true,
-          type: "module", // 使用模块类型，避免开发时缓存冲突
-          suppressWarnings: true, // 抑制开发环境警告
+          type: "module",
         },
       }),
     ],
