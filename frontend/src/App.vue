@@ -3,6 +3,7 @@ import { ref, watchEffect, onMounted, onBeforeUnmount, computed } from "vue";
 import { useRoute } from "vue-router";
 import EnvSwitcher from "./components/EnvSwitcher.vue";
 import LanguageSwitcher from "./components/LanguageSwitcher.vue";
+import PWAInstallPrompt from "./components/PWAInstallPrompt.vue";
 
 const route = useRoute();
 
@@ -410,6 +411,9 @@ onBeforeUnmount(() => {
 
     <!-- 添加环境切换器组件 (在开发环境或管理员登录状态下显示) -->
     <EnvSwitcher v-if="showEnvSwitcher" />
+
+    <!-- PWA 安装提示组件 -->
+    <PWAInstallPrompt :dark-mode="isDarkMode" />
   </div>
 </template>
 
@@ -457,5 +461,4 @@ main {
 * {
   -webkit-tap-highlight-color: transparent;
 }
-
 </style>

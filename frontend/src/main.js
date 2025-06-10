@@ -5,11 +5,15 @@ import api, { getEnvironmentInfo } from "./api";
 import i18n from "./i18n"; // 导入i18n配置
 import router from "./router"; // 导入路由配置
 
+// 导入PWA相关模块
+import { pwaManager, pwaUtils } from "./pwa/pwaManager.js";
+import { offlineEnhancers } from "./pwa/offlineEnhancer.js";
+
 // 创建应用实例
 const app = createApp(App);
 
 // 添加全局错误处理
-app.config.errorHandler = (err, vm, info) => {
+app.config.errorHandler = (err, instance, info) => {
   console.error(`错误: ${err}`);
   console.error(`信息: ${info}`);
 
@@ -76,9 +80,31 @@ app.config.globalProperties.$routerUtils = routerUtils;
 // 将API服务挂载到全局对象，方便在组件中使用
 app.config.globalProperties.$api = api;
 
+// 挂载PWA工具到全局对象
+app.config.globalProperties.$pwa = pwaUtils;
+
 // 在开发环境中输出API配置信息
 if (import.meta.env.DEV) {
   console.log("环境信息:", getEnvironmentInfo());
+}
+
+// 初始化PWA功能
+console.log("[PWA] 初始化PWA管理器");
+// 确保pwaManager被引用以触发初始化
+if (pwaManager) {
+  console.log("[PWA] PWA管理器已初始化");
+}
+
+// 初始化离线增强功能
+console.log("[PWA] 初始化离线增强功能");
+// 确保离线增强器被激活
+if (offlineEnhancers) {
+  console.log("[PWA] 离线增强器已激活:", {
+    api: !!offlineEnhancers.api,
+    markdown: !!offlineEnhancers.markdown,
+    fileExplorer: !!offlineEnhancers.fileExplorer,
+    settings: !!offlineEnhancers.settings,
+  });
 }
 
 // 确保加载正确的语言

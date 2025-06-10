@@ -3,14 +3,39 @@
  */
 
 import { createRouter, createWebHistory } from "vue-router";
+import { pwaState } from "../pwa/pwaManager.js";
+import OfflineFallback from "../components/OfflineFallback.vue";
+import { showPageUnavailableToast } from "../utils/offlineToast.js";
 
-// 懒加载组件
-const MarkdownEditor = () => import("../components/MarkdownEditor.vue");
-const FileUploadPage = () => import("../components/FileUpload.vue");
-const AdminPage = () => import("../components/adminManagement/AdminPage.vue");
-const PasteView = () => import("../components/PasteView.vue");
-const FileView = () => import("../components/FileView.vue");
-const MountExplorer = () => import("../components/MountExplorer.vue");
+// 懒加载组件 - 添加离线错误处理
+const createOfflineAwareImport = (importFn, componentName = "页面") => {
+  return () =>
+      importFn().catch((error) => {
+        console.error("组件加载失败:", error);
+
+        // 如果是离线状态且加载失败，显示离线回退页面和Toast提示
+        if (pwaState.isOffline || !navigator.onLine) {
+          console.log("[离线模式] 组件未缓存，显示离线回退页面");
+
+          // 显示Toast提示
+          setTimeout(() => {
+            showPageUnavailableToast(componentName);
+          }, 100);
+
+          return OfflineFallback;
+        }
+
+        // 在线状态下的加载失败，重新抛出错误
+        throw error;
+      });
+};
+
+const MarkdownEditor = createOfflineAwareImport(() => import("../components/MarkdownEditor.vue"), "首页");
+const FileUploadPage = createOfflineAwareImport(() => import("../components/FileUpload.vue"), "文件上传页面");
+const AdminPage = createOfflineAwareImport(() => import("../components/adminManagement/AdminPage.vue"), "管理面板");
+const PasteView = createOfflineAwareImport(() => import("../components/PasteView.vue"), "文本分享页面");
+const FileView = createOfflineAwareImport(() => import("../components/FileView.vue"), "文件预览页面");
+const MountExplorer = createOfflineAwareImport(() => import("../components/MountExplorer.vue"), "挂载浏览器");
 
 // 路由配置 - 完全对应原有的页面逻辑
 const routes = [
@@ -156,6 +181,21 @@ router.beforeEach(async (to, from, next) => {
   next();
 });
 
+// 路由错误处理
+router.onError((error) => {
+  console.error("路由错误:", error);
+
+  // 如果是离线状态下的组件加载失败，不需要额外处理
+  // 因为 createOfflineAwareImport 已经处理了
+  if (pwaState.isOffline || !navigator.onLine) {
+    console.log("[离线模式] 路由错误已由离线回退机制处理");
+    return;
+  }
+
+  // 在线状态下的其他错误，可以添加额外的错误处理逻辑
+  console.error("在线状态下的路由错误:", error);
+});
+
 // 路由后置守卫 - 处理页面标题和调试信息
 router.afterEach((to, from) => {
   // 更新页面标题 - 为深层路径提供更具体的标题
@@ -175,7 +215,6 @@ router.afterEach((to, from) => {
     const moduleName = moduleNames[to.params.module] || to.params.module;
     title = `${moduleName} - CloudPaste`;
   }
-
 
   document.title = title;
 

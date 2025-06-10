@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import vue from "@vitejs/plugin-vue";
+import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath, URL } from "node:url";
 
 // https://vitejs.dev/config/
@@ -16,7 +17,114 @@ export default defineConfig(({ command, mode }) => {
   });
 
   return {
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      VitePWA({
+        registerType: "autoUpdate",
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+          runtimeCaching: [
+            // API 缓存策略 - 网络优先，失败时使用缓存
+            {
+              urlPattern: /^.*\/api\/.*/i,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "cloudpaste-api-cache",
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24, // 24小时
+                },
+                networkTimeoutSeconds: 10,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            // 静态资源缓存策略 - 缓存优先
+            {
+              urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "cloudpaste-images-cache",
+                expiration: {
+                  maxEntries: 200,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30天
+                },
+              },
+            },
+            // CDN资源缓存
+            {
+              urlPattern: /^https:\/\/cdn\./,
+              handler: "StaleWhileRevalidate",
+              options: {
+                cacheName: "cloudpaste-cdn-cache",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天
+                },
+              },
+            },
+          ],
+        },
+        includeAssets: ["favicon.ico", "apple-touch-icon.png", "robots.txt"],
+        manifest: {
+          name: "CloudPaste",
+          short_name: "CloudPaste",
+          description: "安全分享您的内容，支持 Markdown 编辑和文件上传",
+          theme_color: "#0ea5e9",
+          background_color: "#ffffff",
+          display: "standalone",
+          orientation: "portrait",
+          scope: "/",
+          start_url: "/",
+          icons: [
+            {
+              src: "icons/icons-32.png",
+              sizes: "32x32",
+              type: "image/png",
+            },
+            {
+              src: "icons/icon-96.png",
+              sizes: "96x96",
+              type: "image/png",
+            },
+            {
+              src: "icons/icon-192.png",
+              sizes: "192x192",
+              type: "image/png",
+            },
+            {
+              src: "icons/icon-512.png",
+              sizes: "512x512",
+              type: "image/png",
+            },
+            {
+              src: "icons/icon-512-maskable.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable",
+            },
+          ],
+          shortcuts: [
+            {
+              name: "文件上传",
+              short_name: "上传",
+              description: "快速上传文件",
+              url: "/upload",
+              icons: [
+                {
+                  src: "icons/shortcut-upload-96.png",
+                  sizes: "96x96",
+                },
+              ],
+            },
+          ],
+        },
+        devOptions: {
+          enabled: true,
+        },
+      }),
+    ],
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
