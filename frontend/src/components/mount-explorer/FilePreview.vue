@@ -469,8 +469,39 @@ import { getMimeTypeGroupByFileDetails, getFileExtension, MIME_GROUPS, formatFil
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css"; // 亮色模式默认样式
 import "highlight.js/styles/github-dark.css"; // 暗色模式样式
-import Vditor from "vditor";
-import "vditor/dist/index.css";
+// 懒加载Vditor和CSS
+let VditorClass = null;
+let vditorCSSLoaded = false;
+
+const loadVditor = async () => {
+  if (!VditorClass) {
+    await loadVditorCSS();
+
+    // 从assets目录加载Vditor
+    const script = document.createElement("script");
+    script.src = "/assets/vditor/dist/index.min.js";
+
+    return new Promise((resolve, reject) => {
+      script.onload = () => {
+        VditorClass = window.Vditor;
+        resolve(VditorClass);
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  return VditorClass;
+};
+
+const loadVditorCSS = async () => {
+  if (!vditorCSSLoaded) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/assets/vditor/dist/index.css";
+    document.head.appendChild(link);
+    vditorCSSLoaded = true;
+  }
+};
 
 const props = defineProps({
   file: {
@@ -1099,8 +1130,11 @@ const initMarkdownPreview = async () => {
       // 移除可能残留的主题相关类
       previewContainer.value.classList.remove("vditor-reset--dark", "vditor-reset--light");
 
+      // 懒加载Vditor
+      const VditorConstructor = await loadVditor();
+
       // 使用 Vditor 的预览 API 渲染内容
-      Vditor.preview(previewContainer.value, textContent.value, {
+      VditorConstructor.preview(previewContainer.value, textContent.value, {
         mode: "dark-light", // 支持明暗主题
         theme: {
           current: props.darkMode ? "dark" : "light", // 根据darkMode设置主题

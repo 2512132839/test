@@ -25,15 +25,30 @@ let vditorCSSLoaded = false;
 
 const loadVditor = async () => {
   if (!VditorClass) {
-    const [vditorModule] = await Promise.all([import("vditor"), loadVditorCSS()]);
-    VditorClass = vditorModule.default;
+    await loadVditorCSS();
+
+    // 从assets目录加载Vditor
+    const script = document.createElement("script");
+    script.src = "/assets/vditor/dist/index.min.js";
+
+    return new Promise((resolve, reject) => {
+      script.onload = () => {
+        VditorClass = window.Vditor;
+        resolve(VditorClass);
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
   }
   return VditorClass;
 };
 
 const loadVditorCSS = async () => {
   if (!vditorCSSLoaded) {
-    await import("vditor/dist/index.css");
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/assets/vditor/dist/index.css";
+    document.head.appendChild(link);
     vditorCSSLoaded = true;
   }
 };
