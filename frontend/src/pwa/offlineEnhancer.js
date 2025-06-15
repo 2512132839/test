@@ -22,14 +22,14 @@ export class OfflineApiInterceptor {
         const response = await originalFetch(url, options);
 
         // 如果成功，缓存响应数据
-        if (response.ok && options.method === "GET") {
+        if (response.ok && (options.method === "GET" || !options.method)) {
           await self.cacheResponse(url, response.clone());
         }
 
         return response;
       } catch (error) {
         // 网络失败时，尝试从缓存获取（无论离线状态如何）
-        if (options.method === "GET") {
+        if (options.method === "GET" || !options.method) {
           const cachedData = await self.getCachedResponse(url);
           if (cachedData) {
             console.log(`[离线模式] 网络请求失败，从缓存返回数据: ${url}`);

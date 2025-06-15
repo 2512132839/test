@@ -958,21 +958,25 @@ const handlePreview = async (item) => {
 
     // 使用获取到的详细文件信息
     const fileInfo = response.data;
-    previewFile.value = fileInfo;
+
+    // 先设置预览模式和文件信息
     isPreviewMode.value = true; // 切换到预览模式
+    previewFile.value = fileInfo;
 
     // 更新 URL 以包含预览文件信息
     updateUrl(currentPath.value, fileInfo.name);
 
     // 滚动到顶部
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // 预览内容加载完成（文件信息已加载，具体内容由 FilePreview 组件异步加载）
+    isPreviewLoading.value = false;
   } catch (error) {
     console.error("预览文件错误:", error);
     showMessage("error", t("mount.messages.previewLoadFailedUnknown", { message: error.message || t("common.unknown") }));
     isPreviewMode.value = false; // 出错时不进入预览模式
     previewFile.value = null;
-  } finally {
-    isPreviewLoading.value = false; // 预览内容加载完成
+    isPreviewLoading.value = false;
   }
 };
 

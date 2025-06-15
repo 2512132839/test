@@ -330,7 +330,19 @@
             ></textarea>
           </div>
           <div v-else>
-            <div ref="previewContainer" class="vditor-preview"></div>
+            <!-- Markdown加载指示器 -->
+            <div v-if="isTextLoading" class="flex flex-col items-center justify-center py-12">
+              <svg class="animate-spin h-8 w-8 mb-2" :class="darkMode ? 'text-primary-500' : 'text-primary-600'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <span class="text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">正在加载Markdown内容...</span>
+            </div>
+            <div v-else ref="previewContainer" class="vditor-preview"></div>
           </div>
         </div>
 
@@ -345,32 +357,46 @@
             ></textarea>
           </div>
           <div v-else>
-            <!-- 添加HTML预览的控制栏 -->
-            <div class="sticky top-0 z-20 flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("mount.filePreview.htmlPreview") }}</span>
-              <div class="flex items-center">
-                <button
-                    @click="toggleHtmlFullscreen"
-                    class="text-xs px-2 py-1 rounded flex items-center bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
-                >
-                  <svg v-if="!isHtmlFullscreen" class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
-                    />
-                  </svg>
-                  <svg v-else class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span>{{ isHtmlFullscreen ? t("mount.filePreview.exitFullscreen") : t("mount.filePreview.fullscreen") }}</span>
-                </button>
-              </div>
+            <!-- HTML加载指示器 -->
+            <div v-if="isTextLoading" class="flex flex-col items-center justify-center py-12">
+              <svg class="animate-spin h-8 w-8 mb-2" :class="darkMode ? 'text-primary-500' : 'text-primary-600'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <span class="text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">正在加载HTML内容...</span>
             </div>
-            <div class="p-4">
-              <!-- 安全HTML预览使用沙盒iframe -->
-              <iframe ref="htmlIframe" sandbox="allow-same-origin" class="w-full min-h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'"></iframe>
+            <div v-else>
+              <!-- 添加HTML预览的控制栏 -->
+              <div class="sticky top-0 z-20 flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("mount.filePreview.htmlPreview") }}</span>
+                <div class="flex items-center">
+                  <button
+                      @click="toggleHtmlFullscreen"
+                      class="text-xs px-2 py-1 rounded flex items-center bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                  >
+                    <svg v-if="!isHtmlFullscreen" class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+                      />
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span>{{ isHtmlFullscreen ? t("mount.filePreview.exitFullscreen") : t("mount.filePreview.fullscreen") }}</span>
+                  </button>
+                </div>
+              </div>
+              <div class="p-4">
+                <!-- 安全HTML预览使用沙盒iframe -->
+                <iframe ref="htmlIframe" sandbox="allow-same-origin" class="w-full min-h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'"></iframe>
+              </div>
             </div>
           </div>
         </div>
@@ -386,19 +412,33 @@
             ></textarea>
           </div>
           <div v-else>
-            <div class="flex justify-between items-center mb-2">
-              <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-                {{ t("mount.filePreview.language") }} {{ codeLanguage || t("mount.filePreview.autoDetect") }}
-                <span
-                    v-if="fileTypeInfo.value && fileTypeInfo.value.category === 'config'"
-                    class="ml-2 px-2 py-0.5 text-xs rounded-full"
-                    :class="darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'"
-                >
-                  {{ t("mount.filePreview.configFile") }}
-                </span>
-              </span>
+            <!-- 代码加载指示器 -->
+            <div v-if="isTextLoading" class="flex flex-col items-center justify-center py-12">
+              <svg class="animate-spin h-8 w-8 mb-2" :class="darkMode ? 'text-primary-500' : 'text-primary-600'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <span class="text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">正在加载代码内容...</span>
             </div>
-            <pre class="rounded overflow-auto"><code v-html="highlightedContent"></code></pre>
+            <div v-else>
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ t("mount.filePreview.language") }} {{ codeLanguage || t("mount.filePreview.autoDetect") }}
+                  <span
+                      v-if="fileTypeInfo.value && fileTypeInfo.value.category === 'config'"
+                      class="ml-2 px-2 py-0.5 text-xs rounded-full"
+                      :class="darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'"
+                  >
+                    {{ t("mount.filePreview.configFile") }}
+                  </span>
+                </span>
+              </div>
+              <pre class="rounded overflow-auto"><code v-html="highlightedContent"></code></pre>
+            </div>
           </div>
         </div>
 
@@ -412,7 +452,21 @@
                 spellcheck="false"
             ></textarea>
           </div>
-          <p v-else class="whitespace-pre-wrap" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ textContent }}</p>
+          <div v-else>
+            <!-- 文本加载指示器 -->
+            <div v-if="isTextLoading" class="flex flex-col items-center justify-center py-12">
+              <svg class="animate-spin h-8 w-8 mb-2" :class="darkMode ? 'text-primary-500' : 'text-primary-600'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <span class="text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">正在加载文本内容...</span>
+            </div>
+            <p v-else class="whitespace-pre-wrap" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ textContent }}</p>
+          </div>
         </div>
 
         <!-- 其他文件类型或错误状态 -->
@@ -533,6 +587,8 @@ const textContent = ref("");
 const loadError = ref(false);
 // 认证预览URL
 const authenticatedPreviewUrl = ref(null);
+// 文本内容加载状态
+const isTextLoading = ref(false);
 
 // 预览按钮相关状态
 const isGeneratingPreview = ref(false);
@@ -1235,7 +1291,6 @@ const highlightAndFormatCode = () => {
   try {
     const fileType = fileTypeInfo.value;
     const language = (fileType && fileType.language) || "";
-    const isConfigFile = fileType && fileType.category === "config";
 
     // 1. 特殊处理 JSON (需要格式化)
     if (language === "json") {
@@ -1277,7 +1332,8 @@ const highlightAndFormatCode = () => {
 // 监听文件变更，重置状态
 watch(
     () => props.file,
-    () => {
+    (newFile) => {
+      // 重置所有状态
       textContent.value = "";
       loadError.value = false;
       authenticatedPreviewUrl.value = null;
@@ -1293,28 +1349,30 @@ watch(
       officePreviewTimedOut.value = false;
       clearPreviewLoadTimeout();
 
-      // 如果文件是图片、视频、音频或PDF类型，则获取认证预览URL
-      if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
-        fetchAuthenticatedUrl();
-      }
+      // 只有当文件存在时才初始化预览
+      if (newFile) {
+        // 如果文件是图片、视频、音频或PDF类型，则获取认证预览URL
+        if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
+          fetchAuthenticatedUrl();
+        }
 
-      // 如果是Office文件，更新Office预览URL
-      if (isOffice.value) {
-        updateOfficePreviewUrls();
-      }
+        // 如果是Office文件，更新Office预览URL
+        if (isOffice.value) {
+          updateOfficePreviewUrls();
+        }
 
-      // 对于文本文件，需要手动加载内容
-      if (isText.value) {
-        loadTextContent();
+        // 对于文本文件，需要手动加载内容
+        if (isText.value) {
+          loadTextContent();
+        }
       }
-    },
-    { immediate: true }
+    }
 );
 
 // 监听暗色模式变化
 watch(
     () => props.darkMode,
-    (newValue) => {
+    () => {
       reinitializePreviewOnThemeChange();
     }
 );
