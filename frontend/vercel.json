@@ -35,6 +35,21 @@
       "continue": true
     },
     {
+      "src": "/sw.js",
+      "headers": { "cache-control": "no-cache, no-store, must-revalidate" },
+      "continue": true
+    },
+    {
+      "src": "/workbox-*.js",
+      "headers": { "cache-control": "no-cache, no-store, must-revalidate" },
+      "continue": true
+    },
+    {
+      "src": "/icons/(.*)",
+      "headers": { "cache-control": "public, max-age=2592000" },
+      "continue": true
+    },
+    {
       "src": "/(.*)",
       "headers": {
         "x-content-type-options": "nosniff",

@@ -108,26 +108,24 @@ const routes = [
     name: "MountExplorer",
     component: MountExplorer,
     props: (route) => ({
-      pathMatch: "",
-      previewFile: route.query.preview || null,
+      darkMode: route.meta.darkMode || false,
     }),
     meta: {
       title: "挂载浏览 - CloudPaste",
       originalPage: "mount-explorer",
     },
-  },
-  {
-    path: "/mount-explorer/:pathMatch(.*)*",
-    name: "MountExplorerPath",
-    component: MountExplorer,
-    props: (route) => ({
-      pathMatch: route.params.pathMatch,
-      previewFile: route.query.preview || null,
-    }),
-    meta: {
-      title: "挂载浏览 - CloudPaste",
-      originalPage: "mount-explorer",
-    },
+    children: [
+      {
+        path: "",
+        name: "MountExplorerMain",
+        component: () => import("../components/mount-explorer/MountExplorerMain.vue"),
+      },
+      {
+        path: ":pathMatch(.*)*",
+        name: "MountExplorerPath",
+        component: () => import("../components/mount-explorer/MountExplorerMain.vue"),
+      },
+    ],
   },
   {
     path: "/:pathMatch(.*)*",
@@ -246,6 +244,7 @@ router.afterEach(async (to, from) => {
         title = t("pageTitle.fileView");
         break;
       case "MountExplorer":
+      case "MountExplorerMain":
       case "MountExplorerPath":
         title = t("pageTitle.mountExplorer");
         break;

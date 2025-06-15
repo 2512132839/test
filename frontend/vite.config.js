@@ -26,18 +26,28 @@ export default defineConfig(({ command, mode }) => {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 增加到 5MB
           skipWaiting: true,
           clientsClaim: true,
+          // 更新导航路由配置以支持所有现有路径的嵌套路由
+          navigateFallback: "index.html",
+          navigateFallbackAllowlist: [
+            /^\/$/, // 根路径
+            /^\/upload$/, // 上传页面
+            /^\/admin/, // 管理页面（包含所有子路径）
+            /^\/paste\/.+/, // 文本分享页面
+            /^\/file\/.+/, // 文件预览页面
+            /^\/mount-explorer/, // 挂载浏览器（包含所有嵌套路径）
+          ],
           runtimeCaching: [
-            // API 缓存策略 - 网络优先，失败时使用缓存
+            // 系统信息API缓存策略 - 简单系统API，适合Cache API处理
             {
-              urlPattern: /^.*\/api\/.*/i,
+              urlPattern: /^.*\/api\/(system\/max-upload-size|health|version)$/i,
               handler: "NetworkFirst",
               options: {
-                cacheName: "cloudpaste-api-cache",
+                cacheName: "cloudpaste-system-cache",
                 expiration: {
-                  maxEntries: 200, // 增加缓存条目
-                  maxAgeSeconds: 60 * 60 * 24 * 3, // 延长到3天
+                  maxEntries: 20,
+                  maxAgeSeconds: 60 * 60 * 6, // 6小时，系统信息变化不频繁
                 },
-                networkTimeoutSeconds: 5, // 减少超时时间，更快回退到缓存
+                networkTimeoutSeconds: 3,
                 cacheableResponse: {
                   statuses: [0, 200],
                 },
@@ -67,103 +77,7 @@ export default defineConfig(({ command, mode }) => {
                 },
               },
             },
-            // 管理员API缓存策略 - 专门处理管理员接口
-            {
-              urlPattern: /^.*\/api\/admin\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-admin-cache",
-                expiration: {
-                  maxEntries: 200, // 增加缓存条目
-                  maxAgeSeconds: 60 * 60 * 2, // 2小时，管理员数据更新频繁
-                },
-                networkTimeoutSeconds: 3, // 更短超时，快速回退
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 文件系统API缓存策略 - 处理fs相关接口
-            {
-              urlPattern: /^.*\/api\/(admin|user)\/fs\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-fs-cache",
-                expiration: {
-                  maxEntries: 300,
-                  maxAgeSeconds: 60 * 60 * 1, // 1小时，文件系统数据变化较频繁
-                },
-                networkTimeoutSeconds: 5,
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // S3配置API缓存策略
-            {
-              urlPattern: /^.*\/api\/s3-configs.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-s3-cache",
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 4, // 4小时，配置变化不频繁
-                },
-                networkTimeoutSeconds: 3,
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 系统API缓存策略 - 处理系统设置和测试接口
-            {
-              urlPattern: /^.*\/api\/(system|test)\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-system-cache",
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 6, // 6小时，系统设置变化不频繁
-                },
-                networkTimeoutSeconds: 3,
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 健康检查API缓存策略 - 处理独立的健康检查接口
-            {
-              urlPattern: /^.*\/api\/(health|version)$/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-health-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 5, // 5分钟，健康检查数据需要较新
-                },
-                networkTimeoutSeconds: 2,
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 缓存管理API缓存策略 - 处理缓存统计和清理接口
-            {
-              urlPattern: /^.*\/api\/(admin|user)\/cache\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-cache-mgmt-cache",
-                expiration: {
-                  maxEntries: 30,
-                  maxAgeSeconds: 60 * 10, // 10分钟，缓存管理数据短期有效
-                },
-                networkTimeoutSeconds: 5,
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 文件查看API缓存策略 - 处理文件下载和预览
+            // 文件下载/预览API缓存策略 - 二进制文件，适合Cache API处理
             {
               urlPattern: /^.*\/api\/(file-download|file-view|office-preview)\/.*/i,
               handler: "CacheFirst", // 文件内容缓存优先
@@ -178,69 +92,22 @@ export default defineConfig(({ command, mode }) => {
                 },
               },
             },
-            // Paste内容API缓存策略 - 处理paste和raw内容
+            // 文件系统预览下载API缓存策略 - 二进制文件
             {
-              urlPattern: /^.*\/api\/(paste|raw)\/.*/i,
-              handler: "NetworkFirst",
+              urlPattern: /^.*\/api\/(admin|user)\/fs\/(preview|download).*/i,
+              handler: "CacheFirst", // 文件内容缓存优先
               options: {
-                cacheName: "cloudpaste-paste-cache",
-                expiration: {
-                  maxEntries: 200,
-                  maxAgeSeconds: 60 * 60 * 24 * 3, // 3天，内容可能更新
-                },
-                networkTimeoutSeconds: 5,
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 用户管理API缓存策略 - 处理用户文件和挂载点
-            {
-              urlPattern: /^.*\/api\/user\/(files|mounts|pastes).*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-user-mgmt-cache",
+                cacheName: "cloudpaste-fs-files-cache",
                 expiration: {
                   maxEntries: 150,
-                  maxAgeSeconds: 60 * 60 * 2, // 2小时，用户数据更新频繁
-                },
-                networkTimeoutSeconds: 4,
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 公共文件API缓存策略
-            {
-              urlPattern: /^.*\/api\/public\/.*/i,
-              handler: "CacheFirst", // 公共文件缓存优先
-              options: {
-                cacheName: "cloudpaste-public-cache",
-                expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天，公共内容相对稳定
+                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天，文件内容相对稳定
                 },
                 cacheableResponse: {
                   statuses: [0, 200],
                 },
               },
             },
-            // URL代理API缓存策略
-            {
-              urlPattern: /^.*\/api\/url\/.*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "cloudpaste-url-cache",
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 1, // 1小时，URL内容可能变化
-                },
-                networkTimeoutSeconds: 10, // URL代理可能较慢
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
+
             // CDN资源缓存
             {
               urlPattern: /^https:\/\/cdn\./,
@@ -366,7 +233,7 @@ export default defineConfig(({ command, mode }) => {
     },
     optimizeDeps: {
       include: ["vue-i18n", "chart.js", "qrcode"],
-      exclude: ["vditor"], // Vditor 较大，避免预构建
+      // 移除vditor排除配置，因为现在从assets加载
     },
     build: {
       minify: "terser",
@@ -381,7 +248,7 @@ export default defineConfig(({ command, mode }) => {
           manualChunks: {
             // 将大型库分离到单独的 chunk
             "vendor-vue": ["vue", "vue-router", "vue-i18n"],
-            "vendor-editor": ["vditor"],
+            // 移除vditor chunk，因为现在从assets加载
             "vendor-charts": ["chart.js", "vue-chartjs"],
             "vendor-utils": ["axios", "qrcode", "file-saver", "docx", "html-to-image"],
           },

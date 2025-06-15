@@ -1,6 +1,11 @@
 /**
  * 离线功能增强器
  * 为各个组件提供离线支持
+ * 管理员API: (认证、文件系统、管理功能)
+ * 用户API:  (文件系统、管理功能)
+ * 文本分享API:  (paste, raw相关)
+ * 配置管理API: (S3配置、URL上传等)
+ * 其他业务API:  (公共文件等)
  */
 
 import { pwaUtils } from "./pwaManager.js";
@@ -49,9 +54,90 @@ export class OfflineApiInterceptor {
     };
   }
 
+  // 判断是否为需要业务逻辑处理的API
+  shouldCacheBusinessApi(url) {
+    // 系统API由Workbox处理
+    if (url.includes("/api/system/") || url.includes("/api/health") || url.includes("/api/version")) {
+      return false;
+    }
+
+    // 文件下载/预览API由Workbox处理
+    if (url.includes("/api/file-download/") || url.includes("/api/file-view/") || url.includes("/api/office-preview/")) {
+      return false;
+    }
+
+    // 文件系统预览下载API由Workbox处理
+    if (url.includes("/api/admin/fs/preview") || url.includes("/api/admin/fs/download") || url.includes("/api/user/fs/preview") || url.includes("/api/user/fs/download")) {
+      return false;
+    }
+
+    // 检查是否为API路径
+    if (!url.includes("/api/")) {
+      return false;
+    }
+
+    // 其他业务API需要offlineEnhancer处理，包括：
+    // - 文件系统管理API: /api/(admin|user)/fs/(list|get|create|upload|remove|rename|copy)
+    // - 文本分享API: /api/paste/, /api/raw/, /api/(admin|user)/pastes/
+    // - 文件管理API: /api/(admin|user)/files/, /api/public/files/
+    // - 管理员API: /api/admin/(login|logout|change-password|test-token|api-keys|mounts|dashboard|system-settings|cache)
+    // - 用户管理API: /api/user/mounts/
+    // - S3配置API: /api/s3-configs/
+    // - S3上传API: /api/s3/(presign|commit|multipart)
+    // - URL上传API: /api/url/(info|presign|commit|cancel|proxy)
+    return true;
+  }
+
   async cacheResponse(url, response) {
     try {
-      const data = await response.json();
+      // 检查响应的Content-Type
+      const contentType = response.headers.get("content-type") || "";
+
+      // 克隆响应以避免消费原始响应
+      const responseClone = response.clone();
+      let data;
+
+      // 检查是否为需要业务逻辑处理的API
+      if (!this.shouldCacheBusinessApi(url)) {
+        console.log(`[离线模式] 跳过非业务API缓存: ${url}`);
+        return; // 让Workbox处理系统API和二进制文件
+      }
+
+      // 根据Content-Type决定如何解析响应
+      if (
+          contentType.startsWith("image/") ||
+          contentType.startsWith("video/") ||
+          contentType.startsWith("audio/") ||
+          contentType.startsWith("application/pdf") ||
+          contentType.startsWith("application/octet-stream")
+      ) {
+        // 二进制文件 - 让Workbox的Cache API处理
+        console.log(`[离线模式] 二进制文件由Workbox处理: ${url} (${contentType})`);
+        return;
+      } else if (contentType.startsWith("application/json")) {
+        // JSON响应
+        data = await responseClone.json();
+      } else if (contentType.startsWith("text/")) {
+        // 文本响应
+        const text = await responseClone.text();
+        data = {
+          type: "text",
+          contentType: contentType,
+          data: text,
+        };
+      } else {
+        // 其他类型，尝试JSON解析，失败则作为文本处理
+        try {
+          data = await responseClone.json();
+        } catch (jsonError) {
+          const text = await responseClone.text();
+          data = {
+            type: "text",
+            contentType: contentType,
+            data: text,
+          };
+        }
+      }
 
       // 根据URL类型决定缓存策略
       if (url.includes("/api/paste/")) {
@@ -87,29 +173,60 @@ export class OfflineApiInterceptor {
       } else if (url.includes("/api/raw/")) {
         // 原始文本API缓存
         await this.cacheRawApi(url, data);
-      } else if (url.includes("/system/") || url.includes("/health") || url.includes("/version")) {
-        // 系统API缓存
-        await this.cacheSystemApi(url, data);
       } else if (url.includes("/test/")) {
         // 测试API缓存
         await this.cacheTestApi(url, data);
-      } else if (url.includes("/file-download/") || url.includes("/file-view/") || url.includes("/office-preview/")) {
-        // 文件查看API缓存
-        await this.cacheFileViewApi(url, data);
       } else if (url.includes("/public/")) {
         // 公共文件API缓存
         await this.cachePublicFileApi(url, data);
       } else if (url.includes("url/")) {
         // URL相关API缓存（兼容旧版本）
         await this.cacheUrlApi(url, data);
+      } else if (url.includes("/api/s3/")) {
+        // S3上传API缓存
+        await this.cacheS3UploadApi(url, data);
       }
+
+      console.log(`[离线模式] API响应已缓存: ${url} (${data.type || "json"})`);
     } catch (error) {
       console.warn("缓存响应失败:", error);
     }
   }
 
+  // 将缓存的数据转换回Response对象
+  createResponseFromCachedData(data) {
+    if (!data) return null;
+
+    if (data.type === "text") {
+      return new Response(data.data, {
+        status: 200,
+        statusText: "OK",
+        headers: {
+          "Content-Type": data.contentType,
+          "X-Cache-Source": "offline-enhancer",
+        },
+      });
+    } else {
+      // 普通JSON数据
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        statusText: "OK",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Cache-Source": "offline-enhancer",
+        },
+      });
+    }
+  }
+
   async getCachedResponse(url) {
     try {
+      // 检查是否为需要业务逻辑处理的API
+      if (!this.shouldCacheBusinessApi(url)) {
+        console.log(`[离线模式] 跳过非业务API缓存获取: ${url}`);
+        return null; // 让Workbox处理
+      }
+
       if (url.includes("/api/paste/")) {
         const slug = this.extractSlugFromUrl(url);
         return slug ? await pwaUtils.storage.getPaste(slug) : null;
@@ -137,21 +254,18 @@ export class OfflineApiInterceptor {
       } else if (url.includes("/api/raw/")) {
         // 原始文本API缓存获取
         return await this.getCachedRawApi(url);
-      } else if (url.includes("/system/") || url.includes("/health") || url.includes("/version")) {
-        // 系统API缓存获取
-        return await this.getCachedSystemApi(url);
       } else if (url.includes("/test/")) {
         // 测试API缓存获取
         return await this.getCachedTestApi(url);
-      } else if (url.includes("/file-download/") || url.includes("/file-view/") || url.includes("/office-preview/")) {
-        // 文件查看API缓存获取
-        return await this.getCachedFileViewApi(url);
       } else if (url.includes("/public/")) {
         // 公共文件API缓存获取
         return await this.getCachedPublicFileApi(url);
       } else if (url.includes("url/")) {
         // URL相关API缓存获取（兼容旧版本）
         return await this.getCachedUrlApi(url);
+      } else if (url.includes("/api/s3/")) {
+        // S3上传API缓存获取
+        return await this.getCachedS3UploadApi(url);
       }
       return null;
     } catch (error) {
@@ -691,45 +805,6 @@ export class OfflineApiInterceptor {
     }
   }
 
-  // 文件查看API缓存方法
-  async cacheFileViewApi(url, data) {
-    try {
-      const slug = this.extractSlugFromUrl(url);
-      if (slug) {
-        if (url.includes("/file-download/")) {
-          await pwaUtils.storage.saveSetting(`file_download_${slug}`, data);
-        } else if (url.includes("/file-view/")) {
-          await pwaUtils.storage.saveSetting(`file_view_${slug}`, data);
-        } else if (url.includes("/office-preview/")) {
-          await pwaUtils.storage.saveSetting(`office_preview_${slug}`, data);
-        }
-      }
-
-      console.log(`[离线模式] 文件查看API已缓存: ${url}`);
-    } catch (error) {
-      console.warn("缓存文件查看API失败:", error);
-    }
-  }
-
-  async getCachedFileViewApi(url) {
-    try {
-      const slug = this.extractSlugFromUrl(url);
-      if (slug) {
-        if (url.includes("/file-download/")) {
-          return await pwaUtils.storage.getSetting(`file_download_${slug}`);
-        } else if (url.includes("/file-view/")) {
-          return await pwaUtils.storage.getSetting(`file_view_${slug}`);
-        } else if (url.includes("/office-preview/")) {
-          return await pwaUtils.storage.getSetting(`office_preview_${slug}`);
-        }
-      }
-      return null;
-    } catch (error) {
-      console.warn("获取文件查看API缓存失败:", error);
-      return null;
-    }
-  }
-
   // 仪表盘API缓存方法
   async cacheDashboardApi(url, data) {
     try {
@@ -751,6 +826,44 @@ export class OfflineApiInterceptor {
       return null;
     } catch (error) {
       console.warn("获取仪表盘API缓存失败:", error);
+      return null;
+    }
+  }
+
+  // S3上传API缓存方法
+  async cacheS3UploadApi(url, data) {
+    try {
+      if (url.includes("/api/s3/presign")) {
+        // S3预签名上传
+        await pwaUtils.storage.saveSetting("s3_presign_cache", data);
+      } else if (url.includes("/api/s3/commit")) {
+        // S3上传提交
+        await pwaUtils.storage.saveSetting("s3_commit_cache", data);
+      } else if (url.includes("/api/s3/multipart")) {
+        // S3分片上传
+        const cacheKey = this.generateCacheKey(url);
+        await pwaUtils.storage.saveSetting(cacheKey, data);
+      }
+
+      console.log(`[离线模式] S3上传API已缓存: ${url}`);
+    } catch (error) {
+      console.warn("缓存S3上传API失败:", error);
+    }
+  }
+
+  async getCachedS3UploadApi(url) {
+    try {
+      if (url.includes("/api/s3/presign")) {
+        return await pwaUtils.storage.getSetting("s3_presign_cache");
+      } else if (url.includes("/api/s3/commit")) {
+        return await pwaUtils.storage.getSetting("s3_commit_cache");
+      } else if (url.includes("/api/s3/multipart")) {
+        const cacheKey = this.generateCacheKey(url);
+        return await pwaUtils.storage.getSetting(cacheKey);
+      }
+      return null;
+    } catch (error) {
+      console.warn("获取S3上传API缓存失败:", error);
       return null;
     }
   }

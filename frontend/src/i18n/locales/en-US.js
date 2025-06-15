@@ -1007,6 +1007,7 @@ export default {
 
   // Language selector
   language: {
+    toggle: "Toggle language",
     zh: "中文",
     en: "English",
   },

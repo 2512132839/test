@@ -1007,6 +1007,7 @@ export default {
 
   // 语言选择器
   language: {
+    toggle: "切换语言",
     zh: "中文",
     en: "English",
   },
