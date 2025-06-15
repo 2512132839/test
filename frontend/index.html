@@ -13,13 +13,8 @@
     <title>CloudPaste - 安全分享您的内容</title>
     <!-- 运行时配置文件，添加时间戳防止缓存 -->
     <script>
-        // 动态加载配置文件，避免使用document.write
-        (function () {
-            const script = document.createElement("script");
-            script.src = "/config.js?t=" + new Date().getTime();
-            script.async = false; // 确保配置在主应用之前加载
-            document.head.appendChild(script);
-        })();
+        // 添加时间戳防止缓存config.js
+        document.write('<script src="/config.js?t=' + new Date().getTime() + '"><\/script>');
     </script>
 </head>
 <body>
