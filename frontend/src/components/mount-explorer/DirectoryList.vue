@@ -19,7 +19,7 @@
             :class="darkMode ? 'bg-gray-700 border-gray-500' : ''"
         />
       </div>
-      <div class="mr-2 sm:mr-3 font-medium text-center" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">类型</div>
+      <div class="mr-2 sm:mr-3 font-medium text-center" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.fileList.type") }}</div>
 
       <!-- 可排序的名称列 -->
       <div
@@ -28,7 +28,7 @@
           @click="handleSort('name')"
           title="点击排序"
       >
-        <span class="truncate">名称</span>
+        <span class="truncate">{{ t("mount.fileList.name") }}</span>
         <!-- 排序图标 -->
         <svg v-if="getSortIcon('name')" class="ml-1 w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
           <path
@@ -50,7 +50,7 @@
           @click="handleSort('size')"
           title="点击排序"
       >
-        <span>大小</span>
+        <span>{{ t("mount.fileList.size") }}</span>
         <!-- 排序图标 -->
         <svg v-if="getSortIcon('size')" class="ml-1 w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
           <path
@@ -72,7 +72,7 @@
           @click="handleSort('modified')"
           title="点击排序"
       >
-        <span>修改时间</span>
+        <span>{{ t("mount.fileList.modifiedTime") }}</span>
         <!-- 排序图标 -->
         <svg v-if="getSortIcon('modified')" class="ml-1 w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
           <path
@@ -87,13 +87,13 @@
         </svg>
       </div>
 
-      <div class="min-w-[80px] sm:min-w-32 text-center font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">操作</div>
+      <div class="min-w-[80px] sm:min-w-32 text-center font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.fileList.actions") }}</div>
     </div>
 
     <div v-if="loading" class="py-8 flex flex-col items-center justify-center" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
       <!-- 加载指示器 -->
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 mb-2" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
-      <div>加载中...</div>
+      <div>{{ t("mount.fileList.loading") }}</div>
     </div>
 
     <div v-else-if="!items.length" class="py-8 flex flex-col items-center justify-center" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
@@ -105,7 +105,7 @@
             d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
         />
       </svg>
-      <div>{{ isVirtual ? "无可用挂载点" : "文件夹为空" }}</div>
+      <div>{{ isVirtual ? t("mount.fileList.noMountPoints") : t("mount.fileList.empty") }}</div>
     </div>
 
     <div v-else>
@@ -226,12 +226,12 @@
     <div v-if="showRenameDialog" class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
       <div class="relative w-full max-w-md p-6 rounded-lg shadow-xl" :class="darkMode ? 'bg-gray-800' : 'bg-white'">
         <div class="mb-4">
-          <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">重命名</h3>
-          <p class="text-sm mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">请输入新的名称</p>
+          <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">{{ t("mount.rename.title") }}</h3>
+          <p class="text-sm mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.rename.enterNewName") }}</p>
         </div>
 
         <div class="mb-4">
-          <label for="new-name" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'"> 新名称 </label>
+          <label for="new-name" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'"> {{ t("mount.rename.newName") }} </label>
           <input
               id="new-name"
               v-model="newName"
@@ -249,14 +249,14 @@
               class="px-4 py-2 rounded-md transition-colors"
               :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
           >
-            取消
+            {{ t("mount.rename.cancel") }}
           </button>
           <button
               @click="confirmRename"
               class="px-4 py-2 rounded-md text-white transition-colors"
               :class="darkMode ? 'bg-primary-600 hover:bg-primary-700' : 'bg-primary-500 hover:bg-primary-600'"
           >
-            确认
+            {{ t("mount.rename.confirm") }}
           </button>
         </div>
       </div>
@@ -266,11 +266,15 @@
     <div v-if="showDeleteDialog" class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
       <div class="relative w-full max-w-md p-6 rounded-lg shadow-xl" :class="darkMode ? 'bg-gray-800' : 'bg-white'">
         <div class="mb-4">
-          <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">确认删除</h3>
+          <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">{{ t("mount.delete.title") }}</h3>
           <p class="text-sm mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-            您确定要删除{{ itemToDelete?.isDirectory ? "文件夹" : "文件" }}
-            <span class="font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-900'">{{ itemToDelete?.name }}</span> 吗？
-            {{ itemToDelete?.isDirectory ? "此操作将删除文件夹及其所有内容。" : "" }}
+            {{
+              t("mount.delete.message", {
+                type: itemToDelete?.isDirectory ? t("mount.fileTypes.folder") : t("mount.fileTypes.file"),
+                name: itemToDelete?.name,
+              })
+            }}
+            {{ itemToDelete?.isDirectory ? t("mount.delete.folderWarning") : "" }}
           </p>
         </div>
 
@@ -280,9 +284,9 @@
               class="px-4 py-2 rounded-md transition-colors"
               :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
           >
-            取消
+            {{ t("mount.delete.cancel") }}
           </button>
-          <button @click="confirmDelete" class="px-4 py-2 rounded-md text-white transition-colors bg-red-600 hover:bg-red-700">删除</button>
+          <button @click="confirmDelete" class="px-4 py-2 rounded-md text-white transition-colors bg-red-600 hover:bg-red-700">{{ t("mount.delete.confirm") }}</button>
         </div>
       </div>
     </div>
@@ -297,7 +301,7 @@
           <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
-          <p>文件直链已复制到剪贴板</p>
+          <p>{{ t("mount.linkCopied") }}</p>
         </div>
       </div>
     </div>
@@ -306,10 +310,13 @@
 
 <script setup>
 import { ref, computed, nextTick, inject, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import FileItem from "./FileItem.vue";
 import { getFileIcon } from "../../utils/fileTypeIcons";
 import { api } from "../../api";
 import { copyToClipboard } from "@/utils/clipboard";
+
+const { t } = useI18n();
 
 const props = defineProps({
   items: {

@@ -6,7 +6,7 @@
     >
       <!-- 弹窗标题栏 -->
       <div class="p-4 flex justify-between items-center border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
-        <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">上传文件</h3>
+        <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">{{ t("mount.uploadModal.title") }}</h3>
         <button
             @click="closeModal"
             class="p-1 rounded-full transition-colors"
@@ -23,7 +23,7 @@
         <!-- 上传方式选择 -->
         <div class="mb-4 flex items-center justify-between p-3 rounded-lg" :class="darkMode ? 'bg-gray-700/50' : 'bg-gray-100'">
           <div class="flex items-center">
-            <span class="text-sm font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">上传方式:</span>
+            <span class="text-sm font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.uploadModal.uploadMethod") }}</span>
             <div class="flex space-x-4">
               <label class="flex items-center cursor-pointer">
                 <input
@@ -35,8 +35,10 @@
                     :disabled="isUploading"
                 />
                 <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">
-                  预签名直传
-                  <span class="text-xs px-1 py-0.5 rounded" :class="darkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700'"> 推荐 </span>
+                  {{ t("mount.uploadModal.presignedUpload") }}
+                  <span class="text-xs px-1 py-0.5 rounded" :class="darkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-700'">
+                    {{ t("mount.uploadModal.recommended") }}
+                  </span>
                 </span>
               </label>
               <label class="flex items-center cursor-pointer">
@@ -48,7 +50,7 @@
                     class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
                     :disabled="isUploading"
                 />
-                <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">直接上传</span>
+                <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">{{ t("mount.uploadModal.directUpload") }}</span>
               </label>
               <label class="flex items-center cursor-pointer">
                 <input
@@ -59,7 +61,7 @@
                     class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
                     :disabled="isUploading"
                 />
-                <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">分片上传</span>
+                <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">{{ t("mount.uploadModal.multipartUpload") }}</span>
               </label>
             </div>
           </div>
@@ -81,13 +83,19 @@
               "
                 :title="
                 uploadMethod === 'direct'
-                  ? '通过服务器直接上传，不显示进度条，适合小文件'
+                  ? t('mount.uploadModal.directModeDesc')
                   : uploadMethod === 'presigned'
-                  ? '直接上传到存储服务器，避免Worker CPU限制，速度更快'
-                  : '通过服务器分片上传，适合大文件或不稳定网络环境'
+                  ? t('mount.uploadModal.presignedModeDesc')
+                  : t('mount.uploadModal.multipartModeDesc')
               "
             >
-              {{ uploadMethod === "direct" ? "直接模式" : uploadMethod === "presigned" ? "直传模式" : "分片模式" }}
+              {{
+                uploadMethod === "direct"
+                    ? t("mount.uploadModal.directMode")
+                    : uploadMethod === "presigned"
+                        ? t("mount.uploadModal.presignedMode")
+                        : t("mount.uploadModal.multipartMode")
+              }}
             </span>
           </div>
         </div>
@@ -122,10 +130,12 @@
                 class="text-base font-medium transition-colors duration-300"
                 :class="[darkMode ? 'text-gray-300' : 'text-gray-700', isDragging ? (darkMode ? 'text-blue-300' : 'text-blue-700') : '']"
             >
-              {{ isDragging ? "拖放文件到这里" : "点击或拖动文件到这里上传" }}
+              {{ isDragging ? t("mount.uploadModal.dragDropHere") : t("mount.uploadModal.clickOrDragToUpload") }}
             </p>
             <p class="text-sm mt-1 transition-colors duration-300" :class="[darkMode ? 'text-gray-400' : 'text-gray-500']">
-              <span class="px-1.5 py-0.5 rounded text-xs" :class="darkMode ? 'bg-gray-700 text-blue-300' : 'bg-gray-200 text-blue-600'"> 支持多文件上传 </span>
+              <span class="px-1.5 py-0.5 rounded text-xs" :class="darkMode ? 'bg-gray-700 text-blue-300' : 'bg-gray-200 text-blue-600'">
+                {{ t("mount.uploadModal.multiFileSupport") }}
+              </span>
             </p>
             <p class="text-xs mt-2 transition-colors duration-300" :class="darkMode ? 'text-gray-500' : 'text-gray-500'">
               <span class="inline-flex items-center">
@@ -137,7 +147,7 @@
                       d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                   />
                 </svg>
-                支持 Ctrl+V 粘贴文件
+                {{ t("mount.uploadModal.pasteSupport") }}
               </span>
             </p>
           </div>
@@ -147,7 +157,7 @@
         <!-- 已选文件列表 -->
         <div v-if="selectedFiles.length > 0" class="selected-files mb-4">
           <div class="files-header flex justify-between items-center mb-3">
-            <h3 class="text-base font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">已选择 {{ selectedFiles.length }} 个文件</h3>
+            <h3 class="text-base font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("mount.uploadModal.selectedFiles", { count: selectedFiles.length }) }}</h3>
             <button
                 type="button"
                 @click="clearAllFiles"
@@ -163,7 +173,7 @@
                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                 />
               </svg>
-              清除全部
+              {{ t("mount.uploadModal.clearAll") }}
             </button>
           </div>
           <div class="files-list max-h-60 overflow-y-auto">
@@ -210,13 +220,13 @@
                   >
                     {{
                       fileItems[index].status === "pending"
-                          ? "待上传"
+                          ? t("mount.uploadModal.fileStatus.pending")
                           : fileItems[index].status === "uploading"
-                              ? `${fileItems[index].progress}%`
+                              ? t("mount.uploadModal.fileStatus.uploading", { progress: fileItems[index].progress })
                               : fileItems[index].status === "success"
-                                  ? "上传成功"
+                                  ? t("mount.uploadModal.fileStatus.success")
                                   : fileItems[index].status === "error"
-                                      ? "上传失败"
+                                      ? t("mount.uploadModal.fileStatus.error")
                                       : ""
                     }}
                   </span>
@@ -242,7 +252,7 @@
                   @click="cancelSingleUpload(index)"
                   class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
                   :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
-                  title="取消上传"
+                  :title="t('mount.uploadModal.cancelSingleUpload')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5M5 12l7-7 7 7" />
@@ -256,7 +266,7 @@
                   @click="retryUpload(index)"
                   class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
                   :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-                  title="重试"
+                  :title="t('mount.uploadModal.retryUpload')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -273,7 +283,7 @@
                   @click="clearSelectedFile(index)"
                   class="p-1 rounded-full hover:bg-opacity-20 transition-colors"
                   :class="darkMode ? 'hover:bg-gray-600 text-gray-400' : 'hover:bg-gray-200 text-gray-500'"
-                  title="移除"
+                  :title="t('mount.uploadModal.removeFile')"
                   :disabled="fileItems[index]?.status === 'uploading'"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -287,7 +297,7 @@
         <!-- 总上传进度 -->
         <div v-if="isUploading" class="mb-4">
           <div class="flex justify-between items-center mb-1">
-            <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">总进度</span>
+            <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.uploadModal.totalProgress") }}</span>
             <span class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">{{ totalProgress }}%</span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
@@ -298,7 +308,7 @@
             ></div>
           </div>
           <div class="flex justify-between items-center mt-1">
-            <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'"> 上传速度: {{ uploadSpeed }} </span>
+            <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'"> {{ t("mount.uploadModal.uploadSpeed") }} {{ uploadSpeed }} </span>
             <span class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
               {{ currentUploadInfo }}
             </span>
@@ -366,9 +376,11 @@
             :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
             :disabled="isUploading"
         >
-          取消
+          {{ t("mount.uploadModal.cancel") }}
         </button>
-        <button v-if="isUploading" @click="cancelUpload" class="px-4 py-2 rounded-md text-white transition-colors bg-red-500 hover:bg-red-600">取消上传</button>
+        <button v-if="isUploading" @click="cancelUpload" class="px-4 py-2 rounded-md text-white transition-colors bg-red-500 hover:bg-red-600">
+          {{ t("mount.uploadModal.cancelUpload") }}
+        </button>
         <button
             v-else
             @click="submitUpload"
@@ -376,7 +388,7 @@
             :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
             :disabled="!hasFilesToUpload"
         >
-          开始上传
+          {{ t("mount.uploadModal.startUpload") }}
         </button>
       </div>
     </div>
@@ -385,7 +397,10 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount } from "vue";
+import { useI18n } from "vue-i18n";
 import { api } from "../../api";
+
+const { t } = useI18n();
 
 // 组件属性
 const props = defineProps({
@@ -436,7 +451,7 @@ const currentUploadInfo = computed(() => {
     const current = currentUploadIndex.value + 1;
     const total = selectedFiles.value.length;
     const fileName = selectedFiles.value[currentUploadIndex.value].name;
-    return `正在上传 ${current}/${total}: ${fileName}`;
+    return t("mount.uploadModal.uploading", { current, total, fileName });
   }
   return "";
 });
@@ -490,14 +505,14 @@ const handlePaste = (event) => {
 
   // 如果成功添加了文件，显示提示
   if (hasAddedFiles) {
-    showMessage("success", "已从剪贴板添加文件");
+    showMessage("success", t("mount.uploadModal.pasteFileAdded"));
   }
 };
 
 // 方法
 const closeModal = () => {
   if (isUploading.value) {
-    if (confirm("正在上传文件，确定要取消并关闭吗？")) {
+    if (confirm(t("mount.uploadModal.confirmCancelUpload"))) {
       cancelUpload();
       emit("close");
     }
@@ -681,7 +696,7 @@ const submitUpload = async () => {
   const filesToUpload = fileItems.value.filter((item) => item.status !== "success");
 
   if (filesToUpload.length === 0) {
-    showMessage("warning", "没有可上传的文件");
+    showMessage("warning", t("mount.uploadModal.noFilesToUpload"));
     return;
   }
 
@@ -884,13 +899,13 @@ const submitUpload = async () => {
   if (uploadResults.length === 0 && errors.length > 0) {
     // 所有文件上传失败
     const errorMessages = errors.map((e) => `${e.file}: ${e.error}`).join("; ");
-    showMessage("error", `所有文件上传失败${errors.length > 1 ? "，请检查文件是否有效" : `: ${errorMessages}`}`);
+    showMessage("error", t("mount.uploadModal.allFilesUploadFailed") + (errors.length > 1 ? t("mount.uploadModal.checkFilesValid") : `: ${errorMessages}`));
   } else if (errors.length > 0) {
     // 部分文件上传失败
-    showMessage("warning", `已上传 ${uploadResults.length} 个文件，${errors.length} 个文件失败`);
+    showMessage("warning", t("mount.uploadModal.partialUploadSuccess", { success: uploadResults.length, failed: errors.length }));
   } else {
     // 所有文件上传成功
-    showMessage("success", `已成功上传 ${uploadResults.length} 个文件`);
+    showMessage("success", t("mount.uploadModal.allFilesUploadSuccess", { count: uploadResults.length }));
 
     // 通知父组件上传成功，可能需要刷新文件列表
     emit("upload-success", {
@@ -978,7 +993,7 @@ const cancelSingleUpload = async (index) => {
     }
   } catch (error) {
     console.error(`取消文件 ${fileName} 上传时发生错误:`, error);
-    showMessage("error", `取消上传失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.uploadModal.cancelUploadError", { message: error.message || t("common.unknown") }));
   }
 };
 
@@ -1018,7 +1033,7 @@ const cancelUpload = () => {
     uploadSpeed.value = "";
     currentUploadIndex.value = -1;
 
-    showMessage("warning", "已取消所有文件的上传");
+    showMessage("warning", t("mount.uploadModal.allUploadsCancelled"));
   }
 };
 
@@ -1160,7 +1175,7 @@ const retryUpload = async (index) => {
         ],
       });
 
-      showMessage("success", `文件 ${file.name} 重新上传成功`);
+      showMessage("success", t("mount.uploadModal.retryUploadSuccess", { fileName: file.name }));
 
       // 延迟1.5秒后清除此成功文件
       setTimeout(() => {
@@ -1169,12 +1184,12 @@ const retryUpload = async (index) => {
     } else {
       fileItem.status = "error";
       fileItem.message = response && response.message ? response.message : "上传失败";
-      showMessage("error", `文件 ${file.name} 重新上传失败: ${fileItem.message}`);
+      showMessage("error", t("mount.uploadModal.retryUploadFailed", { fileName: file.name, message: fileItem.message }));
     }
   } catch (error) {
     fileItem.status = "error";
     fileItem.message = error.message || "上传过程中发生错误";
-    showMessage("error", `文件 ${file.name} 重新上传错误: ${fileItem.message}`);
+    showMessage("error", t("mount.uploadModal.retryUploadError", { fileName: file.name, message: fileItem.message }));
   } finally {
     // 更新上传状态
     isUploading.value = fileItems.value.some((item) => item.status === "uploading");

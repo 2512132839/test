@@ -164,7 +164,7 @@ const handleChangePassword = async (event) => {
 
   // 如果新密码与当前密码相同，给出提示（虽然后端也会验证，但前端提前验证可以减少无效请求）
   if (passwordForm.value.newPassword && passwordForm.value.newPassword === passwordForm.value.currentPassword) {
-    passwordChangeStatus.value.error = t("admin.settings.status.errors.passwordSame") || "新密码不能与当前密码相同";
+    passwordChangeStatus.value.error = t("admin.settings.status.errors.passwordSame");
     // 设置3秒后自动清除错误信息
     setTimeout(() => {
       passwordChangeStatus.value.error = "";

@@ -7,7 +7,8 @@
         </svg>
         <span>
           {{ $t("markdown.permissionRequired") }}
-          <a href="#" @click.prevent="navigateToAdmin" class="font-medium underline">{{ $t("markdown.loginOrAuth") }}</a>。
+          <a href="#" @click.prevent="navigateToAdmin" class="font-medium underline">{{ $t("markdown.loginOrAuth") }}</a
+          >。
         </span>
       </div>
     </div>
@@ -94,7 +95,7 @@ const checkPermissionStatus = async () => {
   // 综合判断是否有创建权限
   hasPermission.value = isAdmin.value || (hasApiKey.value && hasTextPermission.value);
   console.log("用户创建文本分享权限:", hasPermission.value ? "有权限" : "无权限");
-  
+
   emit("permission-change", hasPermission.value);
 };
 
@@ -155,9 +156,9 @@ const validateApiKey = async (apiKey) => {
 
           // 触发自定义事件，通知其他组件权限已更新
           window.dispatchEvent(
-            new CustomEvent("api-key-permissions-updated", {
-              detail: { permissions },
-            })
+              new CustomEvent("api-key-permissions-updated", {
+                detail: { permissions },
+              })
           );
 
           console.log("API密钥验证成功，文本权限:", textPermission ? "有权限" : "无权限");
@@ -197,7 +198,7 @@ const handleStorageChange = async (e) => {
 // 组件挂载
 onMounted(async () => {
   await checkPermissionStatus();
-  
+
   // 监听storage事件
   window.addEventListener("storage", handleStorageChange);
   // 监听API密钥权限更新事件
@@ -208,7 +209,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener("storage", handleStorageChange);
   window.removeEventListener("api-key-permissions-updated", handleApiKeyPermissionsUpdate);
-  
+
   if (apiKeyValidationTimer) {
     clearTimeout(apiKeyValidationTimer);
     apiKeyValidationTimer = null;

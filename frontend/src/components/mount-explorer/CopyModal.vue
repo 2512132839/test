@@ -121,8 +121,11 @@
 
 <script setup>
 import { ref, watch, computed, shallowRef } from "vue";
+import { useI18n } from "vue-i18n";
 import { api } from "../../api";
 import { useTaskManager, TaskType, TaskStatus } from "../../utils/taskManager";
+
+const { t } = useI18n();
 
 // 使用Vue 3的方式注册递归组件
 import { h } from "vue";
@@ -582,7 +585,7 @@ const prepareCopyItems = () => {
 // 创建复制任务
 const createCopyTask = (itemCount) => {
   const taskManager = useTaskManager();
-  const taskId = taskManager.addTask(TaskType.COPY, `复制 ${itemCount} 个项目到 ${currentPath.value}`, itemCount);
+  const taskId = taskManager.addTask(TaskType.COPY, t("mount.taskManager.copyTaskName", { count: itemCount, path: currentPath.value }), itemCount);
 
   // 更新任务状态为运行中
   taskManager.updateTaskProgress(taskId, 0, {
@@ -742,7 +745,7 @@ const confirmCopy = async () => {
     // 立即关闭模态窗口，不等待复制完成
     emit("copy-complete", {
       success: true,
-      message: `开始复制 ${props.selectedItems.length} 个项目到 ${currentPath.value}，可在任务管理中查看进度`,
+      message: t("mount.taskManager.copyStarted", { count: props.selectedItems.length, path: currentPath.value }),
       targetPath: currentPath.value,
       taskId: taskId,
       showTaskManager: true,

@@ -238,6 +238,7 @@ const validateApiKey = async (apiKey) => {
 
 // 导航到管理页面
 const navigateToAdmin = () => {
+  // 使用 Vue Router 进行导航
   import("../router").then(({ routerUtils }) => {
     routerUtils.navigateTo("admin");
   });
@@ -350,7 +351,7 @@ const loadFiles = async () => {
     // 显示错误消息，但不清除权限
     message.value = {
       type: "error",
-      content: `加载文件列表失败: ${error.message || "未知错误"}`,
+      content: `${t("file.messages.getFileDetailFailed")}: ${error.message || t("file.messages.unknownError")}`,
     };
 
     // 4秒后清除消息
@@ -397,7 +398,7 @@ const handleUploadError = (error) => {
     // 其他类型的错误
     message.value = {
       type: "error",
-      content: error.message || t("common.unknownError"),
+      content: error.message || t("file.messages.unknownError"),
     };
   }
 

@@ -4,6 +4,9 @@ import { api } from "../../api";
 import MountForm from "./mount-management/MountForm.vue";
 import CommonPagination from "../common/CommonPagination.vue";
 import { getApiKeyInfo } from "../../utils/auth-helper";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 /**
  * 组件接收的属性定义
@@ -142,7 +145,7 @@ const formatStorageType = (mount) => {
   if (mount.storage_type === "S3" && mount.storage_config_id) {
     // 如果S3配置列表尚未加载完成
     if (s3ConfigsList.value.length === 0) {
-      return `${mount.storage_type} (加载中...)`;
+      return `${mount.storage_type} (${t("common.loading", "加载中...")})`;
     }
 
     const config = getS3ConfigById(mount.storage_config_id);
@@ -198,11 +201,11 @@ const formatCreator = (mount) => {
   const creatorType = getCreatorType(mount);
 
   if (creatorType === "system") {
-    return "系统";
+    return t("admin.mount.creators.system", "系统");
   }
 
   if (creatorType === "admin") {
-    return "管理员";
+    return t("admin.mount.creators.admin", "管理员");
   }
 
   if (creatorType === "apikey") {
@@ -214,11 +217,11 @@ const formatCreator = (mount) => {
 
     // 显示API密钥名称或缩略ID
     if (apiKeyNames.value && apiKeyNames.value[keyId]) {
-      return `密钥：${apiKeyNames.value[keyId]}`;
+      return `${t("admin.mount.creators.apiKey", "密钥")}：${apiKeyNames.value[keyId]}`;
     } else if (keyId.length > 10) {
-      return `密钥：${keyId.substring(0, 5)}...`;
+      return `${t("admin.mount.creators.apiKey", "密钥")}：${keyId.substring(0, 5)}...`;
     } else {
-      return `密钥：${keyId}`;
+      return `${t("admin.mount.creators.apiKey", "密钥")}：${keyId}`;
     }
   }
 
@@ -272,7 +275,7 @@ const loadApiKeyNames = async () => {
       const keyInfo = await getApiKeyInfo();
       if (keyInfo && keyInfo.id) {
         const keyMap = {};
-        keyMap[keyInfo.id] = keyInfo.name || "当前密钥";
+        keyMap[keyInfo.id] = keyInfo.name || t("admin.mount.currentApiKey");
         apiKeyNames.value = keyMap;
       }
     }
@@ -313,11 +316,11 @@ const loadMounts = async () => {
         await loadApiKeyNames();
       }
     } else {
-      error.value = response.message || "加载挂载点列表失败";
+      error.value = response.message || t("admin.mount.error.loadFailed");
     }
   } catch (err) {
     console.error("加载挂载点列表错误:", err);
-    error.value = err.message || "加载挂载点列表失败";
+    error.value = err.message || t("admin.mount.error.loadFailed");
   } finally {
     loading.value = false;
   }
@@ -347,7 +350,7 @@ const handleFormSaveSuccess = (success = true, message = null) => {
 
   // 如果操作失败，显示错误消息
   if (success === false) {
-    error.value = message || "操作失败";
+    error.value = message || t("admin.mount.error.updateFailed");
     setTimeout(() => {
       error.value = "";
     }, 4000);
@@ -355,7 +358,7 @@ const handleFormSaveSuccess = (success = true, message = null) => {
   }
 
   // 显示成功消息
-  successMessage.value = message || (currentMount.value ? "挂载点更新成功" : "挂载点创建成功");
+  successMessage.value = message || (currentMount.value ? t("admin.mount.success.updated") : t("admin.mount.success.created"));
   setTimeout(() => {
     successMessage.value = "";
   }, 4000);
@@ -366,7 +369,7 @@ const handleFormSaveSuccess = (success = true, message = null) => {
 
 // 删除挂载点
 const confirmDelete = async (id) => {
-  if (!confirm("确定要删除这个挂载点吗？此操作不可撤销。")) {
+  if (!confirm(t("admin.mount.confirmDelete.message", { name: "此挂载点" }))) {
     return;
   }
 
@@ -378,25 +381,25 @@ const confirmDelete = async (id) => {
     // 根据用户类型调用相应的API函数
     const response = await deleteMountById()(id);
     if (response.code === 200) {
-      successMessage.value = "挂载点删除成功";
+      successMessage.value = t("admin.mount.success.deleted");
       setTimeout(() => {
         successMessage.value = "";
       }, 4000);
       // 重新加载挂载点列表
       loadMounts();
     } else {
-      error.value = response.message || "删除挂载点失败";
+      error.value = response.message || t("admin.mount.error.deleteFailed");
     }
   } catch (err) {
     console.error("删除挂载点错误:", err);
-    error.value = err.message || "删除挂载点失败";
+    error.value = err.message || t("admin.mount.error.deleteFailed");
   }
 };
 
 // 切换挂载点启用/禁用状态
 const toggleActive = async (mount) => {
   // 确定操作类型（用于提示消息）
-  const action = mount.is_active ? "禁用" : "启用";
+  const action = mount.is_active ? t("admin.mount.actions.disable") : t("admin.mount.actions.enable");
 
   try {
     // 清空之前的消息
@@ -410,7 +413,7 @@ const toggleActive = async (mount) => {
 
     // 只有管理员可以切换挂载点状态
     if (isApiKeyUser()) {
-      error.value = "API密钥用户无权限修改挂载点状态";
+      error.value = t("admin.mount.error.apiKeyNoPermission");
       return;
     }
 
@@ -418,18 +421,18 @@ const toggleActive = async (mount) => {
 
     // 处理响应
     if (response.code === 200) {
-      successMessage.value = `挂载点${action}成功`;
+      successMessage.value = mount.is_active ? t("admin.mount.success.disabled") : t("admin.mount.success.enabled");
       setTimeout(() => {
         successMessage.value = "";
       }, 4000);
       // 重新加载挂载点列表
       loadMounts();
     } else {
-      error.value = response.message || `${action}挂载点失败`;
+      error.value = response.message || (mount.is_active ? t("admin.mount.error.disableFailed") : t("admin.mount.error.enableFailed"));
     }
   } catch (err) {
     console.error(`${action}挂载点错误:`, err);
-    error.value = err.message || `${action}挂载点失败`;
+    error.value = err.message || (mount.is_active ? t("admin.mount.error.disableFailed") : t("admin.mount.error.enableFailed"));
   }
 };
 
@@ -446,7 +449,7 @@ onMounted(() => {
     <div class="flex flex-col sm:flex-row sm:justify-between mb-4">
       <div class="mb-2 sm:mb-0">
         <h2 class="text-lg font-semibold" :class="darkMode ? 'text-white' : 'text-gray-900'">
-          {{ isApiKeyUser() ? "可访问的挂载点" : "挂载管理" }}
+          {{ isApiKeyUser() ? t("admin.mount.accessibleMounts") : t("admin.mount.title") }}
         </h2>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -462,7 +465,7 @@ onMounted(() => {
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            添加挂载点
+            {{ t("admin.mount.createMount") }}
           </span>
         </button>
         <button
@@ -479,7 +482,7 @@ onMounted(() => {
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
-            刷新
+            {{ t("admin.mount.refresh") }}
           </span>
         </button>
       </div>
@@ -500,7 +503,7 @@ onMounted(() => {
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          上次刷新: {{ lastRefreshTime }}
+          {{ t("admin.mount.info.lastRefresh") }}: {{ lastRefreshTime }}
         </span>
       </div>
 
@@ -510,7 +513,7 @@ onMounted(() => {
           <input
               type="text"
               v-model="searchQuery"
-              placeholder="搜索挂载点..."
+              :placeholder="t('admin.mount.search')"
               class="w-full px-3 py-1.5 rounded-md focus:outline-none focus:ring-2"
               :class="
               darkMode
@@ -549,10 +552,10 @@ onMounted(() => {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12H3v8h18v-8H5zm0 0a2 2 0 100-4h14a2 2 0 100 4M5 8a2 2 0 100-4h14a2 2 0 100 4" />
         </svg>
         <h3 class="text-lg font-medium mb-2" :class="darkMode ? 'text-white' : 'text-gray-900'">
-          {{ searchQuery ? "没有匹配的挂载点" : isApiKeyUser() ? "没有可访问的挂载点" : "没有挂载点" }}
+          {{ searchQuery ? t("admin.mount.searchResults.noResults") : isApiKeyUser() ? t("admin.mount.empty.title") : t("admin.mount.empty.title") }}
         </h3>
         <p class="text-sm mb-4" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          {{ searchQuery ? "尝试使用不同的搜索条件" : isApiKeyUser() ? "当前API密钥没有可访问的挂载点，请联系管理员配置权限" : '点击"添加挂载点"按钮创建第一个挂载点' }}
+          {{ searchQuery ? "尝试使用不同的搜索条件" : isApiKeyUser() ? "当前API密钥没有可访问的挂载点，请联系管理员配置权限" : t("admin.mount.empty.description") }}
         </p>
         <button
             v-if="searchQuery"
@@ -564,7 +567,7 @@ onMounted(() => {
               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500'
           "
         >
-          清除搜索
+          {{ t("admin.mount.searchResults.clearSearch") }}
         </button>
       </div>
     </div>
@@ -602,7 +605,7 @@ onMounted(() => {
                 >
                   <span class="flex items-center">
                     <span class="w-1.5 h-1.5 rounded-full mr-1" :class="mount.is_active ? 'bg-green-400' : 'bg-gray-400'"></span>
-                    {{ mount.is_active ? "已启用" : "已禁用" }}
+                    {{ mount.is_active ? t("admin.mount.status.enabled") : t("admin.mount.status.disabled") }}
                   </span>
                 </span>
               </div>
@@ -688,7 +691,7 @@ onMounted(() => {
                         d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                     />
                   </svg>
-                  <span>创建: {{ formatDate(mount.created_at) }}</span>
+                  <span>{{ t("admin.mount.info.createdAt") }}: {{ formatDate(mount.created_at) }}</span>
                 </div>
               </div>
 
@@ -705,7 +708,7 @@ onMounted(() => {
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  <span>创建者: </span>
+                  <span>{{ t("admin.mount.info.createdBy") }}: </span>
                   <span class="ml-1 px-1.5 py-0.5 text-xs rounded" :class="getCreatorClass(mount)">
                     {{ formatCreator(mount) }}
                   </span>
@@ -733,7 +736,7 @@ onMounted(() => {
                           d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                       />
                     </svg>
-                    编辑
+                    {{ t("admin.mount.actions.edit") }}
                   </button>
                   <!-- 启用/禁用切换按钮 -->
                   <button
@@ -760,7 +763,7 @@ onMounted(() => {
                     <svg v-else class="h-3.5 w-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    {{ mount.is_active ? "禁用" : "启用" }}
+                    {{ mount.is_active ? t("admin.mount.actions.disable") : t("admin.mount.actions.enable") }}
                   </button>
                   <button
                       @click="confirmDelete(mount.id)"
@@ -779,7 +782,7 @@ onMounted(() => {
                           d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                       />
                     </svg>
-                    删除
+                    {{ t("admin.mount.actions.delete") }}
                   </button>
                 </template>
                 <!-- API密钥用户只能查看，显示只读提示 -->
@@ -794,7 +797,7 @@ onMounted(() => {
                           d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                       />
                     </svg>
-                    只读
+                    {{ t("admin.mount.actions.view") }}
                   </span>
                 </template>
               </div>

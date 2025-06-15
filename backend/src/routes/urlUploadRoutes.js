@@ -207,8 +207,10 @@ export function registerUrlUploadRoutes(app) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "缺少文件ID参数"), ApiStatus.BAD_REQUEST);
       }
 
+      // ETag参数是可选的，某些S3兼容服务（如又拍云）可能由于CORS限制无法返回ETag
+      // 如果没有ETag，我们仍然允许提交，但会记录警告
       if (!body.etag) {
-        return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "缺少ETag参数"), ApiStatus.BAD_REQUEST);
+        console.warn(`URL上传提交时未提供ETag: ${body.file_id}，可能是由于CORS限制导致前端无法获取ETag响应头`);
       }
 
       // 查询待提交的文件信息
@@ -376,7 +378,7 @@ export function registerUrlUploadRoutes(app) {
 
       // 准备绑定参数
       const bindParams = [
-        body.etag,
+        body.etag || null, // 如果ETag为空，保存为null
         creator,
         remark,
         passwordHash,

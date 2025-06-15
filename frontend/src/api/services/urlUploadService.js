@@ -209,18 +209,17 @@ export async function uploadFromUrlToS3(options) {
         if (uploadXhr.status >= 200 && uploadXhr.status < 300) {
           // 获取ETag
           const etag = uploadXhr.getResponseHeader("ETag");
-          if (etag) {
-            resolve({
-              success: true,
-              etag: etag.replace(/"/g, ""), // 移除引号
-              size: blob.size,
-            });
-          } else {
-            resolve({
-              success: true,
-              size: blob.size,
-            });
+          const cleanEtag = etag ? etag.replace(/"/g, "") : null;
+
+          if (!etag) {
+            console.warn("URL上传成功但未返回ETag，可能是CORS限制导致");
           }
+
+          resolve({
+            success: true,
+            etag: cleanEtag,
+            size: blob.size,
+          });
         } else {
           reject(new Error(`上传到S3失败: HTTP ${uploadXhr.status}`));
         }
@@ -403,15 +402,15 @@ export class S3MultipartUploader {
           activeUploads.add(uploadPromise);
 
           uploadPromise
-            .then(() => {
-              activeUploads.delete(uploadPromise);
-              processNext();
-            })
-            .catch((error) => {
-              activeUploads.delete(uploadPromise);
-              this.onError(error, part.partNumber);
-              reject(error);
-            });
+              .then(() => {
+                activeUploads.delete(uploadPromise);
+                processNext();
+              })
+              .catch((error) => {
+                activeUploads.delete(uploadPromise);
+                this.onError(error, part.partNumber);
+                reject(error);
+              });
 
           // 继续处理下一个
           processNext();
@@ -446,17 +445,22 @@ export class S3MultipartUploader {
       xhr.addEventListener("load", () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           const etag = xhr.getResponseHeader("ETag");
-          if (etag) {
-            this.uploadedParts.push({
-              partNumber: part.partNumber,
-              etag: etag.replace(/"/g, ""), // 移除引号
-            });
-            this.totalUploaded += part.size;
-            this.onPartComplete(part.partNumber, etag);
-            resolve();
-          } else {
-            reject(new Error(`分片 ${part.partNumber} 上传失败：未返回ETag`));
+          // 某些S3兼容服务（如又拍云）可能由于CORS限制无法返回ETag
+          // 在这种情况下，我们仍然认为上传成功，但使用null作为ETag
+          const cleanEtag = etag ? etag.replace(/"/g, "") : null;
+
+          this.uploadedParts.push({
+            partNumber: part.partNumber,
+            etag: cleanEtag,
+          });
+          this.totalUploaded += part.size;
+          this.onPartComplete(part.partNumber, cleanEtag);
+
+          if (!etag) {
+            console.warn(`分片 ${part.partNumber} 上传成功但未返回ETag，可能是CORS限制导致`);
           }
+
+          resolve();
         } else {
           reject(new Error(`分片 ${part.partNumber} 上传失败：HTTP ${xhr.status}`));
         }

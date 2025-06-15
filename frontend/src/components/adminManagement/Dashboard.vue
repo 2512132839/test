@@ -63,7 +63,7 @@ const chartData = computed(() => {
     labels: dateLabels.value,
     datasets: [
       {
-        label: t("dashboard.totalPastes") || "文本分享",
+        label: t("dashboard.totalPastes"),
         backgroundColor: props.darkMode ? "rgba(59, 130, 246, 0.7)" : "rgba(37, 99, 235, 0.7)",
         borderColor: props.darkMode ? "rgba(59, 130, 246, 1)" : "rgba(37, 99, 235, 1)",
         borderWidth: 1,
@@ -71,7 +71,7 @@ const chartData = computed(() => {
         borderRadius: 4,
       },
       {
-        label: t("dashboard.totalFiles") || "文件上传",
+        label: t("dashboard.totalFiles"),
         backgroundColor: props.darkMode ? "rgba(16, 185, 129, 0.7)" : "rgba(5, 150, 105, 0.7)",
         borderColor: props.darkMode ? "rgba(16, 185, 129, 1)" : "rgba(5, 150, 105, 1)",
         borderWidth: 1,
@@ -222,13 +222,16 @@ const getOtherProvidersPercent = () => {
 
 // 格式化存储大小
 const formatBytes = (bytes, decimals = 2) => {
-  if (bytes === 0) return "0 Bytes";
+  if (bytes === 0) return `0 ${t("dashboard.storageUnits.bytes")}`;
 
   const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB"];
+  const sizeKeys = ["bytes", "kb", "mb", "gb", "tb"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + " " + sizes[i];
+  const sizeKey = sizeKeys[i] || "bytes";
+  const sizeUnit = t(`dashboard.storageUnits.${sizeKey}`);
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + " " + sizeUnit;
 };
 
 // 切换选中的存储桶
@@ -276,11 +279,11 @@ const fetchDashboardStats = async () => {
       // 重置选中的存储桶
       selectedBucketId.value = null;
     } else {
-      throw new Error(response.error || "获取数据失败");
+      throw new Error(response.error || t("dashboard.fetchError"));
     }
   } catch (err) {
     console.error("获取控制面板数据失败:", err);
-    error.value = t("dashboard.fetchError") || "获取数据失败，请稍后重试";
+    error.value = t("dashboard.fetchError");
   } finally {
     isLoading.value = false;
   }
@@ -318,7 +321,7 @@ onBeforeUnmount(() => {
     <!-- 标题和刷新按钮 -->
     <div class="flex justify-between items-center mb-4 md:mb-6">
       <h2 class="text-xl font-bold" :class="darkMode ? 'text-white' : 'text-gray-800'">
-        {{ t("dashboard.systemOverview") || "系统概览" }}
+        {{ t("dashboard.systemOverview") }}
       </h2>
       <button
           @click="fetchDashboardStats"
@@ -333,7 +336,7 @@ onBeforeUnmount(() => {
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
           />
         </svg>
-        {{ isLoading ? t("dashboard.loading") || "加载中..." : t("dashboard.refresh") || "刷新" }}
+        {{ isLoading ? t("dashboard.refreshing") : t("dashboard.refresh") }}
       </button>
     </div>
 
@@ -349,7 +352,7 @@ onBeforeUnmount(() => {
         <div class="flex justify-between">
           <div>
             <p class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-500'">
-              {{ t("dashboard.totalPastes") || "文本分享" }}
+              {{ t("dashboard.totalPastes") }}
             </p>
             <p class="mt-1 text-2xl font-semibold" :class="darkMode ? 'text-white' : 'text-gray-800'">
               {{ statsData.totalPastes }}
@@ -373,7 +376,7 @@ onBeforeUnmount(() => {
         <div class="flex justify-between">
           <div>
             <p class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-500'">
-              {{ t("dashboard.totalFiles") || "文件上传" }}
+              {{ t("dashboard.totalFiles") }}
             </p>
             <p class="mt-1 text-2xl font-semibold" :class="darkMode ? 'text-white' : 'text-gray-800'">
               {{ statsData.totalFiles }}
@@ -392,7 +395,7 @@ onBeforeUnmount(() => {
         <div class="flex justify-between">
           <div>
             <p class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-500'">
-              {{ t("dashboard.totalApiKeys") || "API密钥" }}
+              {{ t("dashboard.totalApiKeys") }}
             </p>
             <p class="mt-1 text-2xl font-semibold" :class="darkMode ? 'text-white' : 'text-gray-800'">
               {{ statsData.totalApiKeys }}
@@ -416,7 +419,7 @@ onBeforeUnmount(() => {
         <div class="flex justify-between">
           <div>
             <p class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-500'">
-              {{ t("dashboard.totalS3Configs") || "存储配置" }}
+              {{ t("dashboard.totalS3Configs") }}
             </p>
             <p class="mt-1 text-2xl font-semibold" :class="darkMode ? 'text-white' : 'text-gray-800'">
               {{ statsData.totalS3Configs }}
@@ -547,7 +550,7 @@ onBeforeUnmount(() => {
       <div class="p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-base font-semibold" :class="darkMode ? 'text-white' : 'text-gray-800'">
-            {{ t("dashboard.weeklyActivity") || "过去7天活动" }}
+            {{ t("dashboard.weeklyActivity") }}
           </h3>
 
           <div class="flex items-center space-x-2">

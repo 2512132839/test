@@ -111,8 +111,8 @@ onUnmounted(() => {
   <div class="pwa-status-indicator">
     <!-- 状态指示器按钮 -->
     <button
-        @click="toggleStatus"
-        :class="[
+      @click="toggleStatus"
+      :class="[
         'fixed bottom-4 right-4 z-30 w-12 h-12 rounded-full shadow-lg transition-all duration-300',
         'flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2',
         statusColor === 'red'
@@ -131,7 +131,7 @@ onUnmounted(() => {
           ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
           : 'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500',
       ]"
-        :title="`PWA状态: ${statusText}`"
+      :title="`PWA状态: ${statusText}`"
     >
       <!-- 离线图标 -->
       <svg v-if="statusIcon === 'offline'" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,10 +141,10 @@ onUnmounted(() => {
       <!-- 更新图标 -->
       <svg v-else-if="statusIcon === 'update'" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
         />
       </svg>
 
@@ -156,10 +156,10 @@ onUnmounted(() => {
       <!-- 在线图标 -->
       <svg v-else class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
         />
       </svg>
     </button>
@@ -167,8 +167,8 @@ onUnmounted(() => {
     <!-- 状态详情面板 -->
     <Transition name="slide-up">
       <div
-          v-if="showStatus"
-          :class="['fixed bottom-20 right-4 z-20 w-80 rounded-lg shadow-xl p-4', darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200']"
+        v-if="showStatus"
+        :class="['fixed bottom-20 right-4 z-20 w-80 rounded-lg shadow-xl p-4', darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200']"
       >
         <div class="flex items-center justify-between mb-4">
           <h3 :class="['text-lg font-semibold', darkMode ? 'text-white' : 'text-gray-900']">PWA 状态</h3>
@@ -217,8 +217,8 @@ onUnmounted(() => {
           <div class="pt-3 border-t border-gray-200 dark:border-gray-600">
             <div class="flex space-x-2">
               <button
-                  @click="clearCache"
-                  :class="[
+                @click="clearCache"
+                :class="[
                   'flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors',
                   darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700',
                 ]"
@@ -226,9 +226,9 @@ onUnmounted(() => {
                 清理缓存
               </button>
               <button
-                  v-if="statusDetails.hasUpdate"
-                  @click="forceUpdate"
-                  :class="[
+                v-if="statusDetails.hasUpdate"
+                @click="forceUpdate"
+                :class="[
                   'flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors',
                   darkMode ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white',
                 ]"

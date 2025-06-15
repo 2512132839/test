@@ -337,13 +337,16 @@ const selectedPath = ref("/");
 const rootDirectories = shallowRef([]); // 添加根目录列表状态
 
 // 自定义过期时间选项
-const expirationOptions = computed(() => [
-  { value: "1d", label: t("admin.keyManagement.createModal.expiration1d", "1天") },
-  { value: "7d", label: t("admin.keyManagement.createModal.expiration7d", "7天") },
-  { value: "30d", label: t("admin.keyManagement.createModal.expiration30d", "30天") },
-  { value: "never", label: t("admin.keyManagement.createModal.expirationNever", "永不过期") },
-  { value: "custom", label: t("admin.keyManagement.createModal.expirationCustom", "自定义") },
-]);
+const expirationOptions = computed(() => {
+  const baseKey = props.isEditMode ? "admin.keyManagement.editModal.expirationOptions" : "admin.keyManagement.createModal.expirationOptions";
+  return [
+    { value: "1d", label: t(`${baseKey}.1d`, "1天") },
+    { value: "7d", label: t(`${baseKey}.7d`, "7天") },
+    { value: "30d", label: t(`${baseKey}.30d`, "30天") },
+    { value: "never", label: t(`${baseKey}.never`, "永不过期") },
+    { value: "custom", label: t(`${baseKey}.custom`, "自定义") },
+  ];
+});
 
 // 计算属性：是否为自定义过期时间
 const isCustomExpiration = computed(() => {
@@ -717,7 +720,7 @@ defineExpose({
               : 'text-gray-500 hover:text-gray-700',
           ]"
         >
-          {{ $t("admin.keyManagement.createModal.tabs.basic", "基本信息") }}
+          {{ $t(isEditMode ? "admin.keyManagement.editModal.tabs.basic" : "admin.keyManagement.createModal.tabs.basic", "基本信息") }}
         </button>
         <button
             v-if="mountPermission"
@@ -733,7 +736,7 @@ defineExpose({
               : 'text-gray-500 hover:text-gray-700',
           ]"
         >
-          {{ $t("admin.keyManagement.createModal.tabs.path", "路径选择") }}
+          {{ $t(isEditMode ? "admin.keyManagement.editModal.tabs.path" : "admin.keyManagement.createModal.tabs.path", "路径选择") }}
         </button>
       </nav>
     </div>
@@ -745,18 +748,18 @@ defineExpose({
         <!-- 密钥名称 -->
         <div>
           <label :for="isEditMode ? 'edit-key-name' : 'key-name'" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-            {{ $t("admin.keyManagement.createModal.keyName") }}
+            {{ $t(isEditMode ? "admin.keyManagement.editModal.keyName" : "admin.keyManagement.createModal.keyName") }}
           </label>
           <input
               :id="isEditMode ? 'edit-key-name' : 'key-name'"
               v-model="keyName"
               type="text"
-              :placeholder="$t('admin.keyManagement.createModal.keyNamePlaceholder')"
+              :placeholder="$t(isEditMode ? 'admin.keyManagement.editModal.keyNamePlaceholder' : 'admin.keyManagement.createModal.keyNamePlaceholder')"
               class="w-full p-2 rounded-md border"
               :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
           />
           <p class="mt-1 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-            {{ $t("admin.keyManagement.createModal.keyNameHelp") }}
+            {{ $t(isEditMode ? "admin.keyManagement.editModal.keyNameHelp" : "admin.keyManagement.createModal.keyNameHelp") }}
           </p>
         </div>
 
@@ -796,7 +799,7 @@ defineExpose({
         <!-- 过期时间 -->
         <div>
           <label :for="isEditMode ? 'edit-key-expiration' : 'key-expiration'" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-            {{ $t("admin.keyManagement.createModal.expiration") }}
+            {{ $t(isEditMode ? "admin.keyManagement.editModal.expiration" : "admin.keyManagement.createModal.expiration") }}
           </label>
           <select
               :id="isEditMode ? 'edit-key-expiration' : 'key-expiration'"
@@ -813,7 +816,7 @@ defineExpose({
         <!-- 自定义过期时间 -->
         <div v-if="isCustomExpiration">
           <label :for="isEditMode ? 'edit-custom-expiration' : 'custom-expiration'" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-            {{ $t("admin.keyManagement.createModal.customExpiration") }}
+            {{ $t(isEditMode ? "admin.keyManagement.editModal.customExpiration" : "admin.keyManagement.createModal.customExpiration") }}
           </label>
           <input
               :id="isEditMode ? 'edit-custom-expiration' : 'custom-expiration'"
@@ -836,7 +839,7 @@ defineExpose({
                 :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
             />
             <label :for="isEditMode ? 'edit-text-permission' : 'text-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-              {{ $t("admin.keyManagement.createModal.permissions.text") }}
+              {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.text" : "admin.keyManagement.createModal.permissions.text") }}
             </label>
           </div>
 
@@ -850,7 +853,7 @@ defineExpose({
                 :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
             />
             <label :for="isEditMode ? 'edit-file-permission' : 'file-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-              {{ $t("admin.keyManagement.createModal.permissions.file") }}
+              {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.file" : "admin.keyManagement.createModal.permissions.file") }}
             </label>
           </div>
 
@@ -864,7 +867,7 @@ defineExpose({
                 :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
             />
             <label :for="isEditMode ? 'edit-mount-permission' : 'mount-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-              {{ $t("admin.keyManagement.createModal.permissions.mount") }}
+              {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.mount" : "admin.keyManagement.createModal.permissions.mount") }}
             </label>
           </div>
         </div>
@@ -902,8 +905,15 @@ defineExpose({
 
         <!-- 提示信息 -->
         <div class="p-3 rounded-md text-sm" :class="darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'">
-          <p class="font-medium mb-1">{{ $t("admin.keyManagement.createModal.securityTip") }}</p>
-          <p>{{ $t("admin.keyManagement.createModal.securityMessage") }}</p>
+          <p class="font-medium mb-1">{{ $t(isEditMode ? "admin.keyManagement.editModal.securityTip" : "admin.keyManagement.createModal.securityTip", "安全提示") }}</p>
+          <p>
+            {{
+              $t(
+                  isEditMode ? "admin.keyManagement.editModal.securityMessage" : "admin.keyManagement.createModal.securityMessage",
+                  "请妥善保管您的API密钥，不要在公共场所或不安全的环境中使用。"
+              )
+            }}
+          </p>
         </div>
       </div>
 
@@ -911,7 +921,7 @@ defineExpose({
       <div v-else-if="activeTab === 'path'" class="space-y-4">
         <!-- 当前路径 -->
         <div class="mb-3 text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-          {{ $t("admin.keyManagement.pathSelector.currentPath", "当前选择") }}:
+          {{ $t(isEditMode ? "admin.keyManagement.editModal.pathSelector.currentPath" : "admin.keyManagement.createModal.pathSelector.currentPath", "当前选择") }}:
           <span class="font-bold">{{ selectedPath }}</span>
         </div>
 
@@ -927,7 +937,7 @@ defineExpose({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
-            <span>{{ $t("admin.keyManagement.pathSelector.loading", "加载中...") }}</span>
+            <span>{{ $t(isEditMode ? "admin.keyManagement.editModal.pathSelector.loading" : "admin.keyManagement.createModal.pathSelector.loading", "加载中...") }}</span>
           </div>
 
           <div v-else class="h-full overflow-y-auto p-1">
@@ -955,7 +965,7 @@ defineExpose({
                     />
                   </svg>
                   <span class="truncate" :class="[darkMode ? 'text-gray-200' : 'text-gray-700', selectedPath === '/' ? 'font-medium text-blue-600 dark:text-blue-400' : '']">
-                    {{ $t("admin.keyManagement.pathSelector.rootDirectory", "根目录") }}
+                    {{ $t(isEditMode ? "admin.keyManagement.editModal.pathSelector.rootDirectory" : "admin.keyManagement.createModal.pathSelector.rootDirectory", "根目录") }}
                   </span>
                 </div>
               </div>
@@ -980,7 +990,7 @@ defineExpose({
               class="px-3 py-1.5 text-sm rounded-md text-white"
               :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
           >
-            {{ $t("admin.keyManagement.pathSelector.confirm", "确认路径") }}
+            {{ $t(isEditMode ? "admin.keyManagement.editModal.pathSelector.confirm" : "admin.keyManagement.createModal.pathSelector.confirm", "确认路径") }}
           </button>
         </div>
       </div>

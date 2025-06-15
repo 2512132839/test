@@ -35,8 +35,8 @@ export async function getAllApiKeys(db) {
 
   // 查询所有密钥，并隐藏完整密钥
   const keys = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT 
       id, 
       name, 
@@ -52,8 +52,8 @@ export async function getAllApiKeys(db) {
     FROM ${DbTables.API_KEYS}
     ORDER BY created_at DESC
   `
-    )
-    .all();
+      )
+      .all();
 
   return keys.results;
 }
@@ -117,14 +117,14 @@ export async function createApiKey(db, keyData) {
 
   // 插入到数据库
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
-    )
-    .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, basicPath, expiresAt.toISOString(), createdAt)
-    .run();
+      )
+      .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, basicPath, expiresAt.toISOString(), createdAt)
+      .run();
 
   // 准备响应数据
   return {
@@ -229,9 +229,9 @@ export async function updateApiKey(db, id, updateData) {
 
   // 执行更新
   await db
-    .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
-    .bind(...params)
-    .run();
+      .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
+      .bind(...params)
+      .run();
 }
 
 /**
@@ -262,13 +262,13 @@ export async function getApiKeyByKey(db, key) {
   if (!key) return null;
 
   const result = await db
-    .prepare(
-      `SELECT id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, last_used
+      .prepare(
+          `SELECT id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, last_used
        FROM ${DbTables.API_KEYS}
        WHERE key = ?`
-    )
-    .bind(key)
-    .first();
+      )
+      .bind(key)
+      .first();
 
   return result;
 }
@@ -359,16 +359,16 @@ export function checkPathPermissionForOperation(basicPath, requestPath) {
 export async function getAccessibleMountsByBasicPath(db, basicPath) {
   // 获取所有活跃的挂载点
   const allMounts = await db
-    .prepare(
-      `SELECT
+      .prepare(
+          `SELECT
         id, name, storage_type, storage_config_id, mount_path,
         remark, is_active, created_by, sort_order, cache_ttl,
         created_at, updated_at, last_used
        FROM ${DbTables.STORAGE_MOUNTS}
        WHERE is_active = 1
        ORDER BY sort_order ASC, name ASC`
-    )
-    .all();
+      )
+      .all();
 
   if (!allMounts.results) return [];
 

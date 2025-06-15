@@ -3,9 +3,9 @@
     <!-- 添加面包屑导航标题，与文本分享页面风格一致 -->
     <div class="max-w-4xl mx-auto w-full px-4 mt-4">
       <div class="py-3 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 mb-4">
-        <a href="/" class="hover:text-primary-600 dark:hover:text-primary-400">{{ t("common.back") }}</a>
+        <a href="/" class="hover:text-primary-600 dark:hover:text-primary-400">首页</a>
         <span class="mx-2">/</span>
-        <span class="text-gray-700 dark:text-gray-300">{{ t("file.view") }}</span>
+        <span class="text-gray-700 dark:text-gray-300">文件预览</span>
       </div>
     </div>
 
@@ -18,13 +18,13 @@
             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
       </svg>
-      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("file.error") }}</h2>
+      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">文件错误</h2>
       <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ error }}</p>
       <a
           href="/"
           class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
       >
-        {{ t("common.back") }}
+        返回
       </a>
     </div>
 
@@ -33,14 +33,14 @@
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-green-600 dark:text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" />
       </svg>
-      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("file.deletedSuccess") }}</h2>
-      <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ t("file.deletedRedirectMsg") }}</p>
-      <div class="animate-pulse text-gray-500 dark:text-gray-400">{{ t("file.redirectCountdown", { seconds: redirectCountdown }) }}</div>
+      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">文件删除成功</h2>
+      <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">文件已成功删除，即将跳转到首页</p>
+      <div class="animate-pulse text-gray-500 dark:text-gray-400">{{ redirectCountdown }} 秒后自动跳转</div>
     </div>
 
     <div v-else-if="loading" class="loading-container py-12 px-4 max-w-4xl mx-auto text-center">
       <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 mx-auto mb-4 border-blue-600 dark:border-blue-500"></div>
-      <p class="text-lg text-gray-600 dark:text-gray-300">{{ t("file.loading") }}</p>
+      <p class="text-lg text-gray-600 dark:text-gray-300">加载中...</p>
     </div>
 
     <div v-else class="file-container flex-1 flex flex-col py-8 px-4 max-w-4xl mx-auto w-full">
@@ -69,7 +69,6 @@
 
 <script setup>
 import { ref, onMounted, defineProps, onUnmounted } from "vue";
-import { useI18n } from "vue-i18n";
 import { api } from "../api";
 import { getAuthStatus } from "./file-view/FileViewUtils";
 
@@ -79,9 +78,6 @@ import FileViewPassword from "./file-view/FileViewPassword.vue";
 import FileViewActions from "./file-view/FileViewActions.vue";
 import FileEditModal from "./adminManagement/files-management/FileEditModal.vue";
 import ErrorToast from "./common/ErrorToast.vue";
-
-// 初始化i18n
-const { t } = useI18n();
 
 const props = defineProps({
   slug: {

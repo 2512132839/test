@@ -194,7 +194,7 @@
                     clip-rule="evenodd"
                 ></path>
               </svg>
-              <span class="text-yellow-800 dark:text-yellow-200"> 您没有权限访问此目录的内容。您只能访问 {{ apiKeyInfo?.basic_path || "/" }} 及其子目录。 </span>
+              <span class="text-yellow-800 dark:text-yellow-200"> {{ t("mount.noPermissionForPath", { path: apiKeyInfo?.basic_path || "/" }) }} </span>
             </div>
           </div>
 
@@ -253,16 +253,18 @@
     <div v-if="showBatchDeleteDialog" class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
       <div class="relative w-full max-w-md p-6 rounded-lg shadow-xl" :class="darkMode ? 'bg-gray-800' : 'bg-white'">
         <div class="mb-4">
-          <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">确认批量删除</h3>
-          <p class="text-sm mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">您确定要删除选中的 {{ itemsToDelete.length }} 个项目吗？此操作不可撤销。</p>
+          <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">{{ t("mount.batchDelete.title") }}</h3>
+          <p class="text-sm mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.batchDelete.message", { count: itemsToDelete.length }) }}</p>
           <!-- 选中项目列表 -->
           <div v-if="itemsToDelete.length > 0" class="mt-3 max-h-40 overflow-y-auto">
-            <div class="text-xs font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">选中的项目:</div>
+            <div class="text-xs font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.batchDelete.selectedItems") }}</div>
             <ul class="text-xs">
               <li v-for="item in itemsToDelete.slice(0, 10)" :key="item.path" class="mb-1" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
-                {{ item.name }} {{ item.isDirectory ? "(文件夹)" : "" }}
+                {{ item.name }} {{ item.isDirectory ? t("mount.batchDelete.folder") : "" }}
               </li>
-              <li v-if="itemsToDelete.length > 10" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">... 等 {{ itemsToDelete.length - 10 }} 个项目</li>
+              <li v-if="itemsToDelete.length > 10" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+                {{ t("mount.batchDelete.moreItems", { count: itemsToDelete.length - 10 }) }}
+              </li>
             </ul>
           </div>
         </div>
@@ -273,9 +275,11 @@
               class="px-4 py-2 rounded-md transition-colors"
               :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
           >
-            取消
+            {{ t("mount.batchDelete.cancelButton") }}
           </button>
-          <button @click="confirmBatchDelete" class="px-4 py-2 rounded-md text-white transition-colors bg-red-600 hover:bg-red-700">删除</button>
+          <button @click="confirmBatchDelete" class="px-4 py-2 rounded-md text-white transition-colors bg-red-600 hover:bg-red-700">
+            {{ t("mount.batchDelete.confirmButton") }}
+          </button>
         </div>
       </div>
     </div>
@@ -285,6 +289,9 @@
 <script setup>
 import { ref, onMounted, watch, computed, provide } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 import { api } from "../api";
 import BreadcrumbNav from "./mount-explorer/BreadcrumbNav.vue";
 import DirectoryList from "./mount-explorer/DirectoryList.vue";
@@ -498,17 +505,17 @@ const handleRefresh = async () => {
           currentPath.value = newBasicPath;
         }
 
-        showMessage("success", "已更新API密钥信息");
+        showMessage("success", t("mount.messages.apiKeyInfoUpdated"));
       }
     } else {
-      showMessage("success", "刷新成功");
+      showMessage("success", t("mount.messages.refreshSuccess"));
     }
 
     // 加载目录内容
     await loadDirectoryContents();
   } catch (error) {
     console.error("刷新操作失败:", error);
-    showMessage("error", "刷新失败，请重试");
+    showMessage("error", t("mount.messages.refreshFailed"));
   }
 };
 
@@ -529,11 +536,11 @@ const loadDirectoryContents = async () => {
       directoryData.value = response.data;
       console.log("目录内容:", directoryData.value);
     } else {
-      showMessage("error", `获取目录内容失败: ${response.message}`);
+      showMessage("error", t("mount.messages.getDirectoryContentFailed", { message: response.message }));
     }
   } catch (error) {
     console.error("加载目录内容错误:", error);
-    showMessage("error", `获取目录内容失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.getDirectoryContentFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     loading.value = false;
   }
@@ -716,7 +723,7 @@ const handleCloseUploadModal = () => {
 const handleUploadSuccess = () => {
   // 上传成功后刷新目录内容
   loadDirectoryContents();
-  showMessage("success", "文件上传成功");
+  showMessage("success", t("mount.messages.fileUploadSuccess"));
 };
 
 // 处理文件上传
@@ -775,15 +782,15 @@ const handleUpload = async ({ file, path }) => {
 
     // 检查响应状态
     if (response.success) {
-      showMessage("success", "文件上传成功");
+      showMessage("success", t("mount.messages.fileUploadSuccess"));
       // 重新加载当前目录内容
       loadDirectoryContents();
     } else {
-      showMessage("error", `文件上传失败: ${response.message}`);
+      showMessage("error", t("mount.messages.fileUploadFailed", { message: response.message }));
     }
   } catch (error) {
     console.error("文件上传错误:", error);
-    showMessage("error", `文件上传失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.fileUploadFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     loading.value = false;
     isUploading.value = false;
@@ -795,7 +802,7 @@ const handleUpload = async ({ file, path }) => {
 const cancelUpload = () => {
   if (isUploading.value) {
     cancelUploadFlag.value = true;
-    showMessage("warning", "正在取消上传...");
+    showMessage("warning", t("mount.messages.uploadCancelling"));
   }
 };
 
@@ -816,15 +823,15 @@ const handleCreateFolder = async ({ name, path }) => {
 
     // 检查响应状态
     if (response.success) {
-      showMessage("success", "文件夹创建成功");
+      showMessage("success", t("mount.messages.folderCreateSuccess"));
       // 重新加载当前目录内容
       loadDirectoryContents();
     } else {
-      showMessage("error", `文件夹创建失败: ${response.message}`);
+      showMessage("error", t("mount.messages.folderCreateFailed", { message: response.message }));
     }
   } catch (error) {
     console.error("创建文件夹错误:", error);
-    showMessage("error", `文件夹创建失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.folderCreateFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     loading.value = false;
   }
@@ -855,15 +862,15 @@ const handleRename = async ({ item, newName }) => {
 
     // 检查响应状态
     if (response.success) {
-      showMessage("success", `${isDirectory ? "文件夹" : "文件"}重命名成功`);
+      showMessage("success", t("mount.messages.renameSuccess", { type: isDirectory ? t("mount.fileTypes.folder") : t("mount.fileTypes.file") }));
       // 重新加载当前目录内容
       loadDirectoryContents();
     } else {
-      showMessage("error", `重命名失败: ${response.message}`);
+      showMessage("error", t("mount.messages.renameFailed", { message: response.message }));
     }
   } catch (error) {
     console.error("重命名错误:", error);
-    showMessage("error", `重命名失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.renameFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     loading.value = false;
   }
@@ -880,12 +887,12 @@ const handleDelete = async (item) => {
     await deleteFileOrFolder(item.path);
 
     // 检查响应状态
-    showMessage("success", `${item.isDirectory ? "文件夹" : "文件"}删除成功`);
+    showMessage("success", t("mount.messages.deleteSuccess", { type: item.isDirectory ? t("mount.fileTypes.folder") : t("mount.fileTypes.file") }));
     // 重新加载当前目录内容
     loadDirectoryContents();
   } catch (error) {
     console.error("删除错误:", error);
-    showMessage("error", `删除失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.deleteFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     loading.value = false;
   }
@@ -916,7 +923,7 @@ const handleDownload = async (item) => {
   if (!item || item.isDirectory) return;
 
   try {
-    showMessage("success", "准备下载文件...");
+    showMessage("success", t("mount.messages.downloadPreparing"));
 
     // 根据用户类型获取下载URL
     const downloadUrl = isAdmin.value ? api.fs.getAdminFileDownloadUrl(item.path) : api.fs.getUserFileDownloadUrl(item.path);
@@ -927,10 +934,10 @@ const handleDownload = async (item) => {
     // 使用新的认证下载方法
     await downloadFileWithAuth(downloadUrl, fileName);
 
-    showMessage("success", "文件下载成功");
+    showMessage("success", t("mount.messages.downloadSuccess"));
   } catch (error) {
     console.error("下载文件错误:", error);
-    showMessage("error", `文件下载失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.downloadFailedUnknown", { message: error.message || t("common.unknown") }));
   }
 };
 
@@ -961,7 +968,7 @@ const handlePreview = async (item) => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     console.error("预览文件错误:", error);
-    showMessage("error", `加载文件预览失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.previewLoadFailedUnknown", { message: error.message || t("common.unknown") }));
     isPreviewMode.value = false; // 出错时不进入预览模式
     previewFile.value = null;
   } finally {
@@ -1098,12 +1105,12 @@ const handlePreviewLoaded = () => {
 // 处理预览内容加载错误
 const handlePreviewError = () => {
   isPreviewLoading.value = false;
-  showMessage("error", "文件预览加载失败");
+  showMessage("error", t("mount.messages.previewError"));
 };
 
 // 处理上传错误
 const handleUploadError = (error) => {
-  showMessage("error", `上传失败: ${error.message || "未知错误"}`);
+  showMessage("error", t("mount.messages.uploadErrorUnknown", { message: error.message || t("common.unknown") }));
 };
 
 // 切换勾选框模式
@@ -1138,7 +1145,7 @@ const confirmBatchDelete = async () => {
   if (itemsToDelete.value.length === 0) return;
 
   try {
-    showMessage("info", "正在删除选中的项目...");
+    showMessage("info", t("mount.messages.batchDeleteInProgress"));
 
     // 获取要删除的路径数组
     const paths = itemsToDelete.value.map((item) => item.path);
@@ -1158,17 +1165,17 @@ const confirmBatchDelete = async () => {
     // Fallback: 如果批量删除API报告错误
     if (response.data && response.data.failed && response.data.failed.length > 0) {
       console.warn("部分项目删除失败:", response.data.failed);
-      showMessage("warning", `删除操作部分成功，${response.data.success} 个成功，${response.data.failed.length} 个失败`);
+      showMessage("warning", t("mount.messages.batchDeletePartialSuccess", { success: response.data.success, failed: response.data.failed.length }));
     } else {
       // 设置成功消息
-      showMessage("success", `成功删除了 ${itemsToDelete.value.length} 个项目`);
+      showMessage("success", t("mount.messages.batchDeleteSuccess", { count: itemsToDelete.value.length }));
     }
 
     // 清空选中项
     selectedItems.value = [];
   } catch (error) {
     console.error("批量删除错误:", error);
-    showMessage("error", `批量删除失败: ${error.message || "未知错误"}`);
+    showMessage("error", t("mount.messages.batchDeleteFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     // 关闭对话框
     showBatchDeleteDialog.value = false;
@@ -1213,7 +1220,7 @@ const handleCopyComplete = (result) => {
 
   if (result.success) {
     // 显示成功消息
-    showMessage("success", result.message);
+    showMessage("success", t("mount.messages.copySuccess", { message: result.message }));
 
     // 如果复制到当前目录，刷新目录列表
     if (result.targetPath === currentPath.value) {
@@ -1221,7 +1228,7 @@ const handleCopyComplete = (result) => {
     }
   } else {
     // 显示错误消息
-    showMessage("error", `复制失败: ${result.message}`);
+    showMessage("error", t("mount.messages.copyFailed", { message: result.message }));
   }
 };
 

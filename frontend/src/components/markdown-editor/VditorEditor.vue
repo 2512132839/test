@@ -6,7 +6,7 @@
         class="w-full h-[600px] p-4 font-mono text-base border rounded-lg resize-y focus:outline-none focus:ring-2"
         :class="darkMode ? 'bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600' : 'bg-white border-gray-300 text-gray-900 focus:ring-primary-500'"
         v-model="plainTextContent"
-        placeholder="在此输入纯文本内容..."
+        :placeholder="$t('markdown.plainTextPlaceholder')"
         @input="syncContentFromPlainText"
     ></textarea>
 
@@ -231,7 +231,7 @@ const initEditor = async () => {
         {
           name: "import-markdown",
           icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"></path></svg>',
-          tip: t("markdown.importMarkdown"),
+          tip: t("markdown.toolbar.importFile"),
           click() {
             emit("import-file");
           },
@@ -239,9 +239,9 @@ const initEditor = async () => {
         {
           name: "clear-content",
           icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"></path></svg>',
-          tip: "清空内容",
+          tip: t("markdown.toolbar.clearContent"),
           click() {
-            if (confirm(t("markdown.confirmClearContent") || "确定要清空所有内容吗？")) {
+            if (confirm(t("markdown.messages.confirmClearContent"))) {
               emit("clear-content");
             }
           },
@@ -249,7 +249,7 @@ const initEditor = async () => {
         {
           name: "copy-formats",
           icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg>',
-          tip: "复制为其他格式",
+          tip: t("markdown.toolbar.copyFormats"),
           click(event) {
             // 获取按钮位置信息
             const buttonElement = event.target.closest(".vditor-tooltipped");
@@ -273,7 +273,7 @@ const initEditor = async () => {
         "export",
         "help",
       ],
-      placeholder: t("markdown.placeholder"),
+      placeholder: t("markdown.editorPlaceholder"),
       cache: {
         enable: true,
         id: "cloudpaste-editor",

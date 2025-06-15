@@ -103,7 +103,7 @@ const copyKeyToClipboard = async (key) => {
     if (success) {
       emit("success", t("admin.keyManagement.success.copied"));
     } else {
-      throw new Error("复制失败");
+      throw new Error(t("admin.keyManagement.error.copyFailed"));
     }
   } catch (e) {
     console.error("复制到剪贴板失败:", e);
@@ -130,7 +130,7 @@ const formatDate = (dateString) => {
 // 获取基本路径显示文本
 const getDisplayPath = (path) => {
   if (!path || path === "/") {
-    return "根目录 (/)";
+    return `${t("admin.keyManagement.pathSelector.rootDirectory", "根目录")} (/)`;
   }
 
   // 查找对应的挂载点名称
@@ -221,7 +221,7 @@ defineExpose({
               {{ $t("admin.keyManagement.key") }}
             </th>
             <th class="text-left py-3 px-4 font-medium text-sm" :class="darkMode ? 'text-gray-200' : 'text-gray-600'">
-              {{ $t("admin.keyManagement.permissions") }}
+              {{ $t("admin.keyManagement.permissionsColumn") }}
             </th>
             <th class="text-left py-3 px-4 font-medium text-sm" :class="darkMode ? 'text-gray-200' : 'text-gray-600'">
               {{ $t("admin.keyManagement.basicPath", "基本路径") }}

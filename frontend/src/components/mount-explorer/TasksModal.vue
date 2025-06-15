@@ -3,7 +3,7 @@
     <div class="relative w-full max-w-sm sm:max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[85vh] sm:max-h-[80vh] overflow-hidden">
       <!-- 标题栏 -->
       <div class="px-4 py-3 border-b flex justify-between items-center" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
-        <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">任务管理</h3>
+        <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">{{ t("mount.taskManager.title") }}</h3>
         <button @click="close" class="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400">
           <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -22,12 +22,14 @@
                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             />
           </svg>
-          <p>当前没有任务</p>
+          <p>{{ t("mount.taskManager.noTasksDescription") }}</p>
         </div>
 
         <div v-else class="space-y-4 max-h-80 overflow-y-auto">
           <!-- 活动任务标题 -->
-          <div v-if="activeTasks.length > 0" class="text-sm font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">正在进行的任务 ({{ activeTasks.length }})</div>
+          <div v-if="activeTasks.length > 0" class="text-sm font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+            {{ t("mount.taskManager.activeTasks", { count: activeTasks.length }) }}
+          </div>
 
           <!-- 活动任务列表 -->
           <div v-for="task in activeTasks" :key="task.id" class="border rounded-lg p-3" :class="getTaskCardClass(task)">
@@ -65,9 +67,9 @@
             <div v-if="task.status === TaskStatus.RUNNING || task.status === TaskStatus.PENDING" class="mt-2">
               <div class="flex justify-between items-center mb-1">
                 <div class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-                  <span v-if="task.details && task.details.phase === 'downloading'" class="text-blue-500 dark:text-blue-400">下载中</span>
-                  <span v-else-if="task.details && task.details.phase === 'uploading'" class="text-green-500 dark:text-green-400">上传中</span>
-                  <span v-else>处理中</span>
+                  <span v-if="task.details && task.details.phase === 'downloading'" class="text-blue-500 dark:text-blue-400">{{ t("mount.taskManager.downloading") }}</span>
+                  <span v-else-if="task.details && task.details.phase === 'uploading'" class="text-green-500 dark:text-green-400">{{ t("mount.taskManager.uploading") }}</span>
+                  <span v-else>{{ t("mount.taskManager.processing") }}</span>
                 </div>
                 <div class="text-xs font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ Math.round(task.progress) }}%</div>
               </div>
@@ -78,16 +80,20 @@
 
             <!-- 任务详情 -->
             <div v-if="task.details && Object.keys(task.details).length > 0" class="mt-2 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-              <div v-if="task.details.processed && task.details.total">已处理: {{ formatProgress(task.details.processed, task.details.total) }}</div>
+              <div v-if="task.details.processed && task.details.total">{{ t("mount.taskManager.processed", { current: task.details.processed, total: task.details.total }) }}</div>
 
               <!-- 显示当前处理的文件 -->
-              <div v-if="task.details.currentFile" class="mt-1 truncate">当前文件: {{ task.details.currentFile }}</div>
+              <div v-if="task.details.currentFile" class="mt-1 truncate">{{ t("mount.taskManager.currentFile", { fileName: task.details.currentFile }) }}</div>
 
               <!-- 复制操作统计信息 - 活动任务也可能有统计 -->
               <div v-if="task.details.successCount !== undefined || task.details.skippedCount !== undefined || task.details.failedCount !== undefined" class="mt-1 space-x-2">
-                <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">成功: {{ task.details.successCount }}</span>
-                <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">跳过: {{ task.details.skippedCount }}</span>
-                <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">失败: {{ task.details.failedCount }}</span>
+                <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">{{
+                    t("mount.taskManager.success", { count: task.details.successCount })
+                  }}</span>
+                <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">{{
+                    t("mount.taskManager.skipped", { count: task.details.skippedCount })
+                  }}</span>
+                <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">{{ t("mount.taskManager.failed", { count: task.details.failedCount }) }}</span>
               </div>
             </div>
 
@@ -99,7 +105,7 @@
 
           <!-- 已完成任务标题 -->
           <div v-if="completedTasks.length > 0" class="text-sm font-medium mt-4 mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-            已完成的任务 ({{ completedTasks.length }})
+            {{ t("mount.taskManager.completedTasks", { count: completedTasks.length }) }}
           </div>
 
           <!-- 已完成任务列表 -->
@@ -140,11 +146,13 @@
             <!-- 任务详情 - 仅在展开时显示 -->
             <div v-if="isTaskExpanded(task.id)" class="mt-2 pt-2 border-t" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
               <!-- 完成时间 -->
-              <div class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">完成时间: {{ formatDateTime(task.updatedAt) }}</div>
+              <div class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.taskManager.completedAt", { time: formatDateTime(task.updatedAt) }) }}</div>
 
               <!-- 任务详情 -->
               <div v-if="task.details && Object.keys(task.details).length > 0" class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-                <div v-if="task.details.processed && task.details.total">处理项目: {{ formatProgress(task.details.processed, task.details.total) }}</div>
+                <div v-if="task.details.processed && task.details.total">
+                  {{ t("mount.taskManager.processedItems", { current: formatProgress(task.details.processed, task.details.total) }) }}
+                </div>
 
                 <!-- 复制操作统计信息 -->
                 <div
@@ -154,14 +162,18 @@
                   "
                     class="mt-1 space-x-2"
                 >
-                  <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">成功: {{ task.details.successCount }}</span>
-                  <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">跳过: {{ task.details.skippedCount }}</span>
-                  <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">失败: {{ task.details.failedCount }}</span>
+                  <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">{{
+                      t("mount.taskManager.success", { count: task.details.successCount })
+                    }}</span>
+                  <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">{{
+                      t("mount.taskManager.skipped", { count: task.details.skippedCount })
+                    }}</span>
+                  <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">{{ t("mount.taskManager.failed", { count: task.details.failedCount }) }}</span>
                 </div>
 
                 <!-- 部分成功状态提示 -->
                 <div v-if="task.details.partialSuccess" class="mt-1">
-                  <span class="text-orange-500 dark:text-orange-400 text-xs">{{ task.details.status || "部分完成" }}</span>
+                  <span class="text-orange-500 dark:text-orange-400 text-xs">{{ task.details.status || t("mount.taskManager.partialComplete") }}</span>
                 </div>
 
                 <!-- 任务消息 -->
@@ -175,7 +187,9 @@
               </div>
 
               <!-- 错误信息 -->
-              <div v-if="task.status === TaskStatus.FAILED && task.error" class="mt-1 text-xs text-red-500 dark:text-red-400">错误: {{ task.error }}</div>
+              <div v-if="task.status === TaskStatus.FAILED && task.error" class="mt-1 text-xs text-red-500 dark:text-red-400">
+                {{ t("mount.taskManager.error", { message: task.error }) }}
+              </div>
             </div>
 
             <!-- 错误信息 - 简短版本，仅在未展开且有错误时显示 -->
@@ -192,7 +206,7 @@
               class="text-xs px-3 py-1 rounded transition-colors"
               :class="darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'"
           >
-            清除已完成任务
+            {{ t("mount.taskManager.clearCompleted") }}
           </button>
         </div>
       </div>
@@ -202,7 +216,10 @@
 
 <script setup>
 import { computed, ref, shallowRef } from "vue";
+import { useI18n } from "vue-i18n";
 import { useTaskManager, TaskStatus, TaskType } from "../../utils/taskManager";
+
+const { t } = useI18n();
 
 const props = defineProps({
   isOpen: {
@@ -263,15 +280,15 @@ const close = () => {
 const getTaskTypeText = (type) => {
   switch (type) {
     case TaskType.COPY:
-      return "复制任务";
+      return t("mount.taskManager.copyTask");
     case TaskType.UPLOAD:
-      return "上传任务";
+      return t("mount.taskManager.uploadTask");
     case TaskType.DELETE:
-      return "删除任务";
+      return t("mount.taskManager.deleteTask");
     case TaskType.DOWNLOAD:
-      return "下载任务";
+      return t("mount.taskManager.downloadTask");
     default:
-      return "未知任务";
+      return t("mount.taskManager.unknownTask");
   }
 };
 
@@ -305,22 +322,22 @@ const getTaskTypeIcon = (type) => {
 const getStatusText = (status, task = null) => {
   // 检查是否为部分成功的任务
   if (status === TaskStatus.COMPLETED && task && task.details && task.details.partialSuccess) {
-    return "部分完成";
+    return t("mount.taskManager.partialComplete");
   }
 
   switch (status) {
     case TaskStatus.PENDING:
-      return "等待中";
+      return t("mount.taskManager.status.pending");
     case TaskStatus.RUNNING:
-      return "运行中";
+      return t("mount.taskManager.status.running");
     case TaskStatus.COMPLETED:
-      return "已完成";
+      return t("mount.taskManager.status.completed");
     case TaskStatus.FAILED:
-      return "失败";
+      return t("mount.taskManager.status.failed");
     case TaskStatus.CANCELLED:
-      return "已取消";
+      return t("mount.taskManager.status.cancelled");
     default:
-      return "未知";
+      return t("mount.taskManager.unknown");
   }
 };
 

@@ -59,7 +59,7 @@ const visibleMenuItems = computed(() => {
       { id: "text-management", name: t("admin.sidebar.textManagement"), icon: "document-text" },
       { id: "file-management", name: t("admin.sidebar.fileManagement"), icon: "folder" },
       { id: "storage-config", name: t("admin.sidebar.storageConfig"), icon: "cloud" },
-      { id: "mount-management", name: t("admin.mount.management"), icon: "server" },
+      { id: "mount-management", name: t("admin.sidebar.mountManagement"), icon: "server" },
       { id: "key-management", name: t("admin.sidebar.keyManagement"), icon: "key" },
       { id: "settings", name: t("admin.sidebar.settings"), icon: "cog" },
     ];

@@ -12,7 +12,7 @@
             :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
             @click="toggleEditorMode"
         >
-          {{ isPlainTextMode ? "切换到Markdown" : "切换到纯文本" }}
+          {{ isPlainTextMode ? $t("markdown.switchToMarkdown") : $t("markdown.switchToPlainText") }}
         </button>
       </div>
     </div>
@@ -131,7 +131,7 @@ const handleEditorReady = (editor) => {
 
   // 验证编辑器实例
   if (!editor || typeof editor.getValue !== "function" || typeof editor.getHTML !== "function") {
-    console.error("编辑器实例验证失败，缺少必要方法");
+    console.error("Editor instance validation failed, missing required methods");
   }
 };
 
@@ -142,7 +142,7 @@ const handleContentChange = (content) => {
 
 const handleFormChange = (formData) => {
   // 表单数据变化处理
-  console.log("表单数据变化:", formData);
+  console.log("Form data changed:", formData);
 };
 
 const handleStatusMessage = (message) => {
@@ -168,7 +168,7 @@ const navigateToAdmin = () => {
 // 编辑器模式切换
 const toggleEditorMode = () => {
   isPlainTextMode.value = !isPlainTextMode.value;
-  console.log("切换编辑器模式:", isPlainTextMode.value ? "纯文本模式" : "Markdown模式");
+  console.log("切换编辑器模式:", isPlainTextMode.value ? t("markdown.switchToPlainText") : t("markdown.switchToMarkdown"));
 };
 
 // 触发文件导入
@@ -248,17 +248,17 @@ const closeQRCodeModal = () => {
 // 保存内容
 const saveContent = async (formData) => {
   if (!hasPermission.value) {
-    handleStatusMessage("没有权限创建分享");
+    handleStatusMessage(t("markdown.messages.noPermission"));
     return;
   }
 
   if (!editorContent.value.trim()) {
-    handleStatusMessage("内容不能为空");
+    handleStatusMessage(t("markdown.messages.contentEmpty"));
     return;
   }
 
   isSubmitting.value = true;
-  handleStatusMessage("正在创建分享...");
+  handleStatusMessage(t("markdown.messages.creating"));
 
   try {
     // 准备要提交的数据 - 只传递有值的字段
@@ -321,7 +321,7 @@ const saveContent = async (formData) => {
 
     if (!slug) {
       console.error("API响应格式异常:", result);
-      throw new Error("创建失败：无法获取分享标识");
+      throw new Error(t("markdown.messages.createFailed") + "：无法获取分享标识");
     }
 
     // 构建分享链接
@@ -338,19 +338,19 @@ const saveContent = async (formData) => {
       formRef.value.resetForm();
     }
 
-    handleStatusMessage("分享创建成功！");
+    handleStatusMessage(t("markdown.messages.createSuccess"));
   } catch (error) {
     console.error("保存失败:", error);
 
     // 根据错误消息内容进行分类处理
     if (error.message && error.message.includes("已被占用")) {
-      handleStatusMessage("链接后缀已被占用，请更换其他后缀");
+      handleStatusMessage(t("markdown.messages.linkOccupied"));
     } else if (error.message && error.message.includes("权限")) {
-      handleStatusMessage("权限不足，无法创建分享");
+      handleStatusMessage(t("markdown.messages.permissionDenied"));
     } else if (error.message && error.message.includes("内容过大")) {
-      handleStatusMessage("内容过大，请减少内容长度");
+      handleStatusMessage(t("markdown.messages.contentTooLarge"));
     } else {
-      handleStatusMessage(`保存失败: ${error.message || "未知错误"}`);
+      handleStatusMessage(`${t("markdown.messages.createFailed")}: ${error.message || t("markdown.messages.unknownError")}`);
     }
   } finally {
     isSubmitting.value = false;
@@ -369,7 +369,7 @@ const autoSaveDebounce = () => {
       localStorage.setItem("cloudpaste-content", editorContent.value);
       // 自动保存成功，无需日志
     } catch (e) {
-      console.warn("自动保存失败:", e);
+      console.warn(t("markdown.messages.autoSaveFailed"), e);
     }
   }, 1000);
 };
@@ -383,7 +383,7 @@ onMounted(() => {
       editorContent.value = savedContent;
     }
   } catch (e) {
-    console.warn("恢复内容失败:", e);
+    console.warn(t("markdown.messages.restoreContentFailed"), e);
   }
 });
 

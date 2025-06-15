@@ -4,73 +4,73 @@
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.remark") }}</label>
         <input
-          type="text"
-          class="form-input"
-          :class="getInputClasses()"
-          :placeholder="$t('markdown.form.remarkPlaceholder')"
-          v-model="formData.remark"
-          :disabled="!hasPermission"
+            type="text"
+            class="form-input"
+            :class="getInputClasses()"
+            :placeholder="$t('markdown.form.remarkPlaceholder')"
+            v-model="formData.remark"
+            :disabled="!hasPermission"
         />
       </div>
 
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.customLink") }}</label>
         <input
-          type="text"
-          class="form-input"
-          :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
-          :placeholder="$t('markdown.form.customLinkPlaceholder')"
-          v-model="formData.customLink"
-          :disabled="!hasPermission"
-          @input="validateCustomLink"
+            type="text"
+            class="form-input"
+            :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
+            :placeholder="$t('markdown.form.customLinkPlaceholder')"
+            v-model="formData.customLink"
+            :disabled="!hasPermission"
+            @input="validateCustomLink"
         />
         <p v-if="slugError" class="mt-1 text-sm" :class="darkMode ? 'text-red-400' : 'text-red-600'">{{ slugError }}</p>
-        <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t("markdown.onlyAllowedChars") }}</p>
+        <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t("markdown.validation.slugInvalid") }}</p>
       </div>
 
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.password") }}</label>
         <input
-          type="text"
-          class="form-input"
-          :class="getInputClasses()"
-          :placeholder="$t('markdown.form.passwordPlaceholder')"
-          v-model="formData.password"
-          :disabled="!hasPermission"
+            type="text"
+            class="form-input"
+            :class="getInputClasses()"
+            :placeholder="$t('markdown.form.passwordPlaceholder')"
+            v-model="formData.password"
+            :disabled="!hasPermission"
         />
       </div>
 
       <div class="form-group">
-        <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.expireTime") }}</label>
+        <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.expiryTime") }}</label>
         <select class="form-input" :class="getInputClasses()" v-model="formData.expiryTime" :disabled="!hasPermission">
-          <option value="1">{{ $t("markdown.form.expireOptions.hour1") }}</option>
-          <option value="24">{{ $t("markdown.form.expireOptions.day1") }}</option>
-          <option value="168">{{ $t("markdown.form.expireOptions.day7") }}</option>
-          <option value="720">{{ $t("markdown.form.expireOptions.day30") }}</option>
-          <option value="0">{{ $t("markdown.form.expireOptions.never") }}</option>
+          <option value="1">1 {{ $t("markdown.form.expiryHour") }}</option>
+          <option value="24">1 {{ $t("markdown.form.expiryDay") }}</option>
+          <option value="168">7 {{ $t("markdown.form.expiryDay") }}</option>
+          <option value="720">30 {{ $t("markdown.form.expiryDay") }}</option>
+          <option value="0">{{ $t("markdown.form.expiryNever") }}</option>
         </select>
       </div>
 
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.maxViews") }}</label>
         <input
-          type="number"
-          min="0"
-          step="1"
-          pattern="\d*"
-          class="form-input"
-          :class="getInputClasses()"
-          :placeholder="$t('markdown.form.maxViewsPlaceholder')"
-          v-model.number="formData.maxViews"
-          @input="validateMaxViews"
-          :disabled="!hasPermission"
+            type="number"
+            min="0"
+            step="1"
+            pattern="\d*"
+            class="form-input"
+            :class="getInputClasses()"
+            :placeholder="$t('markdown.form.maxViewsPlaceholder')"
+            v-model.number="formData.maxViews"
+            @input="validateMaxViews"
+            :disabled="!hasPermission"
         />
       </div>
     </div>
 
     <div class="submit-section mt-4 flex flex-row items-center gap-4">
       <button class="btn-primary" @click="handleSubmit" :disabled="isSubmitting || !hasPermission">
-        {{ isSubmitting ? $t("markdown.processing") : $t("markdown.createShare") }}
+        {{ isSubmitting ? $t("markdown.form.creating") : $t("markdown.form.createShare") }}
       </button>
 
       <div class="saving-status ml-auto text-sm" v-if="savingStatus">
@@ -132,7 +132,7 @@ const validateCustomLink = () => {
 
   const slugRegex = /^[a-zA-Z0-9_-]+$/;
   if (!slugRegex.test(formData.customLink)) {
-    slugError.value = t("markdown.invalidFormat");
+    slugError.value = t("markdown.validation.slugInvalid");
     emit("form-change", { ...formData, isValid: false });
     return false;
   }
@@ -166,13 +166,24 @@ const validateMaxViews = (event) => {
 // 获取输入框样式
 const getInputClasses = () => {
   return props.darkMode
-    ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
-    : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
+      ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
+      : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
 };
 
 // 判断是否为错误消息
 const isErrorMessage = (message) => {
-  return message.includes("失败") || message.includes("错误") || message.includes("链接后缀已被占用") || message.includes("不能");
+  const errorKeywords = [
+    t("markdown.messages.createFailed"),
+    t("markdown.messages.linkOccupied"),
+    t("markdown.messages.permissionDenied"),
+    t("markdown.messages.contentTooLarge"),
+    t("markdown.messages.unknownError"),
+    t("markdown.copyFailed"),
+    "失败",
+    "错误",
+    "不能", // 保留中文关键词作为后备
+  ];
+  return errorKeywords.some((keyword) => message.includes(keyword));
 };
 
 // 处理表单提交

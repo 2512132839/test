@@ -1,9 +1,9 @@
 <template>
   <div
-    v-if="visible"
-    id="copyFormatMenu"
-    class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
-    :style="{ top: `${position.y}px`, left: `${position.x}px` }"
+      v-if="visible"
+      id="copyFormatMenu"
+      class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+      :style="{ top: `${position.y}px`, left: `${position.x}px` }"
   >
     <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsMarkdown">
       <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -12,21 +12,21 @@
         <path d="M9 9h1v6h1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M15 15h-2v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <span>复制为Markdown</span>
+      <span>{{ $t("markdown.copyAsMarkdown") }}</span>
     </div>
     <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsHTML">
       <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path
-          d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+            d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
         />
         <path d="M8 9l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M16 15l-3-3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <span>复制为HTML</span>
+      <span>{{ $t("markdown.copyAsHTML") }}</span>
     </div>
     <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsPlainText">
       <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -36,7 +36,7 @@
         <path d="M9 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M9 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <span>复制为纯文本</span>
+      <span>{{ $t("markdown.copyAsPlainText") }}</span>
     </div>
     <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="exportWordDocument">
       <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -46,7 +46,7 @@
         <path d="M16 17H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <span>导出为Word文档</span>
+      <span>{{ $t("markdown.exportAsWord") }}</span>
     </div>
     <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="exportAsPng">
       <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -54,7 +54,7 @@
         <path d="M17 21v-8h-8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M7 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <span>导出为PNG图片</span>
+      <span>{{ $t("markdown.exportAsPng") }}</span>
     </div>
   </div>
 </template>
@@ -95,58 +95,58 @@ const emit = defineEmits(["close", "status-message"]);
 // 复制为Markdown格式
 const copyAsMarkdown = () => {
   if (!props.editor || typeof props.editor.getValue !== "function") {
-    emit("status-message", "编辑器未准备就绪");
+    emit("status-message", t("markdown.messages.editorNotReady"));
     return;
   }
   const mdContent = props.editor.getValue();
-  copyToClipboard(mdContent, "已复制为Markdown格式");
+  copyToClipboard(mdContent, t("markdown.markdownCopied"));
   emit("close");
 };
 
 // 复制为HTML格式
 const copyAsHTML = () => {
   if (!props.editor || typeof props.editor.getHTML !== "function") {
-    emit("status-message", "编辑器未准备就绪");
+    emit("status-message", t("markdown.messages.editorNotReady"));
     return;
   }
   const htmlContent = props.editor.getHTML();
-  copyToClipboard(htmlContent, "已复制为HTML格式");
+  copyToClipboard(htmlContent, t("markdown.htmlCopied"));
   emit("close");
 };
 
 // 复制为纯文本格式
 const copyAsPlainText = () => {
   if (!props.editor || typeof props.editor.getHTML !== "function") {
-    emit("status-message", "编辑器未准备就绪");
+    emit("status-message", t("markdown.messages.editorNotReady"));
     return;
   }
   const htmlContent = props.editor.getHTML();
   const tempDiv = document.createElement("div");
   tempDiv.innerHTML = htmlContent;
   const plainText = tempDiv.textContent || tempDiv.innerText || "";
-  copyToClipboard(plainText, "已复制为纯文本格式");
+  copyToClipboard(plainText, t("markdown.plainTextCopied"));
   emit("close");
 };
 
 // 导出为Word文档
 const exportWordDocument = async () => {
   if (!props.editor || typeof props.editor.getValue !== "function") {
-    emit("status-message", "编辑器未准备就绪");
+    emit("status-message", t("markdown.messages.editorNotReady"));
     return;
   }
 
-  emit("status-message", t("common.generatingWord") || "正在生成Word文档...");
+  emit("status-message", t("markdown.messages.generatingWord"));
 
   try {
     const markdownContent = props.editor.getValue();
 
     if (!markdownContent) {
-      emit("status-message", t("common.noContent") || "没有内容可导出");
+      emit("status-message", t("markdown.messages.contentEmpty"));
       return;
     }
 
     const blob = await markdownToWord(markdownContent, {
-      title: "Markdown导出文档",
+      title: t("markdown.exportDocumentTitle"),
     });
 
     const now = new Date();
@@ -155,10 +155,10 @@ const exportWordDocument = async () => {
     const fileName = `markdown-${dateStr}-${timeStr}.docx`;
 
     saveAs(blob, fileName);
-    emit("status-message", t("common.wordSaved") || "Word文档已生成并下载");
+    emit("status-message", t("markdown.messages.wordExported"));
   } catch (error) {
     console.error("导出Word文档时出错:", error);
-    emit("status-message", t("common.wordExportFailed") || "导出失败，请稍后重试");
+    emit("status-message", t("markdown.messages.wordExportFailed"));
   } finally {
     emit("close");
   }
@@ -168,11 +168,11 @@ const exportWordDocument = async () => {
 const exportAsPng = async () => {
   if (!props.editor || typeof props.editor.getValue !== "function") {
     console.error("导出PNG失败：编辑器实例不存在");
-    emit("status-message", t("common.pngExportFailed") || "导出PNG失败：编辑器实例不存在");
+    emit("status-message", t("markdown.messages.editorNotReady"));
     return;
   }
 
-  emit("status-message", t("common.exportingPng") || "正在导出PNG图片...");
+  emit("status-message", t("markdown.messages.exportingPng"));
 
   try {
     const now = new Date();
@@ -262,24 +262,24 @@ const exportAsPng = async () => {
         return Promise.resolve();
       },
       onSuccess: (dataUrl, blob) => {
-        emit("status-message", t("common.pngExported") || "PNG图片已导出并下载");
+        emit("status-message", t("markdown.messages.pngExported"));
       },
       onError: (error) => {
         console.error("导出PNG图片时出错:", error);
 
         if (error instanceof Event && error.type === "error" && error.target instanceof HTMLImageElement) {
-          emit("status-message", "由于跨域限制，部分图片可能无法正确显示在导出图片中");
+          emit("status-message", t("markdown.messages.corsImageError"));
         } else {
-          emit("status-message", (t("common.pngExportFailed") || "导出PNG失败") + ": " + (error.message || "未知错误"));
+          emit("status-message", t("markdown.messages.pngExportFailed") + ": " + (error.message || t("markdown.messages.unknownError")));
         }
       },
     });
 
     if (!result || !result.success) {
       const errorMsg =
-        result && result.error instanceof Event && result.error.type === "error" && result.error.target instanceof HTMLImageElement
-          ? "导出失败：图片加载出现跨域问题，部分图片可能无法正确显示"
-          : "导出失败";
+          result && result.error instanceof Event && result.error.type === "error" && result.error.target instanceof HTMLImageElement
+              ? t("markdown.messages.corsImageError")
+              : t("markdown.messages.pngExportFailed");
 
       throw result?.error || new Error(errorMsg);
     }
@@ -287,9 +287,9 @@ const exportAsPng = async () => {
     console.error("导出PNG图片过程中发生错误:", error);
 
     if (error instanceof Event && error.type === "error") {
-      emit("status-message", "由于跨域限制，无法导出包含外部图片的内容");
+      emit("status-message", t("markdown.messages.corsImageError"));
     } else {
-      emit("status-message", t("common.pngExportFailed") || "导出PNG失败，请稍后重试");
+      emit("status-message", t("markdown.messages.pngExportFailed"));
     }
   } finally {
     emit("close");
@@ -299,7 +299,7 @@ const exportAsPng = async () => {
 // 通用复制到剪贴板函数
 const copyToClipboard = async (text, successMessage) => {
   if (!text) {
-    emit("status-message", "没有可复制的内容");
+    emit("status-message", t("markdown.messages.contentEmpty"));
     return;
   }
 
@@ -309,11 +309,11 @@ const copyToClipboard = async (text, successMessage) => {
     if (success) {
       emit("status-message", successMessage);
     } else {
-      throw new Error("复制失败");
+      throw new Error(t("markdown.copyFailed"));
     }
   } catch (e) {
     console.error("复制失败:", e);
-    emit("status-message", "复制失败，请手动选择内容复制");
+    emit("status-message", t("markdown.copyFailed"));
   }
 };
 

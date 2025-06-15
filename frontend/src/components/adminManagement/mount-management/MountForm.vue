@@ -61,12 +61,12 @@ const formTitle = computed(() => {
 });
 
 // 存储类型选项
-const storageTypeOptions = [
-  { value: "S3", label: "S3存储" },
+const storageTypeOptions = computed(() => [
+  { value: "S3", label: t("admin.mount.form.storageTypes.s3") },
   // { value: "WebDAV", label: "WebDAV" },
   // { value: "FTP", label: "FTP" },
   // { value: "SMB", label: "SMB/CIFS" },
-];
+]);
 
 // 判断用户类型
 const isAdmin = computed(() => props.userType === "admin");
@@ -228,7 +228,7 @@ const submitForm = async () => {
 
     // 只有管理员可以创建和更新挂载点
     if (isApiKeyUser.value) {
-      globalError.value = "API密钥用户无权限管理挂载点";
+      globalError.value = t("admin.mount.error.apiKeyCannotManage");
       return;
     }
 
@@ -246,12 +246,12 @@ const submitForm = async () => {
       emit("save-success");
     } else {
       // 显示API返回的错误
-      globalError.value = response.message || "保存失败";
+      globalError.value = response.message || t("admin.mount.error.saveFailed");
     }
   } catch (err) {
     console.error("保存挂载点错误:", err);
     // 显示捕获的错误
-    globalError.value = err.message || "保存失败";
+    globalError.value = err.message || t("admin.mount.error.saveFailed");
   } finally {
     submitting.value = false;
   }
@@ -479,7 +479,7 @@ const resetFormData = () => {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
             <!-- 缓存时间 -->
             <div>
-              <label for="cache_ttl" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.cacheTTL") }}</label>
+              <label for="cache_ttl" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.cacheTtl") }}</label>
               <input
                   type="number"
                   id="cache_ttl"
@@ -491,12 +491,12 @@ const resetFormData = () => {
                   darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500',
                   errors.cache_ttl ? 'border-red-500' : '',
                 ]"
-                  placeholder="默认300秒"
+                  :placeholder="t('admin.mount.form.cacheTtlPlaceholder')"
                   min="0"
                   step="1"
               />
               <p v-if="errors.cache_ttl" class="mt-1 text-sm text-red-500">{{ errors.cache_ttl }}</p>
-              <p class="mt-0.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.cacheTTLHint") }}</p>
+              <p class="mt-0.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.cacheTtlHint") }}</p>
             </div>
 
             <!-- 排序顺序 -->
@@ -513,7 +513,7 @@ const resetFormData = () => {
                   darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300 text-gray-900 placeholder-gray-500',
                   errors.sort_order ? 'border-red-500' : '',
                 ]"
-                  placeholder="0"
+                  :placeholder="t('admin.mount.form.sortOrderPlaceholder')"
                   step="1"
               />
               <p v-if="errors.sort_order" class="mt-1 text-sm text-red-500">{{ errors.sort_order }}</p>
@@ -552,7 +552,7 @@ const resetFormData = () => {
             class="w-full sm:w-auto px-3 sm:px-4 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-colors duration-200"
             :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
         >
-          {{ t("admin.mount.button.cancel") }}
+          {{ t("admin.mount.form.cancel") }}
         </button>
 
         <button
@@ -566,7 +566,7 @@ const resetFormData = () => {
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          {{ submitting ? t("admin.mount.button.saving") : isEditMode.value ? t("admin.mount.button.save") : t("admin.mount.button.create") }}
+          {{ submitting ? t("admin.mount.form.saving") : isEditMode.value ? t("admin.mount.form.save") : t("admin.mount.form.create") }}
         </button>
       </div>
     </div>

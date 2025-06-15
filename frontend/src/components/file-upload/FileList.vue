@@ -100,7 +100,7 @@
                   : '',
               ]"
             >
-              {{ t("file.remainingCount", { count: getRemainingViews(file) }) }}
+              {{ getRemainingViews(file) }}
             </div>
 
             <!-- 密码状态 -->
@@ -244,7 +244,7 @@
                             ? 'text-yellow-500 dark:text-yellow-400'
                             : '',
                         ]"
-                      >{{ t("file.remainingCount", { count: getRemainingViews(file) }) }}</span
+                      >{{ getRemainingViews(file) }}</span
                       >
                       <span>{{ formatDate(file.created_at) }}</span>
                     </div>
@@ -506,7 +506,7 @@ const deleteFile = async () => {
     emit("refresh");
   } catch (error) {
     console.error("删除文件失败:", error);
-    showMessage("error", t("file.deleteFailed", { message: error.message || t("common.unknownError") }));
+    showMessage("error", t("file.messages.deleteFailed") + ": " + (error.message || t("file.messages.unknownError")));
   } finally {
     isDeleting.value = false;
   }
@@ -523,11 +523,11 @@ const copyFileUrl = async (file) => {
     if (success) {
       showMessage("success", t("file.linkCopied"));
     } else {
-      throw new Error(t("file.copyFailed"));
+      throw new Error(t("file.messages.copyFailed"));
     }
   } catch (error) {
     console.error("复制链接失败:", error);
-    showMessage("error", t("file.copyFailed"));
+    showMessage("error", t("file.messages.copyFailed"));
   }
 };
 
@@ -596,7 +596,7 @@ import { formatDateTime } from "../../utils/timeUtils.js";
 
 // 格式化日期
 const formatDate = (dateString) => {
-  if (!dateString) return "未知";
+  if (!dateString) return t("common.unknown");
   return formatDateTime(dateString);
 };
 
@@ -675,11 +675,11 @@ const copyPermanentLink = async (file) => {
         if (response.success && response.data) {
           fileWithUrls = response.data;
         } else {
-          throw new Error(response.message || t("file.getFileDetailFailed"));
+          throw new Error(response.message || t("file.messages.getFileDetailFailed"));
         }
       } catch (error) {
-        console.error(t("file.getFileDetailFailed") + ":", error);
-        alert(t("file.cannotGetDirectLink"));
+        console.error(t("file.messages.getFileDetailFailed") + ":", error);
+        alert(t("file.messages.cannotGetDirectLink"));
         return;
       }
     }
@@ -711,14 +711,14 @@ const copyPermanentLink = async (file) => {
         // 显示成功消息
         showMessage("success", t("file.directLinkCopied"));
       } else {
-        throw new Error(t("file.copyFailed"));
+        throw new Error(t("file.messages.copyFailed"));
       }
     } else {
       throw new Error(t("file.cannotGetProxyLink"));
     }
   } catch (err) {
     console.error(t("file.copyPermanentLinkFailed") + ":", err);
-    alert(`${t("file.copyPermanentLinkFailed")}: ${err.message || t("common.unknownError")}`);
+    alert(`${t("file.copyPermanentLinkFailed")}: ${err.message || t("file.messages.unknownError")}`);
   }
 };
 

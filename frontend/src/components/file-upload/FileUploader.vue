@@ -25,7 +25,7 @@
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h7.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            {{ t("file.fileUpload") }}
+            {{ t("file.uploadTabs.fileUpload") }}
           </div>
         </button>
         <button
@@ -46,7 +46,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
             </svg>
-            {{ t("file.urlUpload") }}
+            {{ t("file.uploadTabs.urlUpload") }}
           </div>
         </button>
       </div>
@@ -827,7 +827,7 @@ const cancelUpload = () => {
 
         // 更新文件状态为取消
         fileItem.status = "error";
-        fileItem.message = t("file.cancelMessage");
+        fileItem.message = t("file.messages.uploadCancelled");
 
         // 如果已获取了文件ID，则删除相应的文件记录
         if (fileItem.fileId) {
@@ -855,11 +855,11 @@ const cancelUpload = () => {
 
     message.value = {
       type: "error",
-      content: t("file.cancelMessage"),
+      content: t("file.messages.uploadCancelled"),
     };
 
     // 触发错误事件，让父组件处理消息显示
-    emit("upload-error", new Error(t("file.cancelMessage")));
+    emit("upload-error", new Error(t("file.messages.uploadCancelled")));
   }
 };
 
@@ -876,7 +876,7 @@ const validateCustomLink = () => {
   // 验证格式：只允许字母、数字、连字符、下划线
   const slugRegex = /^[a-zA-Z0-9_-]+$/;
   if (!slugRegex.test(formData.slug)) {
-    slugError.value = t("file.invalidFormat");
+    slugError.value = t("file.messages.slugInvalid");
     return false;
   }
 
@@ -893,9 +893,9 @@ const submitUpload = async () => {
   if (filesToUpload.length === 0) {
     message.value = {
       type: "warning",
-      content: t("file.noFilesToUpload"),
+      content: t("file.messages.noFilesSelected"),
     };
-    emit("upload-error", new Error(t("file.noFilesToUpload")));
+    emit("upload-error", new Error(t("file.messages.noFilesSelected")));
     return;
   }
 
@@ -908,14 +908,14 @@ const submitUpload = async () => {
     if (file.size > maxFileSizeMB.value * 1024 * 1024) {
       message.value = {
         type: "error",
-        content: t("file.maxSizeExceeded", { size: maxFileSizeMB.value }),
+        content: t("file.messages.fileTooLarge"),
       };
       // 更新文件状态
       fileItems.value[i].status = "error";
-      fileItems.value[i].message = t("file.maxSizeExceeded", { size: maxFileSizeMB.value });
+      fileItems.value[i].message = t("file.messages.fileTooLarge");
 
       // 触发错误事件，让父组件处理消息显示
-      emit("upload-error", new Error(t("file.maxSizeExceeded", { size: maxFileSizeMB.value })));
+      emit("upload-error", new Error(t("file.messages.fileTooLarge")));
       return;
     }
   }
@@ -925,11 +925,11 @@ const submitUpload = async () => {
     // 仍然设置message，但不在本组件中显示，而是通过事件传递给父组件
     message.value = {
       type: "error",
-      content: t("file.negativeMaxViews"),
+      content: t("file.messages.negativeMaxViews"),
     };
 
     // 触发错误事件，让父组件处理消息显示
-    emit("upload-error", new Error(t("file.negativeMaxViews")));
+    emit("upload-error", new Error(t("file.messages.negativeMaxViews")));
     return;
   }
 
@@ -1072,13 +1072,13 @@ const submitUpload = async () => {
       fileItem.status = "error";
       // 如果是链接后缀冲突，提供更具体的错误消息
       if (isSlugConflict) {
-        fileItem.message = t("file.slugConflict");
+        fileItem.message = t("file.messages.slugConflict");
       } else if (isInsufficientStorage) {
         // 处理存储空间不足的错误消息
         fileItem.message = processInsufficientStorageError(errorMessage);
       } else if (isPermissionError) {
         // 处理权限错误
-        fileItem.message = t("file.permissionError");
+        fileItem.message = t("file.messages.permissionError");
       } else {
         fileItem.message = errorMessage;
       }
@@ -1349,7 +1349,7 @@ const retryUpload = async (index) => {
     console.error(`重试上传文件 ${file.name} 失败:`, error);
 
     // 检查是否是链接后缀冲突错误
-    const errorMessage = error.message || t("common.unknownError");
+    const errorMessage = error.message || t("file.messages.unknownError");
     const isSlugConflict =
         (errorMessage.includes("slug") &&
             (errorMessage.includes("already exists") || errorMessage.includes("already taken") || errorMessage.includes("duplicate") || errorMessage.includes("conflict"))) ||
@@ -1378,13 +1378,13 @@ const retryUpload = async (index) => {
 
     // 设置具体的错误消息
     if (isSlugConflict) {
-      fileItem.message = t("file.slugConflict");
+      fileItem.message = t("file.messages.slugConflict");
     } else if (isInsufficientStorage) {
       // 处理存储空间不足的错误消息
       fileItem.message = processInsufficientStorageError(errorMessage);
     } else if (isPermissionError) {
       // 处理权限错误
-      fileItem.message = t("file.permissionError");
+      fileItem.message = t("file.messages.permissionError");
     } else {
       fileItem.message = errorMessage;
     }
@@ -1415,7 +1415,7 @@ const cancelSingleUpload = (index) => {
 
   // 更新文件状态为取消
   fileItem.status = "error";
-  fileItem.message = t("file.cancelMessage");
+  fileItem.message = t("file.messages.uploadCancelled");
 
   // 如果已获取了文件ID，则删除相应的文件记录
   if (fileItem.fileId) {

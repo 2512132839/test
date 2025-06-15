@@ -197,23 +197,67 @@ router.onError((error) => {
 });
 
 // 路由后置守卫 - 处理页面标题和调试信息
-router.afterEach((to, from) => {
-  // 更新页面标题 - 为深层路径提供更具体的标题
-  let title = to.meta.title || "CloudPaste";
+router.afterEach(async (to, from) => {
+  // 动态设置页面标题，支持国际化
+  let title = "CloudPaste";
 
-  // 为 Admin 子路由添加具体的标题
-  if (to.name === "AdminModule" && to.params.module) {
-    const moduleNames = {
-      dashboard: "仪表板",
-      "text-management": "文本管理",
-      "file-management": "文件管理",
-      "storage-config": "存储配置",
-      "mount-management": "挂载管理",
-      "key-management": "密钥管理",
-      settings: "系统设置",
-    };
-    const moduleName = moduleNames[to.params.module] || to.params.module;
-    title = `${moduleName} - CloudPaste`;
+  try {
+    // 动态导入 i18n 实例
+    const { default: i18n } = await import("../i18n/index.js");
+    const { t } = i18n.global;
+
+    // 根据路由名称设置对应的国际化标题
+    switch (to.name) {
+      case "Home":
+        title = t("pageTitle.home");
+        break;
+      case "Upload":
+        title = t("pageTitle.upload");
+        break;
+      case "Admin":
+        title = t("pageTitle.admin");
+        break;
+      case "AdminModule":
+        if (to.params.module) {
+          const moduleKeyMap = {
+            dashboard: "dashboard",
+            "text-management": "textManagement",
+            "file-management": "fileManagement",
+            "storage-config": "storageConfig",
+            "mount-management": "mountManagement",
+            "key-management": "keyManagement",
+            settings: "settings",
+          };
+          const moduleKey = moduleKeyMap[to.params.module];
+          if (moduleKey) {
+            const moduleName = t(`pageTitle.adminModules.${moduleKey}`);
+            title = `${moduleName} - CloudPaste`;
+          } else {
+            title = t("pageTitle.admin");
+          }
+        } else {
+          title = t("pageTitle.admin");
+        }
+        break;
+      case "PasteView":
+        title = t("pageTitle.pasteView");
+        break;
+      case "FileView":
+        title = t("pageTitle.fileView");
+        break;
+      case "MountExplorer":
+      case "MountExplorerPath":
+        title = t("pageTitle.mountExplorer");
+        break;
+      case "NotFound":
+        title = t("pageTitle.notFound");
+        break;
+      default:
+        title = to.meta?.title || "CloudPaste";
+    }
+  } catch (error) {
+    console.warn("无法加载国际化标题，使用默认标题:", error);
+    title = to.meta?.title || "CloudPaste";
   }
 
   document.title = title;

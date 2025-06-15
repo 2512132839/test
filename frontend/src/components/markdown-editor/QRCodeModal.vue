@@ -12,7 +12,7 @@
 
       <div class="flex flex-col items-center">
         <div v-if="qrCodeDataURL" class="bg-white p-4 rounded-lg mb-4">
-          <img :src="qrCodeDataURL" alt="分享二维码" class="w-48 h-48" />
+          <img :src="qrCodeDataURL" :alt="$t('markdown.qrCodeTitle')" class="w-48 h-48" />
         </div>
         <div v-else class="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg mb-4 w-48 h-48 flex items-center justify-center">
           <span class="text-gray-500 dark:text-gray-400">{{ $t("markdown.qrCodeGenerating") }}</span>
@@ -71,7 +71,7 @@ const generateQRCode = async (url) => {
     qrCodeDataURL.value = dataURL;
   } catch (error) {
     console.error("生成二维码时出错:", error);
-    emit("status-message", "生成二维码失败");
+    emit("status-message", t("markdown.messages.qrCodeGenerateFailed"));
   }
 };
 
@@ -96,24 +96,24 @@ const downloadQRCode = () => {
 
 // 监听弹窗显示状态
 watch(
-  () => props.visible,
-  (newVisible) => {
-    if (newVisible && props.shareLink) {
-      generateQRCode(props.shareLink);
-    } else {
-      qrCodeDataURL.value = "";
+    () => props.visible,
+    (newVisible) => {
+      if (newVisible && props.shareLink) {
+        generateQRCode(props.shareLink);
+      } else {
+        qrCodeDataURL.value = "";
+      }
     }
-  }
 );
 
 // 监听分享链接变化
 watch(
-  () => props.shareLink,
-  (newLink) => {
-    if (props.visible && newLink) {
-      generateQRCode(newLink);
+    () => props.shareLink,
+    (newLink) => {
+      if (props.visible && newLink) {
+        generateQRCode(newLink);
+      }
     }
-  }
 );
 </script>
 

@@ -17,7 +17,7 @@
             <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            <span>下载文件</span>
+            <span>{{ t("mount.filePreview.downloadFile") }}</span>
           </button>
 
           <!-- S3直链预览按钮 -->
@@ -44,7 +44,7 @@
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
-            <span>{{ isGeneratingPreview ? "生成中..." : "直链预览" }}</span>
+            <span>{{ isGeneratingPreview ? t("mount.filePreview.generating") : t("mount.filePreview.directPreview") }}</span>
           </button>
         </div>
       </div>
@@ -52,16 +52,16 @@
       <!-- 文件信息 -->
       <div class="file-info grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-3 rounded-lg bg-opacity-50" :class="darkMode ? 'bg-gray-700/50' : 'bg-gray-100'">
         <div class="file-info-item flex items-center">
-          <span class="font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">文件大小:</span>
+          <span class="font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.fileSize") }}</span>
           <span :class="darkMode ? 'text-gray-400' : 'text-gray-600'">{{ formatFileSize(file.size) }}</span>
         </div>
         <div class="file-info-item flex items-center">
-          <span class="font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">修改时间:</span>
+          <span class="font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.modifiedTime") }}</span>
           <span :class="darkMode ? 'text-gray-400' : 'text-gray-600'">{{ formatDate(file.modified) }}</span>
         </div>
         <div class="file-info-item flex items-center">
-          <span class="font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">文件类型:</span>
-          <span :class="darkMode ? 'text-gray-400' : 'text-gray-600'">{{ file.contentType || "未知" }}</span>
+          <span class="font-medium mr-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.fileType") }}</span>
+          <span :class="darkMode ? 'text-gray-400' : 'text-gray-600'">{{ file.contentType || t("mount.filePreview.unknown") }}</span>
         </div>
       </div>
 
@@ -84,7 +84,7 @@
                     aria-expanded="true"
                     aria-haspopup="true"
                 >
-                  {{ isEditMode ? "编辑模式" : "预览模式" }}
+                  {{ isEditMode ? t("mount.filePreview.editMode") : t("mount.filePreview.previewMode") }}
                   <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path
                         fill-rule="evenodd"
@@ -119,7 +119,7 @@
                       role="menuitem"
                       tabindex="-1"
                   >
-                    预览模式
+                    {{ t("mount.filePreview.previewMode") }}
                   </button>
                   <button
                       @click="selectMode('edit')"
@@ -136,7 +136,7 @@
                       role="menuitem"
                       tabindex="-1"
                   >
-                    编辑模式
+                    {{ t("mount.filePreview.editMode") }}
                   </button>
                 </div>
               </div>
@@ -162,7 +162,7 @@
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              <span>{{ isSaving ? "保存中..." : "保存" }}</span>
+              <span>{{ isSaving ? t("mount.filePreview.saving") : t("mount.filePreview.save") }}</span>
             </button>
             <button
                 @click="cancelEdit"
@@ -173,7 +173,7 @@
               <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
-              <span>取消</span>
+              <span>{{ t("mount.filePreview.cancel") }}</span>
             </button>
           </div>
         </div>
@@ -205,7 +205,7 @@
         <div v-else-if="isVideo" class="video-preview p-4">
           <video v-if="authenticatedPreviewUrl" controls class="max-w-full mx-auto max-h-[500px]" @loadeddata="handleContentLoaded" @error="handleContentError">
             <source :src="authenticatedPreviewUrl" :type="file.contentType" />
-            您的浏览器不支持视频标签
+            {{ t("mount.filePreview.browserNotSupport") }} {{ t("mount.filePreview.videoTag") }}
           </video>
           <div v-else class="loading-indicator text-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -216,7 +216,7 @@
         <div v-else-if="isAudio" class="audio-preview p-4">
           <audio v-if="authenticatedPreviewUrl" controls class="w-full" @loadeddata="handleContentLoaded" @error="handleContentError">
             <source :src="authenticatedPreviewUrl" :type="file.contentType" />
-            您的浏览器不支持音频标签
+            {{ t("mount.filePreview.browserNotSupport") }} {{ t("mount.filePreview.audioTag") }}
           </audio>
           <div v-else class="loading-indicator text-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -243,7 +243,7 @@
           <!-- Office预览头部控制栏 -->
           <div class="sticky top-0 z-20 flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {{ isWordDoc ? "Word文档预览" : isExcel ? "Excel表格预览" : "PowerPoint演示文稿预览" }}
+              {{ isWordDoc ? t("mount.filePreview.wordPreview") : isExcel ? t("mount.filePreview.excelPreview") : t("mount.filePreview.powerpointPreview") }}
             </span>
             <div class="flex items-center space-x-2">
               <button
@@ -261,13 +261,13 @@
                 <svg v-else class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                <span>{{ isOfficeFullscreen ? "退出全屏" : "全屏" }}</span>
+                <span>{{ isOfficeFullscreen ? t("mount.filePreview.exitFullscreen") : t("mount.filePreview.fullscreen") }}</span>
               </button>
               <button
                   @click="toggleOfficePreviewService"
                   class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-700 text-blue-700 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600 transition-colors"
               >
-                {{ useGoogleDocsPreview ? "使用Microsoft预览" : "使用Google预览" }}
+                {{ useGoogleDocsPreview ? t("mount.filePreview.useMicrosoftPreview") : t("mount.filePreview.useGooglePreview") }}
               </button>
             </div>
           </div>
@@ -275,7 +275,7 @@
           <!-- 加载状态 -->
           <div v-if="officePreviewLoading" class="flex flex-col items-center justify-center h-full">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 mb-4" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
-            <p class="text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">正在加载Office预览...</p>
+            <p class="text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.loadingPreview") }}</p>
           </div>
 
           <!-- 错误状态 -->
@@ -301,7 +301,7 @@
                 class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
                 :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
             >
-              重试
+              {{ t("mount.filePreview.retry") }}
             </button>
           </div>
 
@@ -347,7 +347,7 @@
           <div v-else>
             <!-- 添加HTML预览的控制栏 -->
             <div class="sticky top-0 z-20 flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">HTML预览</span>
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("mount.filePreview.htmlPreview") }}</span>
               <div class="flex items-center">
                 <button
                     @click="toggleHtmlFullscreen"
@@ -364,7 +364,7 @@
                   <svg v-else class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  <span>{{ isHtmlFullscreen ? "退出全屏" : "全屏" }}</span>
+                  <span>{{ isHtmlFullscreen ? t("mount.filePreview.exitFullscreen") : t("mount.filePreview.fullscreen") }}</span>
                 </button>
               </div>
             </div>
@@ -388,13 +388,13 @@
           <div v-else>
             <div class="flex justify-between items-center mb-2">
               <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-                语言: {{ codeLanguage || "自动检测" }}
+                {{ t("mount.filePreview.language") }} {{ codeLanguage || t("mount.filePreview.autoDetect") }}
                 <span
                     v-if="fileTypeInfo.value && fileTypeInfo.value.category === 'config'"
                     class="ml-2 px-2 py-0.5 text-xs rounded-full"
                     :class="darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'"
                 >
-                  配置文件
+                  {{ t("mount.filePreview.configFile") }}
                 </span>
               </span>
             </div>
@@ -432,8 +432,8 @@
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
             />
           </svg>
-          <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-red-300' : 'text-red-700'">加载文件预览失败</p>
-          <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">请尝试重新加载或下载文件查看</p>
+          <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-red-300' : 'text-red-700'">{{ t("mount.filePreview.previewError") }}</p>
+          <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.filePreview.retryLoad") }}</p>
         </div>
 
         <!-- 不支持预览的文件类型 -->
@@ -453,8 +453,8 @@
                 d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
             />
           </svg>
-          <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">文件无法预览</p>
-          <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">当前文件类型不支持在线预览，请点击下载按钮下载查看</p>
+          <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.cannotPreview") }}</p>
+          <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.filePreview.downloadToView") }}</p>
         </div>
       </div>
     </div>
@@ -463,7 +463,10 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted, nextTick } from "vue";
+import { useI18n } from "vue-i18n";
 import { api } from "../../api";
+
+const { t } = useI18n();
 import { getAuthHeaders, createAuthenticatedPreviewUrl } from "../../utils/fileUtils";
 import { getMimeTypeGroupByFileDetails, getFileExtension, MIME_GROUPS, formatFileSize as formatFileSizeUtil } from "../../utils/mimeTypeUtils";
 import hljs from "highlight.js";

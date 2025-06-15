@@ -50,7 +50,7 @@
               @click.stop="$emit('download', item)"
               class="p-1 sm:p-1 rounded-full"
               :class="darkMode ? 'hover:bg-gray-600 text-blue-400 hover:text-blue-300' : 'hover:bg-gray-200 text-blue-600 hover:text-blue-700'"
-              title="下载"
+              :title="t('mount.fileItem.download')"
           >
             <svg class="w-4 h-4 sm:w-5 sm:h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -63,7 +63,7 @@
               @click.stop="$emit('getLink', item)"
               class="p-1 sm:p-1 rounded-full"
               :class="darkMode ? 'hover:bg-gray-600 text-green-400 hover:text-green-300' : 'hover:bg-gray-200 text-green-600 hover:text-green-700'"
-              title="获取直链"
+              :title="t('mount.fileItem.getLink')"
           >
             <svg class="w-4 h-4 sm:w-5 sm:h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
@@ -77,7 +77,7 @@
               @click.stop="$emit('rename', item)"
               class="p-1 sm:p-1 rounded-full"
               :class="darkMode ? 'hover:bg-gray-600 text-yellow-400 hover:text-yellow-300' : 'hover:bg-gray-200 text-yellow-600 hover:text-yellow-700'"
-              title="重命名"
+              :title="t('mount.fileItem.rename')"
           >
             <svg class="w-4 h-4 sm:w-5 sm:h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -94,7 +94,7 @@
               @click.stop="$emit('delete', item)"
               class="p-1 sm:p-1 rounded-full"
               :class="darkMode ? 'hover:bg-gray-600 text-red-400 hover:text-red-300' : 'hover:bg-gray-200 text-red-600 hover:text-red-700'"
-              title="删除"
+              :title="t('mount.fileItem.delete')"
           >
             <svg class="w-4 h-4 sm:w-5 sm:h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -112,7 +112,10 @@
 </template>
 
 <script setup>
+import { useI18n } from "vue-i18n";
 import { getFileIcon } from "../../utils/fileTypeIcons";
+
+const { t } = useI18n();
 
 const props = defineProps({
   item: {
