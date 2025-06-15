@@ -6,6 +6,7 @@
 import { DbTables, ApiStatus } from "../constants/index.js";
 import { validateAdminToken } from "./adminService.js";
 import { checkAndDeleteExpiredApiKey } from "./apiKeyService.js";
+import { verifyPassword } from "../utils/crypto.js";
 import { HTTPException } from "hono/http-exception";
 
 /**
@@ -40,7 +41,7 @@ export const PermissionLevel = {
  * 认证结果接口
  */
 export class AuthResult {
-  constructor({ isAuthenticated = false, authType = AuthType.NONE, userId = null, permissions = {}, basicPath = "/", keyInfo = null, adminId = null } = {}) {
+  constructor({ isAuthenticated = false, authType = AuthType.NONE, userId = null, permissions = {}, basicPath = "/", keyInfo = null, adminId = null, isAdmin = false } = {}) {
     this.isAuthenticated = isAuthenticated;
     this.authType = authType;
     this.userId = userId;
@@ -48,14 +49,16 @@ export class AuthResult {
     this.basicPath = basicPath;
     this.keyInfo = keyInfo;
     this.adminId = adminId;
+    this._isAdmin = isAdmin; //避免命名冲突
   }
 
   /**
    * 检查是否有指定权限
    */
   hasPermission(permissionType) {
-    if (this.authType === AuthType.ADMIN) {
-      return true; // 管理员拥有所有权限
+    // 管理员拥有所有权限（包括Bearer认证和Basic认证的管理员）
+    if (this.authType === AuthType.ADMIN || this._isAdmin === true) {
+      return true;
     }
     return this.permissions[permissionType] === true;
   }
@@ -64,7 +67,7 @@ export class AuthResult {
    * 检查是否为管理员
    */
   isAdmin() {
-    return this.authType === AuthType.ADMIN;
+    return this.authType === AuthType.ADMIN || this._isAdmin === true;
   }
 
   /**
@@ -143,7 +146,16 @@ export class AuthService {
     try {
       // 解码Base64编码的用户名:密码
       const decoded = atob(basicToken);
-      const [username, password] = decoded.split(":");
+
+      // 使用indexOf查找分隔符，因为密码中可能包含冒号
+      const separatorIndex = decoded.indexOf(":");
+      if (separatorIndex === -1) {
+        console.log("WebDAV认证失败: 无效的认证格式");
+        return new AuthResult();
+      }
+
+      const username = decoded.substring(0, separatorIndex);
+      const password = decoded.substring(separatorIndex + 1);
 
       if (!username || !password) {
         return new AuthResult();
@@ -151,19 +163,21 @@ export class AuthService {
 
       // 情况1: 管理员登录
       try {
+        console.log(`WebDAV认证: 开始验证管理员用户凭证，用户名: ${username}`);
         // 查询是否存在具有匹配用户名的管理员
         const admin = await this.db.prepare(`SELECT id, username, password FROM ${DbTables.ADMINS} WHERE username = ?`).bind(username).first();
 
         if (admin) {
+          console.log("WebDAV认证: 找到管理员账户，开始验证密码");
           try {
             // 使用verifyPassword验证密码
-            const { verifyPassword } = await import("../utils/crypto.js");
             const isPasswordValid = await verifyPassword(password, admin.password);
 
             if (isPasswordValid) {
+              console.log("WebDAV认证: 管理员密码验证成功");
               return new AuthResult({
                 isAuthenticated: true,
-                authType: AuthType.ADMIN,
+                authType: "basic", // Basic认证方式的管理员
                 adminId: admin.id,
                 userId: admin.id,
                 permissions: {
@@ -173,11 +187,16 @@ export class AuthService {
                   [PermissionType.ADMIN]: true,
                 },
                 basicPath: "/",
+                isAdmin: true, // 明确标记为管理员
               });
+            } else {
+              console.log("WebDAV认证: 管理员密码验证失败");
             }
           } catch (verifyError) {
             console.error("WebDAV认证: 密码验证出错", verifyError);
           }
+        } else {
+          console.log(`WebDAV认证: 未找到匹配的管理员账户，用户名: ${username}`);
         }
       } catch (error) {
         console.error("WebDAV认证: 验证管理员过程出错", error);
@@ -187,13 +206,13 @@ export class AuthService {
       try {
         // 查询是否存在对应的API密钥，获取完整信息
         const keyRecord = await this.db
-          .prepare(
-            `SELECT id, key, name, basic_path, text_permission, file_permission, mount_permission, expires_at
+            .prepare(
+                `SELECT id, key, name, basic_path, text_permission, file_permission, mount_permission, expires_at
              FROM ${DbTables.API_KEYS}
              WHERE key = ?`
-          )
-          .bind(username)
-          .first();
+            )
+            .bind(username)
+            .first();
 
         if (keyRecord) {
           // 检查mount_permission
@@ -209,13 +228,13 @@ export class AuthService {
 
               // 更新最后使用时间
               await this.db
-                .prepare(
-                  `UPDATE ${DbTables.API_KEYS}
+                  .prepare(
+                      `UPDATE ${DbTables.API_KEYS}
                    SET last_used = CURRENT_TIMESTAMP
                    WHERE id = ?`
-                )
-                .bind(keyRecord.id)
-                .run();
+                  )
+                  .bind(keyRecord.id)
+                  .run();
 
               // 构建权限对象
               const permissions = {
@@ -228,6 +247,7 @@ export class AuthService {
               const keyInfo = {
                 id: keyRecord.id,
                 name: keyRecord.name,
+                key: keyRecord.key,
                 basicPath: keyRecord.basic_path || "/",
                 permissions: permissions,
               };
@@ -261,13 +281,13 @@ export class AuthService {
     try {
       // 查询API密钥记录
       const keyRecord = await this.db
-        .prepare(
-          `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
+          .prepare(
+              `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
            FROM ${DbTables.API_KEYS}
            WHERE key = ?`
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       if (!keyRecord) {
         return new AuthResult();
@@ -280,13 +300,13 @@ export class AuthService {
 
       // 更新最后使用时间
       await this.db
-        .prepare(
-          `UPDATE ${DbTables.API_KEYS}
+          .prepare(
+              `UPDATE ${DbTables.API_KEYS}
            SET last_used = CURRENT_TIMESTAMP
            WHERE id = ?`
-        )
-        .bind(keyRecord.id)
-        .run();
+          )
+          .bind(keyRecord.id)
+          .run();
 
       // 构建权限对象
       const permissions = {
@@ -299,6 +319,7 @@ export class AuthService {
       const keyInfo = {
         id: keyRecord.id,
         name: keyRecord.name,
+        key: apiKey,
         basicPath: keyRecord.basic_path || "/",
         permissions: permissions,
       };

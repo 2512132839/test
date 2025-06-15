@@ -19,7 +19,6 @@ import { ApiStatus } from "../constants/index.js";
 
 import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
 import { createAuthService, AuthType, PermissionType } from "../services/authService.js";
-// 移除了 getLocalTimeString 导入，现在使用 CURRENT_TIMESTAMP
 import { storeAuthInfo, getAuthInfo, isWebDAVClient } from "./utils/authCache.js";
 
 /**
@@ -134,11 +133,11 @@ export const webdavAuthMiddleware = async (c, next) => {
     }
 
     // 设置上下文信息
-    if (authResult.authType === AuthType.ADMIN) {
+    if (authResult.authType === AuthType.ADMIN || authResult.isAdmin()) {
       c.set("userId", authResult.adminId);
       c.set("userType", "admin");
 
-      // 认证信息
+      // 认证信息 - 需要包含认证类型信息以便后续权限验证
       const authInfo = {
         userId: authResult.adminId,
         isAdmin: true,
@@ -148,7 +147,7 @@ export const webdavAuthMiddleware = async (c, next) => {
 
       // 存储认证信息到缓存
       storeAuthInfo(clientIp, userAgent, authInfo);
-    } else if (authResult.authType === AuthType.API_KEY) {
+    } else if (authResult.authType === AuthType.API_KEY || authResult.keyInfo) {
       const apiKeyInfo = {
         id: authResult.keyInfo.id,
         name: authResult.keyInfo.name,
@@ -162,7 +161,7 @@ export const webdavAuthMiddleware = async (c, next) => {
       const authInfo = {
         userId: authResult.userId,
         isAdmin: false,
-        apiKey: authHeader.startsWith("ApiKey ") ? authHeader.substring(7) : authHeader.substring(7),
+        apiKey: authResult.keyInfo ? authResult.keyInfo.key : "unknown",
         authType: authResult.authType,
         apiKeyInfo: apiKeyInfo,
       };
@@ -170,6 +169,14 @@ export const webdavAuthMiddleware = async (c, next) => {
 
       // 存储认证信息到缓存
       storeAuthInfo(clientIp, userAgent, authInfo);
+    } else {
+      //如果发生说明有逻辑错误
+      console.error("WebDAV认证: 未知的认证结果类型", {
+        authType: authResult.authType,
+        isAdmin: authResult.isAdmin(),
+        hasKeyInfo: !!authResult.keyInfo,
+      });
+      return createUnauthorizedResponse("Unauthorized: Unknown authentication type", userAgent);
     }
 
     console.log(`WebDAV认证成功: 用户类型=${authResult.authType}`);
