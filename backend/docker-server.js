@@ -633,7 +633,15 @@ server.use("*", async (req, res) => {
  * 将Express请求转换为Cloudflare Workers兼容的Request对象
  */
 function createAdaptedRequest(expressReq) {
-  const url = new URL(expressReq.originalUrl, `http://${expressReq.headers.host || "localhost"}`);
+  //使用X-Forwarded-Proto头部，回退到连接信息
+  const protocol = expressReq.headers["x-forwarded-proto"] || (expressReq.connection && expressReq.connection.encrypted ? "https" : "http");
+
+  // 调试日志：记录协议检测结果
+  if (expressReq.path.includes("/api/file-")) {
+    logMessage("debug", `协议检测 - Path: ${expressReq.path}, X-Forwarded-Proto: ${expressReq.headers["x-forwarded-proto"]}, 最终协议: ${protocol}`);
+  }
+
+  const url = new URL(expressReq.originalUrl, `${protocol}://${expressReq.headers.host || "localhost"}`);
 
   // 获取请求体内容
   let body = undefined;
