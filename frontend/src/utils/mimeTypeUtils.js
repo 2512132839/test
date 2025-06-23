@@ -671,14 +671,14 @@ export const getMimeTypeGroup = (mimeType) => {
   }
   // 配置文件类型检测
   if (
-      mimeType.includes("yaml") ||
-      mimeType.includes("yml") ||
-      mimeType.includes("json") ||
-      mimeType.includes("xml") ||
-      mimeType.includes("toml") ||
-      mimeType.includes("ini") ||
-      mimeType.includes("config") ||
-      mimeType.includes("properties")
+    mimeType.includes("yaml") ||
+    mimeType.includes("yml") ||
+    mimeType.includes("json") ||
+    mimeType.includes("xml") ||
+    mimeType.includes("toml") ||
+    mimeType.includes("ini") ||
+    mimeType.includes("config") ||
+    mimeType.includes("properties")
   ) {
     return MIME_GROUPS.CONFIG;
   }

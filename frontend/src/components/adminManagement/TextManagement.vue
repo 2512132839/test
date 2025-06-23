@@ -3,6 +3,7 @@ import { ref, onMounted, reactive, computed } from "vue";
 import { api } from "../../api";
 import QRCode from "qrcode";
 import { copyToClipboard } from "@/utils/clipboard";
+import { useAuthStore } from "../../stores/authStore.js";
 
 // 导入子组件
 import PasteTable from "../text-management/PasteTable.vue";
@@ -41,9 +42,12 @@ const pagination = reactive({
   totalPages: 0,
 });
 
-// 用户权限状态
-const isAdmin = ref(false);
-const isApiKeyUser = ref(false);
+// 使用认证Store
+const authStore = useAuthStore();
+
+// 从Store获取权限状态的计算属性
+const isAdmin = computed(() => authStore.isAdmin);
+const isApiKeyUser = computed(() => authStore.authType === "apikey" && authStore.hasTextPermission);
 
 // 计算得到综合的权限状态
 const isAuthorized = computed(() => {
@@ -111,69 +115,18 @@ const updateLastRefreshTime = () => {
   lastRefreshTime.value = formatCurrentTime();
 };
 
-/**
- * 检查用户权限并设置状态
- * 判断当前用户是管理员还是API密钥用户
- */
-const checkUserPermission = () => {
-  console.log("开始检查用户权限");
-
-  // 检查是否有管理员令牌
-  const adminToken = localStorage.getItem("admin_token");
-  if (adminToken) {
-    console.log("检测到管理员令牌");
-    isAdmin.value = true;
-    return;
-  }
-
-  // 检查是否有API密钥
-  const apiKey = localStorage.getItem("api_key");
-  const permissions = localStorage.getItem("api_key_permissions");
-
-  console.log("API密钥检查:", { apiKey: !!apiKey, permissions });
-
-  if (apiKey && permissions) {
-    try {
-      let permObj;
-      try {
-        permObj = JSON.parse(permissions);
-      } catch (parseError) {
-        console.error("API密钥权限JSON解析失败:", parseError);
-        // 如果解析失败，尝试使用字符串检查
-        if (typeof permissions === "string") {
-          // 简单字符串检查，查找"text"或"text_permission"
-          if (permissions.includes("text") || permissions.includes("text_permission")) {
-            console.log("通过字符串匹配判断有文本权限");
-            isApiKeyUser.value = true;
-            return;
-          }
-        }
-        return;
-      }
-
-      // 检查是否有文本操作权限
-      console.log("解析后的权限对象:", permObj);
-      if (permObj.text || permObj.text_permission) {
-        console.log("API密钥具有文本权限");
-        isApiKeyUser.value = true;
-      } else {
-        console.log("API密钥不具有文本权限");
-      }
-    } catch (e) {
-      console.error("检查API密钥权限失败:", e);
-    }
-  } else {
-    console.log("未检测到有效的API密钥或权限");
-  }
-};
+// 权限检查逻辑已移至认证Store
 
 /**
  * 加载文本分享数据
  * 从API获取文本分享列表数据，支持分页
  */
 const loadPastes = async () => {
-  // 先检查用户权限
-  checkUserPermission();
+  // 如果需要重新验证，则进行验证
+  if (authStore.needsRevalidation) {
+    console.log("TextManagement: 需要重新验证认证状态");
+    await authStore.validateAuth();
+  }
 
   // 检查权限状态
   if (!isAuthorized.value) {
@@ -229,8 +182,8 @@ const loadPastes = async () => {
       }
 
       // 添加created_by字段，
-      // 从localStorage获取API密钥信息
-      const apiKey = localStorage.getItem("api_key");
+      // 从认证Store获取API密钥信息
+      const apiKey = authStore.apiKey;
       if (apiKey && pastes.value.length > 0) {
         // 为每条数据添加created_by字段，值为apikey:xxx格式
         pastes.value = pastes.value.map((paste) => {
@@ -238,7 +191,7 @@ const loadPastes = async () => {
           if (!paste.created_by) {
             return {
               ...paste,
-              created_by: `apikey:${apiKey.substring(0, 5)}`, // 使用本地存储的API密钥前5位
+              created_by: `apikey:${apiKey.substring(0, 5)}`, // 使用API密钥前5位
             };
           }
           return paste;
@@ -723,18 +676,15 @@ const closeEditModal = () => {
 
 /**
  * 组件挂载时的初始化
- * 检查权限并加载数据
+ * 加载数据
  */
 onMounted(() => {
   console.log("TextManagement组件挂载");
-  // 检查权限状态
-  checkUserPermission();
-  console.log("API密钥权限状态检查", {
+  console.log("TextManagement权限状态检查", {
     isAdmin: isAdmin.value,
     isApiKeyUser: isApiKeyUser.value,
-    adminToken: !!localStorage.getItem("admin_token"),
-    apiKey: !!localStorage.getItem("api_key"),
-    apiKeyPermissions: localStorage.getItem("api_key_permissions"),
+    authType: authStore.authType,
+    hasTextPermission: authStore.hasTextPermission,
   });
 
   // 加载分享列表
@@ -752,24 +702,24 @@ onMounted(() => {
 
         <!-- 刷新按钮 - 在所有屏幕尺寸显示 -->
         <button
-            class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            @click="loadPastes"
-            :disabled="loading"
+          class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          @click="loadPastes"
+          :disabled="loading"
         >
           <svg xmlns="http://www.w3.org/2000/svg" :class="['h-3 w-3 sm:h-4 sm:w-4 mr-1', loading ? 'animate-spin' : '']" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                v-if="!loading"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              v-if="!loading"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
             <circle v-if="loading" class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path
-                v-if="loading"
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              v-if="loading"
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
           <span class="hidden xs:inline">{{ loading ? "刷新中..." : "刷新" }}</span>
@@ -781,16 +731,16 @@ onMounted(() => {
       <div class="flex flex-wrap gap-1 sm:gap-2">
         <!-- 清理过期按钮 -->
         <button
-            class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 flex-grow sm:flex-grow-0"
-            @click="clearExpiredPastes"
-            title="系统会自动删除过期内容，但您也可以通过此功能手动立即清理"
+          class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 flex-grow sm:flex-grow-0"
+          @click="clearExpiredPastes"
+          title="系统会自动删除过期内容，但您也可以通过此功能手动立即清理"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
             />
           </svg>
           <span class="hidden xs:inline">清理过期</span>
@@ -799,19 +749,19 @@ onMounted(() => {
 
         <!-- 批量删除按钮 -->
         <button
-            :disabled="selectedPastes.length === 0"
-            :class="[
+          :disabled="selectedPastes.length === 0"
+          :class="[
             'inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 flex-grow sm:flex-grow-0',
             selectedPastes.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'text-white bg-red-600 hover:bg-red-700 focus:ring-red-500',
           ]"
-            @click="deleteSelectedPastes"
+          @click="deleteSelectedPastes"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
             />
           </svg>
           <span class="hidden xs:inline">批量删除{{ selectedPastes.length ? `(${selectedPastes.length})` : "" }}</span>
@@ -822,16 +772,16 @@ onMounted(() => {
 
     <!-- 错误信息提示 -->
     <div
-        v-if="error"
-        class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
+      v-if="error"
+      class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
     >
       <p>{{ error }}</p>
     </div>
 
     <!-- 成功信息提示 -->
     <div
-        v-if="successMessage"
-        class="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
+      v-if="successMessage"
+      class="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
     >
       <p>{{ successMessage }}</p>
     </div>
@@ -854,41 +804,41 @@ onMounted(() => {
         <!-- 桌面端表格组件 - 中等及以上设备显示 -->
         <div class="hidden md:block flex-1 overflow-auto">
           <PasteTable
-              :dark-mode="darkMode"
-              :pastes="pastes"
-              :selectedPastes="selectedPastes"
-              :loading="loading"
-              :copiedTexts="copiedTexts"
-              :copiedRawTexts="copiedRawTexts"
-              @toggle-select-all="toggleSelectAll"
-              @toggle-select-item="toggleSelectItem"
-              @view="goToViewPage"
-              @copy-link="copyLink"
-              @copy-raw-link="copyRawLink"
-              @preview="openPreview"
-              @edit="openEditModal"
-              @delete="deletePaste"
-              @show-qrcode="showQRCode"
+            :dark-mode="darkMode"
+            :pastes="pastes"
+            :selectedPastes="selectedPastes"
+            :loading="loading"
+            :copiedTexts="copiedTexts"
+            :copiedRawTexts="copiedRawTexts"
+            @toggle-select-all="toggleSelectAll"
+            @toggle-select-item="toggleSelectItem"
+            @view="goToViewPage"
+            @copy-link="copyLink"
+            @copy-raw-link="copyRawLink"
+            @preview="openPreview"
+            @edit="openEditModal"
+            @delete="deletePaste"
+            @show-qrcode="showQRCode"
           />
         </div>
 
         <!-- 移动端卡片组件 - 小于中等设备显示 -->
         <div class="md:hidden flex-1 overflow-auto">
           <PasteCardList
-              :dark-mode="darkMode"
-              :pastes="pastes"
-              :selectedPastes="selectedPastes"
-              :loading="loading"
-              :copiedTexts="copiedTexts"
-              :copiedRawTexts="copiedRawTexts"
-              @toggle-select-item="toggleSelectItem"
-              @view="goToViewPage"
-              @copy-link="copyLink"
-              @copy-raw-link="copyRawLink"
-              @preview="openPreview"
-              @edit="openEditModal"
-              @delete="deletePaste"
-              @show-qrcode="showQRCode"
+            :dark-mode="darkMode"
+            :pastes="pastes"
+            :selectedPastes="selectedPastes"
+            :loading="loading"
+            :copiedTexts="copiedTexts"
+            :copiedRawTexts="copiedRawTexts"
+            @toggle-select-item="toggleSelectItem"
+            @view="goToViewPage"
+            @copy-link="copyLink"
+            @copy-raw-link="copyRawLink"
+            @preview="openPreview"
+            @edit="openEditModal"
+            @delete="deletePaste"
+            @show-qrcode="showQRCode"
           />
         </div>
       </div>

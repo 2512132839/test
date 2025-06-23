@@ -3,6 +3,7 @@ import { ref, reactive, computed } from "vue";
 import { api } from "../../api";
 import { useI18n } from "vue-i18n";
 import { ApiStatus } from "../../api/ApiStatus";
+import { useAuthStore } from "../../stores/authStore.js";
 
 const props = defineProps({
   darkMode: {
@@ -13,6 +14,9 @@ const props = defineProps({
 
 const emit = defineEmits(["login-success"]);
 const { t } = useI18n();
+
+// 使用认证Store
+const authStore = useAuthStore();
 
 const loading = ref(false);
 const error = ref("");
@@ -46,15 +50,16 @@ const handleLogin = async () => {
   error.value = "";
 
   try {
-    const result = await api.admin.login(form.username, form.password);
-    const token = result.data?.token;
-    if (!token) {
-      throw new Error(t("admin.login.errors.invalidToken"));
-    }
-    // 存储token到localStorage
-    localStorage.setItem("admin_token", token);
-    emit("login-success", { token });
+    // 使用认证Store进行管理员登录
+    const result = await authStore.adminLogin(form.username, form.password);
+
+    // 登录成功，发送事件给父组件
+    emit("login-success", {
+      token: result.data.token,
+      type: "admin",
+    });
   } catch (err) {
+    console.error("管理员登录失败:", err);
     // 优先使用HTTP状态码判断错误类型，更可靠
     if (err.status === ApiStatus.UNAUTHORIZED || err.response?.status === ApiStatus.UNAUTHORIZED || err.code === ApiStatus.UNAUTHORIZED) {
       // 401 Unauthorized - 用户名或密码错误
@@ -78,66 +83,15 @@ const handleApiKeyLogin = async () => {
   error.value = "";
 
   try {
-    // 导入API配置函数和auth-helper
-    const { getFullApiUrl } = await import("../../api/config.js");
-    const { storeApiKeyInfo } = await import("../../utils/auth-helper.js");
+    // 使用认证Store进行API密钥登录
+    const result = await authStore.apiKeyLogin(apiKeyForm.apiKey);
 
-    // 构建验证请求头
-    const headers = {
-      Authorization: `ApiKey ${apiKeyForm.apiKey}`,
-      "Content-Type": "application/json",
-    };
-
-    // 使用正确的API路径构建URL
-    const apiUrl = getFullApiUrl("test/api-key");
-
-    // 使用fetch直接调用API密钥验证接口
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: headers,
-      credentials: "omit", // 由于使用ApiKey Header，不需要cookie认证
-    });
-
-    const contentType = response.headers.get("content-type");
-
-    // 检查响应内容类型
-    if (!contentType || !contentType.includes("application/json")) {
-      // 如果响应不是JSON，先尝试读取文本内容进行错误分析
-      const textResponse = await response.text();
-      console.error("API响应不是JSON格式:", textResponse.substring(0, 200) + "...");
-      throw new Error(t("admin.login.errors.invalidResponse"));
-    }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `${t("admin.login.errors.serverError")}(${response.status})`);
-    }
-
-    // 检查响应结构
-    if (!data.success) {
-      throw new Error(data.message || t("admin.login.errors.keyValidationFailed"));
-    }
-
-    if (!data.data || !data.data.permissions) {
-      throw new Error(t("admin.login.errors.permissionInfo"));
-    }
-
-    // 存储API密钥到localStorage以便后续使用
-    localStorage.setItem("api_key", apiKeyForm.apiKey);
-
-    // 存储API密钥的额外信息，包括ID等
-    if (data.data.key_info) {
-      storeApiKeyInfo(data.data.key_info);
-    } else {
-      console.warn("API响应中缺少key_info字段，权限验证可能无法正常工作");
-    }
-
-    // 发送权限信息到父组件
+    // 登录成功，发送事件给父组件
     emit("login-success", {
       apiKey: apiKeyForm.apiKey,
-      permissions: data.data.permissions,
-      keyInfo: data.data.key_info,
+      permissions: result.data.permissions,
+      keyInfo: result.data.key_info,
+      type: "apikey",
     });
   } catch (err) {
     console.error("API密钥验证失败:", err);
@@ -173,12 +127,12 @@ const handleApiKeyLogin = async () => {
             <label for="apiKey" class="block text-sm font-medium leading-6" :class="darkMode ? 'text-gray-200' : 'text-gray-900'">{{ $t("admin.login.apiKey") }}</label>
             <div class="mt-2">
               <input
-                  id="apiKey"
-                  v-model="apiKeyForm.apiKey"
-                  name="apiKey"
-                  type="text"
-                  required
-                  :class="[
+                id="apiKey"
+                v-model="apiKeyForm.apiKey"
+                name="apiKey"
+                type="text"
+                required
+                :class="[
                   'block w-full rounded-md border-0 py-1.5 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6',
                   darkMode ? 'bg-gray-700 text-white ring-gray-600 focus:ring-primary-500' : 'text-gray-900 ring-gray-300 focus:ring-primary-600',
                 ]"
@@ -196,9 +150,9 @@ const handleApiKeyLogin = async () => {
 
           <div>
             <button
-                type="submit"
-                :disabled="loading"
-                :class="[
+              type="submit"
+              :disabled="loading"
+              :class="[
                 'flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
                 loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-500',
                 darkMode ? 'bg-primary-600 focus-visible:outline-primary-500' : 'bg-primary-600 focus-visible:outline-primary-600',
@@ -215,12 +169,12 @@ const handleApiKeyLogin = async () => {
             <label for="username" class="block text-sm font-medium leading-6" :class="darkMode ? 'text-gray-200' : 'text-gray-900'">{{ $t("admin.login.username") }}</label>
             <div class="mt-2">
               <input
-                  id="username"
-                  v-model="form.username"
-                  name="username"
-                  type="text"
-                  required
-                  :class="[
+                id="username"
+                v-model="form.username"
+                name="username"
+                type="text"
+                required
+                :class="[
                   'block w-full rounded-md border-0 py-1.5 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6',
                   darkMode ? 'bg-gray-700 text-white ring-gray-600 focus:ring-primary-500' : 'text-gray-900 ring-gray-300 focus:ring-primary-600',
                 ]"
@@ -234,12 +188,12 @@ const handleApiKeyLogin = async () => {
             </div>
             <div class="mt-2">
               <input
-                  id="password"
-                  v-model="form.password"
-                  name="password"
-                  type="password"
-                  required
-                  :class="[
+                id="password"
+                v-model="form.password"
+                name="password"
+                type="password"
+                required
+                :class="[
                   'block w-full rounded-md border-0 py-1.5 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6',
                   darkMode ? 'bg-gray-700 text-white ring-gray-600 focus:ring-primary-500' : 'text-gray-900 ring-gray-300 focus:ring-primary-600',
                 ]"
@@ -257,9 +211,9 @@ const handleApiKeyLogin = async () => {
 
           <div>
             <button
-                type="submit"
-                :disabled="loading"
-                :class="[
+              type="submit"
+              :disabled="loading"
+              :class="[
                 'flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
                 loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-500',
                 darkMode ? 'bg-primary-600 focus-visible:outline-primary-500' : 'bg-primary-600 focus-visible:outline-primary-600',
@@ -273,9 +227,9 @@ const handleApiKeyLogin = async () => {
 
         <div class="mt-6 text-center">
           <button
-              @click="toggleLoginMode"
-              class="text-sm transition-colors duration-200"
-              :class="darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-500'"
+            @click="toggleLoginMode"
+            class="text-sm transition-colors duration-200"
+            :class="darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-500'"
           >
             {{ isApiKeyMode ? $t("admin.login.useAdminAccount") : $t("admin.login.useApiKey") }}
           </button>

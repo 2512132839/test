@@ -4,25 +4,25 @@
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.remark") }}</label>
         <input
-            type="text"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.remarkPlaceholder')"
-            v-model="formData.remark"
-            :disabled="!hasPermission"
+          type="text"
+          class="form-input"
+          :class="getInputClasses()"
+          :placeholder="$t('markdown.form.remarkPlaceholder')"
+          v-model="formData.remark"
+          :disabled="!hasPermission"
         />
       </div>
 
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.customLink") }}</label>
         <input
-            type="text"
-            class="form-input"
-            :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
-            :placeholder="$t('markdown.form.customLinkPlaceholder')"
-            v-model="formData.customLink"
-            :disabled="!hasPermission"
-            @input="validateCustomLink"
+          type="text"
+          class="form-input"
+          :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
+          :placeholder="$t('markdown.form.customLinkPlaceholder')"
+          v-model="formData.customLink"
+          :disabled="!hasPermission"
+          @input="validateCustomLink"
         />
         <p v-if="slugError" class="mt-1 text-sm" :class="darkMode ? 'text-red-400' : 'text-red-600'">{{ slugError }}</p>
         <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t("markdown.validation.slugInvalid") }}</p>
@@ -31,12 +31,12 @@
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.password") }}</label>
         <input
-            type="text"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.passwordPlaceholder')"
-            v-model="formData.password"
-            :disabled="!hasPermission"
+          type="text"
+          class="form-input"
+          :class="getInputClasses()"
+          :placeholder="$t('markdown.form.passwordPlaceholder')"
+          v-model="formData.password"
+          :disabled="!hasPermission"
         />
       </div>
 
@@ -54,16 +54,16 @@
       <div class="form-group">
         <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.maxViews") }}</label>
         <input
-            type="number"
-            min="0"
-            step="1"
-            pattern="\d*"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.maxViewsPlaceholder')"
-            v-model.number="formData.maxViews"
-            @input="validateMaxViews"
-            :disabled="!hasPermission"
+          type="number"
+          min="0"
+          step="1"
+          pattern="\d*"
+          class="form-input"
+          :class="getInputClasses()"
+          :placeholder="$t('markdown.form.maxViewsPlaceholder')"
+          v-model.number="formData.maxViews"
+          @input="validateMaxViews"
+          :disabled="!hasPermission"
         />
       </div>
     </div>
@@ -166,8 +166,8 @@ const validateMaxViews = (event) => {
 // 获取输入框样式
 const getInputClasses = () => {
   return props.darkMode
-      ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
-      : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
+    ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
+    : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
 };
 
 // 判断是否为错误消息
@@ -175,7 +175,7 @@ const isErrorMessage = (message) => {
   const errorKeywords = [
     t("markdown.messages.createFailed"),
     t("markdown.messages.linkOccupied"),
-    t("markdown.messages.permissionDenied"),
+    t("common.noPermission"),
     t("markdown.messages.contentTooLarge"),
     t("markdown.messages.unknownError"),
     t("markdown.copyFailed"),

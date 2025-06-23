@@ -4,43 +4,43 @@
     <div class="card mb-4" :class="darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'">
       <div class="p-3">
         <FileOperations
-            :current-path="currentPath"
-            :is-virtual="directoryData?.isVirtual"
-            :dark-mode="darkMode"
-            :view-mode="viewMode"
-            :selected-items="selectedItems"
-            @upload="handleUpload"
-            @create-folder="handleCreateFolder"
-            @refresh="handleRefresh"
-            @change-view-mode="handleViewModeChange"
-            @openUploadModal="handleOpenUploadModal"
-            @openCopyModal="handleBatchCopy"
-            @openTasksModal="handleOpenTasksModal"
+          :current-path="currentPath"
+          :is-virtual="directoryData?.isVirtual"
+          :dark-mode="darkMode"
+          :view-mode="viewMode"
+          :selected-items="selectedItems"
+          @upload="handleUpload"
+          @create-folder="handleCreateFolder"
+          @refresh="handleRefresh"
+          @change-view-mode="handleViewModeChange"
+          @openUploadModal="handleOpenUploadModal"
+          @openCopyModal="handleBatchCopy"
+          @openTasksModal="handleOpenTasksModal"
         />
       </div>
     </div>
 
     <!-- 上传弹窗 -->
     <UploadModal
-        :is-open="showUploadModal"
-        :dark-mode="darkMode"
-        :current-path="currentPath"
-        :is-admin="isAdmin"
-        @close="handleCloseUploadModal"
-        @upload-success="handleUploadSuccess"
-        @upload-error="handleUploadError"
+      :is-open="showUploadModal"
+      :dark-mode="darkMode"
+      :current-path="currentPath"
+      :is-admin="isAdmin"
+      @close="handleCloseUploadModal"
+      @upload-success="handleUploadSuccess"
+      @upload-error="handleUploadError"
     />
 
     <!-- 复制模态窗口 -->
     <CopyModal
-        :is-open="showCopyModal"
-        :dark-mode="darkMode"
-        :selected-items="selectedItems"
-        :source-path="currentPath"
-        :is-admin="isAdmin"
-        :api-key-info="apiKeyInfo"
-        @close="handleCloseCopyModal"
-        @copy-complete="handleCopyComplete"
+      :is-open="showCopyModal"
+      :dark-mode="darkMode"
+      :selected-items="selectedItems"
+      :source-path="currentPath"
+      :is-admin="isAdmin"
+      :api-key-info="apiKeyInfo"
+      @close="handleCloseCopyModal"
+      @copy-complete="handleCopyComplete"
     />
 
     <!-- 任务管理弹窗 -->
@@ -49,25 +49,25 @@
     <!-- 面包屑导航 -->
     <div class="mb-4">
       <BreadcrumbNav
-          :current-path="currentPath"
-          :dark-mode="darkMode"
-          :preview-file="isPreviewMode ? previewFile : null"
-          @navigate="navigateTo"
-          :is-checkbox-mode="isCheckboxMode"
-          :selected-count="selectedCount"
-          @toggle-checkbox-mode="toggleCheckboxMode"
-          @batch-delete="batchDelete"
-          @batch-copy="handleBatchCopy"
-          :basic-path="apiKeyInfo?.basic_path || '/'"
-          :user-type="isAdmin ? 'admin' : 'user'"
+        :current-path="currentPath"
+        :dark-mode="darkMode"
+        :preview-file="isPreviewMode ? previewFile : null"
+        @navigate="navigateTo"
+        :is-checkbox-mode="isCheckboxMode"
+        :selected-count="selectedCount"
+        @toggle-checkbox-mode="toggleCheckboxMode"
+        @batch-delete="batchDelete"
+        @batch-copy="handleBatchCopy"
+        :basic-path="apiKeyInfo?.basic_path || '/'"
+        :user-type="isAdmin ? 'admin' : 'user'"
       />
     </div>
 
     <!-- 消息提示 -->
     <div v-if="message" class="mb-4">
       <div
-          class="p-3 rounded-md border"
-          :class="{
+        class="p-3 rounded-md border"
+        :class="{
           'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700/50 dark:text-green-200': message.type === 'success',
           'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-200': message.type === 'error',
           'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200': message.type === 'warning',
@@ -101,9 +101,9 @@
           <div class="flex items-center">
             <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path
-                  fill-rule="evenodd"
-                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                  clip-rule="evenodd"
+                fill-rule="evenodd"
+                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                clip-rule="evenodd"
               ></path>
             </svg>
             <span class="text-yellow-800 dark:text-yellow-200"> {{ t("mount.noPermissionForPath", { path: apiKeyInfo?.basic_path || "/" }) }} </span>
@@ -111,21 +111,21 @@
         </div>
 
         <DirectoryList
-            v-else
-            :items="directoryData?.items || []"
-            :loading="loading"
-            :is-virtual="directoryData?.isVirtual"
-            :dark-mode="darkMode"
-            :view-mode="viewMode"
-            :is-checkbox-mode="isCheckboxMode"
-            :selected-items="selectedItems"
-            @navigate="navigateTo"
-            @download="handleDownload"
-            @rename="handleRename"
-            @delete="handleDelete"
-            @preview="handlePreview"
-            @item-select="handleItemSelect"
-            @toggle-select-all="toggleSelectAll"
+          v-else
+          :items="directoryData?.items || []"
+          :loading="loading"
+          :is-virtual="directoryData?.isVirtual"
+          :dark-mode="darkMode"
+          :view-mode="viewMode"
+          :is-checkbox-mode="isCheckboxMode"
+          :selected-items="selectedItems"
+          @navigate="navigateTo"
+          @download="handleDownload"
+          @rename="handleRename"
+          @delete="handleDelete"
+          @preview="handlePreview"
+          @item-select="handleItemSelect"
+          @toggle-select-all="toggleSelectAll"
         />
       </div>
 
@@ -135,9 +135,9 @@
           <!-- 返回按钮 -->
           <div class="mb-4">
             <button
-                @click="closePreviewWithUrl"
-                class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+              @click="closePreviewWithUrl"
+              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
             >
               <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -148,13 +148,13 @@
 
           <!-- 文件预览内容 -->
           <FilePreview
-              :file="previewFile"
-              :dark-mode="darkMode"
-              :is-admin="isAdmin"
-              :is-loading="isPreviewLoading"
-              @download="handleDownload"
-              @loaded="handlePreviewLoaded"
-              @error="handlePreviewError"
+            :file="previewFile"
+            :dark-mode="darkMode"
+            :is-admin="isAdmin"
+            :is-loading="isPreviewLoading"
+            @download="handleDownload"
+            @loaded="handlePreviewLoaded"
+            @error="handlePreviewError"
           />
         </div>
       </div>
@@ -173,9 +173,28 @@ const route = useRoute();
 
 // 从父组件注入的数据
 const darkMode = inject("darkMode");
-const isAdmin = inject("isAdmin");
-const apiKeyInfo = inject("apiKeyInfo");
-const hasPermissionForCurrentPath = inject("hasPermissionForCurrentPath");
+
+// 使用认证Store替代注入的认证数据
+import { useAuthStore } from "../../stores/authStore.js";
+const authStore = useAuthStore();
+
+// 从Store获取认证信息的计算属性
+const isAdmin = computed(() => authStore.isAdmin);
+const apiKeyInfo = computed(() => authStore.apiKeyInfo);
+const hasPermissionForCurrentPath = computed(() => {
+  if (authStore.isAdmin) return true;
+  if (!authStore.isAuthenticated || authStore.authType !== "apikey") return false;
+
+  const basicPath = authStore.userInfo.basicPath || "/";
+  const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+  const normalizedCurrentPath = currentPath.value.replace(/\/+$/, "") || "/";
+
+  // 如果基本路径是根路径，允许访问所有路径
+  if (normalizedBasicPath === "/") return true;
+
+  // 检查当前路径是否在基本路径范围内
+  return normalizedCurrentPath === normalizedBasicPath || normalizedCurrentPath.startsWith(normalizedBasicPath + "/");
+});
 
 // 导入子组件
 import BreadcrumbNav from "./BreadcrumbNav.vue";
@@ -197,10 +216,20 @@ const loading = ref(false);
 const message = ref(null);
 const viewMode = ref("list");
 
+// 请求去重状态
+const currentLoadingPath = ref(null);
+const isInitialized = ref(false);
+
 // 文件预览状态
 const previewFile = ref(null);
 const isPreviewMode = ref(false);
 const isPreviewLoading = ref(false);
+
+// 初始化状态控制
+const initializationState = ref({
+  isInitializing: false,
+  lastProcessedRoute: null,
+});
 
 // 弹窗状态
 const showUploadModal = ref(false);
@@ -213,6 +242,19 @@ const selectedItems = ref([]);
 
 // 计算属性
 const selectedCount = computed(() => selectedItems.value.length);
+
+// 统一的加载状态计算属性 - 决定何时需要加载目录内容
+const shouldLoadDirectory = computed(() => {
+  // 必须满足以下条件才能加载：
+  // 1. 权限信息已经加载完成
+  // 2. 当前路径已设置
+  // 3. 没有正在进行的加载请求
+  const hasPermissionInfo = typeof isAdmin.value === "boolean";
+  const hasPath = currentPath.value !== null;
+  const notLoading = currentLoadingPath.value === null;
+
+  return hasPermissionInfo && hasPath && notLoading;
+});
 
 // 从路由参数获取路径
 const getPathFromRoute = () => {
@@ -235,20 +277,33 @@ const initializePath = () => {
 
     if (normalizedBasicPath !== "/" && normalizedUrlPath !== normalizedBasicPath && !normalizedUrlPath.startsWith(normalizedBasicPath + "/")) {
       console.log("URL路径超出权限范围，重定向到基本路径:", basicPath);
+      // 先设置正确的路径，再进行重定向
+      currentPath.value = basicPath;
       navigateTo(basicPath);
-      return;
+      return false; // 返回false表示需要重定向，不应继续执行后续逻辑
     }
   }
 
   currentPath.value = urlPath;
+  return true; // 返回true表示路径正常，可以继续执行
 };
 
-// 加载目录内容
-const loadDirectoryContents = async () => {
+// 加载目录内容 - 带去重机制
+const loadDirectoryContents = async (forcePath = null) => {
+  const targetPath = forcePath || currentPath.value;
+
+  // 请求去重：如果正在加载相同路径，则跳过
+  if (currentLoadingPath.value === targetPath) {
+    console.log("跳过重复请求:", targetPath);
+    return;
+  }
+
   try {
     loading.value = true;
+    currentLoadingPath.value = targetPath;
+
     const getDirectoryList = isAdmin.value ? api.fs.getAdminDirectoryList : api.fs.getUserDirectoryList;
-    const response = await getDirectoryList(currentPath.value);
+    const response = await getDirectoryList(targetPath);
 
     if (response.success) {
       directoryData.value = response.data;
@@ -260,6 +315,7 @@ const loadDirectoryContents = async () => {
     showMessage("error", t("mount.messages.getDirectoryContentFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     loading.value = false;
+    currentLoadingPath.value = null;
   }
 };
 
@@ -269,9 +325,8 @@ const navigateTo = (path) => {
     closePreview();
   }
 
-  currentPath.value = path;
+  // 只更新URL，让路由监听器处理实际的目录加载
   updateUrl(path);
-  loadDirectoryContents();
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
@@ -289,9 +344,9 @@ const updateUrl = (path, previewFileName = null) => {
     routeObject = { path: "/mount-explorer", query };
   } else {
     const pathSegments = normalizedPath
-        .replace(/^\/+/, "")
-        .split("/")
-        .filter((segment) => segment);
+      .replace(/^\/+/, "")
+      .split("/")
+      .filter((segment) => segment);
     routeObject = { path: `/mount-explorer/${pathSegments.join("/")}`, query };
   }
 
@@ -316,39 +371,11 @@ const handleViewModeChange = (mode) => {
 const handlePreview = async (item) => {
   if (!item || item.isDirectory) return;
 
-  try {
-    isPreviewLoading.value = true; // 开始加载预览内容
+  // 只更新URL，让路由监听器处理实际的文件加载
+  updateUrl(currentPath.value, item.name);
 
-    // 获取详细的文件信息
-    const getFileInfo = isAdmin.value ? api.fs.getAdminFileInfo : api.fs.getUserFileInfo;
-    const response = await getFileInfo(item.path);
-
-    if (!response.success) {
-      throw new Error(response.message || "获取文件信息失败");
-    }
-
-    // 使用获取到的详细文件信息
-    const fileInfo = response.data;
-
-    // 先设置预览模式和文件信息
-    isPreviewMode.value = true; // 切换到预览模式
-    previewFile.value = fileInfo;
-
-    // 更新 URL 以包含预览文件信息
-    updateUrl(currentPath.value, fileInfo.name);
-
-    // 滚动到顶部
-    window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // 预览内容加载完成（文件信息已加载，具体内容由 FilePreview 组件异步加载）
-    isPreviewLoading.value = false;
-  } catch (error) {
-    console.error("预览文件错误:", error);
-    showMessage("error", t("mount.messages.previewLoadFailedUnknown", { message: error.message || t("common.unknown") }));
-    isPreviewMode.value = false; // 出错时不进入预览模式
-    previewFile.value = null;
-    isPreviewLoading.value = false;
-  }
+  // 滚动到顶部
+  window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 const closePreview = () => {
@@ -435,24 +462,27 @@ const handleCreateFolder = async ({ name, path }) => {
 
 // 刷新目录
 const handleRefresh = async () => {
-  // 对于API密钥用户，先刷新API密钥信息
-  if (!isAdmin.value && localStorage.getItem("api_key")) {
+  // 对于API密钥用户，先重新验证认证状态
+  if (!isAdmin.value && authStore.authType === "apikey") {
     try {
-      const response = await api.user.auth.getApiKeyInfo();
-      if (response.success && response.data) {
-        // 检查基本路径是否发生变化
-        const newBasicPath = response.data.basic_path || "/";
-        const currentBasicPath = currentPath.value.replace(/\/+$/, "") || "/";
+      // 重新验证认证状态，这会更新API密钥信息
+      await authStore.validateAuth();
 
-        if (newBasicPath !== "/" && !currentBasicPath.startsWith(newBasicPath.replace(/\/+$/, ""))) {
-          console.log("检测到基本路径变化，导航到新的基本路径:", newBasicPath);
-          navigateTo(newBasicPath);
-          return;
-        }
-        showMessage("success", t("mount.messages.apiKeyInfoUpdated"));
+      // 检查当前路径是否在新的基础路径权限范围内
+      const newBasicPath = authStore.userInfo.basicPath || "/";
+      const normalizedNewBasicPath = newBasicPath === "/" ? "/" : newBasicPath.replace(/\/+$/, "");
+      const normalizedCurrentPath = currentPath.value.replace(/\/+$/, "") || "/";
+
+      // 如果新的基础路径不是根路径，且当前路径不在新基础路径范围内，则需要重定向
+      if (normalizedNewBasicPath !== "/" && normalizedCurrentPath !== normalizedNewBasicPath && !normalizedCurrentPath.startsWith(normalizedNewBasicPath + "/")) {
+        console.log("检测到当前路径超出新的基础路径权限范围，导航到新的基本路径:", newBasicPath);
+        console.log("当前路径:", normalizedCurrentPath, "新基础路径:", normalizedNewBasicPath);
+        navigateTo(newBasicPath);
+        return;
       }
+      showMessage("success", t("mount.messages.apiKeyInfoUpdated"));
     } catch (error) {
-      console.error("刷新API密钥信息失败:", error);
+      console.error("刷新认证状态失败:", error);
     }
   } else {
     showMessage("success", t("mount.messages.refreshSuccess"));
@@ -619,13 +649,52 @@ const handlePreviewError = () => {
   showMessage("error", t("mount.messages.previewError"));
 };
 
-// 从 URL 初始化预览状态
-const initializePreviewFromUrl = async () => {
+// 统一的路由状态初始化逻辑
+const initializeFromRoute = async () => {
+  // 防止重复初始化
+  const currentRouteKey = `${route.path}?${new URLSearchParams(route.query).toString()}`;
+  if (initializationState.value.isInitializing || initializationState.value.lastProcessedRoute === currentRouteKey) {
+    return;
+  }
+
+  initializationState.value.isInitializing = true;
+  initializationState.value.lastProcessedRoute = currentRouteKey;
+
+  try {
+    // 1. 首先初始化路径
+    const shouldContinue = initializePath();
+
+    // 如果路径初始化返回false（表示需要重定向），则不继续执行后续逻辑
+    if (!shouldContinue) {
+      return;
+    }
+
+    // 2. 判断是否为文件预览模式
+    if (route.query.preview) {
+      // 文件预览模式：直接加载文件信息，不需要加载目录
+      await initializeFilePreview();
+    } else {
+      // 目录浏览模式：加载目录内容
+      await loadDirectoryContents();
+    }
+  } catch (error) {
+    console.error("路由初始化失败:", error);
+    showMessage("error", t("mount.messages.initializationFailed", { message: error.message || t("common.unknown") }));
+  } finally {
+    initializationState.value.isInitializing = false;
+  }
+};
+
+// 初始化文件预览
+const initializeFilePreview = async () => {
   if (!route.query.preview) {
     return;
   }
 
   try {
+    // 开始加载预览内容
+    isPreviewLoading.value = true;
+
     // 构建完整的文件路径
     let filePath;
     if (currentPath.value === "/") {
@@ -646,7 +715,7 @@ const initializePreviewFromUrl = async () => {
 
       if (normalizedBasicPath !== "/" && normalizedFileDir !== normalizedBasicPath && !normalizedFileDir.startsWith(normalizedBasicPath + "/")) {
         console.warn("文件超出权限范围:", filePath);
-        updateUrl(currentPath.value);
+        navigateTo(basicPath);
         return;
       }
     }
@@ -659,70 +728,70 @@ const initializePreviewFromUrl = async () => {
       previewFile.value = response.data;
       isPreviewMode.value = true;
       console.log("文件预览初始化成功:", response.data.name);
+      // 文件信息加载完成，但具体内容由 FilePreview 组件异步加载
+      isPreviewLoading.value = false;
     } else {
       console.warn("无法加载预览文件:", response.message);
-      // 如果文件不存在，清除 URL 中的预览参数
-      updateUrl(currentPath.value);
+      // 如果文件不存在，重定向到目录
+      navigateTo(currentPath.value);
     }
   } catch (error) {
     console.error("初始化文件预览失败:", error);
-    // 如果出错，清除 URL 中的预览参数
-    updateUrl(currentPath.value);
+    // 如果出错，重定向到目录
+    navigateTo(currentPath.value);
+    isPreviewLoading.value = false;
   }
 };
 
-// 监听权限状态变化，当权限检查完成后再初始化
-watch(
-    [isAdmin, apiKeyInfo],
-    ([newIsAdmin, newApiKeyInfo], [oldIsAdmin, oldApiKeyInfo]) => {
-      // 第一次调用或权限信息真正变化时才初始化
-      const isFirstCall = oldIsAdmin === undefined && oldApiKeyInfo === undefined;
-      const hasChanged = newIsAdmin !== oldIsAdmin || JSON.stringify(newApiKeyInfo) !== JSON.stringify(oldApiKeyInfo);
+// 统一的初始化和更新逻辑
+const performInitialization = async () => {
+  if (!shouldLoadDirectory.value) {
+    return;
+  }
 
-      if (isFirstCall || hasChanged) {
-        initializePath();
-        loadDirectoryContents().then(() => {
-          // 检查是否需要初始化预览
-          if (route.query.preview) {
-            initializePreviewFromUrl();
-          }
-        });
-      }
-    },
-    { immediate: true }
+  // 使用新的统一初始化逻辑
+  await initializeFromRoute();
+  isInitialized.value = true;
+};
+
+// 监听权限状态变化
+watch(
+  [isAdmin, apiKeyInfo],
+  ([newIsAdmin, newApiKeyInfo], [oldIsAdmin, oldApiKeyInfo]) => {
+    // 第一次调用或权限信息真正变化时才初始化
+    const isFirstCall = oldIsAdmin === undefined && oldApiKeyInfo === undefined;
+    const hasChanged = newIsAdmin !== oldIsAdmin || JSON.stringify(newApiKeyInfo) !== JSON.stringify(oldApiKeyInfo);
+
+    if (isFirstCall || hasChanged) {
+      isInitialized.value = false;
+      performInitialization();
+    }
+  },
+  { immediate: true }
 );
 
-// 在权限信息稳定后，监听路由变化
+// 监听路由变化 - 统一处理路径和预览参数变化
 watch(
-    () => [route.params.pathMatch, route.query.preview],
-    ([newPathMatch, newPreviewFile], oldValues) => {
-      // 处理第一次调用时oldValues为undefined的情况
-      const [oldPathMatch, oldPreviewFile] = oldValues || [undefined, undefined];
+  () => [route.params.pathMatch, route.query.preview],
+  ([newPathMatch, newPreviewFile], oldValues) => {
+    // 处理第一次调用时oldValues为undefined的情况
+    const [oldPathMatch, oldPreviewFile] = oldValues || [undefined, undefined];
 
-      // 确保权限信息已经加载（isAdmin为boolean，apiKeyInfo为null或object）
-      if (typeof isAdmin.value === "boolean") {
-        // 如果路径发生变化
-        if (newPathMatch !== oldPathMatch) {
-          initializePath();
-          loadDirectoryContents().then(() => {
-            // 路径变化后，检查是否需要初始化预览
-            if (newPreviewFile) {
-              initializePreviewFromUrl();
-            }
-          });
-        }
-        // 如果只是预览文件发生变化
-        else if (newPreviewFile !== oldPreviewFile) {
-          if (newPreviewFile) {
-            initializePreviewFromUrl();
-          } else {
-            // 清除预览状态
-            closePreview();
-          }
-        }
-      }
-    },
-    { immediate: false }
+    // 确保权限信息已经加载且组件已初始化
+    if (!shouldLoadDirectory.value || !isInitialized.value) {
+      return;
+    }
+
+    // 检查是否有实际变化
+    const pathChanged = newPathMatch !== oldPathMatch;
+    const previewChanged = newPreviewFile !== oldPreviewFile;
+
+    if (pathChanged || previewChanged) {
+      // 使用统一的初始化逻辑处理所有变化
+      initializeFromRoute();
+    }
+  },
+  { immediate: false }
 );
 
 // 组件挂载时恢复视图首选项

@@ -5,6 +5,11 @@ export default {
     loading: "Loading...",
     confirm: "Confirm",
 
+    // Common permission messages
+    noPermission: "No permission for this feature, please contact administrator",
+    contactAdmin: "Contact Administrator",
+    permissionDenied: "Permission Denied",
+
     // Pagination component
     pagination: {
       // Mobile
@@ -118,8 +123,6 @@ export default {
     },
     permissionDenied: {
       title: "Permission Denied",
-      message: "You don't have permission to access this feature.",
-      suggestion: "Please contact the administrator for appropriate permissions.",
     },
 
     // Login panel
@@ -1085,13 +1088,11 @@ export default {
 
     // Status messages
     messages: {
-      noPermission: "No permission to create share",
       contentEmpty: "Content cannot be empty",
       creating: "Creating share...",
       createSuccess: "Share created successfully!",
       createFailed: "Save failed",
       linkOccupied: "Link suffix is already taken, please use another one",
-      permissionDenied: "Insufficient permissions to create share",
       contentTooLarge: "Content too large, please reduce content length",
       unknownError: "Unknown error",
       editorNotReady: "Editor not ready",

@@ -12,17 +12,17 @@
     <div v-if="error" class="error-container py-12 px-4 max-w-4xl mx-auto text-center">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-red-600 dark:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
       </svg>
       <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">文件错误</h2>
       <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ error }}</p>
       <a
-          href="/"
-          class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+        href="/"
+        class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
       >
         返回
       </a>
@@ -68,9 +68,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps, onUnmounted } from "vue";
+import { ref, computed, onMounted, defineProps, onUnmounted } from "vue";
 import { api } from "../api";
-import { getAuthStatus } from "./file-view/FileViewUtils";
+import { useAuthStore } from "../stores/authStore.js";
 
 // 导入子组件
 import FileViewInfo from "./file-view/FileViewInfo.vue";
@@ -126,8 +126,11 @@ const closeErrorToast = () => {
   errorMessage.value = "";
 };
 
-// 获取用户权限
-const { isAdmin } = getAuthStatus();
+// 使用认证Store
+const authStore = useAuthStore();
+
+// 从Store获取权限状态的计算属性
+const isAdmin = computed(() => authStore.isAdmin);
 
 /**
  * 重新加载文件信息
@@ -239,8 +242,8 @@ const handlePasswordVerified = (data) => {
     if (data.currentPassword && !previewUrl.includes("password=")) {
       // 添加密码参数到预览URL
       previewUrl = previewUrl.includes("?")
-          ? `${previewUrl}&password=${encodeURIComponent(data.currentPassword)}`
-          : `${previewUrl}?password=${encodeURIComponent(data.currentPassword)}`;
+        ? `${previewUrl}&password=${encodeURIComponent(data.currentPassword)}`
+        : `${previewUrl}?password=${encodeURIComponent(data.currentPassword)}`;
       console.log("已在验证阶段为代理预览URL添加密码参数");
     }
   }

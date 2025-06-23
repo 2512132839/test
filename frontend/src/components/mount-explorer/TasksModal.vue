@@ -16,10 +16,10 @@
         <div v-if="activeTasks.length === 0 && completedTasks.length === 0" class="text-center py-6" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
           <svg class="h-12 w-12 mx-auto mb-3 opacity-30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             />
           </svg>
           <p>{{ t("mount.taskManager.noTasksDescription") }}</p>
@@ -52,9 +52,9 @@
 
                 <!-- 任务操作按钮 -->
                 <button
-                    v-if="task.status === TaskStatus.RUNNING || task.status === TaskStatus.PENDING"
-                    @click="cancelTask(task.id)"
-                    class="ml-2 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                  v-if="task.status === TaskStatus.RUNNING || task.status === TaskStatus.PENDING"
+                  @click="cancelTask(task.id)"
+                  class="ml-2 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
                 >
                   <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -88,11 +88,11 @@
               <!-- 复制操作统计信息 - 活动任务也可能有统计 -->
               <div v-if="task.details.successCount !== undefined || task.details.skippedCount !== undefined || task.details.failedCount !== undefined" class="mt-1 space-x-2">
                 <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">{{
-                    t("mount.taskManager.success", { count: task.details.successCount })
-                  }}</span>
+                  t("mount.taskManager.success", { count: task.details.successCount })
+                }}</span>
                 <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">{{
-                    t("mount.taskManager.skipped", { count: task.details.skippedCount })
-                  }}</span>
+                  t("mount.taskManager.skipped", { count: task.details.skippedCount })
+                }}</span>
                 <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">{{ t("mount.taskManager.failed", { count: task.details.failedCount }) }}</span>
               </div>
             </div>
@@ -130,12 +130,12 @@
                 <!-- 展开/折叠按钮 -->
                 <button @click="toggleTaskDetails(task.id)" class="ml-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
                   <svg
-                      class="h-4 w-4 transition-transform"
-                      :class="{ 'transform rotate-180': isTaskExpanded(task.id) }"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    class="h-4 w-4 transition-transform"
+                    :class="{ 'transform rotate-180': isTaskExpanded(task.id) }"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                   </svg>
@@ -156,18 +156,18 @@
 
                 <!-- 复制操作统计信息 -->
                 <div
-                    v-if="
+                  v-if="
                     task.status === TaskStatus.COMPLETED &&
                     (task.details.successCount !== undefined || task.details.skippedCount !== undefined || task.details.failedCount !== undefined)
                   "
-                    class="mt-1 space-x-2"
+                  class="mt-1 space-x-2"
                 >
                   <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">{{
-                      t("mount.taskManager.success", { count: task.details.successCount })
-                    }}</span>
+                    t("mount.taskManager.success", { count: task.details.successCount })
+                  }}</span>
                   <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">{{
-                      t("mount.taskManager.skipped", { count: task.details.skippedCount })
-                    }}</span>
+                    t("mount.taskManager.skipped", { count: task.details.skippedCount })
+                  }}</span>
                   <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">{{ t("mount.taskManager.failed", { count: task.details.failedCount }) }}</span>
                 </div>
 
@@ -178,9 +178,9 @@
 
                 <!-- 任务消息 -->
                 <div
-                    v-if="task.details.message"
-                    class="mt-1 text-xs"
-                    :class="task.details.partialSuccess ? 'text-orange-600 dark:text-orange-400' : darkMode ? 'text-gray-400' : 'text-gray-500'"
+                  v-if="task.details.message"
+                  class="mt-1 text-xs"
+                  :class="task.details.partialSuccess ? 'text-orange-600 dark:text-orange-400' : darkMode ? 'text-gray-400' : 'text-gray-500'"
                 >
                   {{ task.details.message }}
                 </div>
@@ -202,9 +202,9 @@
         <!-- 清除已完成按钮 -->
         <div v-if="completedTasks.length > 0" class="mt-4 flex justify-end space-x-2">
           <button
-              @click="clearCompleted"
-              class="text-xs px-3 py-1 rounded transition-colors"
-              :class="darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'"
+            @click="clearCompleted"
+            class="text-xs px-3 py-1 rounded transition-colors"
+            :class="darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'"
           >
             {{ t("mount.taskManager.clearCompleted") }}
           </button>
@@ -245,8 +245,8 @@ const activeTasks = computed(() => {
 // 已完成的任务 - 使用shallowRef优化性能
 const completedTasks = computed(() => {
   return [...state.tasks]
-      .filter((task) => task.status === TaskStatus.COMPLETED || task.status === TaskStatus.FAILED || task.status === TaskStatus.CANCELLED)
-      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    .filter((task) => task.status === TaskStatus.COMPLETED || task.status === TaskStatus.FAILED || task.status === TaskStatus.CANCELLED)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 });
 
 // 展开的任务ID集合

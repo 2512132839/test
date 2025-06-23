@@ -9,32 +9,40 @@ import { ApiStatus } from "./ApiStatus"; // 导入API状态码常量
 /**
  * 添加认证令牌到请求头
  * @param {Object} headers - 原始请求头
- * @returns {Object} 添加了令牌的请求头
+ * @returns {Promise<Object>} 添加了令牌的请求头
  */
-function addAuthToken(headers) {
+async function addAuthToken(headers) {
   // 如果请求头中已有Authorization，优先使用传入的值
   if (headers.Authorization) {
     console.log("使用传入的Authorization头:", headers.Authorization);
     return headers;
   }
 
-  // 尝试从localStorage获取并添加
-  const token = localStorage.getItem("admin_token");
-  if (token) {
-    console.log("从localStorage获取admin_token，长度:", token.length);
-    return {
-      ...headers,
-      Authorization: `Bearer ${token}`,
-    };
-  }
-  // 检查API密钥
-  const apiKey = localStorage.getItem("api_key");
-  if (apiKey) {
-    console.log("从localStorage获取API密钥，长度:", apiKey.length);
-    return {
-      ...headers,
-      Authorization: `ApiKey ${apiKey}`,
-    };
+  try {
+    // 尝试从认证Store获取认证信息
+    // 注意：这里需要动态导入，因为可能存在循环依赖
+    const { useAuthStore } = await import("../stores/authStore.js");
+    const authStore = useAuthStore();
+
+    // 检查管理员认证
+    if (authStore.authType === "admin" && authStore.adminToken) {
+      console.log("从认证Store获取admin_token，长度:", authStore.adminToken.length);
+      return {
+        ...headers,
+        Authorization: `Bearer ${authStore.adminToken}`,
+      };
+    }
+
+    // 检查API密钥认证（即使isAuthenticated还未设置为true）
+    if (authStore.authType === "apikey" && authStore.apiKey) {
+      console.log("从认证Store获取API密钥，长度:", authStore.apiKey.length);
+      return {
+        ...headers,
+        Authorization: `ApiKey ${authStore.apiKey}`,
+      };
+    }
+  } catch (error) {
+    console.error("无法从认证Store获取认证信息:", error);
   }
 
   console.log("未找到认证凭据，请求将不包含Authorization头");
@@ -77,7 +85,7 @@ export async function fetchApi(endpoint, options = {}) {
   const requestOptions = {
     ...defaultOptions,
     ...options,
-    headers: addAuthToken({
+    headers: await addAuthToken({
       ...defaultOptions.headers,
       ...options.headers,
     }),
@@ -149,31 +157,38 @@ export async function fetchApi(endpoint, options = {}) {
         // 判断使用的是哪种认证方式
         const authHeader = requestOptions.headers.Authorization || "";
 
-        // 管理员令牌过期，清除令牌并触发事件
-        if (authHeader.startsWith("Bearer ")) {
-          localStorage.removeItem("admin_token");
-          window.dispatchEvent(new CustomEvent("admin-token-expired"));
-          throw new Error("管理员会话已过期，请重新登录");
-        }
-        // API密钥处理
-        else if (authHeader.startsWith("ApiKey ")) {
-          // 仅当API密钥确实无效（而不是权限问题）时才清除密钥
-          // 检查是否是文件访问权限问题（文件相关API）
-          const isFileAccess = url.includes("/api/files") || url.includes("/api/upload");
-          const isPermissionIssue = responseData && responseData.message && (responseData.message.includes("未授权访问") || responseData.message.includes("无权访问"));
+        // 使用认证Store处理认证失败
+        try {
+          const { useAuthStore } = await import("../stores/authStore.js");
+          const authStore = useAuthStore();
 
-          if (isFileAccess && isPermissionIssue) {
-            // 仅抛出错误，但不清除API密钥
-            throw new Error(responseData.message || "访问被拒绝，您可能无权执行此操作");
-          } else {
-            // 其他情况（如密钥真的无效）时，清除密钥
-            localStorage.removeItem("api_key");
-            localStorage.removeItem("api_key_permissions");
-            window.dispatchEvent(new CustomEvent("api-key-invalid"));
-            throw new Error("API密钥无效或已过期");
+          // 管理员令牌过期
+          if (authHeader.startsWith("Bearer ")) {
+            console.log("管理员令牌验证失败，执行登出");
+            await authStore.logout();
+            throw new Error("管理员会话已过期，请重新登录");
           }
-        } else {
-          throw new Error("未授权访问，请登录后重试");
+          // API密钥处理
+          else if (authHeader.startsWith("ApiKey ")) {
+            // 检查是否是文件访问权限问题（文件相关API）
+            const isFileAccess = url.includes("/api/files") || url.includes("/api/upload");
+            const isPermissionIssue = responseData && responseData.message && (responseData.message.includes("未授权访问") || responseData.message.includes("无权访问"));
+
+            if (isFileAccess && isPermissionIssue) {
+              // 仅抛出错误，但不清除API密钥
+              throw new Error(responseData.message || "访问被拒绝，您可能无权执行此操作");
+            } else {
+              // 其他情况（如密钥真的无效）时，执行登出
+              console.log("API密钥验证失败，执行登出");
+              await authStore.logout();
+              throw new Error("API密钥无效或已过期");
+            }
+          } else {
+            throw new Error("未授权访问，请登录后重试");
+          }
+        } catch (storeError) {
+          console.error("无法使用认证Store处理认证失败:", storeError);
+          throw new Error("认证失败，请重新登录");
         }
       }
 
@@ -244,7 +259,7 @@ export async function post(endpoint, data, options = {}) {
   try {
     const url = getFullApiUrl(endpoint);
     const headers = {
-      ...addAuthToken({}),
+      ...(await addAuthToken({})),
       ...options.headers,
     };
 

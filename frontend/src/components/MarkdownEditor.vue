@@ -8,9 +8,9 @@
       <div class="flex justify-between items-center">
         <h2 class="text-xl font-semibold">{{ $t("markdown.title") }}</h2>
         <button
-            class="px-2 py-1 text-sm rounded transition-colors"
-            :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
-            @click="toggleEditorMode"
+          class="px-2 py-1 text-sm rounded transition-colors"
+          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
+          @click="toggleEditorMode"
         >
           {{ isPlainTextMode ? $t("markdown.switchToMarkdown") : $t("markdown.switchToPlainText") }}
         </button>
@@ -24,39 +24,39 @@
     <div class="editor-wrapper">
       <div class="flex flex-col md:flex-row gap-4">
         <VditorEditor
-            ref="editorRef"
-            :dark-mode="darkMode"
-            :is-plain-text-mode="isPlainTextMode"
-            v-model="editorContent"
-            @editor-ready="handleEditorReady"
-            @content-change="handleContentChange"
-            @import-file="triggerImportFile"
-            @clear-content="clearEditorContent"
-            @show-copy-formats="showCopyFormatsMenu"
+          ref="editorRef"
+          :dark-mode="darkMode"
+          :is-plain-text-mode="isPlainTextMode"
+          v-model="editorContent"
+          @editor-ready="handleEditorReady"
+          @content-change="handleContentChange"
+          @import-file="triggerImportFile"
+          @clear-content="clearEditorContent"
+          @show-copy-formats="showCopyFormatsMenu"
         />
       </div>
     </div>
 
     <!-- 表单组件 -->
     <EditorForm
-        ref="formRef"
-        :dark-mode="darkMode"
-        :has-permission="hasPermission"
-        :is-submitting="isSubmitting"
-        :saving-status="savingStatus"
-        @submit="saveContent"
-        @form-change="handleFormChange"
+      ref="formRef"
+      :dark-mode="darkMode"
+      :has-permission="hasPermission"
+      :is-submitting="isSubmitting"
+      :saving-status="savingStatus"
+      @submit="saveContent"
+      @form-change="handleFormChange"
     />
 
     <!-- 分享链接组件 -->
     <ShareLinkBox
-        ref="shareLinkRef"
-        :dark-mode="darkMode"
-        :share-link="shareLink"
-        :share-password="currentSharePassword"
-        @show-qr-code="showQRCode"
-        @status-message="handleStatusMessage"
-        @countdown-end="handleCountdownEnd"
+      ref="shareLinkRef"
+      :dark-mode="darkMode"
+      :share-link="shareLink"
+      :share-password="currentSharePassword"
+      @show-qr-code="showQRCode"
+      @status-message="handleStatusMessage"
+      @countdown-end="handleCountdownEnd"
     />
 
     <!-- 二维码弹窗组件 -->
@@ -64,12 +64,12 @@
 
     <!-- 复制格式菜单组件 -->
     <CopyFormatMenu
-        :visible="copyFormatMenuVisible"
-        :position="copyFormatMenuPosition"
-        :editor="currentEditor"
-        :dark-mode="darkMode"
-        @close="closeCopyFormatMenu"
-        @status-message="handleStatusMessage"
+      :visible="copyFormatMenuVisible"
+      :position="copyFormatMenuPosition"
+      :editor="currentEditor"
+      :dark-mode="darkMode"
+      @close="closeCopyFormatMenu"
+      @status-message="handleStatusMessage"
     />
   </div>
 </template>
@@ -248,7 +248,7 @@ const closeQRCodeModal = () => {
 // 保存内容
 const saveContent = async (formData) => {
   if (!hasPermission.value) {
-    handleStatusMessage(t("markdown.messages.noPermission"));
+    handleStatusMessage(t("common.noPermission"));
     return;
   }
 
@@ -346,7 +346,7 @@ const saveContent = async (formData) => {
     if (error.message && error.message.includes("已被占用")) {
       handleStatusMessage(t("markdown.messages.linkOccupied"));
     } else if (error.message && error.message.includes("权限")) {
-      handleStatusMessage(t("markdown.messages.permissionDenied"));
+      handleStatusMessage(t("common.noPermission"));
     } else if (error.message && error.message.includes("内容过大")) {
       handleStatusMessage(t("markdown.messages.contentTooLarge"));
     } else {

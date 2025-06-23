@@ -5,6 +5,11 @@ export default {
     loading: "加载中...",
     confirm: "确认",
 
+    // 通用权限提示
+    noPermission: "无此功能权限，请联系管理员",
+    contactAdmin: "联系管理员",
+    permissionDenied: "权限不足",
+
     // 分页组件
     pagination: {
       // 移动端
@@ -118,8 +123,6 @@ export default {
     },
     permissionDenied: {
       title: "权限不足",
-      message: "您没有访问此功能的权限。",
-      suggestion: "请联系管理员获取相应权限。",
     },
 
     // 登录面板
@@ -1085,13 +1088,11 @@ export default {
 
     // 状态消息
     messages: {
-      noPermission: "没有权限创建分享",
       contentEmpty: "内容不能为空",
       creating: "正在创建分享...",
       createSuccess: "分享创建成功！",
       createFailed: "保存失败",
       linkOccupied: "链接后缀已被占用，请更换其他后缀",
-      permissionDenied: "权限不足，无法创建分享",
       contentTooLarge: "内容过大，请减少内容长度",
       unknownError: "未知错误",
       editorNotReady: "编辑器未准备就绪",

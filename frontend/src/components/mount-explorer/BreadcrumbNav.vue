@@ -4,17 +4,17 @@
     <ol class="flex flex-wrap items-center space-x-1">
       <li class="flex items-center">
         <a
-            href="#"
-            @click.prevent="navigateToRoot"
-            :class="['flex items-center font-medium transition-colors duration-200', darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900']"
+          href="#"
+          @click.prevent="navigateToRoot"
+          :class="['flex items-center font-medium transition-colors duration-200', darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900']"
         >
           <!-- 根目录图标 -->
           <svg class="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
             />
           </svg>
           <span>{{ $t("breadcrumb.root") }}</span>
@@ -25,9 +25,9 @@
       <li v-for="(segment, index) in pathSegments" :key="index" class="flex items-center">
         <span :class="['mx-1', darkMode ? 'text-gray-500' : 'text-gray-400']"> / </span>
         <a
-            href="#"
-            @click.prevent="navigateToSegment(index)"
-            :class="[
+          href="#"
+          @click.prevent="navigateToSegment(index)"
+          :class="[
             'font-medium transition-colors duration-200',
             index === pathSegments.length - 1 && !previewFile
               ? darkMode
@@ -55,9 +55,9 @@
     <div v-if="!previewFile" class="flex items-center">
       <!-- 启用/禁用勾选框按钮 -->
       <button
-          @click="$emit('toggle-checkbox-mode')"
-          class="inline-flex items-center px-2 sm:px-3 py-1.5 rounded-md transition-colors text-xs sm:text-sm font-medium mr-2 sm:ml-2"
-          :class="[
+        @click="$emit('toggle-checkbox-mode')"
+        class="inline-flex items-center px-2 sm:px-3 py-1.5 rounded-md transition-colors text-xs sm:text-sm font-medium mr-2 sm:ml-2"
+        :class="[
           isCheckboxMode
             ? darkMode
               ? 'bg-primary-600 text-white hover:bg-primary-700'
@@ -66,7 +66,7 @@
             ? 'bg-gray-700 hover:bg-gray-600 text-white'
             : 'bg-gray-100 hover:bg-gray-200 text-gray-700',
         ]"
-          :title="$t('breadcrumb.batchOperations')"
+        :title="$t('breadcrumb.batchOperations')"
       >
         <svg class="w-4 h-4 mr-1 sm:mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path v-if="isCheckboxMode" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -77,16 +77,16 @@
 
       <!-- 复制按钮 (在勾选模式且有选中项时显示) -->
       <button
-          v-if="isCheckboxMode && selectedCount > 0"
-          @click="$emit('batch-copy')"
-          class="inline-flex items-center px-2 sm:px-3 py-1.5 rounded-md transition-colors text-xs sm:text-sm font-medium mr-2 bg-blue-600 hover:bg-blue-700 text-white"
+        v-if="isCheckboxMode && selectedCount > 0"
+        @click="$emit('batch-copy')"
+        class="inline-flex items-center px-2 sm:px-3 py-1.5 rounded-md transition-colors text-xs sm:text-sm font-medium mr-2 bg-blue-600 hover:bg-blue-700 text-white"
       >
         <svg class="w-4 h-4 mr-1 sm:mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
           />
         </svg>
         <span class="whitespace-nowrap">{{ $t("breadcrumb.copySelected") }} {{ $t("breadcrumb.selectedCount", { count: selectedCount }) }}</span>
@@ -94,16 +94,16 @@
 
       <!-- 批量删除按钮 (在勾选模式且有选中项时显示) -->
       <button
-          v-if="isCheckboxMode && selectedCount > 0"
-          @click="$emit('batch-delete')"
-          class="inline-flex items-center px-2 sm:px-3 py-1.5 rounded-md transition-colors text-xs sm:text-sm font-medium bg-red-600 hover:bg-red-700 text-white"
+        v-if="isCheckboxMode && selectedCount > 0"
+        @click="$emit('batch-delete')"
+        class="inline-flex items-center px-2 sm:px-3 py-1.5 rounded-md transition-colors text-xs sm:text-sm font-medium bg-red-600 hover:bg-red-700 text-white"
       >
         <svg class="w-4 h-4 mr-1 sm:mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
           />
         </svg>
         <span class="whitespace-nowrap">{{ $t("breadcrumb.deleteSelected") }} {{ $t("breadcrumb.selectedCount", { count: selectedCount }) }}</span>
@@ -156,17 +156,17 @@ const emit = defineEmits(["navigate", "toggle-checkbox-mode", "batch-delete", "b
 const pathSegments = computed(() => {
   // 移除开头的斜杠，然后按斜杠分割
   const segments = props.currentPath
-      .replace(/^\/+/, "") // 移除开头的斜杠
-      .split("/")
-      .filter((segment) => segment); // 过滤空字符串
+    .replace(/^\/+/, "") // 移除开头的斜杠
+    .split("/")
+    .filter((segment) => segment); // 过滤空字符串
 
   // 对于API密钥用户，需要根据基本路径过滤可显示的路径段
   if (props.userType === "user" && props.basicPath !== "/") {
     const normalizedBasicPath = props.basicPath.replace(/\/+$/, "");
     const basicSegments = normalizedBasicPath
-        .replace(/^\/+/, "")
-        .split("/")
-        .filter((segment) => segment);
+      .replace(/^\/+/, "")
+      .split("/")
+      .filter((segment) => segment);
 
     // 如果当前路径在基本路径范围内，只显示基本路径及其子路径的段
     const currentPathNormalized = "/" + segments.join("/");
@@ -196,9 +196,9 @@ const navigateToSegment = (segmentIndex) => {
   if (props.userType === "user" && props.basicPath !== "/") {
     const normalizedBasicPath = props.basicPath.replace(/\/+$/, "");
     const basicSegments = normalizedBasicPath
-        .replace(/^\/+/, "")
-        .split("/")
-        .filter((segment) => segment);
+      .replace(/^\/+/, "")
+      .split("/")
+      .filter((segment) => segment);
 
     // 构建目标路径
     let targetSegments;

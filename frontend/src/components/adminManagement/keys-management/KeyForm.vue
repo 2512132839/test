@@ -66,12 +66,12 @@ const DirectoryItemVue = {
           if (response.success && response.data && response.data.items) {
             // 获取目录项，并只保留目录类型
             dirItems = response.data.items
-                .filter((item) => item.isDirectory)
-                .map((item) => ({
-                  name: item.name,
-                  path: props.item.path + "/" + item.name,
-                  isDirectory: true,
-                }));
+              .filter((item) => item.isDirectory)
+              .map((item) => ({
+                name: item.name,
+                path: props.item.path + "/" + item.name,
+                isDirectory: true,
+              }));
 
             // 确保路径格式正确（避免双斜杠）
             dirItems.forEach((item) => {
@@ -95,17 +95,17 @@ const DirectoryItemVue = {
 
     // 监听当前路径变化
     watch(
-        () => props.currentPath,
-        (newPath) => {
-          // 如果当前路径是此节点的子路径，自动展开
-          if (newPath.startsWith(props.item.path + "/") && newPath !== props.item.path + "/") {
-            expanded.value = true;
-            if (children.value.length === 0) {
-              loadChildren();
-            }
+      () => props.currentPath,
+      (newPath) => {
+        // 如果当前路径是此节点的子路径，自动展开
+        if (newPath.startsWith(props.item.path + "/") && newPath !== props.item.path + "/") {
+          expanded.value = true;
+          if (children.value.length === 0) {
+            loadChildren();
           }
-        },
-        { immediate: true }
+        }
+      },
+      { immediate: true }
     );
 
     // 切换展开/折叠状态
@@ -141,149 +141,149 @@ const DirectoryItemVue = {
     // 使用渲染函数代替模板，以确保递归组件正确渲染
     return h("div", { class: "directory-item" }, [
       h(
-          "div",
-          {
-            class: ["tree-item", { selected: this.isSelected }],
-            onClick: this.selectFolder,
-          },
-          [
-            h(
+        "div",
+        {
+          class: ["tree-item", { selected: this.isSelected }],
+          onClick: this.selectFolder,
+        },
+        [
+          h(
+            "div",
+            {
+              class: "flex items-center py-2 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer",
+              style: { paddingLeft: `${this.level * 0.75 + 0.5}rem` },
+            },
+            [
+              h(
                 "div",
                 {
-                  class: "flex items-center py-2 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer",
-                  style: { paddingLeft: `${this.level * 0.75 + 0.5}rem` },
+                  class: "folder-toggle",
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    this.toggleExpand(e);
+                  },
                 },
                 [
-                  h(
-                      "div",
-                      {
-                        class: "folder-toggle",
-                        onClick: (e) => {
-                          e.stopPropagation();
-                          this.toggleExpand(e);
+                  this.expanded
+                    ? h(
+                        "svg",
+                        {
+                          class: "h-4 w-4",
+                          xmlns: "http://www.w3.org/2000/svg",
+                          fill: "none",
+                          viewBox: "0 0 24 24",
+                          stroke: "currentColor",
+                          "stroke-width": "2",
                         },
-                      },
-                      [
-                        this.expanded
-                            ? h(
-                                "svg",
-                                {
-                                  class: "h-4 w-4",
-                                  xmlns: "http://www.w3.org/2000/svg",
-                                  fill: "none",
-                                  viewBox: "0 0 24 24",
-                                  stroke: "currentColor",
-                                  "stroke-width": "2",
-                                },
-                                [
-                                  h("path", {
-                                    "stroke-linecap": "round",
-                                    "stroke-linejoin": "round",
-                                    d: "M19 9l-7 7-7-7",
-                                  }),
-                                ]
-                            )
-                            : h(
-                                "svg",
-                                {
-                                  class: "h-4 w-4",
-                                  xmlns: "http://www.w3.org/2000/svg",
-                                  fill: "none",
-                                  viewBox: "0 0 24 24",
-                                  stroke: "currentColor",
-                                  "stroke-width": "2",
-                                },
-                                [
-                                  h("path", {
-                                    "stroke-linecap": "round",
-                                    "stroke-linejoin": "round",
-                                    d: "M9 5l7 7-7 7",
-                                  }),
-                                ]
-                            ),
-                      ]
-                  ),
-                  h(
+                        [
+                          h("path", {
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            d: "M19 9l-7 7-7-7",
+                          }),
+                        ]
+                      )
+                    : h(
+                        "svg",
+                        {
+                          class: "h-4 w-4",
+                          xmlns: "http://www.w3.org/2000/svg",
+                          fill: "none",
+                          viewBox: "0 0 24 24",
+                          stroke: "currentColor",
+                          "stroke-width": "2",
+                        },
+                        [
+                          h("path", {
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            d: "M9 5l7 7-7 7",
+                          }),
+                        ]
+                      ),
+                ]
+              ),
+              h(
+                "svg",
+                {
+                  class: ["h-4 w-4 flex-shrink-0 mr-2", this.darkMode ? "text-yellow-400" : "text-yellow-600"],
+                  xmlns: "http://www.w3.org/2000/svg",
+                  fill: "none",
+                  viewBox: "0 0 24 24",
+                  stroke: "currentColor",
+                  "stroke-width": "2",
+                },
+                [
+                  h("path", {
+                    "stroke-linecap": "round",
+                    "stroke-linejoin": "round",
+                    d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
+                  }),
+                ]
+              ),
+              h(
+                "span",
+                {
+                  class: ["truncate", this.darkMode ? "text-gray-200" : "text-gray-700"],
+                },
+                this.item.name
+              ),
+            ]
+          ),
+        ]
+      ),
+      this.expanded
+        ? h("div", { class: "folder-children" }, [
+            this.loading
+              ? h(
+                  "div",
+                  {
+                    class: "folder-loading",
+                    style: { paddingLeft: `${(this.level + 1) * 0.75 + 0.75}rem` },
+                  },
+                  [
+                    h(
                       "svg",
                       {
-                        class: ["h-4 w-4 flex-shrink-0 mr-2", this.darkMode ? "text-yellow-400" : "text-yellow-600"],
+                        class: "animate-spin h-3 w-3 mr-1",
                         xmlns: "http://www.w3.org/2000/svg",
                         fill: "none",
                         viewBox: "0 0 24 24",
-                        stroke: "currentColor",
-                        "stroke-width": "2",
                       },
                       [
+                        h("circle", {
+                          class: "opacity-25",
+                          cx: "12",
+                          cy: "12",
+                          r: "10",
+                          stroke: "currentColor",
+                          "stroke-width": "4",
+                        }),
                         h("path", {
-                          "stroke-linecap": "round",
-                          "stroke-linejoin": "round",
-                          d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
+                          class: "opacity-75",
+                          fill: "currentColor",
+                          d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z",
                         }),
                       ]
-                  ),
-                  h(
-                      "span",
-                      {
-                        class: ["truncate", this.darkMode ? "text-gray-200" : "text-gray-700"],
-                      },
-                      this.item.name
-                  ),
-                ]
-            ),
-          ]
-      ),
-      this.expanded
-          ? h("div", { class: "folder-children" }, [
-            this.loading
-                ? h(
-                    "div",
-                    {
-                      class: "folder-loading",
-                      style: { paddingLeft: `${(this.level + 1) * 0.75 + 0.75}rem` },
-                    },
-                    [
-                      h(
-                          "svg",
-                          {
-                            class: "animate-spin h-3 w-3 mr-1",
-                            xmlns: "http://www.w3.org/2000/svg",
-                            fill: "none",
-                            viewBox: "0 0 24 24",
-                          },
-                          [
-                            h("circle", {
-                              class: "opacity-25",
-                              cx: "12",
-                              cy: "12",
-                              r: "10",
-                              stroke: "currentColor",
-                              "stroke-width": "4",
-                            }),
-                            h("path", {
-                              class: "opacity-75",
-                              fill: "currentColor",
-                              d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z",
-                            }),
-                          ]
-                      ),
-                      h("span", { class: "text-xs" }, "加载中..."),
-                    ]
-                )
-                : this.children.length === 0
-                    ? null // 如果没有子目录，不显示任何内容
-                    : this.children.map((child) =>
-                        h("div", { class: "folder-item", key: child.path }, [
-                          h(DirectoryItemVue, {
-                            item: child,
-                            currentPath: this.currentPath,
-                            darkMode: this.darkMode,
-                            level: this.level + 1,
-                            onSelect: (path) => this.$emit("select", path),
-                          }),
-                        ])
                     ),
+                    h("span", { class: "text-xs" }, "加载中..."),
+                  ]
+                )
+              : this.children.length === 0
+              ? null // 如果没有子目录，不显示任何内容
+              : this.children.map((child) =>
+                  h("div", { class: "folder-item", key: child.path }, [
+                    h(DirectoryItemVue, {
+                      item: child,
+                      currentPath: this.currentPath,
+                      darkMode: this.darkMode,
+                      level: this.level + 1,
+                      onSelect: (path) => this.$emit("select", path),
+                    }),
+                  ])
+                ),
           ])
-          : null,
+        : null,
     ]);
   },
 };
@@ -395,61 +395,61 @@ const resetForm = () => {
 
 // 监听编辑模式变化，同步表单数据
 watch(
-    () => props.keyData,
-    (newVal) => {
-      if (newVal && props.isEditMode) {
-        // 填充表单数据
-        keyName.value = newVal.name;
-        useCustomKey.value = false; // 编辑模式不能修改密钥本身
-        customKey.value = "";
-        textPermission.value = newVal.text_permission === 1 || newVal.text_permission === true;
-        filePermission.value = newVal.file_permission === 1 || newVal.file_permission === true;
-        mountPermission.value = newVal.mount_permission === 1 || newVal.mount_permission === true;
-        basicPath.value = newVal.basic_path || "/";
-        selectedPath.value = newVal.basic_path || "/";
+  () => props.keyData,
+  (newVal) => {
+    if (newVal && props.isEditMode) {
+      // 填充表单数据
+      keyName.value = newVal.name;
+      useCustomKey.value = false; // 编辑模式不能修改密钥本身
+      customKey.value = "";
+      textPermission.value = newVal.text_permission === 1 || newVal.text_permission === true;
+      filePermission.value = newVal.file_permission === 1 || newVal.file_permission === true;
+      mountPermission.value = newVal.mount_permission === 1 || newVal.mount_permission === true;
+      basicPath.value = newVal.basic_path || "/";
+      selectedPath.value = newVal.basic_path || "/";
 
-        // 设置过期时间
-        if (newVal.expires_at) {
-          // 检查是否是"永不过期"的特殊值
-          if (newVal.expires_at === "never" || newVal.expires_at === null) {
-            expiration.value = "never";
-            customExpiration.value = "";
-          } else {
-            // 尝试解析日期
-            const expiresAt = new Date(newVal.expires_at);
-
-            // 检查日期是否有效
-            if (!isNaN(expiresAt.getTime())) {
-              // 检查是否是远未来日期（表示永不过期）
-              const year = expiresAt.getFullYear();
-              if (year >= 9999) {
-                expiration.value = "never";
-                customExpiration.value = "";
-              } else {
-                expiration.value = "custom";
-                // 转换为本地日期时间格式 yyyy-MM-ddThh:mm
-                const month = String(expiresAt.getMonth() + 1).padStart(2, "0");
-                const day = String(expiresAt.getDate()).padStart(2, "0");
-                const hours = String(expiresAt.getHours()).padStart(2, "0");
-                const minutes = String(expiresAt.getMinutes()).padStart(2, "0");
-                customExpiration.value = `${year}-${month}-${day}T${hours}:${minutes}`;
-              }
-            } else {
-              // 日期无效，默认为永不过期
-              expiration.value = "never";
-              customExpiration.value = "";
-            }
-          }
-        } else {
+      // 设置过期时间
+      if (newVal.expires_at) {
+        // 检查是否是"永不过期"的特殊值
+        if (newVal.expires_at === "never" || newVal.expires_at === null) {
           expiration.value = "never";
           customExpiration.value = "";
+        } else {
+          // 尝试解析日期
+          const expiresAt = new Date(newVal.expires_at);
+
+          // 检查日期是否有效
+          if (!isNaN(expiresAt.getTime())) {
+            // 检查是否是远未来日期（表示永不过期）
+            const year = expiresAt.getFullYear();
+            if (year >= 9999) {
+              expiration.value = "never";
+              customExpiration.value = "";
+            } else {
+              expiration.value = "custom";
+              // 转换为本地日期时间格式 yyyy-MM-ddThh:mm
+              const month = String(expiresAt.getMonth() + 1).padStart(2, "0");
+              const day = String(expiresAt.getDate()).padStart(2, "0");
+              const hours = String(expiresAt.getHours()).padStart(2, "0");
+              const minutes = String(expiresAt.getMinutes()).padStart(2, "0");
+              customExpiration.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+          } else {
+            // 日期无效，默认为永不过期
+            expiration.value = "never";
+            customExpiration.value = "";
+          }
         }
       } else {
-        // 重置表单为创建模式
-        resetForm();
+        expiration.value = "never";
+        customExpiration.value = "";
       }
-    },
-    { immediate: true }
+    } else {
+      // 重置表单为创建模式
+      resetForm();
+    }
+  },
+  { immediate: true }
 );
 
 // 加载挂载点列表
@@ -537,8 +537,8 @@ const handleSubmit = async () => {
   // 表单验证
   if (!keyName.value.trim()) {
     error.value = props.isEditMode
-        ? t("admin.keyManagement.editModal.errors.nameRequired", "密钥名称不能为空")
-        : t("admin.keyManagement.createModal.errors.nameRequired", "密钥名称不能为空");
+      ? t("admin.keyManagement.editModal.errors.nameRequired", "密钥名称不能为空")
+      : t("admin.keyManagement.createModal.errors.nameRequired", "密钥名称不能为空");
     return;
   }
 
@@ -562,8 +562,8 @@ const handleSubmit = async () => {
     if (expiration.value === "custom") {
       if (!customExpiration.value) {
         error.value = props.isEditMode
-            ? t("admin.keyManagement.editModal.errors.expirationRequired", "自定义过期时间不能为空")
-            : t("admin.keyManagement.createModal.errors.expirationRequired", "自定义过期时间不能为空");
+          ? t("admin.keyManagement.editModal.errors.expirationRequired", "自定义过期时间不能为空")
+          : t("admin.keyManagement.createModal.errors.expirationRequired", "自定义过期时间不能为空");
         return;
       }
 
@@ -571,8 +571,8 @@ const handleSubmit = async () => {
       const customDate = new Date(customExpiration.value);
       if (isNaN(customDate.getTime())) {
         error.value = props.isEditMode
-            ? t("admin.keyManagement.editModal.errors.invalidExpiration", "无效的过期时间")
-            : t("admin.keyManagement.createModal.errors.invalidExpiration", "无效的过期时间");
+          ? t("admin.keyManagement.editModal.errors.invalidExpiration", "无效的过期时间")
+          : t("admin.keyManagement.createModal.errors.invalidExpiration", "无效的过期时间");
         return;
       }
 
@@ -582,8 +582,8 @@ const handleSubmit = async () => {
       const days = parseInt(expiration.value);
       if (isNaN(days) || days <= 0) {
         error.value = props.isEditMode
-            ? t("admin.keyManagement.editModal.errors.invalidExpiration", "无效的过期时间")
-            : t("admin.keyManagement.createModal.errors.invalidExpiration", "无效的过期时间");
+          ? t("admin.keyManagement.editModal.errors.invalidExpiration", "无效的过期时间")
+          : t("admin.keyManagement.createModal.errors.invalidExpiration", "无效的过期时间");
         return;
       }
 
@@ -631,21 +631,21 @@ const handleSubmit = async () => {
 
       if (result.success && result.data) {
         emit(
-            "created",
-            {
-              id: result.data.id,
-              name: result.data.name,
-              key: result.data.key,
-              key_masked: result.data.key.substring(0, 6) + "...",
-              text_permission: textPermission.value,
-              file_permission: filePermission.value,
-              mount_permission: mountPermission.value,
-              basic_path: basicPath.value,
-              created_at: result.data.created_at,
-              expires_at: expiresAt,
-              last_used: null,
-            },
-            result.data.key
+          "created",
+          {
+            id: result.data.id,
+            name: result.data.name,
+            key: result.data.key,
+            key_masked: result.data.key.substring(0, 6) + "...",
+            text_permission: textPermission.value,
+            file_permission: filePermission.value,
+            mount_permission: mountPermission.value,
+            basic_path: basicPath.value,
+            created_at: result.data.created_at,
+            expires_at: expiresAt,
+            last_used: null,
+          },
+          result.data.key
         );
         resetForm();
       } else {
@@ -655,8 +655,8 @@ const handleSubmit = async () => {
   } catch (e) {
     console.error("API密钥操作失败:", e);
     error.value = props.isEditMode
-        ? t("admin.keyManagement.editModal.errors.updateFailed", "更新密钥失败")
-        : t("admin.keyManagement.createModal.errors.createFailed", "创建密钥失败");
+      ? t("admin.keyManagement.editModal.errors.updateFailed", "更新密钥失败")
+      : t("admin.keyManagement.createModal.errors.createFailed", "创建密钥失败");
   } finally {
     isLoading.value = false;
   }
@@ -679,9 +679,9 @@ defineExpose({
 
 <template>
   <div
-      class="relative rounded-lg shadow-xl w-full max-h-[95vh] sm:max-h-[85vh] overflow-hidden max-w-xs sm:max-w-md"
-      :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'"
-      style="min-width: 300px"
+    class="relative rounded-lg shadow-xl w-full max-h-[95vh] sm:max-h-[85vh] overflow-hidden max-w-xs sm:max-w-md"
+    :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'"
+    style="min-width: 300px"
   >
     <!-- 弹窗头部带关闭按钮 -->
     <div class="px-4 py-3 sm:py-4 border-b flex justify-between items-center sticky top-0 z-10" :class="[darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white']">
@@ -689,16 +689,16 @@ defineExpose({
         {{ formTitle }}
       </h3>
       <button
-          @click="handleCancel"
-          class="rounded-md p-1 inline-flex items-center justify-center"
-          :class="darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'"
+        @click="handleCancel"
+        class="rounded-md p-1 inline-flex items-center justify-center"
+        :class="darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'"
       >
         <span class="sr-only">{{ $t("admin.keyManagement.createModal.close") }}</span>
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
           <path
-              fill-rule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-              clip-rule="evenodd"
+            fill-rule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+            clip-rule="evenodd"
           />
         </svg>
       </button>
@@ -708,9 +708,9 @@ defineExpose({
     <div class="border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
       <nav class="flex">
         <button
-            @click="activeTab = 'basic'"
-            class="px-4 py-2 text-sm font-medium"
-            :class="[
+          @click="activeTab = 'basic'"
+          class="px-4 py-2 text-sm font-medium"
+          :class="[
             activeTab === 'basic'
               ? darkMode
                 ? 'border-b-2 border-primary-500 text-primary-400'
@@ -723,10 +723,10 @@ defineExpose({
           {{ $t(isEditMode ? "admin.keyManagement.editModal.tabs.basic" : "admin.keyManagement.createModal.tabs.basic", "基本信息") }}
         </button>
         <button
-            v-if="mountPermission"
-            @click="switchToPathTab"
-            class="px-4 py-2 text-sm font-medium"
-            :class="[
+          v-if="mountPermission"
+          @click="switchToPathTab"
+          class="px-4 py-2 text-sm font-medium"
+          :class="[
             activeTab === 'path'
               ? darkMode
                 ? 'border-b-2 border-primary-500 text-primary-400'
@@ -751,12 +751,12 @@ defineExpose({
             {{ $t(isEditMode ? "admin.keyManagement.editModal.keyName" : "admin.keyManagement.createModal.keyName") }}
           </label>
           <input
-              :id="isEditMode ? 'edit-key-name' : 'key-name'"
-              v-model="keyName"
-              type="text"
-              :placeholder="$t(isEditMode ? 'admin.keyManagement.editModal.keyNamePlaceholder' : 'admin.keyManagement.createModal.keyNamePlaceholder')"
-              class="w-full p-2 rounded-md border"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
+            :id="isEditMode ? 'edit-key-name' : 'key-name'"
+            v-model="keyName"
+            type="text"
+            :placeholder="$t(isEditMode ? 'admin.keyManagement.editModal.keyNamePlaceholder' : 'admin.keyManagement.createModal.keyNamePlaceholder')"
+            class="w-full p-2 rounded-md border"
+            :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
           />
           <p class="mt-1 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
             {{ $t(isEditMode ? "admin.keyManagement.editModal.keyNameHelp" : "admin.keyManagement.createModal.keyNameHelp") }}
@@ -767,11 +767,11 @@ defineExpose({
         <div v-if="!isEditMode" class="space-y-2">
           <div class="flex items-center space-x-2">
             <input
-                id="use-custom-key"
-                v-model="useCustomKey"
-                type="checkbox"
-                class="h-4 w-4 rounded"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+              id="use-custom-key"
+              v-model="useCustomKey"
+              type="checkbox"
+              class="h-4 w-4 rounded"
+              :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
             />
             <label for="use-custom-key" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
               {{ $t("admin.keyManagement.createModal.useCustomKey") }}
@@ -783,12 +783,12 @@ defineExpose({
               {{ $t("admin.keyManagement.createModal.customKey") }}
             </label>
             <input
-                id="custom-key"
-                v-model="customKey"
-                type="text"
-                :placeholder="$t('admin.keyManagement.createModal.customKeyPlaceholder')"
-                class="w-full p-2 rounded-md border"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
+              id="custom-key"
+              v-model="customKey"
+              type="text"
+              :placeholder="$t('admin.keyManagement.createModal.customKeyPlaceholder')"
+              class="w-full p-2 rounded-md border"
+              :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
             />
             <p class="mt-1 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
               {{ $t("admin.keyManagement.createModal.customKeyHelp") }}
@@ -802,10 +802,10 @@ defineExpose({
             {{ $t(isEditMode ? "admin.keyManagement.editModal.expiration" : "admin.keyManagement.createModal.expiration") }}
           </label>
           <select
-              :id="isEditMode ? 'edit-key-expiration' : 'key-expiration'"
-              v-model="expiration"
-              class="w-full p-2 rounded-md border"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
+            :id="isEditMode ? 'edit-key-expiration' : 'key-expiration'"
+            v-model="expiration"
+            class="w-full p-2 rounded-md border"
+            :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
           >
             <option v-for="option in expirationOptions" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -819,11 +819,11 @@ defineExpose({
             {{ $t(isEditMode ? "admin.keyManagement.editModal.customExpiration" : "admin.keyManagement.createModal.customExpiration") }}
           </label>
           <input
-              :id="isEditMode ? 'edit-custom-expiration' : 'custom-expiration'"
-              v-model="customExpiration"
-              type="datetime-local"
-              class="w-full p-2 rounded-md border"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
+            :id="isEditMode ? 'edit-custom-expiration' : 'custom-expiration'"
+            v-model="customExpiration"
+            type="datetime-local"
+            class="w-full p-2 rounded-md border"
+            :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
           />
         </div>
 
@@ -832,11 +832,11 @@ defineExpose({
           <!-- 文本权限 -->
           <div class="flex items-center space-x-2">
             <input
-                :id="isEditMode ? 'edit-text-permission' : 'text-permission'"
-                v-model="textPermission"
-                type="checkbox"
-                class="h-5 w-5 rounded"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+              :id="isEditMode ? 'edit-text-permission' : 'text-permission'"
+              v-model="textPermission"
+              type="checkbox"
+              class="h-5 w-5 rounded"
+              :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
             />
             <label :for="isEditMode ? 'edit-text-permission' : 'text-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
               {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.text" : "admin.keyManagement.createModal.permissions.text") }}
@@ -846,11 +846,11 @@ defineExpose({
           <!-- 文件权限 -->
           <div class="flex items-center space-x-2">
             <input
-                :id="isEditMode ? 'edit-file-permission' : 'file-permission'"
-                v-model="filePermission"
-                type="checkbox"
-                class="h-5 w-5 rounded"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+              :id="isEditMode ? 'edit-file-permission' : 'file-permission'"
+              v-model="filePermission"
+              type="checkbox"
+              class="h-5 w-5 rounded"
+              :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
             />
             <label :for="isEditMode ? 'edit-file-permission' : 'file-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
               {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.file" : "admin.keyManagement.createModal.permissions.file") }}
@@ -860,11 +860,11 @@ defineExpose({
           <!-- 挂载点权限 -->
           <div class="flex items-center space-x-2">
             <input
-                :id="isEditMode ? 'edit-mount-permission' : 'mount-permission'"
-                v-model="mountPermission"
-                type="checkbox"
-                class="h-5 w-5 rounded"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+              :id="isEditMode ? 'edit-mount-permission' : 'mount-permission'"
+              v-model="mountPermission"
+              type="checkbox"
+              class="h-5 w-5 rounded"
+              :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
             />
             <label :for="isEditMode ? 'edit-mount-permission' : 'mount-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
               {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.mount" : "admin.keyManagement.createModal.permissions.mount") }}
@@ -879,19 +879,19 @@ defineExpose({
           </label>
           <div class="flex">
             <input
-                :id="isEditMode ? 'edit-basic-path' : 'basic-path'"
-                v-model="basicPath"
-                type="text"
-                :placeholder="$t(isEditMode ? 'admin.keyManagement.editModal.basicPathPlaceholder' : 'admin.keyManagement.createModal.basicPathPlaceholder', '/')"
-                class="w-full p-2 rounded-l-md border"
-                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
-                readonly
+              :id="isEditMode ? 'edit-basic-path' : 'basic-path'"
+              v-model="basicPath"
+              type="text"
+              :placeholder="$t(isEditMode ? 'admin.keyManagement.editModal.basicPathPlaceholder' : 'admin.keyManagement.createModal.basicPathPlaceholder', '/')"
+              class="w-full p-2 rounded-l-md border"
+              :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-800'"
+              readonly
             />
             <button
-                @click="switchToPathTab"
-                class="px-2 py-0 rounded-r-md text-white h-[42px]"
-                :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
-                :title="$t(isEditMode ? 'admin.keyManagement.editModal.selectPath' : 'admin.keyManagement.createModal.selectPath', '选择路径')"
+              @click="switchToPathTab"
+              class="px-2 py-0 rounded-r-md text-white h-[42px]"
+              :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
+              :title="$t(isEditMode ? 'admin.keyManagement.editModal.selectPath' : 'admin.keyManagement.createModal.selectPath', '选择路径')"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -909,8 +909,8 @@ defineExpose({
           <p>
             {{
               $t(
-                  isEditMode ? "admin.keyManagement.editModal.securityMessage" : "admin.keyManagement.createModal.securityMessage",
-                  "请妥善保管您的API密钥，不要在公共场所或不安全的环境中使用。"
+                isEditMode ? "admin.keyManagement.editModal.securityMessage" : "admin.keyManagement.createModal.securityMessage",
+                "请妥善保管您的API密钥，不要在公共场所或不安全的环境中使用。"
               )
             }}
           </p>
@@ -932,9 +932,9 @@ defineExpose({
             <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
             <span>{{ $t(isEditMode ? "admin.keyManagement.editModal.pathSelector.loading" : "admin.keyManagement.createModal.pathSelector.loading", "加载中...") }}</span>
@@ -946,22 +946,22 @@ defineExpose({
               <!-- 根目录 -->
               <div class="tree-item" :class="{ selected: selectedPath === '/' }" @click="selectPath('/')">
                 <div
-                    class="flex items-center py-2 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                    :class="{ 'bg-blue-50 dark:bg-blue-900/30': selectedPath === '/' }"
+                  class="flex items-center py-2 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                  :class="{ 'bg-blue-50 dark:bg-blue-900/30': selectedPath === '/' }"
                 >
                   <svg
-                      class="h-4 w-4 flex-shrink-0 mr-2"
-                      :class="darkMode ? 'text-blue-400' : 'text-blue-600'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke-width="2"
-                      stroke="currentColor"
+                    class="h-4 w-4 flex-shrink-0 mr-2"
+                    :class="darkMode ? 'text-blue-400' : 'text-blue-600'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="2"
+                    stroke="currentColor"
                   >
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                     />
                   </svg>
                   <span class="truncate" :class="[darkMode ? 'text-gray-200' : 'text-gray-700', selectedPath === '/' ? 'font-medium text-blue-600 dark:text-blue-400' : '']">
@@ -986,9 +986,9 @@ defineExpose({
         <!-- 路径选择确认按钮 -->
         <div class="flex justify-end">
           <button
-              @click="confirmPathSelection"
-              class="px-3 py-1.5 text-sm rounded-md text-white"
-              :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
+            @click="confirmPathSelection"
+            class="px-3 py-1.5 text-sm rounded-md text-white"
+            :class="darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'"
           >
             {{ $t(isEditMode ? "admin.keyManagement.editModal.pathSelector.confirm" : "admin.keyManagement.createModal.pathSelector.confirm", "确认路径") }}
           </button>
@@ -997,8 +997,8 @@ defineExpose({
 
       <!-- 错误信息 - 基本信息标签页版本 -->
       <div
-          v-if="activeTab === 'basic' && error"
-          class="p-3 rounded-md bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 text-sm mt-4"
+        v-if="activeTab === 'basic' && error"
+        class="p-3 rounded-md bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 text-sm mt-4"
       >
         {{ error }}
       </div>
@@ -1006,18 +1006,18 @@ defineExpose({
       <!-- 按钮区域 - 只在基本信息标签页显示 -->
       <div v-if="activeTab === 'basic'" class="flex justify-end space-x-3 pt-4 mt-2">
         <button
-            @click="handleCancel"
-            class="px-3 py-1.5 text-sm rounded-md"
-            :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
-            :disabled="isLoading"
+          @click="handleCancel"
+          class="px-3 py-1.5 text-sm rounded-md"
+          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
+          :disabled="isLoading"
         >
           {{ $t(isEditMode ? "admin.keyManagement.editModal.cancel" : "admin.keyManagement.createModal.cancel") }}
         </button>
         <button
-            @click="handleSubmit"
-            class="px-3 py-1.5 text-sm rounded-md text-white"
-            :class="[isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-600', darkMode ? 'bg-primary-600' : 'bg-primary-500']"
-            :disabled="isLoading"
+          @click="handleSubmit"
+          class="px-3 py-1.5 text-sm rounded-md text-white"
+          :class="[isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-600', darkMode ? 'bg-primary-600' : 'bg-primary-500']"
+          :disabled="isLoading"
         >
           <span v-if="isLoading">{{ processingButtonText }}</span>
           <span v-else>{{ saveButtonText }}</span>

@@ -32,7 +32,7 @@ export function adminLogout() {
  * @returns {Promise<Object>} 登录状态
  */
 export function checkAdminLogin() {
-  return get("/admin/check");
+  return get("/test/admin-token");
 }
 
 /**

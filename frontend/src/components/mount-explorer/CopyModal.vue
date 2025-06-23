@@ -1,8 +1,8 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-[60] overflow-auto bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4">
     <div
-        class="relative w-full max-w-sm sm:max-w-lg bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[85vh] sm:max-h-[80vh] overflow-hidden"
-        :class="darkMode ? 'bg-gray-800' : 'bg-white'"
+      class="relative w-full max-w-sm sm:max-w-lg bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[85vh] sm:max-h-[80vh] overflow-hidden"
+      :class="darkMode ? 'bg-gray-800' : 'bg-white'"
     >
       <!-- 标题栏 -->
       <div class="px-4 py-3 border-b flex justify-between items-center" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
@@ -31,17 +31,17 @@
         <div v-if="pathWarning" class="mb-3 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-md">
           <div class="flex items-start">
             <svg
-                class="h-5 w-5 text-yellow-500 dark:text-yellow-400 mt-0.5 mr-2 flex-shrink-0"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              class="h-5 w-5 text-yellow-500 dark:text-yellow-400 mt-0.5 mr-2 flex-shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
             <span class="text-sm text-yellow-700 dark:text-yellow-300">{{ pathWarning }}</span>
@@ -55,9 +55,9 @@
             <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
             <span>加载中...</span>
@@ -70,18 +70,18 @@
               <div class="tree-item" :class="{ selected: currentPath === userBasicPath }" @click="selectDestination(userBasicPath)">
                 <div class="flex items-center py-2 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                   <svg
-                      class="h-4 w-4 flex-shrink-0 mr-2"
-                      :class="darkMode ? 'text-blue-400' : 'text-blue-600'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke-width="2"
-                      stroke="currentColor"
+                    class="h-4 w-4 flex-shrink-0 mr-2"
+                    :class="darkMode ? 'text-blue-400' : 'text-blue-600'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="2"
+                    stroke="currentColor"
                   >
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                     />
                   </svg>
                   <span class="truncate" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ rootDisplayName }}</span>
@@ -99,17 +99,17 @@
         <!-- 操作按钮 -->
         <div class="flex justify-end space-x-3">
           <button
-              @click="closeModal"
-              class="px-4 py-2 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
-              :class="darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+            @click="closeModal"
+            class="px-4 py-2 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
+            :class="darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
           >
             取消
           </button>
           <button
-              @click="confirmCopy"
-              class="px-4 py-2 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              :class="[darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white', copying ? 'opacity-70 cursor-not-allowed' : '']"
-              :disabled="copying"
+            @click="confirmCopy"
+            class="px-4 py-2 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            :class="[darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white', copying ? 'opacity-70 cursor-not-allowed' : '']"
+            :disabled="copying"
           >
             {{ copying ? "复制中..." : "确认复制" }}
           </button>
@@ -166,17 +166,17 @@ const DirectoryItemVue = {
 
     // 监听当前路径变化
     watch(
-        () => props.currentPath,
-        (newPath) => {
-          // 如果当前路径是此节点的子路径，自动展开
-          if (newPath.startsWith(props.item.path + "/") && newPath !== props.item.path + "/") {
-            expanded.value = true;
-            if (children.value.length === 0) {
-              loadChildren();
-            }
+      () => props.currentPath,
+      (newPath) => {
+        // 如果当前路径是此节点的子路径，自动展开
+        if (newPath.startsWith(props.item.path + "/") && newPath !== props.item.path + "/") {
+          expanded.value = true;
+          if (children.value.length === 0) {
+            loadChildren();
           }
-        },
-        { immediate: true }
+        }
+      },
+      { immediate: true }
     );
 
     // 计算是否被选中
@@ -248,150 +248,150 @@ const DirectoryItemVue = {
     // 使用渲染函数代替模板，以确保递归组件正确渲染
     return h("div", { class: "directory-item" }, [
       h(
-          "div",
-          {
-            class: ["tree-item", { selected: this.isSelected }],
-            onClick: this.selectFolder,
-          },
-          [
-            h(
+        "div",
+        {
+          class: ["tree-item", { selected: this.isSelected }],
+          onClick: this.selectFolder,
+        },
+        [
+          h(
+            "div",
+            {
+              class: "flex items-center py-2 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer",
+              style: { paddingLeft: `${this.level * 0.75 + 0.5}rem` }, // 增加层级缩进值
+            },
+            [
+              h(
                 "div",
                 {
-                  class: "flex items-center py-2 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer",
-                  style: { paddingLeft: `${this.level * 0.75 + 0.5}rem` }, // 增加层级缩进值
+                  class: "folder-toggle",
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    this.toggleExpand(e);
+                  },
                 },
                 [
-                  h(
-                      "div",
-                      {
-                        class: "folder-toggle",
-                        onClick: (e) => {
-                          e.stopPropagation();
-                          this.toggleExpand(e);
+                  this.expanded
+                    ? h(
+                        "svg",
+                        {
+                          class: "h-4 w-4",
+                          xmlns: "http://www.w3.org/2000/svg",
+                          fill: "none",
+                          viewBox: "0 0 24 24",
+                          stroke: "currentColor",
+                          "stroke-width": "2",
                         },
-                      },
-                      [
-                        this.expanded
-                            ? h(
-                                "svg",
-                                {
-                                  class: "h-4 w-4",
-                                  xmlns: "http://www.w3.org/2000/svg",
-                                  fill: "none",
-                                  viewBox: "0 0 24 24",
-                                  stroke: "currentColor",
-                                  "stroke-width": "2",
-                                },
-                                [
-                                  h("path", {
-                                    "stroke-linecap": "round",
-                                    "stroke-linejoin": "round",
-                                    d: "M19 9l-7 7-7-7",
-                                  }),
-                                ]
-                            )
-                            : h(
-                                "svg",
-                                {
-                                  class: "h-4 w-4",
-                                  xmlns: "http://www.w3.org/2000/svg",
-                                  fill: "none",
-                                  viewBox: "0 0 24 24",
-                                  stroke: "currentColor",
-                                  "stroke-width": "2",
-                                },
-                                [
-                                  h("path", {
-                                    "stroke-linecap": "round",
-                                    "stroke-linejoin": "round",
-                                    d: "M9 5l7 7-7 7",
-                                  }),
-                                ]
-                            ),
-                      ]
-                  ),
-                  h(
+                        [
+                          h("path", {
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            d: "M19 9l-7 7-7-7",
+                          }),
+                        ]
+                      )
+                    : h(
+                        "svg",
+                        {
+                          class: "h-4 w-4",
+                          xmlns: "http://www.w3.org/2000/svg",
+                          fill: "none",
+                          viewBox: "0 0 24 24",
+                          stroke: "currentColor",
+                          "stroke-width": "2",
+                        },
+                        [
+                          h("path", {
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            d: "M9 5l7 7-7 7",
+                          }),
+                        ]
+                      ),
+                ]
+              ),
+              h(
+                "svg",
+                {
+                  class: ["h-4 w-4 flex-shrink-0 mr-2", this.darkMode ? "text-yellow-400" : "text-yellow-600"],
+                  xmlns: "http://www.w3.org/2000/svg",
+                  fill: "none",
+                  viewBox: "0 0 24 24",
+                  stroke: "currentColor",
+                  "stroke-width": "2",
+                },
+                [
+                  h("path", {
+                    "stroke-linecap": "round",
+                    "stroke-linejoin": "round",
+                    d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
+                  }),
+                ]
+              ),
+              h(
+                "span",
+                {
+                  class: ["truncate", this.darkMode ? "text-gray-200" : "text-gray-700"],
+                },
+                this.item.name
+              ),
+            ]
+          ),
+        ]
+      ),
+      this.expanded
+        ? h("div", { class: "folder-children" }, [
+            this.loading
+              ? h(
+                  "div",
+                  {
+                    class: "folder-loading",
+                    style: { paddingLeft: `${(this.level + 1) * 0.75 + 0.75}rem` },
+                  },
+                  [
+                    h(
                       "svg",
                       {
-                        class: ["h-4 w-4 flex-shrink-0 mr-2", this.darkMode ? "text-yellow-400" : "text-yellow-600"],
+                        class: "animate-spin h-3 w-3 mr-1",
                         xmlns: "http://www.w3.org/2000/svg",
                         fill: "none",
                         viewBox: "0 0 24 24",
-                        stroke: "currentColor",
-                        "stroke-width": "2",
                       },
                       [
+                        h("circle", {
+                          class: "opacity-25",
+                          cx: "12",
+                          cy: "12",
+                          r: "10",
+                          stroke: "currentColor",
+                          "stroke-width": "4",
+                        }),
                         h("path", {
-                          "stroke-linecap": "round",
-                          "stroke-linejoin": "round",
-                          d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
+                          class: "opacity-75",
+                          fill: "currentColor",
+                          d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z",
                         }),
                       ]
-                  ),
-                  h(
-                      "span",
-                      {
-                        class: ["truncate", this.darkMode ? "text-gray-200" : "text-gray-700"],
-                      },
-                      this.item.name
-                  ),
-                ]
-            ),
-          ]
-      ),
-      this.expanded
-          ? h("div", { class: "folder-children" }, [
-            this.loading
-                ? h(
-                    "div",
-                    {
-                      class: "folder-loading",
-                      style: { paddingLeft: `${(this.level + 1) * 0.75 + 0.75}rem` },
-                    },
-                    [
-                      h(
-                          "svg",
-                          {
-                            class: "animate-spin h-3 w-3 mr-1",
-                            xmlns: "http://www.w3.org/2000/svg",
-                            fill: "none",
-                            viewBox: "0 0 24 24",
-                          },
-                          [
-                            h("circle", {
-                              class: "opacity-25",
-                              cx: "12",
-                              cy: "12",
-                              r: "10",
-                              stroke: "currentColor",
-                              "stroke-width": "4",
-                            }),
-                            h("path", {
-                              class: "opacity-75",
-                              fill: "currentColor",
-                              d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z",
-                            }),
-                          ]
-                      ),
-                      h("span", { class: "text-xs" }, "加载中..."),
-                    ]
-                )
-                : this.children.length === 0
-                    ? null // 如果没有子目录，不显示任何内容
-                    : this.children.map((child) =>
-                        h("div", { class: "folder-item", key: child.path }, [
-                          h(DirectoryItemVue, {
-                            item: child,
-                            currentPath: this.currentPath,
-                            darkMode: this.darkMode,
-                            fsApi: this.fsApi,
-                            level: this.level + 1, // 增加层级深度
-                            onSelect: (path) => this.$emit("select", path),
-                          }),
-                        ])
                     ),
+                    h("span", { class: "text-xs" }, "加载中..."),
+                  ]
+                )
+              : this.children.length === 0
+              ? null // 如果没有子目录，不显示任何内容
+              : this.children.map((child) =>
+                  h("div", { class: "folder-item", key: child.path }, [
+                    h(DirectoryItemVue, {
+                      item: child,
+                      currentPath: this.currentPath,
+                      darkMode: this.darkMode,
+                      fsApi: this.fsApi,
+                      level: this.level + 1, // 增加层级深度
+                      onSelect: (path) => this.$emit("select", path),
+                    }),
+                  ])
+                ),
           ])
-          : null,
+        : null,
     ]);
   },
 };
@@ -464,17 +464,17 @@ const clearDirectoryCache = () => {
 
 // 监听模态窗口打开状态
 watch(
-    () => props.isOpen,
-    (newValue) => {
-      if (newValue) {
-        // 当模态窗口打开时，设置初始路径为用户的基本路径
-        currentPath.value = userBasicPath.value;
-        loadRootDirectories();
-      } else {
-        // 当模态窗口关闭时，清除目录缓存
-        clearDirectoryCache();
-      }
+  () => props.isOpen,
+  (newValue) => {
+    if (newValue) {
+      // 当模态窗口打开时，设置初始路径为用户的基本路径
+      currentPath.value = userBasicPath.value;
+      loadRootDirectories();
+    } else {
+      // 当模态窗口关闭时，清除目录缓存
+      clearDirectoryCache();
     }
+  }
 );
 
 // 关闭模态窗口

@@ -31,9 +31,9 @@
         </div>
 
         <button
-            @click="$emit('close')"
-            class="w-full px-4 py-2 rounded-md text-sm font-medium transition-colors mt-2"
-            :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+          @click="$emit('close')"
+          class="w-full px-4 py-2 rounded-md text-sm font-medium transition-colors mt-2"
+          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
         >
           关闭
         </button>

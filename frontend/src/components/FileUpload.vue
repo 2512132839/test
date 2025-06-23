@@ -6,8 +6,8 @@
 
     <!-- 权限提示 -->
     <div
-        v-if="!hasPermission"
-        class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
+      v-if="!hasPermission"
+      class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
     >
       <div class="flex items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -25,20 +25,20 @@
       <!-- 文件上传区域 -->
       <div class="card mb-6" :class="darkMode ? 'bg-gray-800/50' : 'bg-white'">
         <FileUploader
-            :dark-mode="darkMode"
-            :s3-configs="s3Configs"
-            :loading="loadingConfigs"
-            :is-admin="isAdmin"
-            @upload-success="handleUploadSuccess"
-            @upload-error="handleUploadError"
+          :dark-mode="darkMode"
+          :s3-configs="s3Configs"
+          :loading="loadingConfigs"
+          :is-admin="isAdmin"
+          @upload-success="handleUploadSuccess"
+          @upload-error="handleUploadError"
         />
       </div>
 
       <!-- 错误消息 -->
       <div
-          v-if="message"
-          class="mb-4 p-3 rounded-md"
-          :class="
+        v-if="message"
+        class="mb-4 p-3 rounded-md"
+        :class="
           message.type === 'success'
             ? darkMode
               ? 'bg-green-900/40 border border-green-800 text-green-200'
@@ -60,30 +60,30 @@
 
           <!-- 存储容量不足图标 -->
           <svg
-              v-else-if="message.icon === 'storage-full'"
-              class="h-5 w-5 mr-2"
-              :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+            v-else-if="message.icon === 'storage-full'"
+            class="h-5 w-5 mr-2"
+            :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12V8a2 2 0 00-2-2H6a2 2 0 00-2 2v4M8 18h8M12 6v5m-2 3h4" />
           </svg>
 
           <!-- 普通警告图标 -->
           <svg
-              v-else-if="message.type === 'warning'"
-              class="h-5 w-5 mr-2"
-              :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+            v-else-if="message.type === 'warning'"
+            class="h-5 w-5 mr-2"
+            :class="darkMode ? 'text-yellow-300' : 'text-yellow-500'"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
             />
           </svg>
 
@@ -114,8 +114,12 @@ import { api } from "../api";
 import FileUploader from "./file-upload/FileUploader.vue";
 import FileList from "./file-upload/FileList.vue";
 import { useI18n } from "vue-i18n"; // 导入i18n
+import { useAuthStore } from "../stores/authStore.js";
 
 const { t } = useI18n(); // 初始化i18n
+
+// 使用认证Store
+const authStore = useAuthStore();
 
 const props = defineProps({
   darkMode: {
@@ -131,110 +135,18 @@ const loadingConfigs = ref(false);
 const loadingFiles = ref(false);
 const message = ref(null);
 
-// 权限状态
-const isAdmin = ref(false);
-const hasApiKey = ref(false);
-const hasFilePermission = ref(false);
-const hasPermission = computed(() => isAdmin.value || (hasApiKey.value && hasFilePermission.value));
+// 从Store获取权限状态的计算属性
+const isAdmin = computed(() => authStore.isAdmin);
+const hasApiKey = computed(() => authStore.authType === "apikey" && !!authStore.apiKey);
+const hasFilePermission = computed(() => authStore.hasFilePermission);
+const hasPermission = computed(() => authStore.hasFilePermission);
 
 // 计算最近3条记录
 const recentFiles = computed(() => {
   return files.value.slice(0, 3);
 });
 
-// API密钥验证函数的防抖定时器
-let apiKeyValidationTimer = null;
-let lastValidatedApiKey = null;
-let lastValidationTime = 0;
-const VALIDATION_DEBOUNCE_TIME = 2000; // 2秒内不重复验证相同的密钥
-
-// 验证API密钥权限（向后端发送请求进行实时验证）
-const validateApiKey = async (apiKey) => {
-  // 如果是相同的密钥且在短时间内验证过，直接返回上次的验证结果
-  const now = Date.now();
-  if (apiKey === lastValidatedApiKey && now - lastValidationTime < VALIDATION_DEBOUNCE_TIME) {
-    console.log("使用缓存的API密钥验证结果，距上次验证时间:", Math.floor((now - lastValidationTime) / 1000), "秒");
-    return hasFilePermission.value;
-  }
-
-  // 取消可能存在的验证定时器
-  if (apiKeyValidationTimer) {
-    clearTimeout(apiKeyValidationTimer);
-  }
-
-  // 创建防抖执行验证的Promise
-  return new Promise((resolve, reject) => {
-    apiKeyValidationTimer = setTimeout(async () => {
-      try {
-        // 导入API配置函数
-        const { getFullApiUrl } = await import("../api/config.js");
-        // 使用正确的API路径构建URL
-        const apiUrl = getFullApiUrl("test/api-key");
-
-        console.log("正在验证API密钥:", apiKey.substring(0, 3) + "..." + apiKey.substring(apiKey.length - 3));
-
-        const response = await fetch(apiUrl, {
-          method: "GET",
-          headers: {
-            Authorization: `ApiKey ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          credentials: "omit",
-        });
-
-        if (!response.ok) {
-          throw new Error(`API密钥验证失败 (${response.status})`);
-        }
-
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("服务器返回了无效的响应格式");
-        }
-
-        const data = await response.json();
-
-        if (!data.success) {
-          throw new Error(data.message || "密钥验证失败");
-        }
-
-        // 记录本次验证的密钥和时间
-        lastValidatedApiKey = apiKey;
-        lastValidationTime = Date.now();
-
-        // 更新本地缓存中的权限信息
-        if (data.data && data.data.permissions) {
-          const permissions = data.data.permissions;
-          localStorage.setItem("api_key_permissions", JSON.stringify(permissions));
-
-          // 更新权限状态
-          const filePermission = !!permissions.file;
-          hasFilePermission.value = filePermission;
-
-          // 触发自定义事件，通知其他组件权限已更新
-          window.dispatchEvent(
-              new CustomEvent("api-key-permissions-updated", {
-                detail: { permissions },
-              })
-          );
-
-          console.log("API密钥验证成功，文件权限:", filePermission ? "有权限" : "无权限");
-
-          // 解析Promise并返回权限状态
-          resolve(filePermission);
-          return;
-        }
-
-        // 如果没有权限数据，视为无权限
-        resolve(false);
-      } catch (error) {
-        console.error("API密钥验证出错:", error);
-        reject(error);
-      } finally {
-        apiKeyValidationTimer = null;
-      }
-    }, 50); // 短暂延迟，合并多个快速调用
-  });
-};
+// API密钥验证逻辑已移至认证Store
 
 // 导航到管理页面
 const navigateToAdmin = () => {
@@ -244,73 +156,27 @@ const navigateToAdmin = () => {
   });
 };
 
-// 检查权限
+// 检查权限（简化版，主要用于日志记录）
 const checkPermissions = async () => {
   try {
-    // 检查管理员登录状态
-    const adminToken = localStorage.getItem("admin_token");
-    isAdmin.value = !!adminToken;
-
-    if (isAdmin.value) {
-      console.log("用户具有管理员权限");
-      hasPermission.value = true;
-      return;
+    // 如果需要重新验证，则进行验证
+    if (authStore.needsRevalidation) {
+      console.log("FileUpload: 需要重新验证认证状态");
+      await authStore.validateAuth();
     }
 
-    // 检查API密钥和权限
-    const apiKey = localStorage.getItem("api_key");
-    hasApiKey.value = !!apiKey;
-
-    if (hasApiKey.value) {
-      console.log("用户具有API密钥:", apiKey.substring(0, 3) + "..." + apiKey.substring(apiKey.length - 3));
-
-      // 首先从后端验证API密钥权限（实时验证）
-      try {
-        const hasFilePerm = await validateApiKey(apiKey);
-        hasFilePermission.value = hasFilePerm;
-        console.log("API密钥文件权限(后端验证):", hasFilePermission.value ? "有权限" : "无权限");
-      } catch (error) {
-        console.error("API密钥验证失败:", error);
-
-        // 验证失败时，尝试回退到本地缓存
-        console.warn("后端验证失败，尝试使用本地缓存的权限信息");
-        const permissionsStr = localStorage.getItem("api_key_permissions");
-        if (permissionsStr) {
-          try {
-            const permissions = JSON.parse(permissionsStr);
-            hasFilePermission.value = !!permissions.file;
-            console.log("API密钥文件权限(本地缓存):", hasFilePermission.value ? "有权限" : "无权限");
-          } catch (e) {
-            console.error("解析权限数据失败:", e);
-            hasFilePermission.value = false;
-          }
-        } else {
-          console.warn("未找到API密钥权限信息");
-          hasFilePermission.value = false;
-        }
-      }
-    } else {
-      hasFilePermission.value = false;
-    }
-
-    // 综合判断是否有文件权限
-    hasPermission.value = isAdmin.value || (hasApiKey.value && hasFilePermission.value);
-    console.log("用户文件上传权限:", hasPermission.value ? "有权限" : "无权限");
+    console.log("FileUpload: 用户文件上传权限:", hasPermission.value ? "有权限" : "无权限");
   } catch (error) {
     console.error("检查权限失败:", error);
   }
 };
 
 // 事件处理函数
-const handleApiKeyPermissionsUpdate = async (e) => {
-  console.log("接收到API密钥权限更新事件:", e.detail);
-  await checkPermissions();
-};
-
-const handleStorageChange = async (e) => {
-  if (e.key === "admin_token" || e.key === "api_key" || e.key === "api_key_permissions") {
-    console.log("检测到存储变化，更新权限状态:", e.key);
-    await checkPermissions();
+const handleAuthStateChange = async (e) => {
+  console.log("FileUpload: 接收到认证状态变化事件:", e.detail);
+  // 权限状态会自动更新，这里只需要重新加载数据
+  if (hasPermission.value) {
+    await Promise.all([loadS3Configs(), loadFiles()]);
   }
 };
 
@@ -384,9 +250,9 @@ const handleUploadSuccess = (fileData) => {
 const handleUploadError = (error) => {
   // 检查错误消息是否与存储容量相关
   if (
-      error &&
-      error.message &&
-      (error.message.includes("存储空间不足") || error.message.includes("insufficient storage") || error.message.includes("容量") || error.message.includes("storage limit"))
+    error &&
+    error.message &&
+    (error.message.includes("存储空间不足") || error.message.includes("insufficient storage") || error.message.includes("容量") || error.message.includes("storage limit"))
   ) {
     // 存储容量不足错误，使用特殊样式
     message.value = {
@@ -412,19 +278,11 @@ const handleUploadError = (error) => {
 onMounted(async () => {
   console.log("FileUpload组件已挂载");
 
-  // 打印当前token状态
-  const adminToken = localStorage.getItem("admin_token");
-  const apiKey = localStorage.getItem("api_key");
-  console.log(`初始权限状态: adminToken=${adminToken ? "存在" : "不存在"}, apiKey=${apiKey ? "存在" : "不存在"}`);
-
-  // 监听storage事件，以便在其他标签页中登录/登出时更新状态
-  window.addEventListener("storage", handleStorageChange);
-
-  // 监听API密钥权限更新事件
-  window.addEventListener("api-key-permissions-updated", handleApiKeyPermissionsUpdate);
+  // 监听认证状态变化事件
+  window.addEventListener("auth-state-changed", handleAuthStateChange);
 
   await checkPermissions();
-  console.log(`权限检查结果: isAdmin=${isAdmin.value}, hasApiKey=${hasApiKey.value}, hasFilePermission=${hasFilePermission.value}`);
+  console.log(`FileUpload权限检查结果: isAdmin=${isAdmin.value}, hasApiKey=${hasApiKey.value}, hasFilePermission=${hasFilePermission.value}`);
   console.log(`hasPermission计算结果: ${hasPermission.value}`);
 
   if (hasPermission.value) {
@@ -437,17 +295,8 @@ onMounted(async () => {
 
 // 组件卸载时清理
 onBeforeUnmount(() => {
-  // 移除storage事件监听
-  window.removeEventListener("storage", handleStorageChange);
-
-  // 移除API密钥权限更新事件监听
-  window.removeEventListener("api-key-permissions-updated", handleApiKeyPermissionsUpdate);
-
-  // 取消可能存在的验证定时器
-  if (apiKeyValidationTimer) {
-    clearTimeout(apiKeyValidationTimer);
-    apiKeyValidationTimer = null;
-  }
+  // 移除认证状态变化事件监听
+  window.removeEventListener("auth-state-changed", handleAuthStateChange);
 });
 </script>
 

@@ -6,14 +6,31 @@
 
     <!-- 权限提示 -->
     <div
-        v-if="!hasPermission"
-        class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
+      v-if="!hasPermission"
+      class="mb-4 p-3 rounded-md border"
+      :class="
+        isApiKeyUserWithoutPermission
+          ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-200'
+          : 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200'
+      "
     >
       <div class="flex items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            :d="
+              isApiKeyUserWithoutPermission
+                ? 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z'
+                : 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+            "
+          />
         </svg>
-        <span>
+        <span v-if="isApiKeyUserWithoutPermission">
+          {{ $t("common.noPermission") }}
+        </span>
+        <span v-else>
           {{ $t("mount.permissionRequired") }}
           <a href="#" @click.prevent="navigateToAdmin" class="font-medium underline">{{ $t("mount.loginAuth") }}</a
           >。
@@ -29,11 +46,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, provide, watch } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed, provide, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useAuthStore } from "../stores/authStore.js";
 
 // Vue Router
 const router = useRouter();
+
+// 使用认证Store
+const authStore = useAuthStore();
 
 const props = defineProps({
   darkMode: {
@@ -42,28 +63,26 @@ const props = defineProps({
   },
 });
 
-// 权限状态
-const isAdmin = ref(false);
-const hasApiKey = ref(false);
-const hasFilePermission = ref(false);
-const hasMountPermission = ref(false);
-const hasPermission = ref(false);
+// 从Store获取权限状态的计算属性
+const isAdmin = computed(() => authStore.isAdmin);
+const hasApiKey = computed(() => authStore.authType === "apikey" && !!authStore.apiKey);
+const hasFilePermission = computed(() => authStore.hasFilePermission);
+const hasMountPermission = computed(() => authStore.hasMountPermission);
+const hasPermission = computed(() => authStore.hasMountPermission);
+
+// 判断是否为已登录但无挂载权限的API密钥用户
+const isApiKeyUserWithoutPermission = computed(() => {
+  return authStore.isAuthenticated && authStore.authType === "apikey" && !authStore.hasMountPermission;
+});
 
 // API密钥信息
-const apiKeyInfo = ref(null);
+const apiKeyInfo = computed(() => authStore.apiKeyInfo);
 
 // 计算当前路径是否有权限
 const hasPermissionForCurrentPath = computed(() => {
   if (isAdmin.value) {
     return true; // 管理员总是有权限
   }
-
-  if (!apiKeyInfo.value) {
-    return true; // 如果没有API密钥信息，默认有权限
-  }
-
-  const basicPath = apiKeyInfo.value.basic_path || "/";
-  const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
 
   // 从当前路由获取路径
   const currentRoute = router.currentRoute.value;
@@ -74,64 +93,11 @@ const hasPermissionForCurrentPath = computed(() => {
   }
   const normalizedCurrentPath = currentPath.replace(/\/+$/, "") || "/";
 
-  // 如果基本路径是根路径，允许访问所有路径
-  if (normalizedBasicPath === "/") {
-    return true;
-  }
-
-  // 只有当前路径是基本路径或其子路径时才有权限
-  return normalizedCurrentPath === normalizedBasicPath || normalizedCurrentPath.startsWith(normalizedBasicPath + "/");
+  // 使用认证Store的路径权限检查方法
+  return authStore.hasPathPermission(normalizedCurrentPath);
 });
 
-// 检查权限
-const checkPermissions = () => {
-  // 获取管理员token或API密钥
-  const adminToken = localStorage.getItem("admin_token");
-  const apiKey = localStorage.getItem("api_key");
-
-  // 重置apiKeyInfo
-  apiKeyInfo.value = null;
-
-  // 检查API密钥权限
-  let filePermission = false;
-  let mountPermission = false; // 挂载权限变量
-  if (apiKey) {
-    try {
-      const permissionsStr = localStorage.getItem("api_key_permissions");
-      const keyInfoStr = localStorage.getItem("api_key_info");
-
-      if (permissionsStr) {
-        const permissions = JSON.parse(permissionsStr);
-        filePermission = !!permissions.file;
-        mountPermission = !!permissions.mount; // 获取挂载权限
-      }
-
-      if (keyInfoStr) {
-        apiKeyInfo.value = JSON.parse(keyInfoStr);
-      }
-    } catch (e) {
-      console.error("解析API密钥权限失败:", e);
-    }
-  }
-
-  // 更新权限状态
-  isAdmin.value = !!adminToken;
-  hasApiKey.value = !!apiKey;
-  hasFilePermission.value = filePermission;
-  hasMountPermission.value = mountPermission; // 设置挂载权限状态
-
-  // 管理员或有挂载权限的API密钥用户可以访问挂载浏览页
-  hasPermission.value = isAdmin.value || (hasApiKey.value && hasMountPermission.value);
-
-  console.log("权限状态:", {
-    isAdmin: isAdmin.value,
-    hasApiKey: hasApiKey.value,
-    hasFilePermission: hasFilePermission.value,
-    hasMountPermission: hasMountPermission.value, // 挂载权限日志
-    hasPermission: hasPermission.value,
-    apiKeyInfo: apiKeyInfo.value,
-  });
-};
+// 权限检查逻辑已移至认证Store
 
 // 导航到管理页面
 const navigateToAdmin = () => {
@@ -142,32 +108,42 @@ const navigateToAdmin = () => {
 
 // 提供数据给子组件
 provide(
-    "darkMode",
-    computed(() => props.darkMode)
+  "darkMode",
+  computed(() => props.darkMode)
 );
 provide("isAdmin", isAdmin);
 provide("apiKeyInfo", apiKeyInfo);
 provide("hasPermissionForCurrentPath", hasPermissionForCurrentPath);
 
-// 添加全局事件监听
-const setupEventListeners = () => {
-  // 监听管理员令牌过期
-  window.addEventListener("admin-token-expired", () => {
-    checkPermissions();
-  });
+// 处理认证状态变化
+const handleAuthStateChange = (event) => {
+  console.log("MountExplorer: 认证状态变化", event.detail);
+  // 权限状态会自动更新，这里只需要记录日志
 };
 
-// 监听权限状态变化
-watch([isAdmin, hasApiKey, hasMountPermission], () => {
-  hasPermission.value = isAdmin.value || (hasApiKey.value && hasMountPermission.value);
+// 组件挂载时执行
+onMounted(async () => {
+  // 如果需要重新验证，则进行验证
+  if (authStore.needsRevalidation) {
+    console.log("MountExplorer: 需要重新验证认证状态");
+    await authStore.validateAuth();
+  }
+
+  // 监听认证状态变化事件
+  window.addEventListener("auth-state-changed", handleAuthStateChange);
+
+  console.log("MountExplorer权限状态:", {
+    isAdmin: isAdmin.value,
+    hasApiKey: hasApiKey.value,
+    hasFilePermission: hasFilePermission.value,
+    hasMountPermission: hasMountPermission.value,
+    hasPermission: hasPermission.value,
+    apiKeyInfo: apiKeyInfo.value,
+  });
 });
 
-// 组件挂载时执行
-onMounted(() => {
-  // 检查权限
-  checkPermissions();
-
-  // 设置事件监听
-  setupEventListeners();
+// 组件卸载时清理
+onBeforeUnmount(() => {
+  window.removeEventListener("auth-state-changed", handleAuthStateChange);
 });
 </script>

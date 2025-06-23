@@ -258,16 +258,16 @@ onBeforeUnmount(() => {
         <div class="flex flex-wrap gap-2">
           <!-- 刷新按钮 -->
           <button
-              @click="loadApiKeys"
-              class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-all duration-200 ease-in-out"
-              :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'"
+            @click="loadApiKeys"
+            class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-all duration-200 ease-in-out"
+            :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
             <span class="hidden xs:inline">{{ $t("admin.keyManagement.refresh") }}</span>
@@ -275,10 +275,10 @@ onBeforeUnmount(() => {
 
           <!-- 批量删除按钮 -->
           <button
-              @click="deleteSelectedKeys"
-              :disabled="selectedKeys.length === 0"
-              class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-all duration-200 ease-in-out"
-              :class="[
+            @click="deleteSelectedKeys"
+            :disabled="selectedKeys.length === 0"
+            class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-all duration-200 ease-in-out"
+            :class="[
               selectedKeys.length === 0
                 ? 'opacity-50 cursor-not-allowed bg-gray-400 dark:bg-gray-600'
                 : darkMode
@@ -288,10 +288,10 @@ onBeforeUnmount(() => {
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
               />
             </svg>
             <span class="hidden xs:inline">{{ $t("admin.keyManagement.bulkDelete") }}{{ selectedKeys.length ? `(${selectedKeys.length})` : "" }}</span>
@@ -300,9 +300,9 @@ onBeforeUnmount(() => {
 
           <!-- 创建新密钥按钮 -->
           <button
-              @click="openCreateModal"
-              class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-all duration-200 ease-in-out"
-              :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
+            @click="openCreateModal"
+            class="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-all duration-200 ease-in-out"
+            :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -326,15 +326,15 @@ onBeforeUnmount(() => {
 
     <!-- 成功/错误消息 -->
     <div
-        v-if="successMessage"
-        class="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
+      v-if="successMessage"
+      class="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
     >
       {{ successMessage }}
     </div>
 
     <div
-        v-if="error"
-        class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
+      v-if="error"
+      class="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 px-3 sm:px-4 py-2 sm:py-3 rounded mb-3 sm:mb-4 text-sm sm:text-base"
     >
       {{ error }}
     </div>
@@ -342,17 +342,17 @@ onBeforeUnmount(() => {
     <!-- 密钥列表 -->
     <div class="overflow-hidden bg-white dark:bg-gray-800 shadow-md rounded-lg">
       <KeyTable
-          ref="keyTableRef"
-          :dark-mode="darkMode"
-          :api-keys="currentPageKeys"
-          :is-loading="isLoading"
-          :available-mounts="availableMounts"
-          :is-mobile="isMobile"
-          @refresh="loadApiKeys"
-          @edit="openEditModal"
-          @success="handleSuccess"
-          @error="handleError"
-          @selected-keys-change="handleSelectedKeysChange"
+        ref="keyTableRef"
+        :dark-mode="darkMode"
+        :api-keys="currentPageKeys"
+        :is-loading="isLoading"
+        :available-mounts="availableMounts"
+        :is-mobile="isMobile"
+        @refresh="loadApiKeys"
+        @edit="openEditModal"
+        @success="handleSuccess"
+        @error="handleError"
+        @selected-keys-change="handleSelectedKeysChange"
       />
     </div>
 
@@ -364,38 +364,38 @@ onBeforeUnmount(() => {
     <!-- 模态框 -->
     <!-- 创建密钥模态框 -->
     <div
-        v-if="showCreateModal"
-        class="fixed inset-0 z-[60] overflow-y-auto flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4"
-        :class="darkMode ? 'bg-gray-900/75' : 'bg-black/50'"
-        @click="showCreateModal = false"
+      v-if="showCreateModal"
+      class="fixed inset-0 z-[60] overflow-y-auto flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4"
+      :class="darkMode ? 'bg-gray-900/75' : 'bg-black/50'"
+      @click="showCreateModal = false"
     >
       <KeyForm
-          ref="keyFormRef"
-          :dark-mode="darkMode"
-          :available-mounts="availableMounts"
-          :is-edit-mode="false"
-          @close="showCreateModal = false"
-          @created="handleKeyCreated"
-          @click.stop
+        ref="keyFormRef"
+        :dark-mode="darkMode"
+        :available-mounts="availableMounts"
+        :is-edit-mode="false"
+        @close="showCreateModal = false"
+        @created="handleKeyCreated"
+        @click.stop
       />
     </div>
 
     <!-- 编辑密钥模态框 -->
     <div
-        v-if="showEditModal"
-        class="fixed inset-0 z-[60] overflow-y-auto flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4"
-        :class="darkMode ? 'bg-gray-900/75' : 'bg-black/50'"
-        @click="showEditModal = false"
+      v-if="showEditModal"
+      class="fixed inset-0 z-[60] overflow-y-auto flex items-center justify-center p-2 sm:p-4 pt-20 sm:pt-4"
+      :class="darkMode ? 'bg-gray-900/75' : 'bg-black/50'"
+      @click="showEditModal = false"
     >
       <KeyForm
-          ref="keyFormRef"
-          :dark-mode="darkMode"
-          :key-data="editingKey"
-          :available-mounts="availableMounts"
-          :is-edit-mode="true"
-          @close="showEditModal = false"
-          @updated="handleKeyUpdated"
-          @click.stop
+        ref="keyFormRef"
+        :dark-mode="darkMode"
+        :key-data="editingKey"
+        :available-mounts="availableMounts"
+        :is-edit-mode="true"
+        @close="showEditModal = false"
+        @updated="handleKeyUpdated"
+        @click.stop
       />
     </div>
   </div>

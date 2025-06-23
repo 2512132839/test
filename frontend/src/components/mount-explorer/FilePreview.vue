@@ -10,9 +10,9 @@
         <div class="flex flex-wrap gap-2">
           <!-- 下载按钮 -->
           <button
-              @click="handleDownload"
-              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-              :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
+            @click="handleDownload"
+            class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+            :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
           >
             <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -22,26 +22,26 @@
 
           <!-- S3直链预览按钮 -->
           <button
-              @click="handleS3DirectPreview"
-              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-              :class="darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'"
-              :disabled="isGeneratingPreview"
+            @click="handleS3DirectPreview"
+            class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+            :class="darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'"
+            :disabled="isGeneratingPreview"
           >
             <svg v-if="!isGeneratingPreview" class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
               />
             </svg>
             <svg v-else class="animate-spin w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
             <span>{{ isGeneratingPreview ? t("mount.filePreview.generating") : t("mount.filePreview.directPreview") }}</span>
@@ -72,42 +72,42 @@
             <div class="relative inline-block text-left">
               <div>
                 <button
-                    @click="toggleModeDropdown"
-                    type="button"
-                    class="inline-flex justify-between items-center w-32 rounded-md border shadow-sm px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
-                    :class="
+                  @click="toggleModeDropdown"
+                  type="button"
+                  class="inline-flex justify-between items-center w-32 rounded-md border shadow-sm px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+                  :class="
                     darkMode
                       ? 'bg-gray-700 text-gray-200 border-gray-600 hover:bg-gray-600 focus:ring-primary-500 focus:ring-offset-gray-800'
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 focus:ring-primary-500 focus:ring-offset-white'
                   "
-                    id="menu-button"
-                    aria-expanded="true"
-                    aria-haspopup="true"
+                  id="menu-button"
+                  aria-expanded="true"
+                  aria-haspopup="true"
                 >
                   {{ isEditMode ? t("mount.filePreview.editMode") : t("mount.filePreview.previewMode") }}
                   <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path
-                        fill-rule="evenodd"
-                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                        clip-rule="evenodd"
+                      fill-rule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clip-rule="evenodd"
                     />
                   </svg>
                 </button>
               </div>
               <div
-                  v-if="showModeDropdown"
-                  class="origin-top-right absolute left-0 mt-2 w-32 rounded-md shadow-lg focus:outline-none z-50"
-                  :class="darkMode ? 'bg-gray-700 ring-1 ring-gray-600 shadow-gray-900' : 'bg-white ring-1 ring-black ring-opacity-5'"
-                  role="menu"
-                  aria-orientation="vertical"
-                  aria-labelledby="menu-button"
-                  tabindex="-1"
+                v-if="showModeDropdown"
+                class="origin-top-right absolute left-0 mt-2 w-32 rounded-md shadow-lg focus:outline-none z-50"
+                :class="darkMode ? 'bg-gray-700 ring-1 ring-gray-600 shadow-gray-900' : 'bg-white ring-1 ring-black ring-opacity-5'"
+                role="menu"
+                aria-orientation="vertical"
+                aria-labelledby="menu-button"
+                tabindex="-1"
               >
                 <div class="py-1" role="none">
                   <button
-                      @click="selectMode('preview')"
-                      class="block w-full text-left px-4 py-2 text-sm transition-colors"
-                      :class="[
+                    @click="selectMode('preview')"
+                    class="block w-full text-left px-4 py-2 text-sm transition-colors"
+                    :class="[
                       !isEditMode
                         ? darkMode
                           ? 'bg-gray-600 text-gray-100'
@@ -116,15 +116,15 @@
                         ? 'text-gray-200 hover:bg-gray-600 hover:text-gray-100'
                         : 'text-gray-700 hover:bg-gray-100',
                     ]"
-                      role="menuitem"
-                      tabindex="-1"
+                    role="menuitem"
+                    tabindex="-1"
                   >
                     {{ t("mount.filePreview.previewMode") }}
                   </button>
                   <button
-                      @click="selectMode('edit')"
-                      class="block w-full text-left px-4 py-2 text-sm transition-colors"
-                      :class="[
+                    @click="selectMode('edit')"
+                    class="block w-full text-left px-4 py-2 text-sm transition-colors"
+                    :class="[
                       isEditMode
                         ? darkMode
                           ? 'bg-gray-600 text-gray-100'
@@ -133,8 +133,8 @@
                         ? 'text-gray-200 hover:bg-gray-600 hover:text-gray-100'
                         : 'text-gray-700 hover:bg-gray-100',
                     ]"
-                      role="menuitem"
-                      tabindex="-1"
+                    role="menuitem"
+                    tabindex="-1"
                   >
                     {{ t("mount.filePreview.editMode") }}
                   </button>
@@ -146,10 +146,10 @@
           <!-- 仅在编辑模式下显示保存和取消按钮 -->
           <div v-if="isEditMode" class="flex space-x-2">
             <button
-                @click="saveContent"
-                class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-                :class="darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'"
-                :disabled="isSaving"
+              @click="saveContent"
+              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+              :class="darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'"
+              :disabled="isSaving"
             >
               <svg v-if="!isSaving" class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -157,18 +157,18 @@
               <svg v-else class="animate-spin w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
               <span>{{ isSaving ? t("mount.filePreview.saving") : t("mount.filePreview.save") }}</span>
             </button>
             <button
-                @click="cancelEdit"
-                class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-                :class="darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-500 hover:bg-gray-600 text-white'"
-                :disabled="isSaving"
+              @click="cancelEdit"
+              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+              :class="darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-500 hover:bg-gray-600 text-white'"
+              :disabled="isSaving"
             >
               <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -189,12 +189,12 @@
         <!-- 图片预览 -->
         <div v-else-if="isImage" class="image-preview flex justify-center items-center p-4">
           <img
-              v-if="authenticatedPreviewUrl"
-              :src="authenticatedPreviewUrl"
-              :alt="file.name"
-              class="max-w-full max-h-[500px] object-contain"
-              @load="handleContentLoaded"
-              @error="handleContentError"
+            v-if="authenticatedPreviewUrl"
+            :src="authenticatedPreviewUrl"
+            :alt="file.name"
+            class="max-w-full max-h-[500px] object-contain"
+            @load="handleContentLoaded"
+            @error="handleContentError"
           />
           <div v-else class="loading-indicator text-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -226,12 +226,12 @@
         <!-- PDF预览 -->
         <div v-else-if="isPdf" class="pdf-preview h-[500px]">
           <iframe
-              v-if="authenticatedPreviewUrl"
-              :src="authenticatedPreviewUrl"
-              frameborder="0"
-              class="w-full h-full"
-              @load="handleContentLoaded"
-              @error="handleContentError"
+            v-if="authenticatedPreviewUrl"
+            :src="authenticatedPreviewUrl"
+            frameborder="0"
+            class="w-full h-full"
+            @load="handleContentLoaded"
+            @error="handleContentError"
           ></iframe>
           <div v-else class="loading-indicator text-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -247,15 +247,15 @@
             </span>
             <div class="flex items-center space-x-2">
               <button
-                  @click="toggleOfficeFullscreen"
-                  class="text-xs px-2 py-1 rounded flex items-center bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                @click="toggleOfficeFullscreen"
+                class="text-xs px-2 py-1 rounded flex items-center bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
               >
                 <svg v-if="!isOfficeFullscreen" class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
                   />
                 </svg>
                 <svg v-else class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -264,8 +264,8 @@
                 <span>{{ isOfficeFullscreen ? t("mount.filePreview.exitFullscreen") : t("mount.filePreview.fullscreen") }}</span>
               </button>
               <button
-                  @click="toggleOfficePreviewService"
-                  class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-700 text-blue-700 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600 transition-colors"
+                @click="toggleOfficePreviewService"
+                class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-700 text-blue-700 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600 transition-colors"
               >
                 {{ useGoogleDocsPreview ? t("mount.filePreview.useMicrosoftPreview") : t("mount.filePreview.useGooglePreview") }}
               </button>
@@ -281,25 +281,25 @@
           <!-- 错误状态 -->
           <div v-else-if="officePreviewError" class="flex flex-col items-center justify-center h-full p-4">
             <svg
-                class="w-16 h-16 mb-4"
-                :class="darkMode ? 'text-red-400' : 'text-red-500'"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+              class="w-16 h-16 mb-4"
+              :class="darkMode ? 'text-red-400' : 'text-red-500'"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
             <p class="text-center mb-4" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ officePreviewError }}</p>
             <button
-                @click="updateOfficePreviewUrls"
-                class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
-                :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
+              @click="updateOfficePreviewUrls"
+              class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors"
+              :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-500 hover:bg-primary-600 text-white'"
             >
               {{ t("mount.filePreview.retry") }}
             </button>
@@ -308,13 +308,13 @@
           <!-- 预览内容 -->
           <div v-else-if="currentOfficePreviewUrl" class="w-full h-full">
             <iframe
-                :src="currentOfficePreviewUrl"
-                frameborder="0"
-                class="w-full h-full"
-                @load="handleOfficePreviewLoaded"
-                @error="handleOfficePreviewError"
-                sandbox="allow-scripts allow-same-origin allow-forms"
-                referrerpolicy="no-referrer"
+              :src="currentOfficePreviewUrl"
+              frameborder="0"
+              class="w-full h-full"
+              @load="handleOfficePreviewLoaded"
+              @error="handleOfficePreviewError"
+              sandbox="allow-scripts allow-same-origin allow-forms"
+              referrerpolicy="no-referrer"
             ></iframe>
           </div>
         </div>
@@ -323,10 +323,10 @@
         <div v-else-if="isMarkdown" class="markdown-preview p-4 overflow-auto max-h-[500px]">
           <div v-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
-                v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
-                :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
-                spellcheck="false"
+              v-model="editContent"
+              class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+              :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
+              spellcheck="false"
             ></textarea>
           </div>
           <div v-else>
@@ -338,10 +338,10 @@
         <div v-else-if="isHtml" ref="htmlPreviewRef" class="html-preview overflow-auto max-h-[500px]">
           <div v-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
-                v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
-                :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
-                spellcheck="false"
+              v-model="editContent"
+              class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+              :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
+              spellcheck="false"
             ></textarea>
           </div>
           <div v-else>
@@ -350,15 +350,15 @@
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("mount.filePreview.htmlPreview") }}</span>
               <div class="flex items-center">
                 <button
-                    @click="toggleHtmlFullscreen"
-                    class="text-xs px-2 py-1 rounded flex items-center bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                  @click="toggleHtmlFullscreen"
+                  class="text-xs px-2 py-1 rounded flex items-center bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
                 >
                   <svg v-if="!isHtmlFullscreen" class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
                     />
                   </svg>
                   <svg v-else class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -379,10 +379,10 @@
         <div v-else-if="isCode" class="code-preview p-4 overflow-auto max-h-[500px]">
           <div v-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
-                v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
-                :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
-                spellcheck="false"
+              v-model="editContent"
+              class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+              :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
+              spellcheck="false"
             ></textarea>
           </div>
           <div v-else>
@@ -390,9 +390,9 @@
               <span class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
                 {{ t("mount.filePreview.language") }} {{ codeLanguage || t("mount.filePreview.autoDetect") }}
                 <span
-                    v-if="fileTypeInfo.value && fileTypeInfo.value.category === 'config'"
-                    class="ml-2 px-2 py-0.5 text-xs rounded-full"
-                    :class="darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'"
+                  v-if="fileTypeInfo.value && fileTypeInfo.value.category === 'config'"
+                  class="ml-2 px-2 py-0.5 text-xs rounded-full"
+                  :class="darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'"
                 >
                   {{ t("mount.filePreview.configFile") }}
                 </span>
@@ -409,10 +409,10 @@
           </div>
           <div v-else-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
-                v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
-                :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
-                spellcheck="false"
+              v-model="editContent"
+              class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+              :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
+              spellcheck="false"
             ></textarea>
           </div>
           <p v-else class="whitespace-pre-wrap" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ textContent }}</p>
@@ -421,18 +421,18 @@
         <!-- 其他文件类型或错误状态 -->
         <div v-else-if="loadError" class="generic-preview text-center py-12">
           <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-20 w-20 mx-auto mb-4"
-              :class="darkMode ? 'text-red-400' : 'text-red-500'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-20 w-20 mx-auto mb-4"
+            :class="darkMode ? 'text-red-400' : 'text-red-500'"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
             />
           </svg>
           <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-red-300' : 'text-red-700'">{{ t("mount.filePreview.previewError") }}</p>
@@ -442,18 +442,18 @@
         <!-- 不支持预览的文件类型 -->
         <div v-else class="generic-preview text-center py-12">
           <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-20 w-20 mx-auto mb-4"
-              :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-20 w-20 mx-auto mb-4"
+            :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
             />
           </svg>
           <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.cannotPreview") }}</p>
@@ -604,27 +604,27 @@ const toggleFullscreen = (elementRef, isFullscreenState, onEnter, onExit) => {
     // 进入全屏
     if (elementRef.value && document.fullscreenEnabled) {
       elementRef.value
-          .requestFullscreen()
-          .then(() => {
-            isFullscreenState.value = true;
-            if (onEnter) onEnter();
-          })
-          .catch((err) => {
-            console.error("全屏请求失败:", err);
-          });
+        .requestFullscreen()
+        .then(() => {
+          isFullscreenState.value = true;
+          if (onEnter) onEnter();
+        })
+        .catch((err) => {
+          console.error("全屏请求失败:", err);
+        });
     }
   } else {
     // 退出全屏
     if (document.fullscreenElement) {
       document
-          .exitFullscreen()
-          .then(() => {
-            isFullscreenState.value = false;
-            if (onExit) onExit();
-          })
-          .catch((err) => {
-            console.error("退出全屏失败:", err);
-          });
+        .exitFullscreen()
+        .then(() => {
+          isFullscreenState.value = false;
+          if (onExit) onExit();
+        })
+        .catch((err) => {
+          console.error("退出全屏失败:", err);
+        });
     }
   }
 };
@@ -632,55 +632,55 @@ const toggleFullscreen = (elementRef, isFullscreenState, onEnter, onExit) => {
 // 切换Office预览全屏状态
 const toggleOfficeFullscreen = () => {
   toggleFullscreen(
-      officePreviewRef,
-      isOfficeFullscreen,
-      () => {
-        // 在全屏模式下调整iframe高度
-        nextTick(() => {
-          const iframe = officePreviewRef.value.querySelector("iframe");
-          const controlBar = officePreviewRef.value.querySelector(".sticky");
-          if (iframe && controlBar) {
-            const controlBarHeight = controlBar.offsetHeight;
-            iframe.style.height = `calc(100vh - ${controlBarHeight}px)`;
-          }
-        });
-      },
-      () => {
-        // 恢复原始高度
-        nextTick(() => {
-          const iframe = officePreviewRef.value.querySelector("iframe");
-          if (iframe) {
-            iframe.style.height = "100%";
-          }
-        });
-      }
+    officePreviewRef,
+    isOfficeFullscreen,
+    () => {
+      // 在全屏模式下调整iframe高度
+      nextTick(() => {
+        const iframe = officePreviewRef.value.querySelector("iframe");
+        const controlBar = officePreviewRef.value.querySelector(".sticky");
+        if (iframe && controlBar) {
+          const controlBarHeight = controlBar.offsetHeight;
+          iframe.style.height = `calc(100vh - ${controlBarHeight}px)`;
+        }
+      });
+    },
+    () => {
+      // 恢复原始高度
+      nextTick(() => {
+        const iframe = officePreviewRef.value.querySelector("iframe");
+        if (iframe) {
+          iframe.style.height = "100%";
+        }
+      });
+    }
   );
 };
 
 // 切换HTML预览全屏状态
 const toggleHtmlFullscreen = () => {
   toggleFullscreen(
-      htmlPreviewRef,
-      isHtmlFullscreen,
-      () => {
-        // 在全屏模式下调整iframe高度
-        nextTick(() => {
-          const iframe = htmlIframe.value;
-          const controlBar = htmlPreviewRef.value.querySelector(".sticky");
-          if (iframe && controlBar) {
-            const controlBarHeight = controlBar.offsetHeight;
-            iframe.style.height = `calc(100vh - ${controlBarHeight}px - 2rem)`;
-          }
-        });
-      },
-      () => {
-        // 恢复原始高度
-        nextTick(() => {
-          if (htmlIframe.value) {
-            htmlIframe.value.style.height = "";
-          }
-        });
-      }
+    htmlPreviewRef,
+    isHtmlFullscreen,
+    () => {
+      // 在全屏模式下调整iframe高度
+      nextTick(() => {
+        const iframe = htmlIframe.value;
+        const controlBar = htmlPreviewRef.value.querySelector(".sticky");
+        if (iframe && controlBar) {
+          const controlBarHeight = controlBar.offsetHeight;
+          iframe.style.height = `calc(100vh - ${controlBarHeight}px - 2rem)`;
+        }
+      });
+    },
+    () => {
+      // 恢复原始高度
+      nextTick(() => {
+        if (htmlIframe.value) {
+          htmlIframe.value.style.height = "";
+        }
+      });
+    }
   );
 };
 
@@ -836,8 +836,8 @@ const isWordDoc = computed(() => isOffice.value && fileTypeInfo.value.officeType
 const isExcel = computed(() => isOffice.value && fileTypeInfo.value.officeType === "excel");
 const isPowerPoint = computed(() => isOffice.value && fileTypeInfo.value.officeType === "powerpoint");
 const isText = computed(
-    () =>
-        fileTypeInfo.value && (fileTypeInfo.value.type === "text" || fileTypeInfo.value.type === "markdown" || fileTypeInfo.value.type === "html" || fileTypeInfo.value.type === "code")
+  () =>
+    fileTypeInfo.value && (fileTypeInfo.value.type === "text" || fileTypeInfo.value.type === "markdown" || fileTypeInfo.value.type === "html" || fileTypeInfo.value.type === "code")
 );
 
 // 统一初始化预览内容的函数
@@ -888,7 +888,7 @@ const loadTextContent = async () => {
       console.log("加载文本内容，URL:", previewUrl.value);
       // 使用预览URL并添加认证头信息
       const response = await fetch(previewUrl.value, {
-        headers: getAuthHeaders(),
+        headers: await getAuthHeaders(),
         mode: "cors", // 明确设置跨域模式
         credentials: "include", // 包含凭证（cookies等）
       });
@@ -1041,7 +1041,7 @@ const startPreviewLoadTimeout = () => {
 
     // 设置超时错误信息
     officePreviewError.value = `${currentService}预览加载超时，${
-        officePreviewConfig.value.enableAutoFailover ? `将尝试使用${alternateService}预览` : "请尝试切换预览服务或下载文件后查看"
+      officePreviewConfig.value.enableAutoFailover ? `将尝试使用${alternateService}预览` : "请尝试切换预览服务或下载文件后查看"
     }。`;
 
     officePreviewTimedOut.value = true;
@@ -1102,7 +1102,7 @@ const handleOfficePreviewError = (error) => {
 
   // 设置错误信息
   officePreviewError.value = `使用${currentService}预览失败，${
-      officePreviewConfig.value.enableAutoFailover ? `将尝试使用${alternateService}预览` : "请尝试切换预览服务或下载文件后查看"
+    officePreviewConfig.value.enableAutoFailover ? `将尝试使用${alternateService}预览` : "请尝试切换预览服务或下载文件后查看"
   }。`;
 
   // 如果启用了自动故障转移，并且当前不是超时状态，则切换预览服务
@@ -1283,55 +1283,56 @@ const highlightAndFormatCode = () => {
 
 // 监听文件变更，重置状态
 watch(
-    () => props.file,
-    (newFile) => {
-      // 重置所有状态
-      textContent.value = "";
-      loadError.value = false;
-      authenticatedPreviewUrl.value = null;
-      highlightedContent.value = "";
-      codeLanguage.value = "";
-      isMarkdownRendered.value = false;
+  () => props.file,
+  (newFile) => {
+    // 重置所有状态
+    textContent.value = "";
+    loadError.value = false;
+    authenticatedPreviewUrl.value = null;
+    highlightedContent.value = "";
+    codeLanguage.value = "";
+    isMarkdownRendered.value = false;
 
-      // 重置Office预览状态
-      microsoftOfficePreviewUrl.value = "";
-      googleDocsPreviewUrl.value = "";
-      officePreviewLoading.value = false;
-      officePreviewError.value = "";
-      officePreviewTimedOut.value = false;
-      clearPreviewLoadTimeout();
+    // 重置Office预览状态
+    microsoftOfficePreviewUrl.value = "";
+    googleDocsPreviewUrl.value = "";
+    officePreviewLoading.value = false;
+    officePreviewError.value = "";
+    officePreviewTimedOut.value = false;
+    clearPreviewLoadTimeout();
 
-      // 只有当文件存在时才初始化预览
-      if (newFile) {
-        // 对于文本文件，先设置加载状态，然后加载内容
-        if (isText.value) {
-          isTextLoading.value = true;
-          loadTextContent();
-        } else {
-          isTextLoading.value = false;
-        }
-
-        // 如果文件是图片、视频、音频或PDF类型，则获取认证预览URL
-        if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
-          fetchAuthenticatedUrl();
-        }
-
-        // 如果是Office文件，更新Office预览URL
-        if (isOffice.value) {
-          updateOfficePreviewUrls();
-        }
+    // 只有当文件存在时才初始化预览
+    if (newFile) {
+      // 对于文本文件，先设置加载状态，然后加载内容
+      if (isText.value) {
+        isTextLoading.value = true;
+        loadTextContent();
       } else {
         isTextLoading.value = false;
       }
+
+      // 如果文件是图片、视频、音频或PDF类型，则获取认证预览URL
+      if (isImage.value || isVideo.value || isAudio.value || isPdf.value) {
+        fetchAuthenticatedUrl();
+      }
+
+      // 如果是Office文件，更新Office预览URL
+      if (isOffice.value) {
+        updateOfficePreviewUrls();
+      }
+    } else {
+      isTextLoading.value = false;
     }
+  },
+  { immediate: true }
 );
 
 // 监听暗色模式变化
 watch(
-    () => props.darkMode,
-    () => {
-      reinitializePreviewOnThemeChange();
-    }
+  () => props.darkMode,
+  () => {
+    reinitializePreviewOnThemeChange();
+  }
 );
 
 // 内容加载成功处理

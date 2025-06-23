@@ -161,25 +161,25 @@ const updateDeviceWidth = () => {
 
 // 监听菜单项变化，确保当前选择的菜单项在可见菜单中
 watch(
-    visibleMenuItems,
-    (newMenuItems) => {
-      const menuExists = newMenuItems.some((item) => item.id === activeMenu.value);
-      if (!menuExists && newMenuItems.length > 0) {
-        activeMenu.value = newMenuItems[0].id;
-      }
-    },
-    { immediate: true }
+  visibleMenuItems,
+  (newMenuItems) => {
+    const menuExists = newMenuItems.some((item) => item.id === activeMenu.value);
+    if (!menuExists && newMenuItems.length > 0) {
+      activeMenu.value = newMenuItems[0].id;
+    }
+  },
+  { immediate: true }
 );
 
 // 监听 props.activeModule 变化
 watch(
-    () => props.activeModule,
-    (newModule) => {
-      if (newModule && newModule !== activeMenu.value) {
-        activeMenu.value = newModule;
-      }
-    },
-    { immediate: true }
+  () => props.activeModule,
+  (newModule) => {
+    if (newModule && newModule !== activeMenu.value) {
+      activeMenu.value = newModule;
+    }
+  },
+  { immediate: true }
 );
 
 // 组件挂载时添加监听器
@@ -215,10 +215,10 @@ onUnmounted(() => {
           <div class="flex-1 flex flex-col overflow-y-auto pt-4">
             <nav class="flex-1 px-4 space-y-2">
               <a
-                  v-for="item in visibleMenuItems"
-                  :key="item.id"
-                  @click="selectMenuItem(item.id)"
-                  :class="[
+                v-for="item in visibleMenuItems"
+                :key="item.id"
+                @click="selectMenuItem(item.id)"
+                :class="[
                   activeMenu === item.id
                     ? darkMode
                       ? 'bg-gray-900 text-white'
@@ -230,13 +230,13 @@ onUnmounted(() => {
                 ]"
               >
                 <svg
-                    class="mr-3 flex-shrink-0 h-6 w-6"
-                    :class="activeMenu === item.id ? 'text-primary-500' : darkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-500'"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
+                  class="mr-3 flex-shrink-0 h-6 w-6"
+                  :class="activeMenu === item.id ? 'text-primary-500' : darkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-500'"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
                 >
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(item.icon)" />
                 </svg>
@@ -246,20 +246,20 @@ onUnmounted(() => {
               <!-- 退出登录按钮 -->
               <div class="pt-4 mt-4 border-t" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
                 <a
-                    @click="handleLogout"
-                    :class="[
+                  @click="handleLogout"
+                  :class="[
                     darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                     'group flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer',
                   ]"
                 >
                   <svg
-                      class="mr-3 flex-shrink-0 h-6 w-6"
-                      :class="darkMode ? 'text-gray-400' : 'text-gray-400'"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      aria-hidden="true"
+                    class="mr-3 flex-shrink-0 h-6 w-6"
+                    :class="darkMode ? 'text-gray-400' : 'text-gray-400'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden="true"
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath('logout')" />
                   </svg>
@@ -278,10 +278,10 @@ onUnmounted(() => {
         <div class="md:hidden sticky top-0 z-40 border-b h-14 shadow-sm" :class="darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
           <div class="flex items-center h-full px-3">
             <button
-                type="button"
-                @click="toggleMobileSidebar"
-                class="h-10 w-10 inline-flex items-center justify-center rounded-md focus:outline-none"
-                :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-900'"
+              type="button"
+              @click="toggleMobileSidebar"
+              class="h-10 w-10 inline-flex items-center justify-center rounded-md focus:outline-none"
+              :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-900'"
             >
               <span class="sr-only">{{ isMobileSidebarOpen ? $t("admin.sidebar.closeMenu") : $t("admin.sidebar.openMenu") }}</span>
               <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -302,8 +302,8 @@ onUnmounted(() => {
 
             <!-- 侧边栏内容 -->
             <div
-                class="relative flex-1 flex flex-col w-full max-w-xs shadow-xl transform transition-transform ease-in-out duration-300"
-                :class="darkMode ? 'bg-gray-800' : 'bg-white'"
+              class="relative flex-1 flex flex-col w-full max-w-xs shadow-xl transform transition-transform ease-in-out duration-300"
+              :class="darkMode ? 'bg-gray-800' : 'bg-white'"
             >
               <!-- 移动端侧边栏标题和关闭按钮 -->
               <div class="flex items-center justify-between p-3 h-14 border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
@@ -311,10 +311,10 @@ onUnmounted(() => {
                   {{ loginType === "admin" ? $t("admin.sidebar.menuTitle.admin") : $t("admin.sidebar.menuTitle.user") }}
                 </h1>
                 <button
-                    type="button"
-                    @click="toggleMobileSidebar"
-                    class="h-10 w-10 inline-flex items-center justify-center rounded-md focus:outline-none"
-                    :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-900'"
+                  type="button"
+                  @click="toggleMobileSidebar"
+                  class="h-10 w-10 inline-flex items-center justify-center rounded-md focus:outline-none"
+                  :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-900'"
                 >
                   <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -326,13 +326,13 @@ onUnmounted(() => {
               <div class="flex-1 overflow-y-auto">
                 <nav class="px-4 pt-4 space-y-2">
                   <a
-                      v-for="item in visibleMenuItems"
-                      :key="item.id"
-                      @click="
+                    v-for="item in visibleMenuItems"
+                    :key="item.id"
+                    @click="
                       selectMenuItem(item.id);
                       toggleMobileSidebar();
                     "
-                      :class="[
+                    :class="[
                       activeMenu === item.id
                         ? darkMode
                           ? 'bg-gray-900 text-white'
@@ -344,13 +344,13 @@ onUnmounted(() => {
                     ]"
                   >
                     <svg
-                        class="mr-3 flex-shrink-0 h-6 w-6"
-                        :class="activeMenu === item.id ? 'text-primary-500' : darkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-500'"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        aria-hidden="true"
+                      class="mr-3 flex-shrink-0 h-6 w-6"
+                      :class="activeMenu === item.id ? 'text-primary-500' : darkMode ? 'text-gray-400 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-500'"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(item.icon)" />
                     </svg>
@@ -360,20 +360,20 @@ onUnmounted(() => {
                   <!-- 退出登录按钮 -->
                   <div class="pt-4 mt-4 border-t" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
                     <a
-                        @click="handleLogout"
-                        :class="[
+                      @click="handleLogout"
+                      :class="[
                         darkMode ? 'text-gray-300 hover:bg-gray-700 hover:text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                         'group flex items-center px-3 py-3 text-base font-medium rounded-md cursor-pointer',
                       ]"
                     >
                       <svg
-                          class="mr-3 flex-shrink-0 h-6 w-6"
-                          :class="darkMode ? 'text-gray-400' : 'text-gray-400'"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          aria-hidden="true"
+                        class="mr-3 flex-shrink-0 h-6 w-6"
+                        :class="darkMode ? 'text-gray-400' : 'text-gray-400'"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        aria-hidden="true"
                       >
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath('logout')" />
                       </svg>
@@ -398,23 +398,22 @@ onUnmounted(() => {
               <!-- 当API密钥用户尝试访问Dashboard时显示权限不足提示 -->
               <div v-else-if="activeMenu === 'dashboard'" class="p-6 flex-1 flex flex-col items-center justify-center text-center">
                 <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-16 w-16 mb-4"
-                    :class="darkMode ? 'text-gray-600' : 'text-gray-400'"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-16 w-16 mb-4"
+                  :class="darkMode ? 'text-gray-600' : 'text-gray-400'"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
                   <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                   />
                 </svg>
-                <h3 class="text-xl font-semibold mb-2" :class="darkMode ? 'text-white' : 'text-gray-800'">{{ $t("admin.permissionDenied.title") }}</h3>
-                <p class="text-base mb-4" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">{{ $t("admin.permissionDenied.message") }}</p>
-                <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ $t("admin.permissionDenied.suggestion") }}</p>
+                <h3 class="text-xl font-semibold mb-2" :class="darkMode ? 'text-white' : 'text-gray-800'">{{ $t("common.permissionDenied") }}</h3>
+                <p class="text-base mb-4" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">{{ $t("common.noPermission") }}</p>
               </div>
 
               <div v-else-if="activeMenu === 'text-management'" class="flex-1 flex flex-col">

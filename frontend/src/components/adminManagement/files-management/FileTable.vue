@@ -3,218 +3,218 @@
     <!-- 桌面表格视图 -->
     <table class="min-w-full divide-y hidden sm:table" :class="darkMode ? 'divide-gray-700' : 'divide-gray-200'">
       <thead :class="darkMode ? 'bg-gray-800' : 'bg-gray-50'">
-      <tr>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider w-10" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          <div class="flex items-center">
-            <input
+        <tr>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider w-10" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            <div class="flex items-center">
+              <input
                 type="checkbox"
                 :checked="files.length > 0 && selectedFiles.length === files.length"
                 @change="$emit('toggle-select-all')"
                 class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
                 :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
-            />
-          </div>
-        </th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">文件名</th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden md:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          MIME类型
-        </th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden sm:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          大小
-        </th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden xl:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          剩余次数
-        </th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden lg:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          存储配置
-        </th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden lg:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          创建者
-        </th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden sm:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-          创建时间
-        </th>
-        <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">操作</th>
-      </tr>
+              />
+            </div>
+          </th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">文件名</th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden md:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            MIME类型
+          </th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden sm:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            大小
+          </th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden xl:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            剩余次数
+          </th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden lg:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            存储配置
+          </th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden lg:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            创建者
+          </th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider hidden sm:table-cell" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            创建时间
+          </th>
+          <th scope="col" class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">操作</th>
+        </tr>
       </thead>
       <tbody :class="darkMode ? 'bg-gray-900 divide-y divide-gray-700' : 'bg-white divide-y divide-gray-200'">
-      <tr v-if="files.length === 0">
-        <td :class="darkMode ? 'text-gray-400' : 'text-gray-500'" class="px-3 py-4 text-sm" colspan="8">暂无文件数据</td>
-      </tr>
-      <tr v-for="file in files" :key="file.id" :class="darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'">
-        <td class="px-3 py-4 whitespace-nowrap">
-          <div class="flex items-center">
-            <input
+        <tr v-if="files.length === 0">
+          <td :class="darkMode ? 'text-gray-400' : 'text-gray-500'" class="px-3 py-4 text-sm" colspan="8">暂无文件数据</td>
+        </tr>
+        <tr v-for="file in files" :key="file.id" :class="darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'">
+          <td class="px-3 py-4 whitespace-nowrap">
+            <div class="flex items-center">
+              <input
                 type="checkbox"
                 :checked="selectedFiles.includes(file.id)"
                 @change="$emit('toggle-select', file.id)"
                 class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
                 :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
-            />
-          </div>
-        </td>
-        <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4">
-          <div class="flex flex-col">
-            <div class="flex items-center">
-              <span class="font-medium truncate max-w-xs" :title="file.filename">{{ truncateFilename(file.filename) }}</span>
-              <span v-if="file.has_password" class="ml-2" :title="'密码保护'">
+              />
+            </div>
+          </td>
+          <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4">
+            <div class="flex flex-col">
+              <div class="flex items-center">
+                <span class="font-medium truncate max-w-xs" :title="file.filename">{{ truncateFilename(file.filename) }}</span>
+                <span v-if="file.has_password" class="ml-2" :title="'密码保护'">
                   <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-4 w-4"
-                      :class="darkMode ? 'text-yellow-400' : 'text-yellow-600'"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    :class="darkMode ? 'text-yellow-400' : 'text-yellow-600'"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                     />
                   </svg>
                 </span>
-            </div>
-            <span class="text-xs mt-1 truncate max-w-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+              </div>
+              <span class="text-xs mt-1 truncate max-w-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 {{ file.slug ? `/${file.slug}` : "无短链接" }}
               </span>
-            <span v-if="file.remark" class="text-xs mt-1 italic truncate max-w-xs" :class="darkMode ? 'text-blue-400' : 'text-blue-600'">
+              <span v-if="file.remark" class="text-xs mt-1 italic truncate max-w-xs" :class="darkMode ? 'text-blue-400' : 'text-blue-600'">
                 {{ file.remark }}
               </span>
-          </div>
-        </td>
-        <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden md:table-cell">
+            </div>
+          </td>
+          <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden md:table-cell">
             <span class="px-2 py-1 text-xs rounded" :class="getMimeTypeClass(file.mimetype, file.filename)">
               {{ getSimpleMimeType(file.mimetype, file.filename) }}
             </span>
-        </td>
-        <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden sm:table-cell">
-          {{ formatFileSize(file.size) }}
-        </td>
-        <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden xl:table-cell">
-          <div class="flex flex-col">
+          </td>
+          <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden sm:table-cell">
+            {{ formatFileSize(file.size) }}
+          </td>
+          <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden xl:table-cell">
+            <div class="flex flex-col">
               <span :class="getRemainingViewsClass(file)">{{
-                  getRemainingViews(file) === "无限制" ? "无限制" : getRemainingViews(file) === "已用完" ? "已用完" : `${getRemainingViews(file)} 次`
-                }}</span>
-            <span v-if="file.views && file.max_views" class="text-xs mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+                getRemainingViews(file) === "无限制" ? "无限制" : getRemainingViews(file) === "已用完" ? "已用完" : `${getRemainingViews(file)} 次`
+              }}</span>
+              <span v-if="file.views && file.max_views" class="text-xs mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 已用: {{ file.views || 0 }}/{{ file.max_views }}
               </span>
-            <span v-if="file.expires_at" class="text-xs mt-1" :class="expiresClass(file.expires_at)">
+              <span v-if="file.expires_at" class="text-xs mt-1" :class="expiresClass(file.expires_at)">
                 {{ formatExpiry(file.expires_at) }}
               </span>
-          </div>
-        </td>
-        <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden lg:table-cell">
-          <div class="flex flex-col">
-            <span>{{ file.s3_config_name || "默认存储" }}</span>
-            <span class="text-xs mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+            </div>
+          </td>
+          <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden lg:table-cell">
+            <div class="flex flex-col">
+              <span>{{ file.s3_config_name || "默认存储" }}</span>
+              <span class="text-xs mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 {{ file.s3_provider_type || "未知" }}
               </span>
-          </div>
-        </td>
-        <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden lg:table-cell">
-          <div class="flex flex-col items-center">
+            </div>
+          </td>
+          <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden lg:table-cell">
+            <div class="flex flex-col items-center">
               <span
-                  v-if="file.created_by && file.created_by.startsWith('apikey:')"
-                  class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 inline-block text-center w-fit"
+                v-if="file.created_by && file.created_by.startsWith('apikey:')"
+                class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 inline-block text-center w-fit"
               >
                 {{ file.key_name ? `密钥：${file.key_name}` : `密钥：${file.created_by.substring(7, 12)}...` }}
               </span>
-            <span v-else-if="file.created_by" class="px-2 py-1 text-xs rounded bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 inline-block text-center w-fit">
+              <span v-else-if="file.created_by" class="px-2 py-1 text-xs rounded bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 inline-block text-center w-fit">
                 管理员
               </span>
-            <span v-else class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 inline-block text-center w-fit"> 未知来源 </span>
-          </div>
-        </td>
-        <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden sm:table-cell">
-          {{ formatDate(file.created_at) }}
-        </td>
-        <td class="px-3 py-4 whitespace-nowrap text-right text-sm font-medium">
-          <div class="flex space-x-2">
-            <button @click="$emit('preview', file)" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
-              <span class="sr-only">预览</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path
+              <span v-else class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 inline-block text-center w-fit"> 未知来源 </span>
+            </div>
+          </td>
+          <td :class="darkMode ? 'text-gray-300' : 'text-gray-900'" class="px-3 py-4 whitespace-nowrap text-sm hidden sm:table-cell">
+            {{ formatDate(file.created_at) }}
+          </td>
+          <td class="px-3 py-4 whitespace-nowrap text-right text-sm font-medium">
+            <div class="flex space-x-2">
+              <button @click="$emit('preview', file)" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                <span class="sr-only">预览</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                />
-              </svg>
-            </button>
-            <button @click="$emit('edit', file)" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">
-              <span class="sr-only">编辑</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
+                  />
+                </svg>
+              </button>
+              <button @click="$emit('edit', file)" class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">
+                <span class="sr-only">编辑</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
-            </button>
-            <button @click="$emit('generate-qr', file)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
-              <span class="sr-only">二维码</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
+                  />
+                </svg>
+              </button>
+              <button @click="$emit('generate-qr', file)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
+                <span class="sr-only">二维码</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                />
-              </svg>
-            </button>
-            <button @click="openFileLink(file)" class="text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">
-              <span class="sr-only">跳转</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </button>
-            <button @click="copyFileLink(file)" class="text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300 relative">
-              <span class="sr-only">复制链接</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
+                  />
+                </svg>
+              </button>
+              <button @click="openFileLink(file)" class="text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">
+                <span class="sr-only">跳转</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </button>
+              <button @click="copyFileLink(file)" class="text-cyan-600 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300 relative">
+                <span class="sr-only">复制链接</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-              <!-- 文件复制成功提示 -->
-              <span v-if="copiedFiles[file.id]" class="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 text-xs text-white bg-green-500 rounded whitespace-nowrap">
+                  />
+                </svg>
+                <!-- 文件复制成功提示 -->
+                <span v-if="copiedFiles[file.id]" class="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 text-xs text-white bg-green-500 rounded whitespace-nowrap">
                   已复制
                 </span>
-            </button>
-            <!-- 复制永久直链按钮 -->
-            <button @click="copyPermanentLink(file)" class="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300 relative">
-              <span class="sr-only">复制直链</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
-              </svg>
-              <!-- 永久链接复制成功提示 -->
-              <span
+              </button>
+              <!-- 复制永久直链按钮 -->
+              <button @click="copyPermanentLink(file)" class="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300 relative">
+                <span class="sr-only">复制直链</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
+                </svg>
+                <!-- 永久链接复制成功提示 -->
+                <span
                   v-if="copiedPermanentFiles[file.id]"
                   class="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 text-xs text-white bg-green-500 rounded whitespace-nowrap"
-              >
+                >
                   已复制直链
                 </span>
-            </button>
-            <button @click="$emit('delete', file.id)" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-              <span class="sr-only">删除</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
+              </button>
+              <button @click="$emit('delete', file.id)" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                <span class="sr-only">删除</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
-          </div>
-        </td>
-      </tr>
+                  />
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
       </tbody>
     </table>
 
@@ -222,21 +222,21 @@
     <div class="sm:hidden space-y-4">
       <div v-if="files.length === 0" class="text-center py-4" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">暂无文件数据</div>
       <div
-          v-for="file in files"
-          :key="file.id"
-          class="border rounded-lg overflow-hidden transition-colors"
-          :class="darkMode ? 'border-gray-700 bg-gray-800/30 hover:border-gray-600' : 'border-gray-200 bg-white hover:border-gray-300'"
+        v-for="file in files"
+        :key="file.id"
+        class="border rounded-lg overflow-hidden transition-colors"
+        :class="darkMode ? 'border-gray-700 bg-gray-800/30 hover:border-gray-600' : 'border-gray-200 bg-white hover:border-gray-300'"
       >
         <!-- 文件基本信息 -->
         <div class="p-3 border-b" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
           <div class="flex items-start">
             <div class="flex-shrink-0 mr-2 mt-1">
               <input
-                  type="checkbox"
-                  :checked="selectedFiles.includes(file.id)"
-                  @change="$emit('toggle-select', file.id)"
-                  class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                type="checkbox"
+                :checked="selectedFiles.includes(file.id)"
+                @change="$emit('toggle-select', file.id)"
+                class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
               />
             </div>
             <div class="flex-1">
@@ -244,18 +244,18 @@
                 <div class="font-medium" :class="darkMode ? 'text-white' : 'text-gray-900'" :title="file.filename">{{ truncateFilename(file.filename) }}</div>
                 <span v-if="file.has_password" class="ml-2" :title="'密码保护'">
                   <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-4 w-4"
-                      :class="darkMode ? 'text-yellow-400' : 'text-yellow-600'"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    :class="darkMode ? 'text-yellow-400' : 'text-yellow-600'"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
                     <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                     />
                   </svg>
                 </span>
@@ -314,8 +314,8 @@
             <div class="text-xs font-medium uppercase" :class="darkMode ? 'text-gray-500' : 'text-gray-500'">创建者</div>
             <div :class="darkMode ? 'text-gray-300' : 'text-gray-700'" class="flex flex-col">
               <span
-                  v-if="file.created_by && file.created_by.startsWith('apikey:')"
-                  class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 inline-block mt-1 w-fit"
+                v-if="file.created_by && file.created_by.startsWith('apikey:')"
+                class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 inline-block mt-1 w-fit"
               >
                 {{ file.key_name ? `密钥：${file.key_name}` : `密钥：${file.created_by.substring(7, 12)}...` }}
               </span>
@@ -339,30 +339,30 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
               />
             </svg>
           </button>
           <button @click="$emit('edit', file)" class="p-2 rounded-md" :class="darkMode ? 'bg-gray-700 text-green-400' : 'bg-gray-100 text-green-600'">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
               />
             </svg>
           </button>
           <button @click="$emit('generate-qr', file)" class="p-2 rounded-md" :class="darkMode ? 'bg-gray-700 text-indigo-400' : 'bg-gray-100 text-indigo-600'">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
               />
             </svg>
           </button>
@@ -374,10 +374,10 @@
           <button @click="copyFileLink(file)" class="p-2 rounded-md relative" :class="darkMode ? 'bg-gray-700 text-cyan-400' : 'bg-gray-100 text-cyan-600'">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
               />
             </svg>
             <!-- 移动端复制成功提示 -->
@@ -395,10 +395,10 @@
           <button @click="$emit('delete', file.id)" class="p-2 rounded-md" :class="darkMode ? 'bg-gray-700 text-red-400' : 'bg-gray-100 text-red-600'">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
               />
             </svg>
           </button>

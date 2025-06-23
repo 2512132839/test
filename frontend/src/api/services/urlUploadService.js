@@ -402,15 +402,15 @@ export class S3MultipartUploader {
           activeUploads.add(uploadPromise);
 
           uploadPromise
-              .then(() => {
-                activeUploads.delete(uploadPromise);
-                processNext();
-              })
-              .catch((error) => {
-                activeUploads.delete(uploadPromise);
-                this.onError(error, part.partNumber);
-                reject(error);
-              });
+            .then(() => {
+              activeUploads.delete(uploadPromise);
+              processNext();
+            })
+            .catch((error) => {
+              activeUploads.delete(uploadPromise);
+              this.onError(error, part.partNumber);
+              reject(error);
+            });
 
           // 继续处理下一个
           processNext();

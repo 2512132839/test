@@ -1,9 +1,9 @@
 <template>
   <div
-      v-if="visible"
-      id="copyFormatMenu"
-      class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
-      :style="{ top: `${position.y}px`, left: `${position.x}px` }"
+    v-if="visible"
+    id="copyFormatMenu"
+    class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+    :style="{ top: `${position.y}px`, left: `${position.x}px` }"
   >
     <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsMarkdown">
       <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -17,11 +17,11 @@
     <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsHTML">
       <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path
-            d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         />
         <path d="M8 9l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M16 15l-3-3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -277,9 +277,9 @@ const exportAsPng = async () => {
 
     if (!result || !result.success) {
       const errorMsg =
-          result && result.error instanceof Event && result.error.type === "error" && result.error.target instanceof HTMLImageElement
-              ? t("markdown.messages.corsImageError")
-              : t("markdown.messages.pngExportFailed");
+        result && result.error instanceof Event && result.error.type === "error" && result.error.target instanceof HTMLImageElement
+          ? t("markdown.messages.corsImageError")
+          : t("markdown.messages.pngExportFailed");
 
       throw result?.error || new Error(errorMsg);
     }

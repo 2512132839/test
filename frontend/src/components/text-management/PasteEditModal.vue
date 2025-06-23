@@ -40,41 +40,41 @@ const editForm = reactive({
  * immediate设为true确保一开始就执行一次
  */
 watch(
-    () => props.paste,
-    (newPaste) => {
-      if (!newPaste) return;
+  () => props.paste,
+  (newPaste) => {
+    if (!newPaste) return;
 
-      // 填充表单数据，但密码不回显（出于安全考虑）
-      editForm.remark = newPaste.remark || "";
-      editForm.password = ""; // 密码不回显
-      editForm.clearPassword = false;
-      editForm.slug = newPaste.slug || ""; // 设置当前slug
+    // 填充表单数据，但密码不回显（出于安全考虑）
+    editForm.remark = newPaste.remark || "";
+    editForm.password = ""; // 密码不回显
+    editForm.clearPassword = false;
+    editForm.slug = newPaste.slug || ""; // 设置当前slug
 
-      // 处理过期时间 - 根据剩余小时数选择最接近的选项
-      if (newPaste.expires_at) {
-        const expiryDate = new Date(newPaste.expires_at);
-        const now = new Date();
-        const diffHours = Math.round((expiryDate - now) / (1000 * 60 * 60));
+    // 处理过期时间 - 根据剩余小时数选择最接近的选项
+    if (newPaste.expires_at) {
+      const expiryDate = new Date(newPaste.expires_at);
+      const now = new Date();
+      const diffHours = Math.round((expiryDate - now) / (1000 * 60 * 60));
 
-        if (diffHours <= 1) {
-          editForm.expiryTime = "1";
-        } else if (diffHours <= 24) {
-          editForm.expiryTime = "24";
-        } else if (diffHours <= 168) {
-          editForm.expiryTime = "168";
-        } else if (diffHours <= 720) {
-          editForm.expiryTime = "720";
-        } else {
-          editForm.expiryTime = "0"; // 设置为永不过期
-        }
+      if (diffHours <= 1) {
+        editForm.expiryTime = "1";
+      } else if (diffHours <= 24) {
+        editForm.expiryTime = "24";
+      } else if (diffHours <= 168) {
+        editForm.expiryTime = "168";
+      } else if (diffHours <= 720) {
+        editForm.expiryTime = "720";
       } else {
-        editForm.expiryTime = "0"; // 永不过期
+        editForm.expiryTime = "0"; // 设置为永不过期
       }
+    } else {
+      editForm.expiryTime = "0"; // 永不过期
+    }
 
-      // 设置最大查看次数
-      editForm.maxViews = newPaste.max_views || 0;
-    },
-    { immediate: true }
+    // 设置最大查看次数
+    editForm.maxViews = newPaste.max_views || 0;
+  },
+  { immediate: true }
 );
 
 /**
@@ -175,16 +175,16 @@ const saveEdit = () => {
 
       <!-- 弹窗主体内容 -->
       <div
-          class="inline-block align-middle sm:align-middle bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-sm sm:max-w-lg max-h-[95vh] sm:max-h-[85vh] my-1 sm:my-8"
-          :class="darkMode ? 'dark' : ''"
+        class="inline-block align-middle sm:align-middle bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full max-w-sm sm:max-w-lg max-h-[95vh] sm:max-h-[85vh] my-1 sm:my-8"
+        :class="darkMode ? 'dark' : ''"
       >
         <!-- 弹窗头部带关闭按钮 -->
         <div class="bg-white dark:bg-gray-800 px-4 py-3 sm:py-4 border-b dark:border-gray-700 flex justify-between items-center">
           <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100" id="edit-modal-title">修改文本分享属性</h3>
           <button
-              type="button"
-              @click="closeEditModal"
-              class="rounded-md p-1 inline-flex items-center justify-center text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none"
+            type="button"
+            @click="closeEditModal"
+            class="rounded-md p-1 inline-flex items-center justify-center text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none"
           >
             <span class="sr-only">关闭</span>
             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,11 +203,11 @@ const saveEdit = () => {
               <div class="flex items-center">
                 <span class="text-sm mr-1 text-gray-600 dark:text-gray-400">/paste/</span>
                 <input
-                    type="text"
-                    v-model="editForm.slug"
-                    class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                    :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-                    placeholder="留空则自动生成"
+                  type="text"
+                  v-model="editForm.slug"
+                  class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+                  placeholder="留空则自动生成"
                 />
               </div>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">当前链接：{{ props.paste?.slug }}，留空则自动生成新链接</p>
@@ -217,25 +217,25 @@ const saveEdit = () => {
             <div class="mb-4">
               <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">备注信息</label>
               <textarea
-                  v-model="editForm.remark"
-                  rows="2"
-                  class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-                  placeholder="添加备注信息..."
+                v-model="editForm.remark"
+                rows="2"
+                class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+                placeholder="添加备注信息..."
               ></textarea>
             </div>
             <!-- 可打开次数输入区域 -->
             <div class="mb-4">
               <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">可打开次数</label>
               <input
-                  type="number"
-                  v-model.number="editForm.maxViews"
-                  min="0"
-                  step="1"
-                  class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-                  placeholder="0表示无限制"
-                  @input="validateMaxViews"
+                type="number"
+                v-model.number="editForm.maxViews"
+                min="0"
+                step="1"
+                class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+                placeholder="0表示无限制"
+                @input="validateMaxViews"
               />
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">0表示无限制</p>
             </div>
@@ -244,9 +244,9 @@ const saveEdit = () => {
             <div class="mb-4">
               <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">过期时间</label>
               <select
-                  v-model="editForm.expiryTime"
-                  class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+                v-model="editForm.expiryTime"
+                class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
               >
                 <option value="1">1小时</option>
                 <option value="24">1天</option>
@@ -260,21 +260,21 @@ const saveEdit = () => {
               <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">密码保护</label>
               <!-- 密码输入框 -->
               <input
-                  type="password"
-                  v-model="editForm.password"
-                  class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
-                  placeholder="留空则不修改密码"
-                  :disabled="editForm.clearPassword"
+                type="password"
+                v-model="editForm.password"
+                class="w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'"
+                placeholder="留空则不修改密码"
+                :disabled="editForm.clearPassword"
               />
               <!-- 清除密码复选框 -->
               <div class="mt-2 flex items-center">
                 <input
-                    type="checkbox"
-                    id="clearPassword"
-                    v-model="editForm.clearPassword"
-                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
-                    :disabled="editForm.password.length > 0"
+                  type="checkbox"
+                  id="clearPassword"
+                  v-model="editForm.clearPassword"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                  :disabled="editForm.password.length > 0"
                 />
                 <label for="clearPassword" class="ml-2 block text-sm text-gray-700 dark:text-gray-300"> 清除密码保护 </label>
               </div>
@@ -288,17 +288,17 @@ const saveEdit = () => {
         <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-col sm:flex-row-reverse sm:space-x-reverse space-y-2 sm:space-y-0 sm:space-x-3">
           <!-- 保存按钮 -->
           <button
-              type="button"
-              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
-              @click="saveEdit"
+            type="button"
+            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
+            @click="saveEdit"
           >
             保存修改
           </button>
           <!-- 取消按钮 -->
           <button
-              type="button"
-              class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
-              @click="closeEditModal"
+            type="button"
+            class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm"
+            @click="closeEditModal"
           >
             取消
           </button>

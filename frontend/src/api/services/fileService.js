@@ -137,10 +137,10 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
         }
         // 判断是否是存储容量不足的错误
         else if (
-            presignedData.message.includes("存储空间不足") ||
-            presignedData.message.includes("insufficient storage") ||
-            presignedData.message.includes("exceed") ||
-            presignedData.message.includes("容量")
+          presignedData.message.includes("存储空间不足") ||
+          presignedData.message.includes("insufficient storage") ||
+          presignedData.message.includes("exceed") ||
+          presignedData.message.includes("容量")
         ) {
           throw new Error(`存储空间不足: ${presignedData.message}`);
         }
@@ -261,16 +261,16 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
     if (fileId) {
       console.log("上传失败，正在删除文件记录:", fileId);
       try {
-        // 检查是否存在管理员令牌或API密钥
-        const hasAdminToken = localStorage.getItem("admin_token");
-        const hasApiKey = localStorage.getItem("api_key");
+        // 使用认证Store检查用户身份
+        const { useAuthStore } = await import("../../stores/authStore.js");
+        const authStore = useAuthStore();
 
         // 根据用户身份选择合适的删除API
-        if (hasAdminToken) {
+        if (authStore.isAdmin) {
           // 使用管理员API删除文件
           await deleteAdminFile(fileId);
           console.log("已成功删除上传失败的文件记录（管理员API）");
-        } else if (hasApiKey) {
+        } else if (authStore.authType === "apikey" && authStore.apiKey) {
           // 使用用户API删除文件
           await deleteUserFile(fileId);
           console.log("已成功删除上传失败的文件记录（用户API）");

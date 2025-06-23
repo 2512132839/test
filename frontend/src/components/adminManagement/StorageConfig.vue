@@ -101,103 +101,118 @@ const addNewConfig = () => {
   showEditForm.value = false;
 };
 
+/**
+ * 测试结果处理器
+ */
+class TestResultProcessor {
+  constructor(result) {
+    this.result = result;
+  }
+
+  /**
+   * 计算测试状态
+   */
+  calculateStatus() {
+    const basicConnectSuccess = this.result.read?.success === true;
+    const writeSuccess = this.result.write?.success === true;
+    const corsSuccess = this.result.cors?.success === true;
+    const frontendSimSuccess = this.result.frontendSim?.success === true;
+
+    // 完全成功：读写权限都可用、CORS配置正确且前端模拟测试通过
+    const isFullSuccess = basicConnectSuccess && writeSuccess && corsSuccess && frontendSimSuccess;
+    // 部分成功：至少读权限可用
+    const isPartialSuccess = basicConnectSuccess && (!writeSuccess || !corsSuccess || !frontendSimSuccess);
+    // 整体成功状态：至少基础连接成功
+    const isSuccess = basicConnectSuccess;
+
+    return {
+      isFullSuccess,
+      isPartialSuccess,
+      isSuccess,
+    };
+  }
+
+  /**
+   * 生成状态消息
+   */
+  generateStatusMessage() {
+    const status = this.calculateStatus();
+
+    if (status.isFullSuccess) {
+      return "配置完全可用";
+    } else if (status.isPartialSuccess) {
+      return "配置部分可用";
+    } else {
+      return "配置不可用";
+    }
+  }
+
+  /**
+   * 生成简洁的状态消息
+   */
+  generateDetailsMessage() {
+    const details = [];
+
+    // 读权限状态 - 简洁显示
+    if (this.result.read?.success) {
+      details.push("✓ 读权限正常");
+    } else {
+      details.push("✗ 读权限失败");
+      if (this.result.read?.error) {
+        details.push(`  ${this.result.read.error.split("\n")[0]}`);
+      }
+    }
+
+    // 写权限状态 - 简洁显示
+    if (this.result.write?.success) {
+      details.push("✓ 写权限正常");
+    } else {
+      details.push("✗ 写权限失败");
+      if (this.result.write?.error) {
+        details.push(`  ${this.result.write.error.split("\n")[0]}`);
+      }
+    }
+
+    // CORS配置状态 - 简洁显示
+    if (this.result.cors?.success) {
+      details.push("✓ CORS配置正确");
+    } else {
+      details.push("✗ CORS配置有问题");
+      if (this.result.cors?.error) {
+        details.push(`  ${this.result.cors.error.split("\n")[0]}`);
+      }
+    }
+
+    // 前端模拟测试状态 - 简洁显示
+    if (this.result.frontendSim?.success) {
+      details.push("✓ 前端上传模拟成功");
+    } else {
+      details.push("✗ 前端上传模拟失败");
+      if (this.result.frontendSim?.error) {
+        details.push(`  ${this.result.frontendSim.error.split("\n")[0]}`);
+      }
+    }
+
+    return details.join("\n");
+  }
+}
+
 // 测试S3配置连接
 const testConnection = async (configId) => {
   try {
     testResults.value[configId] = { loading: true };
     const response = await api.storage.testS3Config(configId);
 
-    // 提取测试结果数据
-    const result = response.data?.result || {};
-
-    // 重新计算整体成功状态，基于读权限和前端模拟测试结果
-    const basicConnectSuccess = result.read?.success === true; // 基础连接成功
-    const frontendUploadSuccess = result.frontendSim?.success === true; // 前端上传模拟成功
-
-    // 要标记为完全成功，需要基础连接和前端模拟测试都成功
-    const isFullSuccess = basicConnectSuccess && frontendUploadSuccess;
-    // 部分成功：基础连接成功但前端模拟失败
-    const isPartialSuccess = basicConnectSuccess && !frontendUploadSuccess;
-    // 整体成功状态：至少基础连接成功
-    const isSuccess = basicConnectSuccess;
-
-    // 生成更精确的测试结果消息
-    let statusMessage = "";
-    if (isFullSuccess) {
-      statusMessage = "连接测试完全成功";
-    } else if (isPartialSuccess) {
-      statusMessage = "连接测试部分成功";
-    } else {
-      statusMessage = "连接测试失败";
-    }
-
-    let detailsMessage = "";
-
-    // 读取权限状态
-    if (result.read && result.read.success) {
-      detailsMessage += "✓ 读取权限正常";
-      if (typeof result.read.objectCount === "number") {
-        detailsMessage += ` (${result.read.objectCount} 个对象)`;
-      }
-    } else if (result.read) {
-      detailsMessage += "✗ 读取权限测试失败";
-      if (result.read.error) {
-        detailsMessage += `: ${result.read.error.split("\n")[0]}`;
-      }
-    }
-
-    // 写入权限状态
-    if (result.write) {
-      detailsMessage += detailsMessage ? "\n" : "";
-      if (result.write.success) {
-        detailsMessage += "✓ 写入权限正常";
-        if (result.write.cleaned) {
-          detailsMessage += " (测试文件已清理)";
-        }
-      } else {
-        detailsMessage += "✗ 写入权限测试失败";
-        if (result.write.error) {
-          detailsMessage += `: ${result.write.error.split("\n")[0]}`;
-        }
-      }
-    }
-
-    // 跨域CORS测试状态
-    if (result.cors) {
-      detailsMessage += detailsMessage ? "\n" : "";
-      if (result.cors.success) {
-        detailsMessage += "✓ 跨域CORS配置正确";
-        detailsMessage += " (跨域测试通过)";
-      } else {
-        detailsMessage += "✗ 跨域CORS配置有问题";
-        if (result.cors.error) {
-          detailsMessage += `: ${result.cors.error.split("\n")[0]}`;
-        }
-        detailsMessage += " (跨域测试失败)";
-      }
-    }
-
-    // 前端模拟测试状态
-    if (result.frontendSim) {
-      detailsMessage += detailsMessage ? "\n" : "";
-      if (result.frontendSim.success) {
-        detailsMessage += "✓ 前端上传模拟成功";
-        detailsMessage += " (配置可用于实际上传)";
-      } else {
-        detailsMessage += "✗ 前端上传模拟失败";
-        if (result.frontendSim.failedAt) {
-          detailsMessage += ` (${result.frontendSim.failedAt}阶段)`;
-        }
-        detailsMessage += " (配置可能不适用于前端直传)";
-      }
-    }
+    // 使用测试结果处理器
+    const processor = new TestResultProcessor(response.data?.result || {});
+    const status = processor.calculateStatus();
 
     testResults.value[configId] = {
-      success: isFullSuccess, // 只有当前端模拟测试也成功时才标记为完全成功
-      partialSuccess: isPartialSuccess, // 添加部分成功状态
-      message: statusMessage,
-      details: detailsMessage,
-      result: result, // 保存完整结果以便需要时展示
+      success: status.isFullSuccess,
+      partialSuccess: status.isPartialSuccess,
+      message: processor.generateStatusMessage(),
+      details: processor.generateDetailsMessage(),
+      result: response.data?.result || {},
       loading: false,
     };
   } catch (err) {
@@ -301,16 +316,16 @@ const handleSetDefaultConfig = async (configId) => {
       </button>
 
       <button
-          @click="loadS3Configs"
-          class="px-3 py-2 rounded-md flex items-center space-x-1 font-medium transition text-sm"
-          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+        @click="loadS3Configs"
+        class="px-3 py-2 rounded-md flex items-center space-x-1 font-medium transition text-sm"
+        :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
       >
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
           />
         </svg>
         <span>刷新列表</span>
@@ -353,10 +368,10 @@ const handleSetDefaultConfig = async (configId) => {
         <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
             <div
-                v-for="config in currentPageConfigs"
-                :key="config.id"
-                class="rounded-lg shadow-md overflow-hidden transition-colors duration-200 border relative"
-                :class="[
+              v-for="config in currentPageConfigs"
+              :key="config.id"
+              class="rounded-lg shadow-md overflow-hidden transition-colors duration-200 border relative"
+              :class="[
                 darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
                 config.is_default ? (darkMode ? 'ring-3 ring-primary-500 border-primary-500 shadow-lg' : 'ring-3 ring-primary-500 border-primary-500 shadow-lg') : '',
               ]"
@@ -370,9 +385,9 @@ const handleSetDefaultConfig = async (configId) => {
                     {{ config.name }}
                   </h3>
                   <span
-                      v-if="config.is_default"
-                      class="ml-2 text-xs px-2 py-0.5 rounded-full font-medium"
-                      :class="darkMode ? 'bg-primary-600 text-white' : 'bg-primary-500 text-white'"
+                    v-if="config.is_default"
+                    class="ml-2 text-xs px-2 py-0.5 rounded-full font-medium"
+                    :class="darkMode ? 'bg-primary-600 text-white' : 'bg-primary-500 text-white'"
                   >
                     默认
                   </span>
@@ -410,10 +425,10 @@ const handleSetDefaultConfig = async (configId) => {
                       <span class="flex items-center">
                         <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" :class="config.is_public ? 'text-green-500' : 'text-gray-400'">
                           <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              :d="
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            :d="
                               config.is_public
                                 ? 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z'
                                 : 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636'
@@ -439,20 +454,10 @@ const handleSetDefaultConfig = async (configId) => {
                   <div class="mt-2">
                     <div v-if="testResults[config.id] && !testResults[config.id].loading" class="mt-2">
                       <div
-                          :class="[testResults[config.id].success ? 'text-green-500' : testResults[config.id].partialSuccess ? 'text-amber-500' : 'text-red-500']"
-                          class="font-semibold"
+                        :class="[testResults[config.id].success ? 'text-green-500' : testResults[config.id].partialSuccess ? 'text-amber-500' : 'text-red-500']"
+                        class="font-semibold"
                       >
                         {{ testResults[config.id].message }}
-                      </div>
-
-                      <!-- 测试简要说明 -->
-                      <div v-if="testResults[config.id].result?.globalNote" class="mt-1 p-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded">
-                        <div class="flex">
-                          <svg class="h-3.5 w-3.5 mr-1 mt-0.5 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <div>注意：完全成功要求前端上传模拟也通过，这才能保证实际使用正常</div>
-                        </div>
                       </div>
 
                       <div v-if="testResults[config.id].details" class="mt-1 text-sm whitespace-pre-line text-gray-700 dark:text-gray-300">
@@ -469,10 +474,10 @@ const handleSetDefaultConfig = async (configId) => {
 
                 <div class="mt-4 flex flex-wrap gap-2">
                   <button
-                      v-if="!config.is_default"
-                      @click="handleSetDefaultConfig(config.id)"
-                      class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
-                      :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-100 hover:bg-primary-200 text-primary-800'"
+                    v-if="!config.is_default"
+                    @click="handleSetDefaultConfig(config.id)"
+                    class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
+                    :class="darkMode ? 'bg-primary-600 hover:bg-primary-700 text-white' : 'bg-primary-100 hover:bg-primary-200 text-primary-800'"
                   >
                     <svg class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -481,24 +486,24 @@ const handleSetDefaultConfig = async (configId) => {
                   </button>
 
                   <button
-                      @click="testConnection(config.id)"
-                      class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
-                      :class="
+                    @click="testConnection(config.id)"
+                    class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
+                    :class="
                       testResults[config.id]?.loading
                         ? 'opacity-50 cursor-wait'
                         : darkMode
                         ? 'bg-blue-600 hover:bg-blue-700 text-white'
                         : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
                     "
-                      :disabled="testResults[config.id]?.loading"
+                    :disabled="testResults[config.id]?.loading"
                   >
                     <template v-if="testResults[config.id]?.loading">
                       <svg class="animate-spin h-4 w-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path
-                            class="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          class="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
                       测试中...
@@ -506,10 +511,10 @@ const handleSetDefaultConfig = async (configId) => {
                     <template v-else>
                       <svg class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                         />
                       </svg>
                       测试连接
@@ -517,32 +522,32 @@ const handleSetDefaultConfig = async (configId) => {
                   </button>
 
                   <button
-                      @click="editConfig(config)"
-                      class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
-                      :class="darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
+                    @click="editConfig(config)"
+                    class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
+                    :class="darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'"
                   >
                     <svg class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                       />
                     </svg>
                     编辑
                   </button>
 
                   <button
-                      @click="handleDeleteConfig(config.id)"
-                      class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
-                      :class="darkMode ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-100 hover:bg-red-200 text-red-800'"
+                    @click="handleDeleteConfig(config.id)"
+                    class="flex items-center px-3 py-1.5 rounded text-sm font-medium transition"
+                    :class="darkMode ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-100 hover:bg-red-200 text-red-800'"
                   >
                     <svg class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                       />
                     </svg>
                     删除
@@ -561,9 +566,9 @@ const handleSetDefaultConfig = async (configId) => {
 
       <!-- 空状态 -->
       <div
-          v-else-if="!loading"
-          class="rounded-lg p-6 text-center transition-colors duration-200 flex-1 flex flex-col justify-center items-center bg-white dark:bg-gray-800 shadow-md"
-          :class="darkMode ? 'text-gray-300' : 'text-gray-600'"
+        v-else-if="!loading"
+        class="rounded-lg p-6 text-center transition-colors duration-200 flex-1 flex flex-col justify-center items-center bg-white dark:bg-gray-800 shadow-md"
+        :class="darkMode ? 'text-gray-300' : 'text-gray-600'"
       >
         <svg class="mx-auto h-16 w-16 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
@@ -581,22 +586,22 @@ const handleSetDefaultConfig = async (configId) => {
 
     <!-- 添加/编辑表单弹窗 -->
     <ConfigForm
-        v-if="showAddForm || showEditForm"
-        :dark-mode="darkMode"
-        :config="currentConfig"
-        :is-edit="showEditForm"
-        @close="
+      v-if="showAddForm || showEditForm"
+      :dark-mode="darkMode"
+      :config="currentConfig"
+      :is-edit="showEditForm"
+      @close="
         showAddForm = false;
         showEditForm = false;
       "
-        @success="handleFormSuccess"
+      @success="handleFormSuccess"
     />
 
     <!-- 测试结果详情模态框 -->
     <div
-        v-if="showTestDetails && selectedTestResult"
-        class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black bg-opacity-50 overflow-y-auto"
-        @click="showTestDetails = false"
+      v-if="showTestDetails && selectedTestResult"
+      class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black bg-opacity-50 overflow-y-auto"
+      @click="showTestDetails = false"
     >
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg overflow-hidden" @click.stop>
         <div class="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -604,9 +609,9 @@ const handleSetDefaultConfig = async (configId) => {
           <button @click="showTestDetails = false" class="text-gray-400 hover:text-gray-500">
             <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
               <path
-                  fill-rule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
+                fill-rule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clip-rule="evenodd"
               ></path>
             </svg>
           </button>
@@ -615,8 +620,8 @@ const handleSetDefaultConfig = async (configId) => {
         <div class="p-3 sm:p-4 max-h-[70vh] overflow-y-auto">
           <!-- 连接总结 -->
           <div
-              class="mb-3 p-2 sm:p-3 rounded"
-              :class="[
+            class="mb-3 p-2 sm:p-3 rounded"
+            :class="[
               selectedTestResult.success
                 ? 'bg-green-50 dark:bg-green-900/30'
                 : selectedTestResult.partialSuccess
@@ -625,8 +630,8 @@ const handleSetDefaultConfig = async (configId) => {
             ]"
           >
             <div
-                class="font-semibold"
-                :class="[
+              class="font-semibold"
+              :class="[
                 selectedTestResult.success
                   ? 'text-green-700 dark:text-green-400'
                   : selectedTestResult.partialSuccess
@@ -639,26 +644,13 @@ const handleSetDefaultConfig = async (configId) => {
             <div v-if="selectedTestResult.details" class="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
               {{ selectedTestResult.details }}
             </div>
-
-            <!-- 添加前端上传重要性提示 -->
-            <div v-if="selectedTestResult.partialSuccess" class="mt-2 text-xs border-t border-amber-200 dark:border-amber-800 pt-2 text-amber-800 dark:text-amber-300">
-              <svg class="h-3.5 w-3.5 mr-1 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <span>虽然基本连接成功，但前端上传模拟测试失败，实际使用可能会有问题</span>
-            </div>
           </div>
 
           <!-- 折叠/展开控制 -->
           <div class="mb-3">
             <button
-                @click="showDetailedResults = !showDetailedResults"
-                class="text-sm flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              @click="showDetailedResults = !showDetailedResults"
+              class="text-sm flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
             >
               <svg class="h-4 w-4 mr-1 transition-transform duration-200" :class="showDetailedResults ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -668,13 +660,13 @@ const handleSetDefaultConfig = async (configId) => {
           </div>
 
           <div v-if="showDetailedResults" class="space-y-4">
-            <!-- 全局提示说明 -->
-            <div v-if="selectedTestResult.result?.globalNote" class="mb-3 p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
+            <!-- 测试说明 -->
+            <div class="mb-3 p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
               <div class="flex items-start">
                 <svg class="h-4 w-4 mr-1 mt-0.5 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <div>{{ selectedTestResult.result.globalNote }}</div>
+                <div>前端模拟测试是判断配置能否在实际前端环境中正常工作的关键指标</div>
               </div>
             </div>
 
@@ -686,8 +678,8 @@ const handleSetDefaultConfig = async (configId) => {
                   <div v-for="(value, key) in selectedTestResult.result.connectionInfo" :key="key" class="connection-info-item">
                     <div class="text-gray-500 dark:text-gray-400 font-medium mb-0.5">{{ formatLabel(key) }}:</div>
                     <div
-                        class="pl-2 text-gray-900 dark:text-gray-200 break-all overflow-wrap-anywhere"
-                        :class="{ 'endpoint-url': key === 'endpoint' || key.includes('url') || key.includes('URI') }"
+                      class="pl-2 text-gray-900 dark:text-gray-200 break-all overflow-wrap-anywhere"
+                      :class="{ 'endpoint-url': key === 'endpoint' || key.includes('url') || key.includes('URI') }"
                     >
                       {{ value || "未设置" }}
                     </div>
@@ -704,10 +696,10 @@ const handleSetDefaultConfig = async (configId) => {
                   <span class="mr-1" :class="selectedTestResult.result?.read?.success ? 'text-green-500' : 'text-red-500'">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          :d="selectedTestResult.result?.read?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        :d="selectedTestResult.result?.read?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                       ></path>
                     </svg>
                   </span>
@@ -767,10 +759,10 @@ const handleSetDefaultConfig = async (configId) => {
                   <span class="mr-1" :class="selectedTestResult.result?.write?.success ? 'text-green-500' : 'text-red-500'">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          :d="selectedTestResult.result?.write?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        :d="selectedTestResult.result?.write?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                       ></path>
                     </svg>
                   </span>
@@ -802,8 +794,8 @@ const handleSetDefaultConfig = async (configId) => {
                   </div>
 
                   <div
-                      v-if="selectedTestResult.result.write.note && !selectedTestResult.result.write.note.includes('后端')"
-                      class="mt-1 text-gray-500 dark:text-gray-400 text-xs italic"
+                    v-if="selectedTestResult.result.write.note && !selectedTestResult.result.write.note.includes('后端')"
+                    class="mt-1 text-gray-500 dark:text-gray-400 text-xs italic"
                   >
                     {{ selectedTestResult.result.write.note }}
                   </div>
@@ -827,8 +819,8 @@ const handleSetDefaultConfig = async (configId) => {
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
                 跨域CORS配置测试
                 <span
-                    class="ml-1.5 text-xs px-1.5 py-0.5 rounded"
-                    :class="
+                  class="ml-1.5 text-xs px-1.5 py-0.5 rounded"
+                  :class="
                     selectedTestResult.result?.cors?.success
                       ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400'
                       : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400'
@@ -842,10 +834,10 @@ const handleSetDefaultConfig = async (configId) => {
                   <span class="mr-1" :class="selectedTestResult.result?.cors?.success ? 'text-green-500' : 'text-red-500'">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          :d="selectedTestResult.result?.cors?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        :d="selectedTestResult.result?.cors?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                       ></path>
                     </svg>
                   </span>
@@ -870,9 +862,9 @@ const handleSetDefaultConfig = async (configId) => {
                   <div class="text-gray-900 dark:text-gray-200 truncate">
                     {{ selectedTestResult.result.cors.allowHeaders || "未指定" }}
                     <span
-                        v-if="selectedTestResult.result.cors.allowHeaders && selectedTestResult.result.cors.allowHeaders.length > 20"
-                        class="text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                        @click="$event.currentTarget.previousElementSibling.classList.toggle('truncate')"
+                      v-if="selectedTestResult.result.cors.allowHeaders && selectedTestResult.result.cors.allowHeaders.length > 20"
+                      class="text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                      @click="$event.currentTarget.previousElementSibling.classList.toggle('truncate')"
                     >
                       (展开/收起)
                     </span>
@@ -897,8 +889,8 @@ const handleSetDefaultConfig = async (configId) => {
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
                 前端上传模拟测试
                 <span
-                    class="ml-1.5 text-xs px-1.5 py-0.5 rounded"
-                    :class="
+                  class="ml-1.5 text-xs px-1.5 py-0.5 rounded"
+                  :class="
                     selectedTestResult.result?.frontendSim?.success
                       ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400'
                       : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
@@ -912,10 +904,10 @@ const handleSetDefaultConfig = async (configId) => {
                   <span class="mr-1" :class="selectedTestResult.result?.frontendSim?.success ? 'text-green-500' : 'text-red-500'">
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          :d="selectedTestResult.result?.frontendSim?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        :d="selectedTestResult.result?.frontendSim?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                       ></path>
                     </svg>
                   </span>
@@ -934,44 +926,47 @@ const handleSetDefaultConfig = async (configId) => {
                 </div>
 
                 <!-- 显示步骤状态 -->
-                <div v-if="selectedTestResult.result?.frontendSim" class="pl-5 space-y-2 mt-2">
+                <div v-if="selectedTestResult.result?.frontendSim?.steps" class="pl-5 space-y-2 mt-2">
                   <!-- 步骤1: 获取预签名URL -->
                   <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
                     <div class="flex items-center">
                       <span
-                          class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
-                          :class="selectedTestResult.result.frontendSim.step1?.success ? 'bg-green-500' : 'bg-red-500'"
+                        class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
+                        :class="selectedTestResult.result.frontendSim.steps.step1?.success ? 'bg-green-500' : 'bg-red-500'"
                       >
                         1
                       </span>
-                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step1?.name || "获取预签名URL" }}</span>
-                      <span class="ml-auto" :class="selectedTestResult.result.frontendSim.step1?.success ? 'text-green-500' : 'text-red-500'">
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.steps.step1?.name || "获取预签名URL" }}</span>
+                      <span class="ml-auto" :class="selectedTestResult.result.frontendSim.steps.step1?.success ? 'text-green-500' : 'text-red-500'">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              :d="selectedTestResult.result.frontendSim.step1?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            :d="selectedTestResult.result.frontendSim.steps.step1?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                           ></path>
                         </svg>
                       </span>
                     </div>
                     <!-- 步骤1详情 -->
-                    <div v-if="selectedTestResult.result.frontendSim.step1?.success" class="mt-1 text-xs pl-6">
-                      <div v-if="selectedTestResult.result.frontendSim.step1?.url" class="text-gray-500 dark:text-gray-400">
+                    <div v-if="selectedTestResult.result.frontendSim.steps.step1?.success" class="mt-1 text-xs pl-6">
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step1?.presignedUrl" class="text-gray-500 dark:text-gray-400">
                         <span class="font-medium">URL:</span>
                         <span class="url-display inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                          {{ selectedTestResult.result.frontendSim.step1.url }}
+                          {{ selectedTestResult.result.frontendSim.steps.step1.presignedUrl }}
                         </span>
                         <button
-                            @click="$event.currentTarget.previousElementSibling.classList.toggle('whitespace-nowrap')"
-                            class="text-blue-500 hover:text-blue-600 text-xs ml-1 inline-flex items-center"
+                          @click="$event.currentTarget.previousElementSibling.classList.toggle('whitespace-nowrap')"
+                          class="text-blue-500 hover:text-blue-600 text-xs ml-1 inline-flex items-center"
                         >
                           <svg class="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                           </svg>
                           <span>展开/收起</span>
                         </button>
+                      </div>
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step1?.duration" class="text-gray-500 dark:text-gray-400 mt-1">
+                        <span class="font-medium">耗时:</span> {{ selectedTestResult.result.frontendSim.steps.step1.duration }}ms
                       </div>
                     </div>
                   </div>
@@ -980,94 +975,112 @@ const handleSetDefaultConfig = async (configId) => {
                   <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
                     <div class="flex items-center">
                       <span
-                          class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
-                          :class="
-                          selectedTestResult.result.frontendSim.step2?.success
+                        class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
+                        :class="
+                          selectedTestResult.result.frontendSim.steps.step2?.success
                             ? 'bg-green-500'
-                            : selectedTestResult.result.frontendSim.step1?.success
+                            : selectedTestResult.result.frontendSim.steps.step1?.success
                             ? 'bg-red-500'
                             : 'bg-gray-400'
                         "
                       >
                         2
                       </span>
-                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step2?.name || "XHR文件上传" }}</span>
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.steps.step2?.name || "模拟文件上传" }}</span>
                       <span
-                          v-if="selectedTestResult.result.frontendSim.step1?.success"
-                          class="ml-auto"
-                          :class="selectedTestResult.result.frontendSim.step2?.success ? 'text-green-500' : 'text-red-500'"
+                        v-if="selectedTestResult.result.frontendSim.steps.step1?.success"
+                        class="ml-auto"
+                        :class="selectedTestResult.result.frontendSim.steps.step2?.success ? 'text-green-500' : 'text-red-500'"
                       >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              :d="selectedTestResult.result.frontendSim.step2?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            :d="selectedTestResult.result.frontendSim.steps.step2?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                           ></path>
                         </svg>
                       </span>
                     </div>
                     <!-- 步骤2详情 -->
-                    <div v-if="selectedTestResult.result.frontendSim.step2?.success" class="mt-1 text-xs pl-6 grid grid-cols-2 gap-1">
+                    <div v-if="selectedTestResult.result.frontendSim.steps.step2?.success" class="mt-1 text-xs pl-6 grid grid-cols-2 gap-1">
                       <div class="text-gray-500 dark:text-gray-400">上传耗时:</div>
-                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.step2.duration }}ms</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step2.duration }}ms</div>
 
                       <div class="text-gray-500 dark:text-gray-400">上传速度:</div>
-                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.step2.speed }}</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step2.uploadSpeed }}</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">状态码:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step2.statusCode }}</div>
 
                       <div class="text-gray-500 dark:text-gray-400">ETag:</div>
-                      <div class="text-gray-900 dark:text-gray-200 truncate" :title="selectedTestResult.result.frontendSim.step2.etag">
-                        {{ selectedTestResult.result.frontendSim.step2.etag }}
+                      <div class="text-gray-900 dark:text-gray-200 truncate" :title="selectedTestResult.result.frontendSim.steps.step2.etag">
+                        {{ selectedTestResult.result.frontendSim.steps.step2.etag || "未返回" }}
                       </div>
                     </div>
                     <!-- 上传错误 -->
-                    <div v-else-if="selectedTestResult.result.frontendSim.step1?.success" class="mt-1 text-xs pl-6 text-red-600 dark:text-red-400">
-                      <div v-if="selectedTestResult.result.frontendSim.step2?.status" class="font-medium">
-                        错误状态码: {{ selectedTestResult.result.frontendSim.step2.status }} {{ selectedTestResult.result.frontendSim.step2.statusText }}
+                    <div v-else-if="selectedTestResult.result.frontendSim.steps.step1?.success" class="mt-1 text-xs pl-6 text-red-600 dark:text-red-400">
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step2?.statusCode" class="font-medium">
+                        错误状态码: {{ selectedTestResult.result.frontendSim.steps.step2.statusCode }} {{ selectedTestResult.result.frontendSim.steps.step2.statusText }}
                       </div>
-                      <div v-if="selectedTestResult.result.frontendSim.step2?.errorText" class="mt-0.5 bg-red-50 dark:bg-red-900/20 p-1 rounded max-h-16 overflow-auto">
-                        {{ selectedTestResult.result.frontendSim.step2.errorText }}
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step2?.error" class="mt-0.5 bg-red-50 dark:bg-red-900/20 p-1 rounded max-h-16 overflow-auto">
+                        {{ selectedTestResult.result.frontendSim.steps.step2.error }}
                       </div>
                     </div>
                   </div>
 
-                  <!-- 步骤3: 元数据提交 -->
+                  <!-- 步骤3: 验证上传结果 -->
                   <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
                     <div class="flex items-center">
                       <span
-                          class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
-                          :class="
-                          selectedTestResult.result.frontendSim.step3?.success
+                        class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
+                        :class="
+                          selectedTestResult.result.frontendSim.steps.step3?.success
                             ? 'bg-green-500'
-                            : selectedTestResult.result.frontendSim.step2?.success
+                            : selectedTestResult.result.frontendSim.steps.step2?.success
                             ? 'bg-red-500'
                             : 'bg-gray-400'
                         "
                       >
                         3
                       </span>
-                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step3?.name || "元数据提交" }}</span>
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.steps.step3?.name || "验证上传结果" }}</span>
                       <span
-                          v-if="selectedTestResult.result.frontendSim.step2?.success"
-                          class="ml-auto"
-                          :class="selectedTestResult.result.frontendSim.step3?.success ? 'text-green-500' : 'text-red-500'"
+                        v-if="selectedTestResult.result.frontendSim.steps.step2?.success"
+                        class="ml-auto"
+                        :class="selectedTestResult.result.frontendSim.steps.step3?.success ? 'text-green-500' : 'text-red-500'"
                       >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              :d="selectedTestResult.result.frontendSim.step3?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            :d="selectedTestResult.result.frontendSim.steps.step3?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                           ></path>
                         </svg>
                       </span>
                     </div>
                     <!-- 步骤3详情 -->
-                    <div
-                        v-if="selectedTestResult.result.frontendSim.step3?.success && selectedTestResult.result.frontendSim.step3?.note"
-                        class="mt-1 text-xs pl-6 text-gray-500 dark:text-gray-400"
-                    >
-                      {{ selectedTestResult.result.frontendSim.step3.note }}
+                    <div v-if="selectedTestResult.result.frontendSim.steps.step3?.success" class="mt-1 text-xs pl-6 grid grid-cols-2 gap-1">
+                      <div class="text-gray-500 dark:text-gray-400">验证耗时:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step3.duration }}ms</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">文件大小:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step3.fileSize }} 字节</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">内容类型:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step3.contentType }}</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">文件清理:</div>
+                      <div :class="selectedTestResult.result.frontendSim.steps.step3.fileCleaned ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'">
+                        {{ selectedTestResult.result.frontendSim.steps.step3.fileCleaned ? "已清理" : "清理失败" }}
+                      </div>
+                    </div>
+                    <!-- 验证错误 -->
+                    <div v-else-if="selectedTestResult.result.frontendSim.steps.step2?.success" class="mt-1 text-xs pl-6 text-red-600 dark:text-red-400">
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step3?.error" class="bg-red-50 dark:bg-red-900/20 p-1 rounded max-h-16 overflow-auto">
+                        {{ selectedTestResult.result.frontendSim.steps.step3.error }}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1081,19 +1094,16 @@ const handleSetDefaultConfig = async (configId) => {
                   </div>
                 </div>
 
-                <!-- 清理信息 -->
+                <!-- 总体测试信息 -->
                 <div v-if="selectedTestResult.result?.frontendSim?.success" class="mt-2 text-xs pl-5">
-                  <div class="flex items-center">
-                    <span class="text-gray-500 dark:text-gray-400 mr-1">测试文件清理:</span>
-                    <span :class="selectedTestResult.result.frontendSim.fileCleaned ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'">
-                      {{ selectedTestResult.result.frontendSim.fileCleaned ? "已清理" : "清理失败" }}
-                    </span>
-                  </div>
-                  <div
-                      v-if="!selectedTestResult.result.frontendSim.fileCleaned && selectedTestResult.result.frontendSim.cleanError"
-                      class="mt-0.5 text-yellow-600 dark:text-yellow-400"
-                  >
-                    清理错误: {{ selectedTestResult.result.frontendSim.cleanError }}
+                  <div class="grid grid-cols-2 gap-1">
+                    <div class="text-gray-500 dark:text-gray-400">总耗时:</div>
+                    <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.totalDuration }}ms</div>
+
+                    <div class="text-gray-500 dark:text-gray-400">测试文件:</div>
+                    <div class="text-gray-900 dark:text-gray-200 truncate" :title="selectedTestResult.result.frontendSim.testFile">
+                      {{ selectedTestResult.result.frontendSim.testFile }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1103,8 +1113,8 @@ const handleSetDefaultConfig = async (configId) => {
 
         <div class="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
           <button
-              @click="showTestDetails = false"
-              class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-sm"
+            @click="showTestDetails = false"
+            class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-sm"
           >
             关闭
           </button>

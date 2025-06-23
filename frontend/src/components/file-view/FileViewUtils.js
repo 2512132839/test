@@ -85,31 +85,12 @@ export const isPdfType = (mimetype, filename) => {
 
 /**
  * 获取用户的认证状态
+ * @deprecated 请直接使用认证Store: const authStore = useAuthStore()
  * @returns {Object} 包含isAdmin, hasApiKey和hasFilePermission的认证状态对象
  */
 export const getAuthStatus = () => {
-  const adminToken = localStorage.getItem("admin_token");
-  const apiKey = localStorage.getItem("api_key");
-
-  // 尝试从本地存储获取API密钥权限信息
-  let hasFilePermission = false;
-  if (apiKey) {
-    try {
-      const permissionsStr = localStorage.getItem("api_key_permissions");
-      if (permissionsStr) {
-        const permissions = JSON.parse(permissionsStr);
-        hasFilePermission = !!permissions.file;
-      }
-    } catch (e) {
-      console.error("解析API密钥权限失败:", e);
-    }
-  }
-
-  return {
-    isAdmin: !!adminToken,
-    hasApiKey: !!apiKey,
-    hasFilePermission: hasFilePermission,
-  };
+  console.error("getAuthStatus已废弃，请直接使用认证Store");
+  throw new Error("此函数已废弃，请直接使用 useAuthStore()");
 };
 
 /**

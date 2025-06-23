@@ -1,4 +1,5 @@
 import { createApp } from "vue";
+import { createPinia } from "pinia";
 import "./style.css";
 import App from "./App.vue";
 import api, { getEnvironmentInfo } from "./api";
@@ -11,6 +12,9 @@ import { offlineEnhancers } from "./pwa/offlineEnhancer.js";
 
 // 创建应用实例
 const app = createApp(App);
+
+// 创建Pinia实例
+const pinia = createPinia();
 
 // 添加全局错误处理
 app.config.errorHandler = (err, instance, info) => {
@@ -64,11 +68,17 @@ app.config.errorHandler = (err, instance, info) => {
   }
 };
 
+// 挂载Pinia - 必须在其他插件之前
+app.use(pinia);
+
 // 挂载i18n - 必须在挂载应用前使用
 app.use(i18n);
 
 // 挂载路由 - 在i18n之后挂载
 app.use(router);
+
+// 导入并初始化认证Store
+import { useAuthStore } from "./stores/authStore.js";
 
 // 导入路由工具函数
 import { routerUtils } from "./router";
@@ -115,3 +125,14 @@ if (savedLang && i18n.global.locale.value !== savedLang) {
 
 // 挂载应用
 app.mount("#app");
+
+// 初始化认证Store（在应用挂载后）
+const authStore = useAuthStore();
+authStore
+  .initialize()
+  .then(() => {
+    console.log("认证Store初始化完成");
+  })
+  .catch((error) => {
+    console.error("认证Store初始化失败:", error);
+  });

@@ -96,24 +96,24 @@ const downloadQRCode = () => {
 
 // 监听弹窗显示状态
 watch(
-    () => props.visible,
-    (newVisible) => {
-      if (newVisible && props.shareLink) {
-        generateQRCode(props.shareLink);
-      } else {
-        qrCodeDataURL.value = "";
-      }
+  () => props.visible,
+  (newVisible) => {
+    if (newVisible && props.shareLink) {
+      generateQRCode(props.shareLink);
+    } else {
+      qrCodeDataURL.value = "";
     }
+  }
 );
 
 // 监听分享链接变化
 watch(
-    () => props.shareLink,
-    (newLink) => {
-      if (props.visible && newLink) {
-        generateQRCode(newLink);
-      }
+  () => props.shareLink,
+  (newLink) => {
+    if (props.visible && newLink) {
+      generateQRCode(newLink);
     }
+  }
 );
 </script>
 

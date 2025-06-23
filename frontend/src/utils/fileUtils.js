@@ -13,7 +13,7 @@ export async function downloadFileWithAuth(url, filename) {
     console.log("请求下载URL:", url);
     // 使用fetch请求URL，添加认证头
     const response = await fetch(url, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       mode: "cors", // 明确设置跨域模式
       credentials: "include", // 包含凭证（cookies等）
     });
@@ -47,23 +47,25 @@ export async function downloadFileWithAuth(url, filename) {
 
 /**
  * 获取认证请求头
- * @returns {Object} 包含认证信息的请求头对象
+ * @returns {Promise<Object>} 包含认证信息的请求头对象
  */
-export function getAuthHeaders() {
+export async function getAuthHeaders() {
   const headers = {};
 
-  // 添加管理员令牌
-  const token = localStorage.getItem("admin_token");
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    return headers;
-  }
+  try {
+    // 使用认证Store获取认证信息
+    const { useAuthStore } = await import("../stores/authStore.js");
+    const authStore = useAuthStore();
 
-  // 添加API密钥
-  const apiKey = localStorage.getItem("api_key");
-  if (apiKey) {
-    headers.Authorization = `ApiKey ${apiKey}`;
-    return headers;
+    if (authStore.isAuthenticated) {
+      if (authStore.authType === "admin" && authStore.adminToken) {
+        headers.Authorization = `Bearer ${authStore.adminToken}`;
+      } else if (authStore.authType === "apikey" && authStore.apiKey) {
+        headers.Authorization = `ApiKey ${authStore.apiKey}`;
+      }
+    }
+  } catch (error) {
+    console.error("无法从认证Store获取认证信息:", error);
   }
 
   return headers;
@@ -79,7 +81,7 @@ export async function createAuthenticatedPreviewUrl(url) {
     console.log("请求预览URL:", url);
     // 使用fetch请求URL，添加认证头
     const response = await fetch(url, {
-      headers: getAuthHeaders(),
+      headers: await getAuthHeaders(),
       mode: "cors", // 明确设置跨域模式
       credentials: "include", // 包含凭证（cookies等）
     });

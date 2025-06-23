@@ -53,8 +53,8 @@ export const formatExpiry = (expiryDate) => {
  */
 export const getInputClasses = (darkMode) => {
   return darkMode
-      ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
-      : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
+    ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
+    : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
 };
 
 /**

@@ -105,11 +105,11 @@ export class OfflineApiInterceptor {
 
       // 根据Content-Type决定如何解析响应
       if (
-          contentType.startsWith("image/") ||
-          contentType.startsWith("video/") ||
-          contentType.startsWith("audio/") ||
-          contentType.startsWith("application/pdf") ||
-          contentType.startsWith("application/octet-stream")
+        contentType.startsWith("image/") ||
+        contentType.startsWith("video/") ||
+        contentType.startsWith("audio/") ||
+        contentType.startsWith("application/pdf") ||
+        contentType.startsWith("application/octet-stream")
       ) {
         // 二进制文件 - 让Workbox的Cache API处理
         console.log(`[离线模式] 二进制文件由Workbox处理: ${url} (${contentType})`);
@@ -280,8 +280,15 @@ export class OfflineApiInterceptor {
   }
 
   extractPathFromUrl(url) {
-    const match = url.match(/\/api\/fs\/(.+?)(?:\?|$)/);
-    return match ? decodeURIComponent(match[1]) : "/";
+    try {
+      // 从查询参数中提取路径
+      const urlObj = new URL(url, window.location.origin);
+      const path = urlObj.searchParams.get("path");
+      return path ? decodeURIComponent(path) : "/";
+    } catch (error) {
+      console.warn("提取路径失败:", error);
+      return "/";
+    }
   }
 
   // 管理员API缓存方法
@@ -289,7 +296,7 @@ export class OfflineApiInterceptor {
     try {
       const cacheKey = this.generateCacheKey(url);
 
-      if (url.includes("/admin/check")) {
+      if (url.includes("/test/admin-token")) {
         // 管理员登录状态
         await pwaUtils.storage.saveSetting("admin_login_status", data);
       } else if (url.includes("/admin/dashboard/stats")) {
@@ -384,7 +391,7 @@ export class OfflineApiInterceptor {
     try {
       const cacheKey = this.generateCacheKey(url);
 
-      if (url.includes("/admin/check")) {
+      if (url.includes("/test/admin-token")) {
         return await pwaUtils.storage.getSetting("admin_login_status");
       } else if (url.includes("/admin/dashboard/stats")) {
         return await pwaUtils.storage.getSetting("admin_dashboard_stats");

@@ -250,17 +250,17 @@ class OfflineStorage {
 
         settings.forEach((setting) => {
           if (
-              setting.key.startsWith("api_cache_") ||
-              setting.key.startsWith("admin_") ||
-              setting.key.startsWith("user_") ||
-              setting.key.startsWith("system_") ||
-              setting.key.startsWith("test_") ||
-              setting.key.startsWith("s3_config_") ||
-              setting.key.startsWith("url_") ||
-              setting.key.startsWith("public_file_") ||
-              setting.key.startsWith("raw_paste_") ||
-              setting.key === "s3_configs_list" ||
-              setting.key === "url_info_cache"
+            setting.key.startsWith("api_cache_") ||
+            setting.key.startsWith("admin_") ||
+            setting.key.startsWith("user_") ||
+            setting.key.startsWith("system_") ||
+            setting.key.startsWith("test_") ||
+            setting.key.startsWith("s3_config_") ||
+            setting.key.startsWith("url_") ||
+            setting.key.startsWith("public_file_") ||
+            setting.key.startsWith("raw_paste_") ||
+            setting.key === "s3_configs_list" ||
+            setting.key === "url_info_cache"
           ) {
             store.delete(setting.key);
           }
