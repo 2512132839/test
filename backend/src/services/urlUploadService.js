@@ -513,14 +513,8 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
   // 生成S3 URL
   const s3Url = buildS3Url(s3Config, storagePath);
 
-  // 生成预签名上传URL，适当延长有效期以便处理大文件
-  const uploadUrl = await generatePresignedPutUrl(
-      s3Config,
-      storagePath,
-      metadata.contentType,
-      encryptionSecret,
-      7200 // 2小时有效期，考虑到从远程URL下载可能需要较长时间
-  );
+  // 生成预签名上传URL，使用S3配置的默认时效
+  const uploadUrl = await generatePresignedPutUrl(s3Config, storagePath, metadata.contentType, encryptionSecret);
 
   // 创建文件记录
   await db
@@ -773,8 +767,8 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
         PartNumber: partNumber,
       });
 
-      // 生成预签名URL，有效期1小时
-      const presignedUrl = await getSignedUrl(s3Client, uploadPartCommand, { expiresIn: 3600 });
+      // 生成预签名URL，使用S3配置的默认时效
+      const presignedUrl = await getSignedUrl(s3Client, uploadPartCommand, { expiresIn: s3Config.signature_expires_in || 3600 });
 
       presignedUrls.push({
         partNumber: partNumber,

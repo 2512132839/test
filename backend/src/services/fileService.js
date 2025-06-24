@@ -127,11 +127,11 @@ export async function generateFileDownloadUrl(db, file, encryptionSecret, reques
     const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
     if (s3Config) {
       try {
-        // 生成预览URL，有效期1小时
-        previewUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, 3600, false);
+        // 生成预览URL，使用S3配置的默认时效
+        previewUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false);
 
-        // 生成下载URL，有效期1小时，强制下载
-        downloadUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, 3600, true);
+        // 生成下载URL，使用S3配置的默认时效，强制下载
+        downloadUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, true);
       } catch (error) {
         console.error("生成预签名URL错误:", error);
         // 如果生成预签名URL失败，回退到使用原始S3 URL

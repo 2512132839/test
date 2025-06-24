@@ -1023,7 +1023,7 @@ fsRoutes.post("/api/admin/fs/presign", async (c) => {
     const finalContentType = getMimeTypeFromFilename(fileName);
     console.log(`预签名上传：从文件名[${fileName}]推断MIME类型: ${finalContentType}`);
 
-    // 生成预签名URL
+    // 生成预签名URL，使用S3配置的默认时效
     const presignedUrl = await generatePresignedPutUrl(s3Config, s3Path, finalContentType, encryptionSecret);
 
     // 构建S3直接访问URL
@@ -1134,7 +1134,7 @@ fsRoutes.post("/api/user/fs/presign", async (c) => {
     const finalContentType = getMimeTypeFromFilename(fileName);
     console.log(`预签名上传：从文件名[${fileName}]推断MIME类型: ${finalContentType}`);
 
-    // 生成预签名URL
+    // 生成预签名URL，使用S3配置的默认时效
     const presignedUrl = await generatePresignedPutUrl(s3Config, s3Path, finalContentType, encryptionSecret);
 
     // 构建S3直接访问URL

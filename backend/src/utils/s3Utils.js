@@ -133,10 +133,12 @@ export function buildS3Url(s3Config, storagePath) {
  * @param {string} storagePath - S3存储路径
  * @param {string} mimetype - 文件的MIME类型
  * @param {string} encryptionSecret - 用于解密凭证的密钥
- * @param {number} expiresIn - URL过期时间（秒），默认为1小时
+ * @param {number} expiresIn - URL过期时间（秒），如果为null则使用S3配置的默认值
  * @returns {Promise<string>} 预签名URL
  */
-export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, encryptionSecret, expiresIn = 3600) {
+export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, encryptionSecret, expiresIn = null) {
+  // 如果没有指定过期时间，使用S3配置中的默认值
+  const finalExpiresIn = expiresIn || s3Config.signature_expires_in || 3600;
   try {
     // 创建S3客户端
     const s3Client = await createS3Client(s3Config, encryptionSecret);
@@ -153,7 +155,7 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
     });
 
     // 针对不同服务商添加特定头部或参数
-    const commandOptions = { expiresIn };
+    const commandOptions = { expiresIn: finalExpiresIn };
 
     // 某些服务商可能对预签名URL有不同处理
     switch (s3Config.provider_type) {
@@ -169,6 +171,7 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
     // 生成预签名URL，应用服务商特定选项
     const url = await getSignedUrl(s3Client, command, commandOptions);
 
+    // 保留关键调试日志：确认预签名URL包含ContentType参数
     console.log(`生成预签名PUT URL - 文件[${normalizedPath}], ContentType[${mimetype}]`);
 
     return url;
@@ -179,16 +182,56 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
 }
 
 /**
- * 生成S3文件的下载预签名URL
+ * 生成自定义域名的直链URL（无签名）
+ * @param {Object} s3Config - S3配置
+ * @param {string} storagePath - S3存储路径
+ * @returns {string} 自定义域名直链URL
+ */
+function generateCustomHostDirectUrl(s3Config, storagePath) {
+  const normalizedPath = storagePath.startsWith("/") ? storagePath.slice(1) : storagePath;
+  const customHost = s3Config.custom_host.endsWith("/") ? s3Config.custom_host.slice(0, -1) : s3Config.custom_host;
+
+  // 根据path_style配置决定是否包含bucket名称
+  if (s3Config.path_style) {
+    return `${customHost}/${s3Config.bucket_name}/${normalizedPath}`;
+  } else {
+    return `${customHost}/${normalizedPath}`;
+  }
+}
+
+/**
+ * 替换URL中的主机名
+ * @param {string} originalUrl - 原始URL
+ * @param {string} customHost - 自定义主机
+ * @returns {string} 替换主机后的URL
+ */
+function replaceHostInUrl(originalUrl, customHost) {
+  try {
+    const url = new URL(originalUrl);
+    const customUrl = new URL(customHost);
+    url.hostname = customUrl.hostname;
+    url.protocol = customUrl.protocol;
+    if (customUrl.port) {
+      url.port = customUrl.port;
+    }
+    return url.toString();
+  } catch (error) {
+    console.error("替换URL主机失败:", error);
+    return originalUrl;
+  }
+}
+
+/**
+ * 生成原始S3预签名URL（内部函数）
  * @param {Object} s3Config - S3配置
  * @param {string} storagePath - S3存储路径
  * @param {string} encryptionSecret - 用于解密凭证的密钥
- * @param {number} expiresIn - URL过期时间（秒），默认为1小时
+ * @param {number} expiresIn - URL过期时间（秒）
  * @param {boolean} forceDownload - 是否强制下载（而非预览）
  * @param {string} mimetype - 文件的MIME类型（可选）
- * @returns {Promise<string>} 预签名URL
+ * @returns {Promise<string>} 原始S3预签名URL
  */
-export async function generatePresignedUrl(s3Config, storagePath, encryptionSecret, expiresIn = 3600, forceDownload = false, mimetype = null) {
+async function generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, expiresIn, forceDownload = false, mimetype = null) {
   try {
     // 创建S3客户端
     const s3Client = await createS3Client(s3Config, encryptionSecret);
@@ -236,6 +279,36 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
   } catch (error) {
     console.error("生成预签名URL出错:", error);
     throw new Error("无法生成文件下载链接: " + (error.message || "未知错误"));
+  }
+}
+
+/**
+ * 生成S3文件的下载预签名URL（支持自定义域名）
+ * @param {Object} s3Config - S3配置
+ * @param {string} storagePath - S3存储路径
+ * @param {string} encryptionSecret - 用于解密凭证的密钥
+ * @param {number} expiresIn - URL过期时间（秒），如果为null则使用S3配置的默认值
+ * @param {boolean} forceDownload - 是否强制下载（而非预览）
+ * @param {string} mimetype - 文件的MIME类型（可选）
+ * @returns {Promise<string>} 预签名URL或自定义域名URL
+ */
+export async function generatePresignedUrl(s3Config, storagePath, encryptionSecret, expiresIn = null, forceDownload = false, mimetype = null) {
+  // 如果没有指定过期时间，使用S3配置中的默认值
+  const finalExpiresIn = expiresIn || s3Config.signature_expires_in || 3600;
+
+  // 如果配置了自定义域名
+  if (s3Config.custom_host) {
+    if (s3Config.custom_host_signature) {
+      // 需要签名的自定义域名：生成预签名URL后替换域名
+      const presignedUrl = await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);
+      return replaceHostInUrl(presignedUrl, s3Config.custom_host);
+    } else {
+      // 不需要签名的自定义域名：直接返回自定义域名直链
+      return generateCustomHostDirectUrl(s3Config, storagePath);
+    }
+  } else {
+    // 没有自定义域名：使用原始S3预签名URL
+    return await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);
   }
 }
 

@@ -429,9 +429,9 @@ export async function handlePut(c, path, userId, userType, db) {
           ContentType: contentType,
         });
 
-        // 生成预签名URL（1小时有效）
+        // 生成预签名URL，使用S3配置的默认时效
         const presignedUrl = await getSignedUrl(s3Client, putCommand, {
-          expiresIn: 3600,
+          expiresIn: s3Config.signature_expires_in || 3600,
         });
 
         // 使用代理上传

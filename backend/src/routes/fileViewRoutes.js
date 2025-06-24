@@ -305,8 +305,8 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         });
       }
 
-      // 生成预签名URL，传递MIME类型以确保正确的Content-Type
-      const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, 3600, forceDownload, contentType);
+      // 生成预签名URL，使用S3配置的默认时效，传递MIME类型以确保正确的Content-Type
+      const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, null, forceDownload, contentType);
 
       // 代理请求到实际的文件URL
       const fileRequest = new Request(presignedUrl);
@@ -447,18 +447,16 @@ export function registerFileViewRoutes(app) {
       }
 
       try {
-        // 设置特殊的安全参数：较短的过期时间（60分钟）和正确的内容类型
-        const expiresIn = 60 * 60; // 60分钟，单位为秒
-
+        // Office预览使用S3配置的默认时效
         // 生成临时预签名URL，适用于Office预览
-        const presignedUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, expiresIn, false, file.mimetype);
+        const presignedUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false, file.mimetype);
 
         // 返回直接访问URL
         return c.json({
           url: presignedUrl,
           filename: file.filename,
           mimetype: file.mimetype,
-          expires_in: expiresIn,
+          expires_in: s3Config.signature_expires_in || 3600,
           is_temporary: true,
         });
       } catch (error) {

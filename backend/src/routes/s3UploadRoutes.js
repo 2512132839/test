@@ -304,8 +304,8 @@ export function registerS3UploadRoutes(app) {
       // 获取加密密钥
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
-      // 生成预签名URL
-      const upload_url = await generatePresignedPutUrl(s3Config, storagePath, mimetype, encryptionSecret, 3600);
+      // 生成预签名URL，使用S3配置的默认时效
+      const upload_url = await generatePresignedPutUrl(s3Config, storagePath, mimetype, encryptionSecret);
 
       // 构建完整S3 URL
       const s3_url = buildS3Url(s3Config, storagePath);
@@ -919,9 +919,9 @@ export function registerS3UploadRoutes(app) {
         case S3ProviderTypes.B2:
           // B2特殊处理 - 使用预签名URL方式，避免AWS SDK自动添加不支持的校验和头部
           try {
-            // 生成预签名URL - 使用现有函数
+            // 生成预签名URL - 使用现有函数，使用S3配置的默认时效
             console.log(`为B2上传生成预签名URL...`);
-            const presignedUrl = await generatePresignedPutUrl(s3Config, storagePath, contentType, encryptionSecret, 3600);
+            const presignedUrl = await generatePresignedPutUrl(s3Config, storagePath, contentType, encryptionSecret);
 
             // 直接使用fetch和预签名URL上传内容
             console.log(`使用预签名URL上传文件到B2...`);
@@ -1060,9 +1060,9 @@ export function registerS3UploadRoutes(app) {
       // 清除与文件相关的缓存 - 使用统一的clearCache函数
       await clearCache({ db, s3ConfigId });
 
-      // 生成预签名URL (有效期1小时)，传递MIME类型以确保正确的Content-Type
-      const previewDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, 3600, false, contentType);
-      const downloadDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, 3600, true, contentType);
+      // 生成预签名URL，使用S3配置的默认时效，传递MIME类型以确保正确的Content-Type
+      const previewDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, null, false, contentType);
+      const downloadDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, null, true, contentType);
 
       // 构建API路径URL
       const baseUrl = c.req.url.split("/api/")[0];

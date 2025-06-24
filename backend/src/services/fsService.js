@@ -1764,7 +1764,7 @@ export async function getFilePresignedUrl(db, path, userIdOrInfo, userType, encr
         // 获取文件名
         const fileName = path.split("/").filter(Boolean).pop() || "file";
 
-        // 生成预签名URL
+        // 生成预签名URL，使用传入的expiresIn参数（保持现有API兼容性）
         const { generatePresignedUrl } = await import("../utils/s3Utils.js");
         const presignedUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, expiresIn, forceDownload);
 

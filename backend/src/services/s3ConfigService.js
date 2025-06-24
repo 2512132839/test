@@ -19,10 +19,11 @@ export async function getS3ConfigsByAdmin(db, adminId) {
   const configs = await db
       .prepare(
           `
-      SELECT 
-        id, name, provider_type, endpoint_url, bucket_name, 
-        region, path_style, default_folder, is_public, is_default, 
-        created_at, updated_at, last_used, total_storage_bytes
+      SELECT
+        id, name, provider_type, endpoint_url, bucket_name,
+        region, path_style, default_folder, is_public, is_default,
+        created_at, updated_at, last_used, total_storage_bytes,
+        custom_host, custom_host_signature, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE admin_id = ?
       ORDER BY name ASC
@@ -43,9 +44,10 @@ export async function getPublicS3Configs(db) {
   const configs = await db
       .prepare(
           `
-      SELECT 
-        id, name, provider_type, endpoint_url, bucket_name, 
-        region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes
+      SELECT
+        id, name, provider_type, endpoint_url, bucket_name,
+        region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes,
+        custom_host, custom_host_signature, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE is_public = 1
       ORDER BY name ASC
@@ -67,10 +69,11 @@ export async function getS3ConfigByIdForAdmin(db, id, adminId) {
   const config = await db
       .prepare(
           `
-      SELECT 
-        id, name, provider_type, endpoint_url, bucket_name, 
-        region, path_style, default_folder, is_public, is_default, 
-        created_at, updated_at, last_used, total_storage_bytes
+      SELECT
+        id, name, provider_type, endpoint_url, bucket_name,
+        region, path_style, default_folder, is_public, is_default,
+        created_at, updated_at, last_used, total_storage_bytes,
+        custom_host, custom_host_signature, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE id = ? AND admin_id = ?
     `
@@ -95,9 +98,10 @@ export async function getPublicS3ConfigById(db, id) {
   const config = await db
       .prepare(
           `
-      SELECT 
-        id, name, provider_type, endpoint_url, bucket_name, 
-        region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes
+      SELECT
+        id, name, provider_type, endpoint_url, bucket_name,
+        region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes,
+        custom_host, custom_host_signature, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE id = ? AND is_public = 1
     `
@@ -142,6 +146,11 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
   const defaultFolder = configData.default_folder || "";
   const isPublic = configData.is_public === true ? 1 : 0;
 
+  // 处理新增的自定义域名相关字段
+  const customHost = configData.custom_host || null;
+  const customHostSignature = configData.custom_host_signature === true ? 1 : 0;
+  const signatureExpiresIn = parseInt(configData.signature_expires_in) || 3600;
+
   // 处理存储总容量
   let totalStorageBytes = null;
   if (configData.total_storage_bytes !== undefined) {
@@ -171,11 +180,15 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
     INSERT INTO ${DbTables.S3_CONFIGS} (
       id, name, provider_type, endpoint_url, bucket_name,
       region, access_key_id, secret_access_key, path_style,
-      default_folder, is_public, admin_id, total_storage_bytes, created_at, updated_at
+      default_folder, is_public, admin_id, total_storage_bytes,
+      custom_host, custom_host_signature, signature_expires_in,
+      created_at, updated_at
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
-      ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      ?, ?, ?, ?,
+      ?, ?, ?,
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `
       )
@@ -192,7 +205,10 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
           defaultFolder,
           isPublic,
           adminId,
-          totalStorageBytes
+          totalStorageBytes,
+          customHost,
+          customHostSignature,
+          signatureExpiresIn
       )
       .run();
 
@@ -208,6 +224,9 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
     default_folder: defaultFolder,
     is_public: isPublic === 1,
     total_storage_bytes: totalStorageBytes,
+    custom_host: customHost,
+    custom_host_signature: customHostSignature === 1,
+    signature_expires_in: signatureExpiresIn,
   };
 }
 
@@ -319,6 +338,25 @@ export async function updateS3Config(db, id, updateData, adminId, encryptionSecr
   if (updateData.is_public !== undefined) {
     updateFields.push("is_public = ?");
     params.push(updateData.is_public === true ? 1 : 0);
+  }
+
+  // 更新自定义域名
+  if (updateData.custom_host !== undefined) {
+    updateFields.push("custom_host = ?");
+    params.push(updateData.custom_host || null);
+  }
+
+  // 更新自定义域名签名设置
+  if (updateData.custom_host_signature !== undefined) {
+    updateFields.push("custom_host_signature = ?");
+    params.push(updateData.custom_host_signature === true ? 1 : 0);
+  }
+
+  // 更新签名有效期
+  if (updateData.signature_expires_in !== undefined) {
+    updateFields.push("signature_expires_in = ?");
+    const expiresIn = parseInt(updateData.signature_expires_in);
+    params.push(!isNaN(expiresIn) && expiresIn > 0 ? expiresIn : 3600);
   }
 
   // 更新时间戳
@@ -603,6 +641,9 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
       pathStyle: config.path_style ? "是" : "否",
       provider: config.provider_type,
       defaultFolder: config.default_folder || "",
+      customHost: config.custom_host || "未配置",
+      customHostSignature: config.custom_host_signature ? "是" : "否",
+      signatureExpiresIn: `${config.signature_expires_in || 3600}秒`,
     },
   };
 
@@ -792,7 +833,7 @@ async function executeCorsTest(testResult, strategy) {
       ContentType: "text/plain",
     });
 
-    const presignedUrl = await getSignedUrl(strategy.s3Client, putCommand, { expiresIn: 300 });
+    const presignedUrl = await getSignedUrl(strategy.s3Client, putCommand, { expiresIn: strategy.config.signature_expires_in || 300 });
 
     // 使用策略获取CORS预检请求头
     const corsRequestHeaders = strategy.getCorsHeaders();
@@ -861,10 +902,11 @@ export async function getS3ConfigsWithUsage(db) {
   const configs = await db
       .prepare(
           `
-      SELECT 
-        id, name, provider_type, endpoint_url, bucket_name, 
-        region, path_style, default_folder, is_public, is_default, 
-        created_at, updated_at, last_used, total_storage_bytes, admin_id
+      SELECT
+        id, name, provider_type, endpoint_url, bucket_name,
+        region, path_style, default_folder, is_public, is_default,
+        created_at, updated_at, last_used, total_storage_bytes, admin_id,
+        custom_host, custom_host_signature, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       ORDER BY name ASC
       `
@@ -936,7 +978,7 @@ async function executeFrontendSimulationTest(testResult, strategy) {
         },
       });
 
-      const presignedUrl = await getSignedUrl(strategy.s3Client, putCommand, { expiresIn: 300 });
+      const presignedUrl = await getSignedUrl(strategy.s3Client, putCommand, { expiresIn: strategy.config.signature_expires_in || 300 });
       const step1EndTime = performance.now();
 
       testResult.frontendSim.steps.step1.success = true;
@@ -963,7 +1005,7 @@ async function executeFrontendSimulationTest(testResult, strategy) {
             Key: testKey,
             ContentType: testContentType,
           }),
-          { expiresIn: 300 }
+          { expiresIn: strategy.config.signature_expires_in || 300 }
       );
 
       // 模拟前端上传请求头（根据不同提供商定制）
