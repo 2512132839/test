@@ -86,7 +86,6 @@ CREATE TABLE s3_configs (
   last_used DATETIME,                  -- 最后使用时间
   admin_id TEXT,                       -- 关联的管理员ID
   custom_host TEXT,                    -- 自定义域名/CDN域名
-  custom_host_signature BOOLEAN DEFAULT 0, -- 自定义域名是否需要签名
   signature_expires_in INTEGER DEFAULT 3600, -- 签名有效期（秒）
   FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
 );
@@ -206,7 +205,6 @@ INSERT INTO s3_configs (
   default_folder,
   admin_id,
   custom_host,
-  custom_host_signature,
   signature_expires_in
 ) VALUES (
   '22222222-2222-2222-2222-222222222222',
@@ -221,6 +219,5 @@ INSERT INTO s3_configs (
   'uploads/',
   '00000000-0000-0000-0000-000000000000',
   NULL,
-  0,
   3600
 );

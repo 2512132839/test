@@ -200,28 +200,6 @@ function generateCustomHostDirectUrl(s3Config, storagePath) {
 }
 
 /**
- * 替换URL中的主机名
- * @param {string} originalUrl - 原始URL
- * @param {string} customHost - 自定义主机
- * @returns {string} 替换主机后的URL
- */
-function replaceHostInUrl(originalUrl, customHost) {
-  try {
-    const url = new URL(originalUrl);
-    const customUrl = new URL(customHost);
-    url.hostname = customUrl.hostname;
-    url.protocol = customUrl.protocol;
-    if (customUrl.port) {
-      url.port = customUrl.port;
-    }
-    return url.toString();
-  } catch (error) {
-    console.error("替换URL主机失败:", error);
-    return originalUrl;
-  }
-}
-
-/**
  * 生成原始S3预签名URL（内部函数）
  * @param {Object} s3Config - S3配置
  * @param {string} storagePath - S3存储路径
@@ -298,14 +276,8 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
 
   // 如果配置了自定义域名
   if (s3Config.custom_host) {
-    if (s3Config.custom_host_signature) {
-      // 需要签名的自定义域名：生成预签名URL后替换域名
-      const presignedUrl = await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);
-      return replaceHostInUrl(presignedUrl, s3Config.custom_host);
-    } else {
-      // 不需要签名的自定义域名：直接返回自定义域名直链
-      return generateCustomHostDirectUrl(s3Config, storagePath);
-    }
+    // 自定义域名：直接返回自定义域名直链
+    return generateCustomHostDirectUrl(s3Config, storagePath);
   } else {
     // 没有自定义域名：使用原始S3预签名URL
     return await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);

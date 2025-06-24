@@ -23,7 +23,7 @@ export async function getS3ConfigsByAdmin(db, adminId) {
         id, name, provider_type, endpoint_url, bucket_name,
         region, path_style, default_folder, is_public, is_default,
         created_at, updated_at, last_used, total_storage_bytes,
-        custom_host, custom_host_signature, signature_expires_in
+        custom_host, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE admin_id = ?
       ORDER BY name ASC
@@ -47,7 +47,7 @@ export async function getPublicS3Configs(db) {
       SELECT
         id, name, provider_type, endpoint_url, bucket_name,
         region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes,
-        custom_host, custom_host_signature, signature_expires_in
+        custom_host, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE is_public = 1
       ORDER BY name ASC
@@ -73,7 +73,7 @@ export async function getS3ConfigByIdForAdmin(db, id, adminId) {
         id, name, provider_type, endpoint_url, bucket_name,
         region, path_style, default_folder, is_public, is_default,
         created_at, updated_at, last_used, total_storage_bytes,
-        custom_host, custom_host_signature, signature_expires_in
+        custom_host, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE id = ? AND admin_id = ?
     `
@@ -101,7 +101,7 @@ export async function getPublicS3ConfigById(db, id) {
       SELECT
         id, name, provider_type, endpoint_url, bucket_name,
         region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes,
-        custom_host, custom_host_signature, signature_expires_in
+        custom_host, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       WHERE id = ? AND is_public = 1
     `
@@ -148,7 +148,6 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
 
   // 处理新增的自定义域名相关字段
   const customHost = configData.custom_host || null;
-  const customHostSignature = configData.custom_host_signature === true ? 1 : 0;
   const signatureExpiresIn = parseInt(configData.signature_expires_in) || 3600;
 
   // 处理存储总容量
@@ -181,13 +180,13 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
       id, name, provider_type, endpoint_url, bucket_name,
       region, access_key_id, secret_access_key, path_style,
       default_folder, is_public, admin_id, total_storage_bytes,
-      custom_host, custom_host_signature, signature_expires_in,
+      custom_host, signature_expires_in,
       created_at, updated_at
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?,
-      ?, ?, ?,
+      ?, ?,
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `
@@ -207,7 +206,6 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
           adminId,
           totalStorageBytes,
           customHost,
-          customHostSignature,
           signatureExpiresIn
       )
       .run();
@@ -225,7 +223,6 @@ export async function createS3Config(db, configData, adminId, encryptionSecret) 
     is_public: isPublic === 1,
     total_storage_bytes: totalStorageBytes,
     custom_host: customHost,
-    custom_host_signature: customHostSignature === 1,
     signature_expires_in: signatureExpiresIn,
   };
 }
@@ -344,12 +341,6 @@ export async function updateS3Config(db, id, updateData, adminId, encryptionSecr
   if (updateData.custom_host !== undefined) {
     updateFields.push("custom_host = ?");
     params.push(updateData.custom_host || null);
-  }
-
-  // 更新自定义域名签名设置
-  if (updateData.custom_host_signature !== undefined) {
-    updateFields.push("custom_host_signature = ?");
-    params.push(updateData.custom_host_signature === true ? 1 : 0);
   }
 
   // 更新签名有效期
@@ -642,7 +633,6 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
       provider: config.provider_type,
       defaultFolder: config.default_folder || "",
       customHost: config.custom_host || "未配置",
-      customHostSignature: config.custom_host_signature ? "是" : "否",
       signatureExpiresIn: `${config.signature_expires_in || 3600}秒`,
     },
   };
@@ -906,7 +896,7 @@ export async function getS3ConfigsWithUsage(db) {
         id, name, provider_type, endpoint_url, bucket_name,
         region, path_style, default_folder, is_public, is_default,
         created_at, updated_at, last_used, total_storage_bytes, admin_id,
-        custom_host, custom_host_signature, signature_expires_in
+        custom_host, signature_expires_in
       FROM ${DbTables.S3_CONFIGS}
       ORDER BY name ASC
       `

@@ -118,7 +118,6 @@ export async function initDatabase(db) {
         is_default BOOLEAN DEFAULT 0,
         total_storage_bytes BIGINT,
         custom_host TEXT,
-        custom_host_signature BOOLEAN DEFAULT 0,
         signature_expires_in INTEGER DEFAULT 3600,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -386,7 +385,6 @@ async function migrateDatabase(db, currentVersion, targetVersion) {
           // 需要添加的字段
           const fieldsToAdd = [
             { name: "custom_host", sql: "custom_host TEXT" },
-            { name: "custom_host_signature", sql: "custom_host_signature BOOLEAN DEFAULT 0" },
             { name: "signature_expires_in", sql: "signature_expires_in INTEGER DEFAULT 3600" },
           ];
 
@@ -407,6 +405,33 @@ async function migrateDatabase(db, currentVersion, targetVersion) {
         } catch (error) {
           console.error(`为${DbTables.S3_CONFIGS}表检查自定义域名字段时出错:`, error);
           console.log(`将继续执行迁移过程，但请手动检查${DbTables.S3_CONFIGS}表结构`);
+          // 不抛出错误，允许迁移继续进行
+        }
+        break;
+
+      case 7:
+        // 版本7：尝试删除S3_CONFIGS表中的custom_host_signature字段
+        // 该字段在技术上是矛盾的：自定义域名要求存储桶公开，公开存储桶不需要签名控制
+        try {
+          console.log(`尝试删除${DbTables.S3_CONFIGS}表中的custom_host_signature字段...`);
+
+          // 检查字段是否存在
+          const columnInfo = await db.prepare(`PRAGMA table_info(${DbTables.S3_CONFIGS})`).all();
+          const existingColumns = new Set(columnInfo.results.map((col) => col.name));
+
+          if (existingColumns.has("custom_host_signature")) {
+            console.log("检测到custom_host_signature字段，尝试使用现代SQLite语法删除...");
+
+            // 尝试使用现代SQLite语法（3.35.0+支持）
+            await db.prepare(`ALTER TABLE ${DbTables.S3_CONFIGS} DROP COLUMN custom_host_signature`).run();
+
+            console.log("custom_host_signature字段删除成功（使用现代SQLite语法）");
+          } else {
+            console.log("custom_host_signature字段不存在，跳过删除");
+          }
+        } catch (error) {
+          console.log(`现代SQLite语法删除失败，可能是版本不支持: ${error.message}`);
+          console.log("该字段将在代码中被忽略，数据库结构保持不变以确保安全");
           // 不抛出错误，允许迁移继续进行
         }
         break;
@@ -528,7 +553,7 @@ export async function checkAndInitDatabase(db) {
     }
 
     // 如果要添加新表或修改现有表，请递增目标版本，修改后启动时自动更新数据库
-    const targetVersion = 6; // 目标schema版本,每次修改表结构时递增
+    const targetVersion = 7; // 目标schema版本,每次修改表结构时递增
 
     if (currentVersion < targetVersion) {
       console.log(`需要更新数据库结构，当前版本:${currentVersion}，目标版本:${targetVersion}`);

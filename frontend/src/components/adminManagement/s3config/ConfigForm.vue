@@ -35,7 +35,6 @@ const formData = ref({
   is_public: false,
   total_storage_bytes: null,
   custom_host: "",
-  custom_host_signature: false,
   signature_expires_in: 3600,
 });
 
@@ -218,7 +217,6 @@ watch(
 
         // 新增字段
         formData.value.custom_host = props.config.custom_host || "";
-        formData.value.custom_host_signature = props.config.custom_host_signature === 1 || props.config.custom_host_signature === true;
         formData.value.signature_expires_in = props.config.signature_expires_in || 3600;
 
         // 敏感信息在编辑时默认为空，只在主动填写时才提交
@@ -247,7 +245,6 @@ watch(
           is_public: false,
           total_storage_bytes: getDefaultStorageByProvider("Cloudflare R2"),
           custom_host: "",
-          custom_host_signature: false,
           signature_expires_in: 3600,
         };
         updateEndpoint();
@@ -575,21 +572,6 @@ const closeModal = () => {
                     placeholder="3600"
                 />
                 <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">控制预签名URL的默认有效期，默认3600秒</p>
-              </div>
-
-              <!-- 自定义域名签名选项 -->
-              <div v-if="formData.custom_host">
-                <label class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'"> HOST签名设置 </label>
-                <div class="flex items-center h-10 px-3 py-2 rounded-md border" :class="darkMode ? 'border-gray-600' : 'border-gray-300'">
-                  <input
-                      type="checkbox"
-                      id="custom_host_signature"
-                      v-model="formData.custom_host_signature"
-                      class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
-                  />
-                  <label for="custom_host_signature" class="ml-2 text-sm" :class="darkMode ? 'text-gray-200' : 'text-gray-700'"> 启用签名 </label>
-                </div>
               </div>
             </div>
           </div>
