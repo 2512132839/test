@@ -60,7 +60,7 @@ export default defineConfig(({ command, mode }) => {
               options: {
                 cacheName: "cloudpaste-images-cache",
                 expiration: {
-                  maxEntries: 200,
+                  maxEntries: 300,
                   maxAgeSeconds: 60 * 60 * 24 * 30, // 30天
                 },
               },
@@ -108,6 +108,42 @@ export default defineConfig(({ command, mode }) => {
               },
             },
 
+            // S3音频文件缓存策略 - 基于文件路径缓存，忽略S3签名参数
+            {
+              urlPattern: /^https:\/\/.*\.(mp3|wav|flac|aac|ogg|m4a)(\?.*)?$/i,
+              handler: "NetworkFirst", // 网络优先，确保音频文件能正常加载
+              options: {
+                cacheName: "cloudpaste-audio-cache",
+                networkTimeoutSeconds: 10, // 10秒网络超时
+                expiration: {
+                  maxEntries: 100, // 增加缓存数量，因为现在缓存效率更高
+                  maxAgeSeconds: 60 * 60 * 24 * 4, // 4天，因为基于文件路径缓存更稳定
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+                plugins: [
+                  // 自定义缓存键策略：基于文件路径而不是完整URL
+                  {
+                    cacheKeyWillBeUsed: async ({ request }) => {
+                      const url = new URL(request.url);
+                      // 提取文件路径，移除S3签名参数，保留完整路径以避免冲突
+                      const pathWithoutQuery = `${url.origin}${url.pathname}`;
+                      console.log(`🎵 音频缓存键: ${request.url} → ${pathWithoutQuery}`);
+                      return pathWithoutQuery;
+                    },
+                    // 确保缓存查找时使用相同的键策略
+                    cachedResponseWillBeUsed: async ({ cachedResponse, request }) => {
+                      if (cachedResponse) {
+                        console.log(`🎵 使用缓存的音频文件: ${request.url}`);
+                      }
+                      return cachedResponse;
+                    },
+                  },
+                ],
+              },
+            },
+
             // CDN资源缓存
             {
               urlPattern: /^https:\/\/cdn\./,
@@ -115,7 +151,7 @@ export default defineConfig(({ command, mode }) => {
               options: {
                 cacheName: "cloudpaste-cdn-cache",
                 expiration: {
-                  maxEntries: 50,
+                  maxEntries: 100,
                   maxAgeSeconds: 60 * 60 * 24 * 7, // 7天
                 },
               },

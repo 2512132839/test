@@ -1369,7 +1369,9 @@ fsRoutes.get("/api/admin/fs/file-link", baseAuthMiddleware, requireAdminMiddlewa
   const db = c.env.DB;
   const path = c.req.query("path");
   const adminId = PermissionUtils.getUserId(c);
-  const expiresIn = parseInt(c.req.query("expires_in") || "604800"); // 默认7天
+  // 如果前端传入null或空值，则使用S3配置的默认签名时间，否则使用传入的值
+  const expiresInParam = c.req.query("expires_in");
+  const expiresIn = expiresInParam && expiresInParam !== "null" ? parseInt(expiresInParam) : null;
   const forceDownload = c.req.query("force_download") === "true";
 
   if (!path) {
@@ -1398,7 +1400,9 @@ fsRoutes.get("/api/user/fs/file-link", baseAuthMiddleware, requireFilePermission
   const db = c.env.DB;
   const path = c.req.query("path");
   const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
-  const expiresIn = parseInt(c.req.query("expires_in") || "604800"); // 默认7天
+  // 如果前端传入null或空值，则使用S3配置的默认签名时间，否则使用传入的值
+  const expiresInParam = c.req.query("expires_in");
+  const expiresIn = expiresInParam && expiresInParam !== "null" ? parseInt(expiresInParam) : null;
   const forceDownload = c.req.query("force_download") === "true";
 
   if (!path) {

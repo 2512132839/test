@@ -147,7 +147,7 @@ export async function initAdminMultipartUpload(path, contentType, fileSize, file
  */
 export async function uploadAdminPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/admin/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -406,7 +406,7 @@ export async function initUserMultipartUpload(path, contentType, fileSize, filen
  */
 export async function uploadUserPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/user/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
+      key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -1119,13 +1119,13 @@ export async function performClientSideCopy(options) {
       } else {
         // 处理多个文件的复制，使用handleDirectoryCopy函数
         return await handleDirectoryCopy(
-          {
-            items: allItems,
-            targetMount: targetMount,
-          },
-          commitBatchCopy,
-          onProgress,
-          onCancel
+            {
+              items: allItems,
+              targetMount: targetMount,
+            },
+            commitBatchCopy,
+            onProgress,
+            onCancel
         );
       }
     }
@@ -1404,7 +1404,7 @@ async function handleDirectoryCopy(copyResult, commitBatchCopy, onProgress, onCa
  */
 export function getFsApiByUserType(isAdmin) {
   return isAdmin
-    ? {
+      ? {
         getDirectoryList: getAdminDirectoryList,
         getFileInfo: getAdminFileInfo,
         getFileDownloadUrl: getAdminFileDownloadUrl,
@@ -1433,7 +1433,7 @@ export function getFsApiByUserType(isAdmin) {
         commitCopy: commitAdminCopy,
         commitBatchCopy: commitAdminBatchCopy,
       }
-    : {
+      : {
         getDirectoryList: getUserDirectoryList,
         getFileInfo: getUserFileInfo,
         getFileDownloadUrl: getUserFileDownloadUrl,

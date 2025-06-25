@@ -608,13 +608,6 @@ export const FILE_TYPE_TO_MIME_TYPE_MAP = {
  * @returns {string} 分组名称（从MIME_GROUPS常量）
  */
 export const getMimeTypeGroupByFileDetails = (mimeType, filename) => {
-  if (!mimeType) return MIME_GROUPS.UNKNOWN;
-
-  // 先尝试通过明确的MIME类型映射获取分组（跳过通用类型如application/octet-stream）
-  if (MIME_TYPE_TO_GROUP[mimeType] && mimeType !== "application/octet-stream") {
-    return MIME_TYPE_TO_GROUP[mimeType];
-  }
-
   // 对于文件名存在的情况，优先从扩展名判断
   if (filename) {
     const extension = getFileExtension(filename);
@@ -627,6 +620,14 @@ export const getMimeTypeGroupByFileDetails = (mimeType, filename) => {
         return MIME_GROUPS[groupKey];
       }
     }
+  }
+
+  // 如果没有MIME类型，且文件名也无法判断，返回未知
+  if (!mimeType) return MIME_GROUPS.UNKNOWN;
+
+  // 先尝试通过明确的MIME类型映射获取分组（跳过通用类型如application/octet-stream）
+  if (MIME_TYPE_TO_GROUP[mimeType] && mimeType !== "application/octet-stream") {
+    return MIME_TYPE_TO_GROUP[mimeType];
   }
 
   // 特殊处理 application/octet-stream
@@ -671,14 +672,14 @@ export const getMimeTypeGroup = (mimeType) => {
   }
   // 配置文件类型检测
   if (
-    mimeType.includes("yaml") ||
-    mimeType.includes("yml") ||
-    mimeType.includes("json") ||
-    mimeType.includes("xml") ||
-    mimeType.includes("toml") ||
-    mimeType.includes("ini") ||
-    mimeType.includes("config") ||
-    mimeType.includes("properties")
+      mimeType.includes("yaml") ||
+      mimeType.includes("yml") ||
+      mimeType.includes("json") ||
+      mimeType.includes("xml") ||
+      mimeType.includes("toml") ||
+      mimeType.includes("ini") ||
+      mimeType.includes("config") ||
+      mimeType.includes("properties")
   ) {
     return MIME_GROUPS.CONFIG;
   }
