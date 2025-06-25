@@ -1,0 +1,71 @@
+export default {
+  "common": {
+    "unknown": "未知",
+    "loading": "加载中...",
+    "confirm": "确认",
+    "required": "请填写必填项",
+    "noPermission": "无此功能权限，请联系管理员",
+    "contactAdmin": "联系管理员",
+    "permissionDenied": "权限不足",
+    "pagination": {
+      "previousPage": "上一页",
+      "nextPage": "下一页",
+      "pageInfo": "{current}/{total}",
+      "showingRange": "显示第 {start} 至 {end} 条，共 {total} 条",
+      "firstPage": "第一页",
+      "lastPage": "最后一页",
+      "ariaLabel": "分页导航",
+      "srFirstPage": "第一页",
+      "srPreviousPage": "上一页",
+      "srNextPage": "下一页",
+      "srLastPage": "最后一页"
+    },
+    "errorToast": {
+      "defaultTitle": "操作失败",
+      "close": "关闭",
+      "srClose": "关闭"
+    }
+  },
+  "app": {
+    "title": "CloudPaste"
+  },
+  "pageTitle": {
+    "home": "CloudPaste - 在线剪贴板",
+    "upload": "文件上传 - CloudPaste",
+    "admin": "管理面板 - CloudPaste",
+    "pasteView": "查看分享 - CloudPaste",
+    "fileView": "文件预览 - CloudPaste",
+    "mountExplorer": "挂载浏览 - CloudPaste",
+    "notFound": "页面未找到 - CloudPaste",
+    "adminModules": {
+      "dashboard": "仪表板",
+      "textManagement": "文本管理",
+      "fileManagement": "文件管理",
+      "storageConfig": "S3存储配置",
+      "mountManagement": "挂载管理",
+      "keyManagement": "密钥管理",
+      "settings": "系统设置"
+    }
+  },
+  "nav": {
+    "home": "首页",
+    "upload": "文件上传",
+    "mountExplorer": "挂载浏览",
+    "admin": "管理面板",
+    "menu": "主菜单"
+  },
+  "theme": {
+    "toggle": "切换主题",
+    "light": "浅色模式",
+    "dark": "深色模式",
+    "auto": "自动模式"
+  },
+  "footer": {
+    "copyright": "© {year} CloudPaste. 保留所有权利。"
+  },
+  "language": {
+    "toggle": "切换语言",
+    "zh": "中文",
+    "en": "English"
+  }
+};

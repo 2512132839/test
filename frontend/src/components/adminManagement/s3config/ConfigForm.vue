@@ -119,11 +119,6 @@ const formatUrl = (field) => {
   if (formData.value[field]) {
     let url = formData.value[field].trim();
 
-    // 确保以https://开头
-    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-      url = "https://" + url;
-    }
-
     // 移除末尾的斜杠
     url = url.replace(/\/+$/, "");
 
@@ -457,8 +452,8 @@ const closeModal = () => {
                 ]"
                   placeholder="https://endpoint.example.com"
               />
-              <p v-if="formData.endpoint_url && !isValidUrl(formData.endpoint_url)" class="mt-1 text-xs text-red-500">请输入有效的URL格式，必须以https://开头</p>
-              <p v-else class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">S3 API的完整端点URL，包含https://前缀</p>
+              <p v-if="formData.endpoint_url && !isValidUrl(formData.endpoint_url)" class="mt-1 text-xs text-red-500">请输入有效的URL格式，支持http://或https://</p>
+              <p v-else class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">S3 API的完整端点URL，例如：https://endpoint.example.com</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -554,7 +549,7 @@ const closeModal = () => {
                 ]"
                   placeholder="https://cdn.example.com"
               />
-              <p v-if="formData.custom_host && !isValidUrl(formData.custom_host)" class="mt-1 text-xs text-red-500">请输入有效的URL格式，必须以https://开头</p>
+              <p v-if="formData.custom_host && !isValidUrl(formData.custom_host)" class="mt-1 text-xs text-red-500">请输入有效的URL格式，支持http://或https://</p>
               <p v-else class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">可选：配置CDN加速域名或自定义域名，留空使用原始S3端点</p>
             </div>
 

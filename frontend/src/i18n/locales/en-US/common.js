@@ -1,0 +1,71 @@
+export default {
+  "common": {
+    "unknown": "Unknown",
+    "loading": "Loading...",
+    "confirm": "Confirm",
+    "required": "Please fill in required fields",
+    "noPermission": "No permission for this feature, please contact administrator",
+    "contactAdmin": "Contact Administrator",
+    "permissionDenied": "Permission Denied",
+    "pagination": {
+      "previousPage": "Previous",
+      "nextPage": "Next",
+      "pageInfo": "{current}/{total}",
+      "showingRange": "Showing {start} to {end} of {total} results",
+      "firstPage": "First Page",
+      "lastPage": "Last Page",
+      "ariaLabel": "Pagination Navigation",
+      "srFirstPage": "First Page",
+      "srPreviousPage": "Previous Page",
+      "srNextPage": "Next Page",
+      "srLastPage": "Last Page"
+    },
+    "errorToast": {
+      "defaultTitle": "Operation Failed",
+      "close": "Close",
+      "srClose": "Close"
+    }
+  },
+  "app": {
+    "title": "CloudPaste"
+  },
+  "pageTitle": {
+    "home": "CloudPaste - Online Clipboard",
+    "upload": "File Upload - CloudPaste",
+    "admin": "Admin Panel - CloudPaste",
+    "pasteView": "View Share - CloudPaste",
+    "fileView": "File Preview - CloudPaste",
+    "mountExplorer": "Mount Explorer - CloudPaste",
+    "notFound": "Page Not Found - CloudPaste",
+    "adminModules": {
+      "dashboard": "Dashboard",
+      "textManagement": "Text Management",
+      "fileManagement": "File Management",
+      "storageConfig": "S3 Storage Config",
+      "mountManagement": "Mount Management",
+      "keyManagement": "Key Management",
+      "settings": "System Settings"
+    }
+  },
+  "nav": {
+    "home": "Home",
+    "upload": "File Upload",
+    "mountExplorer": "Mount Explorer",
+    "admin": "Admin Panel",
+    "menu": "Main Menu"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light mode",
+    "dark": "Dark mode",
+    "auto": "Auto mode"
+  },
+  "footer": {
+    "copyright": "© {year} CloudPaste. All rights reserved."
+  },
+  "language": {
+    "toggle": "Toggle language",
+    "zh": "中文",
+    "en": "English"
+  }
+};

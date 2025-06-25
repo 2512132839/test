@@ -1,0 +1,52 @@
+export default {
+  "login": {
+    "adminLogin": "Admin Login",
+    "apiKeyAuth": "API Key Authentication",
+    "username": "Username",
+    "password": "Password",
+    "apiKey": "API Key",
+    "loginButton": "Login",
+    "loggingIn": "Logging in...",
+    "useApiKey": "Use API Key Login",
+    "useAdminAccount": "Use Admin Account Login",
+    "inputRequired": {
+      "usernamePassword": "Please enter username and password",
+      "apiKey": "Please enter API key"
+    },
+    "errors": {
+      "invalidToken": "Invalid login token",
+      "invalidCredentials": "Invalid username or password",
+      "loginFailed": "Login failed",
+      "invalidResponse": "Invalid server response format",
+      "serverError": "Server error",
+      "keyValidationFailed": "API key validation failed",
+      "permissionInfo": "Unable to get permission information",
+      "invalidApiKey": "Invalid or unauthorized API key",
+      "insufficientPermissions": "Insufficient API key permissions"
+    }
+  },
+  "permissionDenied": {
+    "title": "Permission Denied"
+  },
+  "title": {
+    "admin": "Admin Panel",
+    "user": "User Panel"
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "textManagement": "Text Management",
+    "fileManagement": "File Management",
+    "storageConfig": "S3 Storage Config",
+    "mountManagement": "Mount Management",
+    "keyManagement": "Key Management",
+    "settings": "System Settings",
+    "logout": "Logout",
+    "logoutAuth": "Logout Auth",
+    "openMenu": "Open Menu",
+    "closeMenu": "Close Menu",
+    "menuTitle": {
+      "admin": "Admin Panel",
+      "user": "User Panel"
+    }
+  }
+};
