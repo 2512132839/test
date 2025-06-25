@@ -6,6 +6,75 @@
  * 前端负责根据用户的时区设置进行本地化显示
  */
 
+// 获取当前语言设置
+const getCurrentLanguage = () => {
+  try {
+    return localStorage.getItem("language") || "zh-CN";
+  } catch {
+    return "zh-CN";
+  }
+};
+
+// 简单的翻译映射 - 避免在工具函数中使用复杂的国际化
+const translations = {
+  "zh-CN": {
+    unknown: "未知",
+    dateInvalid: "日期无效",
+    dateFormatError: "日期格式错误",
+    soon: "即将",
+    justNow: "刚刚",
+    minutesAgo: "{count}分钟前",
+    minutesLater: "{count}分钟后",
+    hoursAgo: "{count}小时前",
+    hoursLater: "{count}小时后",
+    daysAgo: "{count}天前",
+    daysLater: "{count}天后",
+    weeksAgo: "{count}周前",
+    weeksLater: "{count}周后",
+    monthsAgo: "{count}个月前",
+    monthsLater: "{count}个月后",
+    yearsAgo: "{count}年前",
+    yearsLater: "{count}年后",
+    neverExpires: "永不过期",
+    expired: "已过期",
+  },
+  "en-US": {
+    unknown: "Unknown",
+    dateInvalid: "Invalid Date",
+    dateFormatError: "Date Format Error",
+    soon: "Soon",
+    justNow: "Just now",
+    minutesAgo: "{count} minutes ago",
+    minutesLater: "{count} minutes later",
+    hoursAgo: "{count} hours ago",
+    hoursLater: "{count} hours later",
+    daysAgo: "{count} days ago",
+    daysLater: "{count} days later",
+    weeksAgo: "{count} weeks ago",
+    weeksLater: "{count} weeks later",
+    monthsAgo: "{count} months ago",
+    monthsLater: "{count} months later",
+    yearsAgo: "{count} years ago",
+    yearsLater: "{count} years later",
+    neverExpires: "Never expires",
+    expired: "Expired",
+  },
+};
+
+// 获取翻译文本
+const t = (key, params = {}) => {
+  const lang = getCurrentLanguage();
+  const langTranslations = translations[lang] || translations["zh-CN"];
+  let text = langTranslations[key] || key;
+
+  // 简单的参数替换
+  if (params.count !== undefined) {
+    text = text.replace("{count}", params.count);
+  }
+
+  return text;
+};
+
 /**
  * 时间格式化选项配置
  */
@@ -119,19 +188,19 @@ const getUserLocale = () => {
  * @returns {string} 格式化后的本地时间字符串
  */
 export const formatDateTime = (utcDateString, options = TIME_FORMAT_OPTIONS.FULL_DATETIME, locale = getUserLocale()) => {
-  if (!utcDateString) return "未知";
+  if (!utcDateString) return t("unknown");
 
   const date = parseUTCDate(utcDateString);
   if (!date) {
     console.warn("时间解析失败:", utcDateString);
-    return "日期无效";
+    return t("dateInvalid");
   }
 
   try {
     return new Intl.DateTimeFormat(locale, options).format(date);
   } catch (error) {
     console.error("日期格式化错误:", error, "输入:", utcDateString);
-    return "日期格式错误";
+    return t("dateFormatError");
   }
 };
 
@@ -169,25 +238,25 @@ export const formatRelativeTime = (utcDateString, baseDate = new Date()) => {
 
     // 根据时间差返回不同的描述
     if (absDiff < MINUTE) {
-      return isInFuture ? "即将" : "刚刚";
+      return isInFuture ? t("soon") : t("justNow");
     } else if (absDiff < HOUR) {
       const minutes = Math.floor(absDiff / MINUTE);
-      return isInFuture ? `${minutes}分钟后` : `${minutes}分钟前`;
+      return isInFuture ? t("minutesLater", { count: minutes }) : t("minutesAgo", { count: minutes });
     } else if (absDiff < DAY) {
       const hours = Math.floor(absDiff / HOUR);
-      return isInFuture ? `${hours}小时后` : `${hours}小时前`;
+      return isInFuture ? t("hoursLater", { count: hours }) : t("hoursAgo", { count: hours });
     } else if (absDiff < WEEK) {
       const days = Math.floor(absDiff / DAY);
-      return isInFuture ? `${days}天后` : `${days}天前`;
+      return isInFuture ? t("daysLater", { count: days }) : t("daysAgo", { count: days });
     } else if (absDiff < MONTH) {
       const weeks = Math.floor(absDiff / WEEK);
-      return isInFuture ? `${weeks}周后` : `${weeks}周前`;
+      return isInFuture ? t("weeksLater", { count: weeks }) : t("weeksAgo", { count: weeks });
     } else if (absDiff < YEAR) {
       const months = Math.floor(absDiff / MONTH);
-      return isInFuture ? `${months}个月后` : `${months}个月前`;
+      return isInFuture ? t("monthsLater", { count: months }) : t("monthsAgo", { count: months });
     } else {
       const years = Math.floor(absDiff / YEAR);
-      return isInFuture ? `${years}年后` : `${years}年前`;
+      return isInFuture ? t("yearsLater", { count: years }) : t("yearsAgo", { count: years });
     }
   } catch (error) {
     console.error("相对时间计算错误:", error);
@@ -201,11 +270,11 @@ export const formatRelativeTime = (utcDateString, baseDate = new Date()) => {
  * @returns {string} 格式化后的过期时间描述
  */
 export const formatExpiry = (expiryDateString) => {
-  if (!expiryDateString) return "永不过期";
+  if (!expiryDateString) return t("neverExpires");
 
   const expiryDate = parseUTCDate(expiryDateString);
   if (!expiryDate) {
-    return "日期无效";
+    return t("dateInvalid");
   }
 
   const now = new Date();
@@ -213,7 +282,7 @@ export const formatExpiry = (expiryDateString) => {
   try {
     // 判断是否已过期
     if (expiryDate < now) {
-      return "已过期";
+      return t("expired");
     }
 
     // 显示具体日期和相对时间
@@ -223,7 +292,7 @@ export const formatExpiry = (expiryDateString) => {
     return `${formattedDate} (${relativeTime})`;
   } catch (error) {
     console.error("过期时间格式化错误:", error);
-    return "日期格式错误";
+    return t("dateFormatError");
   }
 };
 

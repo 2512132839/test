@@ -430,12 +430,12 @@ import { formatRelativeTime, formatDateTime as formatDateTimeUtil } from "../../
 
 // 获取相对时间文本 - 使用统一的时间处理工具
 const getTimeAgo = (dateString) => {
-  return formatRelativeTime(dateString) || "未知时间";
+  return formatRelativeTime(dateString) || t("mount.taskManager.unknownTime");
 };
 
 // 格式化日期时间
 const formatDateTime = (dateString) => {
-  return formatDateTimeUtil(dateString) || "未知时间";
+  return formatDateTimeUtil(dateString) || t("mount.taskManager.unknownTime");
 };
 
 // 格式化进度数值

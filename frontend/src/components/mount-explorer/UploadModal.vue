@@ -859,19 +859,19 @@ const submitUpload = async () => {
         } else {
           console.error(`文件 ${file.name} 上传失败:`, response);
           fileItem.status = "error";
-          fileItem.message = response && response.message ? response.message : "上传失败";
+          fileItem.message = response && response.message ? response.message : t("mount.uploadModal.uploadFailed");
           errors.push({
             file: file.name,
-            error: response && response.message ? response.message : "未知错误",
+            error: response && response.message ? response.message : t("mount.uploadModal.unknownError"),
           });
         }
       } catch (error) {
         console.error(`上传文件 ${file.name} 时出错:`, error);
         fileItem.status = "error";
-        fileItem.message = error.message || "上传过程中发生错误";
+        fileItem.message = error.message || t("mount.uploadModal.uploadError");
         errors.push({
           file: file.name,
-          error: error.message || "未知错误",
+          error: error.message || t("mount.uploadModal.unknownError"),
         });
       }
     }
@@ -942,7 +942,7 @@ const cancelSingleUpload = async (index) => {
 
     // 更新文件状态为取消
     fileItem.status = "error";
-    fileItem.message = "上传已取消";
+    fileItem.message = t("mount.uploadModal.uploadCancelled");
     fileItem.progress = 0;
 
     // 确保清理所有相关状态
@@ -1017,7 +1017,7 @@ const cancelUpload = () => {
 
         // 更新文件状态为取消
         fileItem.status = "error";
-        fileItem.message = "上传已取消";
+        fileItem.message = t("mount.uploadModal.uploadCancelled");
         fileItem.progress = 0; // 重置进度
 
         // 确保清理所有相关状态
@@ -1183,12 +1183,12 @@ const retryUpload = async (index) => {
       }, 1500);
     } else {
       fileItem.status = "error";
-      fileItem.message = response && response.message ? response.message : "上传失败";
+      fileItem.message = response && response.message ? response.message : t("mount.uploadModal.uploadFailed");
       showMessage("error", t("mount.uploadModal.retryUploadFailed", { fileName: file.name, message: fileItem.message }));
     }
   } catch (error) {
     fileItem.status = "error";
-    fileItem.message = error.message || "上传过程中发生错误";
+    fileItem.message = error.message || t("mount.uploadModal.uploadError");
     showMessage("error", t("mount.uploadModal.retryUploadError", { fileName: file.name, message: fileItem.message }));
   } finally {
     // 更新上传状态

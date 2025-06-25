@@ -6,7 +6,7 @@
     >
       <!-- 标题栏 -->
       <div class="px-4 py-3 border-b flex justify-between items-center" :class="darkMode ? 'border-gray-700' : 'border-gray-200'">
-        <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">选择目标文件夹</h3>
+        <h3 class="text-lg font-medium" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">{{ t("mount.copyModal.title") }}</h3>
         <button @click="closeModal" class="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400">
           <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -18,13 +18,18 @@
       <div class="p-3 sm:p-4 overflow-y-auto" style="max-height: calc(85vh - 140px)">
         <!-- 已选项目信息 -->
         <div class="mb-3 text-sm" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">
-          已选择: {{ selectedItems.length }} 个项目 ({{ selectedItems.filter((item) => item.isDirectory).length }} 个文件夹,
-          {{ selectedItems.filter((item) => !item.isDirectory).length }} 个文件)
+          {{
+            t("mount.copyModal.selectedInfo", {
+              count: selectedItems.length,
+              folders: selectedItems.filter((item) => item.isDirectory).length,
+              files: selectedItems.filter((item) => !item.isDirectory).length,
+            })
+          }}
         </div>
 
         <!-- 当前路径 -->
         <div class="mb-3 text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-          目标位置: <span class="font-bold">{{ currentPath }}</span>
+          {{ t("mount.copyModal.targetLocation") }} <span class="font-bold">{{ currentPath }}</span>
         </div>
 
         <!-- 警告信息 -->
@@ -60,7 +65,7 @@
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
-            <span>加载中...</span>
+            <span>{{ t("mount.copyModal.loading") }}</span>
           </div>
 
           <div v-else class="h-full overflow-y-auto p-1">
@@ -103,7 +108,7 @@
             class="px-4 py-2 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300"
             :class="darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
           >
-            取消
+            {{ t("mount.copyModal.cancel") }}
           </button>
           <button
             @click="confirmCopy"
@@ -111,7 +116,7 @@
             :class="[darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white', copying ? 'opacity-70 cursor-not-allowed' : '']"
             :disabled="copying"
           >
-            {{ copying ? "复制中..." : "确认复制" }}
+            {{ copying ? t("mount.copyModal.copying") : t("mount.copyModal.confirmCopy") }}
           </button>
         </div>
       </div>
@@ -373,7 +378,7 @@ const DirectoryItemVue = {
                         }),
                       ]
                     ),
-                    h("span", { class: "text-xs" }, "加载中..."),
+                    h("span", { class: "text-xs" }, t("mount.copyModal.loading")),
                   ]
                 )
               : this.children.length === 0
@@ -439,15 +444,15 @@ const userBasicPath = computed(() => {
 // 计算根路径显示名称
 const rootDisplayName = computed(() => {
   if (props.isAdmin) {
-    return "根目录";
+    return t("mount.copyModal.rootDirectory");
   }
   // 对于API密钥用户，显示基本路径的最后一段作为根目录名称
   const basicPath = userBasicPath.value;
   if (basicPath === "/") {
-    return "根目录";
+    return t("mount.copyModal.rootDirectory");
   }
   const pathParts = basicPath.split("/").filter((part) => part);
-  return pathParts.length > 0 ? pathParts[pathParts.length - 1] : "根目录";
+  return pathParts.length > 0 ? pathParts[pathParts.length - 1] : t("mount.copyModal.rootDirectory");
 });
 
 // 状态变量
@@ -561,13 +566,13 @@ const validateDestinationPath = () => {
 
       // 检查目标路径是否是源路径的子目录
       if (currentPath.value.startsWith(sourcePath)) {
-        pathWarning.value = "警告：不能将文件夹复制到其自身或其子目录中，这可能导致无限递归。";
+        pathWarning.value = t("mount.copyModal.warnings.recursiveCopy");
         return;
       }
 
       // 检查是否将文件夹复制到其自身
       if (currentPath.value === sourcePath) {
-        pathWarning.value = "警告：不能将文件夹复制到其自身。";
+        pathWarning.value = t("mount.copyModal.warnings.selfCopy");
         return;
       }
     }
@@ -676,7 +681,7 @@ const handleCopyCompletion = (taskManager, taskId, response) => {
     successCount,
     skippedCount,
     failedCount,
-    message: response.message,
+    message: response.message === "FILE_COPY_SUCCESS" ? t("mount.taskManager.copyStarted", { count: successCount, path: currentPath.value }) : response.message,
   };
 
   // 如果是跨S3复制，添加相关信息
@@ -693,7 +698,7 @@ const handleCopyCompletion = (taskManager, taskId, response) => {
     taskManager.completeTask(taskId, {
       ...taskDetails,
       partialSuccess: true,
-      status: "部分完成",
+      status: t("mount.taskManager.partialComplete"),
     });
   } else {
     // 完全失败 - 没有成功或跳过的项目
@@ -712,10 +717,10 @@ const handleCopyError = (error) => {
       // 找到最近的复制任务并标记为失败
       const latestTask = tasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
 
-      taskManager.failTask(latestTask.id, error.message || "复制过程中发生错误");
+      taskManager.failTask(latestTask.id, error.message || t("mount.messages.copyFailed", { message: t("common.unknown") }));
     }
   } catch (e) {
-    console.error("更新任务状态失败:", e);
+    console.error("Update task status failed:", e);
   }
 };
 
@@ -728,7 +733,7 @@ const confirmCopy = async () => {
 
   // 如果有警告，需要用户确认
   if (pathWarning.value) {
-    if (!confirm("检测到潜在问题：" + pathWarning.value + "\n\n是否仍要继续复制？")) {
+    if (!confirm(t("mount.copyModal.confirmPotentialIssue", { warning: pathWarning.value }))) {
       return;
     }
   }
@@ -742,7 +747,7 @@ const confirmCopy = async () => {
     // 创建任务
     const { taskManager, taskId } = createCopyTask(props.selectedItems.length);
 
-    // 立即关闭模态窗口，不等待复制完成
+    // 发出复制完成事件，父组件会处理模态框关闭
     emit("copy-complete", {
       success: true,
       message: t("mount.taskManager.copyStarted", { count: props.selectedItems.length, path: currentPath.value }),
@@ -750,7 +755,6 @@ const confirmCopy = async () => {
       taskId: taskId,
       showTaskManager: true,
     });
-    closeModal();
 
     // 创建回调函数
     const onProgress = createProgressCallback(taskManager, taskId, props.selectedItems.length);

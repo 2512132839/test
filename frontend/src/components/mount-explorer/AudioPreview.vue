@@ -3,29 +3,29 @@
     <!-- 音频预览 -->
     <div class="audio-preview p-4">
       <AudioPlayer
-          ref="audioPlayerRef"
-          v-if="audioUrl && audioData"
-          :audio-list="finalAudioList"
-          :current-audio="null"
-          :dark-mode="darkMode"
-          :autoplay="false"
-          :show-playlist="true"
-          :list-folded="true"
-          :list-max-height="'300px'"
-          :mode="'normal'"
-          :volume="0.7"
-          :loop="'all'"
-          :order="'list'"
-          @play="handlePlay"
-          @pause="handlePause"
-          @error="handleError"
-          @canplay="handleCanPlay"
-          @ended="handleAudioEnded"
-          @listswitch="handleListSwitch"
+        ref="audioPlayerRef"
+        v-if="audioUrl && audioData"
+        :audio-list="finalAudioList"
+        :current-audio="null"
+        :dark-mode="darkMode"
+        :autoplay="false"
+        :show-playlist="true"
+        :list-folded="true"
+        :list-max-height="'300px'"
+        :mode="'normal'"
+        :volume="0.7"
+        :loop="'all'"
+        :order="'list'"
+        @play="handlePlay"
+        @pause="handlePause"
+        @error="handleError"
+        @canplay="handleCanPlay"
+        @ended="handleAudioEnded"
+        @listswitch="handleListSwitch"
       />
       <div v-else class="loading-indicator text-center py-8">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
-        <p class="mt-2 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">正在加载音频...</p>
+        <p class="mt-2 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">{{ $t("mount.audioPreview.loadingAudio") }}</p>
       </div>
     </div>
   </div>
@@ -33,9 +33,12 @@
 
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import { useI18n } from "vue-i18n";
 import AudioPlayer from "../common/AudioPlayer.vue";
 import { api } from "../../api";
 import { getMimeTypeGroupByFileDetails, MIME_GROUPS } from "../../utils/mimeTypeUtils";
+
+const { t } = useI18n();
 
 // Props 定义
 const props = defineProps({
@@ -101,7 +104,7 @@ const audioData = computed(() => currentAudioData.value);
 // 更新页面标题
 const updatePageTitle = (playing = false, fileName = null) => {
   // 使用传入的文件名，如果没有则使用默认值
-  const title = fileName || "音频播放器";
+  const title = fileName || t("mount.audioPreview.audioPlayer");
 
   document.title = playing ? `🎵 ${title} - CloudPaste` : `${title} - CloudPaste`;
 };
@@ -383,14 +386,14 @@ const initializeCurrentAudio = async () => {
 
 // 监听 audioUrl 变化，当准备好时初始化当前音频
 watch(
-    () => props.audioUrl,
-    async (newAudioUrl) => {
-      if (newAudioUrl && props.file) {
-        console.log("🎵 检测到 audioUrl 变化，开始初始化当前音频:", newAudioUrl);
-        await initializeCurrentAudio();
-      }
-    },
-    { immediate: true }
+  () => props.audioUrl,
+  async (newAudioUrl) => {
+    if (newAudioUrl && props.file) {
+      console.log("🎵 检测到 audioUrl 变化，开始初始化当前音频:", newAudioUrl);
+      await initializeCurrentAudio();
+    }
+  },
+  { immediate: true }
 );
 
 // 快捷键处理

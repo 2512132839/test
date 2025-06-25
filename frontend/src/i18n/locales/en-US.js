@@ -896,6 +896,306 @@ export default {
       retryUploadSuccess: "File {fileName} retry upload successful",
       retryUploadFailed: "File {fileName} retry upload failed: {message}",
       retryUploadError: "File {fileName} retry upload error: {message}",
+
+      // Error messages
+      uploadFailed: "Upload failed",
+      uploadError: "Error occurred during upload",
+      uploadCancelled: "Upload cancelled",
+      unknownError: "Unknown error",
+    },
+
+    // Copy modal
+    copyModal: {
+      title: "Select Target Folder",
+      selectedInfo: "Selected: {count} items ({folders} folders, {files} files)",
+      targetLocation: "Target Location:",
+      loading: "Loading...",
+      rootDirectory: "Root Directory",
+      cancel: "Cancel",
+      confirmCopy: "Confirm Copy",
+      copying: "Copying...",
+
+      // Warning messages
+      warnings: {
+        recursiveCopy: "Warning: Cannot copy folder to itself or its subdirectories, this may cause infinite recursion.",
+        selfCopy: "Warning: Cannot copy folder to itself.",
+      },
+
+      // Confirmation dialog
+      confirmPotentialIssue: "Potential issue detected: {warning}\n\nDo you still want to continue copying?",
+    },
+
+    // File list
+    fileList: {
+      loading: "Loading...",
+      empty: "This directory is empty",
+      noMountPoints: "No available mount points",
+      name: "Name",
+      size: "Size",
+      modifiedTime: "Modified Time",
+      type: "Type",
+      actions: "Actions",
+      selectAll: "Select All",
+      deselectAll: "Deselect All",
+      clickToSort: "Click to sort",
+    },
+
+    // File item
+    fileItem: {
+      download: "Download",
+      getLink: "Get Link",
+      rename: "Rename",
+      delete: "Delete",
+    },
+
+    // Operations
+    operations: {
+      upload: "Upload",
+      createFolder: "New Folder",
+      tasks: "Tasks",
+      refresh: "Refresh",
+    },
+
+    // Create folder
+    createFolder: {
+      enterName: "Please enter folder name",
+      folderName: "Folder Name",
+      create: "Create",
+      cancel: "Cancel",
+    },
+
+    // Messages
+    messages: {
+      apiKeyInfoUpdated: "API key information updated",
+      refreshSuccess: "Refresh successful",
+      refreshFailed: "Refresh failed, please try again",
+      getDirectoryContentFailed: "Failed to get directory content: {message}",
+      getDirectoryContentFailedUnknown: "Failed to get directory content: {message}",
+      fileUploadSuccess: "File upload successful",
+      fileUploadFailed: "File upload failed: {message}",
+      fileUploadFailedUnknown: "File upload failed: {message}",
+      uploadCancelling: "Cancelling upload...",
+      folderCreateSuccess: "Folder created successfully",
+      folderCreateFailed: "Folder creation failed: {message}",
+      folderCreateFailedUnknown: "Folder creation failed: {message}",
+      renameSuccess: "{type} renamed successfully",
+      renameFailed: "Rename failed: {message}",
+      renameFailedUnknown: "Rename failed: {message}",
+      deleteSuccess: "{type} deleted successfully",
+      deleteFailed: "Delete failed: {message}",
+      deleteFailedUnknown: "Delete failed: {message}",
+      downloadPreparing: "Preparing file download...",
+      downloadSuccess: "File download successful",
+      downloadStarted: "Started downloading {name}",
+      downloadFailed: "File download failed: {message}",
+      downloadFailedUnknown: "File download failed: {message}",
+      uploading: "Uploading {name}...",
+      initializationFailed: "Initialization failed: {message}",
+      batchDeleteFailed: "Batch delete failed: {message}",
+      copySuccess: "{message}",
+      copyFailed: "Copy failed: {message}",
+      getFileLinkFailed: "Failed to get file direct link: {message}",
+      getFileLinkError: "Error getting file direct link: {message}",
+      linkCopied: "File direct link copied to clipboard",
+    },
+
+    // File preview
+    filePreview: {
+      downloadFile: "Download File",
+      directPreview: "Direct Preview",
+      generating: "Generating...",
+      fileSize: "File Size:",
+      modifiedTime: "Modified Time:",
+      fileType: "File Type:",
+      unknown: "Unknown",
+      editMode: "Edit Mode",
+      previewMode: "Preview Mode",
+      saving: "Saving...",
+      save: "Save",
+      cancel: "Cancel",
+      language: "Language:",
+      autoDetect: "Auto Detect",
+      configFile: "Config File",
+      loadingPreview: "Loading Office preview...",
+      previewError: "Failed to load file preview",
+      retryLoad: "Please try to reload or download file to view",
+      retry: "Retry",
+      cannotPreview: "File cannot be previewed",
+      downloadToView: "Current file type does not support online preview, please click download button to download and view",
+      wordPreview: "Word Document Preview",
+      excelPreview: "Excel Spreadsheet Preview",
+      powerpointPreview: "PowerPoint Presentation Preview",
+      exitFullscreen: "Exit Fullscreen",
+      fullscreen: "Fullscreen",
+      useMicrosoftPreview: "Use Microsoft Preview",
+      useGooglePreview: "Use Google Preview",
+      htmlPreview: "HTML Preview",
+      browserNotSupport: "Your browser does not support",
+      videoTag: "video tag",
+      audioTag: "audio tag",
+
+      // Error messages
+      cannotLoadText: "Cannot load text content",
+      loadTextError: "Error loading text content",
+      getS3LinkFailed: "Failed to get S3 direct link: {message}",
+      s3PreviewFailed: "S3 direct preview failed: {message}",
+      fileTooLarge: "File content is too large, exceeds maximum limit (10MB). Please reduce file size and try again.",
+      saveFileFailed: "Failed to save file: {message}",
+      saveFileError: "Error occurred while saving file: {message}",
+      fileContentTooLarge: "File content is too large, exceeds server limit",
+      noPermissionUpdate: "No permission to update this file",
+      serverNoResponse: "Server not responding, please check network connection",
+
+      // Success messages
+      fileCreated: "File created successfully",
+      fileUpdated: "File updated successfully",
+    },
+
+    // Audio preview
+    audioPreview: {
+      loadingAudio: "Loading audio...",
+      audioPlayer: "Audio Player",
+    },
+
+    // Generic preview
+    genericPreview: {
+      // File type descriptions
+      applicationFile: "Application File",
+      fontFile: "Font File",
+      modelFile: "3D Model File",
+      unsupportedType: "This file type does not support online preview",
+
+      // Operation suggestions
+      downloadAndExtract: "Please download and use decompression software to open",
+      downloadAndInstall: "Please download and install or run",
+      downloadAndOpenWithDb: "Please download and use database tools to open",
+      downloadAndInstallFont: "Please download and install font",
+      downloadAndMount: "Please download and mount or burn",
+      downloadAndOpenWith: "Please download and use appropriate application to open",
+    },
+
+    // Task manager
+    taskManager: {
+      title: "Task Manager",
+      noTasks: "No tasks",
+      noTasksDescription: "No ongoing or completed tasks currently",
+      activeTasks: "Active Tasks ({count})",
+      completedTasks: "Completed Tasks ({count})",
+      clearCompleted: "Clear Completed",
+      cancel: "Cancel",
+      retry: "Retry",
+      details: "Details",
+      hideDetails: "Hide Details",
+
+      // Task status
+      status: {
+        pending: "Pending",
+        running: "Running",
+        completed: "Completed",
+        failed: "Failed",
+        cancelled: "Cancelled",
+      },
+
+      // Task types
+      types: {
+        copy: "Copy",
+        upload: "Upload",
+        delete: "Delete",
+        download: "Download",
+      },
+
+      // Task type text
+      copyTask: "Copy Task",
+      uploadTask: "Upload Task",
+      deleteTask: "Delete Task",
+      downloadTask: "Download Task",
+      unknownTask: "Unknown Task",
+
+      // Task progress
+      processed: "Processed: {current}/{total}",
+      processedItems: "Processed: {current}",
+      currentFile: "Current file: {fileName}",
+      completedAt: "Completed at: {time}",
+
+      // Task status text
+      downloading: "Downloading",
+      uploading: "Uploading",
+      processing: "Processing",
+      waiting: "Waiting",
+      unknown: "Unknown",
+      unknownTime: "Unknown time",
+
+      // Task statistics
+      success: "Success: {count}",
+      skipped: "Skipped: {count}",
+      failed: "Failed: {count}",
+      error: "Error: {message}",
+      partialComplete: "Partially Complete",
+
+      // Task creation and startup messages
+      copyTaskName: "Copy {count} items to {path}",
+      copyStarted: "Started copying {count} items to {path}, you can view progress in task manager",
+    },
+
+    // Upload modal
+    uploadModal: {
+      title: "Upload Files",
+      uploadMethod: "Upload Method:",
+      presignedUpload: "Presigned Upload",
+      recommended: "Recommended",
+      directUpload: "Direct Upload",
+      multipartUpload: "Multipart Upload",
+      directMode: "Direct Mode",
+      presignedMode: "Presigned Mode",
+      multipartMode: "Multipart Mode",
+      directModeDesc: "Upload directly through server, no progress bar, suitable for small files",
+      presignedModeDesc: "Upload directly to storage server, avoid Worker CPU limits, faster speed",
+      multipartModeDesc: "Upload through server in chunks, suitable for large files or unstable networks",
+      dragDropHere: "Drop files here",
+      clickOrDragToUpload: "Click or drag files here to upload",
+      multiFileSupport: "Multiple file upload supported",
+      pasteSupport: "Ctrl+V paste file support",
+      selectedFiles: "Selected {count} files",
+      clearAll: "Clear All",
+      totalProgress: "Total Progress",
+      uploadSpeed: "Upload Speed:",
+      uploading: "Uploading {current}/{total}: {fileName}",
+      cancel: "Cancel",
+      cancelUpload: "Cancel Upload",
+      startUpload: "Start Upload",
+      fileStatus: {
+        pending: "Pending",
+        uploading: "{progress}%",
+        success: "Upload Success",
+        error: "Upload Failed",
+      },
+      cancelSingleUpload: "Cancel Upload",
+      retryUpload: "Retry",
+      removeFile: "Remove",
+      pasteFileAdded: "File added from clipboard",
+      confirmCancelUpload: "Files are uploading, are you sure you want to cancel and close?",
+      confirmClearFiles: "Are you sure you want to clear all files?",
+      noFilesSelected: "Please select files to upload first",
+      uploadStarted: "Started uploading files...",
+      allFilesUploaded: "All files uploaded successfully!",
+      someFilesFailed: "Some files failed to upload, please check error messages",
+      uploadCancelled: "Upload cancelled",
+      noFilesToUpload: "No files to upload",
+      allFilesUploadFailed: "All files failed to upload",
+      checkFilesValid: ", please check if files are valid",
+      partialUploadSuccess: "Uploaded {success} files, {failed} files failed",
+      allFilesUploadSuccess: "Successfully uploaded {count} files",
+      cancelUploadError: "Failed to cancel upload: {message}",
+      allUploadsCancelled: "Cancelled all file uploads",
+      retryUploadSuccess: "File {fileName} retry upload successful",
+      retryUploadFailed: "File {fileName} retry upload failed: {message}",
+      retryUploadError: "File {fileName} retry upload error: {message}",
+
+      // Error messages
+      uploadFailed: "Upload failed",
+      uploadError: "Error occurred during upload",
+      uploadCancelled: "Upload cancelled",
+      unknownError: "Unknown error",
     },
 
     // Task Manager

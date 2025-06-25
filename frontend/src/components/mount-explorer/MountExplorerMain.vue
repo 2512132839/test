@@ -395,7 +395,7 @@ const handleUpload = async ({ file, path }) => {
   try {
     // 显示上传中状态
     loading.value = true;
-    showMessage("info", `正在上传 ${file.name}...`);
+    showMessage("info", t("mount.messages.uploading", { name: file.name }));
 
     // 根据用户类型选择合适的API函数
     const uploadFile = isAdmin.value ? api.fs.uploadAdminFile : api.fs.uploadUserFile;
@@ -516,10 +516,13 @@ const handleBatchCopy = () => {
 const handleCloseCopyModal = () => {
   showCopyModal.value = false;
 };
-const handleCopyComplete = () => {
-  showMessage("success", t("mount.messages.copySuccess"));
+const handleCopyComplete = (event) => {
+  // 使用事件中的消息，如果没有则使用默认消息
+  const message = event?.message || t("mount.messages.copySuccess", { message: t("mount.taskManager.copyStarted", { count: 0, path: "" }) });
+  showMessage("success", message);
   selectedItems.value = [];
   isCheckboxMode.value = false;
+  showCopyModal.value = false; // 关闭复制模态框
   loadDirectoryContents();
 };
 
