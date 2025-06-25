@@ -238,19 +238,8 @@ const getOfficePreviewUrl = async () => {
   }
 };
 
-/**
- * 格式化文件大小
- * @param {number} bytes - 文件大小（字节）
- * @returns {string} 格式化后的文件大小
- */
-const formatFileSize = (bytes) => {
-  if (!bytes || bytes === 0) return "0 B";
-
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-
-  return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + " " + sizes[i];
-};
+// 导入统一的工具函数
+import { formatFileSize, getRemainingViews as getRemainingViewsUtil } from "../../../utils/fileUtils.js";
 
 // 导入统一的时间处理工具
 import { formatDateTimeWithSeconds } from "../../../utils/timeUtils.js";
@@ -433,10 +422,8 @@ const expiresClass = computed(() => {
  * 计算剩余访问次数
  */
 const getRemainingViews = computed(() => {
-  if (!props.file.max_views || props.file.max_views === 0) return "无限制";
-  const viewCount = props.file.views || 0;
-  const remaining = props.file.max_views - viewCount;
-  return remaining <= 0 ? "已用完" : `${remaining} 次`;
+  const result = getRemainingViewsUtil(props.file); // 不传t函数，使用中文
+  return typeof result === "number" ? `${result} 次` : result;
 });
 
 /**

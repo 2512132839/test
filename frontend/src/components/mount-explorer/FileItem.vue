@@ -16,7 +16,7 @@
 
       <!-- 文件/文件夹图标 -->
       <div class="mr-2 sm:mr-3 flex-shrink-0 w-5 sm:w-6 h-5 sm:h-6">
-        <span v-html="getFileIcon(item, darkMode)"></span>
+        <span v-html="getFileIconSvg(item, darkMode)"></span>
       </div>
 
       <!-- 文件/文件夹名称 -->
@@ -113,7 +113,6 @@
 
 <script setup>
 import { useI18n } from "vue-i18n";
-import { getFileIcon } from "../../utils/fileTypeIcons";
 
 const { t } = useI18n();
 
@@ -148,19 +147,8 @@ const toggleSelect = () => {
   emit("select", props.item, !props.isSelected);
 };
 
-/**
- * 格式化文件大小
- * @param {number} bytes - 文件大小（字节）
- * @returns {string} 格式化后的文件大小
- */
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return "0 B";
-
-  const sizes = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-
-  return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + " " + sizes[i];
-};
+// 导入统一的工具函数
+import { formatFileSize, getFileIconSvg } from "../../utils/fileUtils.js";
 
 // 导入统一的时间处理工具
 import { formatDateTime } from "../../utils/timeUtils.js";

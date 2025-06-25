@@ -458,14 +458,8 @@ const sortedItems = computed(() => {
   });
 });
 
-// 格式化文件大小
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
+// 导入统一的工具函数
+import { formatFileSize } from "../../utils/fileUtils.js";
 
 // 导入统一的时间处理工具
 import { formatDateTime } from "../../utils/timeUtils.js";

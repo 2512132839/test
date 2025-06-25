@@ -442,16 +442,16 @@ const copiedFiles = reactive({});
 // 使用reactive对象记录每个文件的永久链接复制状态
 const copiedPermanentFiles = reactive({});
 
+// 导入统一的工具函数
+import { getRemainingViews as getRemainingViewsUtil, getRemainingViewsClass as getRemainingViewsClassUtil, formatFileSize } from "../../../utils/fileUtils.js";
+
 /**
  * 计算剩余可访问次数
  * @param {Object} file - 文件对象
  * @returns {string|number} 剩余访问次数或状态描述
  */
 const getRemainingViews = (file) => {
-  if (!file.max_views || file.max_views === 0) return "无限制";
-  const viewCount = file.views || 0;
-  const remaining = file.max_views - viewCount;
-  return remaining <= 0 ? "已用完" : remaining;
+  return getRemainingViewsUtil(file); // 不传t函数，使用中文
 };
 
 /**
@@ -460,28 +460,9 @@ const getRemainingViews = (file) => {
  * @returns {string} 样式类名
  */
 const getRemainingViewsClass = (file) => {
-  const remaining = getRemainingViews(file);
-  if (remaining === "已用完") {
-    return props.darkMode ? "text-red-400" : "text-red-600";
-  } else if (remaining !== "无限制" && remaining < 3) {
-    return props.darkMode ? "text-yellow-400" : "text-yellow-600";
-  }
-  return props.darkMode ? "text-gray-300" : "text-gray-700";
+  return getRemainingViewsClassUtil(file, props.darkMode); // 不传t函数，使用中文
 };
 
-/**
- * 格式化文件大小
- * @param {number} bytes - 文件大小（字节）
- * @returns {string} 格式化后的文件大小
- */
-const formatFileSize = (bytes) => {
-  if (!bytes || bytes === 0) return "0 B";
-
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-
-  return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + " " + sizes[i];
-};
 
 /**
  * 简化MIME类型显示

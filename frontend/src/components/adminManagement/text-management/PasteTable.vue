@@ -124,17 +124,16 @@ const hasPassword = (paste) => {
   return paste.has_password;
 };
 
+// 导入统一的工具函数
+import { getRemainingViews as getRemainingViewsUtil } from "../../../utils/fileUtils.js";
+
 /**
  * 计算剩余可访问次数
  * @param {Object} paste - 文本分享对象
  * @returns {string|number} 剩余访问次数或状态描述
  */
 const getRemainingViews = (paste) => {
-  if (!paste.max_views) return "无限制";
-  // 使用view_count字段（后端返回的字段名），如果不存在则尝试使用views字段（兼容性处理）
-  const viewCount = paste.view_count !== undefined ? paste.view_count : paste.views || 0;
-  const remaining = paste.max_views - viewCount;
-  return remaining <= 0 ? "已用完" : remaining;
+  return getRemainingViewsUtil(paste); // 不传t函数，使用中文
 };
 
 /**
