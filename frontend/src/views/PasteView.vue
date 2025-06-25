@@ -2,7 +2,7 @@
 // PasteView组件是一个轻量级包装器组件
 // 主要负责接收darkMode和slug属性，并传递给主组件PasteViewMain
 // 通过这种方式实现了关注点分离，使代码结构更加清晰
-import PasteViewMain from "./paste-view/PasteViewMain.vue";
+import PasteViewMain from "../components/paste-view/PasteViewMain.vue";
 
 // 定义组件接收的属性
 const props = defineProps({

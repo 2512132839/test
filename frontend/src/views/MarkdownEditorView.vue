@@ -81,12 +81,12 @@ import { api } from "../api";
 import { ApiStatus } from "../api/ApiStatus";
 
 // 导入子组件
-import VditorEditor from "./markdown-editor/VditorEditor.vue";
-import PermissionManager from "./markdown-editor/PermissionManager.vue";
-import EditorForm from "./markdown-editor/EditorForm.vue";
-import ShareLinkBox from "./markdown-editor/ShareLinkBox.vue";
-import QRCodeModal from "./markdown-editor/QRCodeModal.vue";
-import CopyFormatMenu from "./markdown-editor/CopyFormatMenu.vue";
+import VditorEditor from "../components/markdown-editor/VditorEditor.vue";
+import PermissionManager from "../components/markdown-editor/PermissionManager.vue";
+import EditorForm from "../components/markdown-editor/EditorForm.vue";
+import ShareLinkBox from "../components/markdown-editor/ShareLinkBox.vue";
+import QRCodeModal from "../components/markdown-editor/QRCodeModal.vue";
+import CopyFormatMenu from "../components/markdown-editor/CopyFormatMenu.vue";
 
 const { t } = useI18n();
 

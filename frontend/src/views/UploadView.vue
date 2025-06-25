@@ -111,8 +111,8 @@
 <script setup>
 import { ref, onMounted, computed, onBeforeUnmount } from "vue";
 import { api } from "../api";
-import FileUploader from "./file-upload/FileUploader.vue";
-import FileList from "./file-upload/FileList.vue";
+import FileUploader from "../components/file-upload/FileUploader.vue";
+import FileList from "../components/file-upload/FileList.vue";
 import { useI18n } from "vue-i18n"; // 导入i18n
 import { useAuthStore } from "../stores/authStore.js";
 

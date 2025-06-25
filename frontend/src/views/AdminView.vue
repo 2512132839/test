@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
-import AdminLogin from "./AdminLogin.vue";
-import AdminPanel from "./AdminPanel.vue";
-import { useAuthStore } from "../../stores/authStore.js";
+import AdminLogin from "../components/adminManagement/AdminLogin.vue";
+import AdminPanel from "../components/adminManagement/AdminPanel.vue";
+import { useAuthStore } from "../stores/authStore.js";
 
 // 定义props，接收父组件传递的darkMode和路由参数
 const props = defineProps({

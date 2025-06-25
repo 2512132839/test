@@ -10,39 +10,39 @@ import { showPageUnavailableToast } from "../utils/offlineToast.js";
 // 懒加载组件 - 添加离线错误处理
 const createOfflineAwareImport = (importFn, componentName = "页面") => {
   return () =>
-    importFn().catch((error) => {
-      console.error("组件加载失败:", error);
+      importFn().catch((error) => {
+        console.error("组件加载失败:", error);
 
-      // 如果是离线状态且加载失败，显示离线回退页面和Toast提示
-      if (pwaState.isOffline || !navigator.onLine) {
-        console.log("[离线模式] 组件未缓存，显示离线回退页面");
+        // 如果是离线状态且加载失败，显示离线回退页面和Toast提示
+        if (pwaState.isOffline || !navigator.onLine) {
+          console.log("[离线模式] 组件未缓存，显示离线回退页面");
 
-        // 显示Toast提示
-        setTimeout(() => {
-          showPageUnavailableToast(componentName);
-        }, 100);
+          // 显示Toast提示
+          setTimeout(() => {
+            showPageUnavailableToast(componentName);
+          }, 100);
 
-        return OfflineFallback;
-      }
+          return OfflineFallback;
+        }
 
-      // 在线状态下的加载失败，重新抛出错误
-      throw error;
-    });
+        // 在线状态下的加载失败，重新抛出错误
+        throw error;
+      });
 };
 
-const MarkdownEditor = createOfflineAwareImport(() => import("../components/MarkdownEditor.vue"), "首页");
-const FileUploadPage = createOfflineAwareImport(() => import("../components/FileUpload.vue"), "文件上传页面");
-const AdminPage = createOfflineAwareImport(() => import("../components/adminManagement/AdminPage.vue"), "管理面板");
-const PasteView = createOfflineAwareImport(() => import("../components/PasteView.vue"), "文本分享页面");
-const FileView = createOfflineAwareImport(() => import("../components/FileView.vue"), "文件预览页面");
-const MountExplorer = createOfflineAwareImport(() => import("../components/MountExplorer.vue"), "挂载浏览器");
+const HomeView = createOfflineAwareImport(() => import("../views/MarkdownEditorView.vue"), "首页");
+const UploadView = createOfflineAwareImport(() => import("../views/UploadView.vue"), "文件上传页面");
+const AdminView = createOfflineAwareImport(() => import("../views/AdminView.vue"), "管理面板");
+const PasteView = createOfflineAwareImport(() => import("../views/PasteView.vue"), "文本分享页面");
+const FileView = createOfflineAwareImport(() => import("../views/FileView.vue"), "文件预览页面");
+const MountExplorerView = createOfflineAwareImport(() => import("../views/MountExplorerView.vue"), "挂载浏览器");
 
 // 路由配置 - 完全对应原有的页面逻辑
 const routes = [
   {
     path: "/",
     name: "Home",
-    component: MarkdownEditor,
+    component: HomeView,
     meta: {
       title: "CloudPaste - 在线剪贴板",
       originalPage: "home",
@@ -51,7 +51,7 @@ const routes = [
   {
     path: "/upload",
     name: "Upload",
-    component: FileUploadPage,
+    component: UploadView,
     meta: {
       title: "文件上传 - CloudPaste",
       originalPage: "upload",
@@ -60,7 +60,7 @@ const routes = [
   {
     path: "/admin",
     name: "Admin",
-    component: AdminPage,
+    component: AdminView,
     props: (route) => ({
       activeModule: route.params.module || "dashboard",
     }),
@@ -73,7 +73,7 @@ const routes = [
   {
     path: "/admin/:module",
     name: "AdminModule",
-    component: AdminPage,
+    component: AdminView,
     props: (route) => ({
       activeModule: route.params.module,
     }),
@@ -106,7 +106,7 @@ const routes = [
   {
     path: "/mount-explorer",
     name: "MountExplorer",
-    component: MountExplorer,
+    component: MountExplorerView,
     props: (route) => ({
       darkMode: route.meta.darkMode || false,
     }),
@@ -175,7 +175,7 @@ router.beforeEach(async (to, from, next) => {
 
       // 检查是否有管理权限（管理员或有权限的API密钥用户）
       const hasManagementAccess =
-        authStore.isAdmin || (authStore.authType === "apikey" && (authStore.hasTextPermission || authStore.hasFilePermission || authStore.hasMountPermission));
+          authStore.isAdmin || (authStore.authType === "apikey" && (authStore.hasTextPermission || authStore.hasFilePermission || authStore.hasMountPermission));
 
       if (!hasManagementAccess) {
         console.log("路由守卫：用户无管理权限，重定向到首页");

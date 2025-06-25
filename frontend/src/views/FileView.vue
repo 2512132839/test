@@ -73,11 +73,11 @@ import { api } from "../api";
 import { useAuthStore } from "../stores/authStore.js";
 
 // 导入子组件
-import FileViewInfo from "./file-view/FileViewInfo.vue";
-import FileViewPassword from "./file-view/FileViewPassword.vue";
-import FileViewActions from "./file-view/FileViewActions.vue";
-import FileEditModal from "./adminManagement/files-management/FileEditModal.vue";
-import ErrorToast from "./common/ErrorToast.vue";
+import FileViewInfo from "../components/file-view/FileViewInfo.vue";
+import FileViewPassword from "../components/file-view/FileViewPassword.vue";
+import FileViewActions from "../components/file-view/FileViewActions.vue";
+import FileEditModal from "../components/adminManagement/files-management/FileEditModal.vue";
+import ErrorToast from "../components/common/ErrorToast.vue";
 
 const props = defineProps({
   slug: {
