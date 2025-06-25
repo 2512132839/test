@@ -4,6 +4,7 @@ export default {
     unknown: "Unknown",
     loading: "Loading...",
     confirm: "Confirm",
+    required: "Please fill in required fields",
 
     // Common permission messages
     noPermission: "No permission for this feature, please contact administrator",
@@ -494,8 +495,8 @@ export default {
         storageConfigHint: "Choose the S3 storage configuration to use",
 
         mountPath: "Mount Path",
-        mountPathPlaceholder: "Enter mount path",
-        mountPathHint: "Path in storage, leave empty for root directory",
+        mountPathPlaceholder: "e.g.: /documents or /images",
+        mountPathHint: "Path in storage, must start with / followed by specific path, e.g.: /documents, /images, etc.",
 
         remark: "Remark",
         remarkPlaceholder: "Enter remark information",
@@ -583,12 +584,17 @@ export default {
       // Validation errors
       validation: {
         nameRequired: "Mount point name is required",
-        nameMinLength: "Mount point name must be at least 2 characters",
-        nameMaxLength: "Mount point name cannot exceed 50 characters",
-        storageConfigRequired: "Please select a storage configuration",
-        mountPathInvalid: "Mount path format is invalid",
-        sortOrderInvalid: "Sort order must be a non-negative integer",
-        cacheTtlInvalid: "Cache TTL must be a non-negative integer",
+        nameLength: "Mount point name must be between 1-50 characters",
+        storageTypeRequired: "Please select a storage type",
+        s3ConfigRequired: "Please select an S3 configuration",
+        mountPathRequired: "Mount path is required",
+        mountPathFormat: "Mount path must start with /",
+        mountPathInvalid: "Mount path format is invalid, must be in /xxx format, only letters, numbers, underscores, hyphens, Chinese characters and slashes are allowed",
+        mountPathSystemReserved: "Cannot use system reserved paths",
+        cacheTTLInteger: "Cache TTL must be an integer",
+        cacheTTLNonNegative: "Cache TTL cannot be negative",
+        cacheTTLTooLarge: "Cache TTL cannot exceed 86400 seconds (24 hours)",
+        sortOrderInteger: "Sort order must be an integer",
       },
 
       // Empty state
@@ -1008,8 +1014,8 @@ export default {
       modifiedTime: "Modified Time:",
       fileType: "File Type:",
       unknown: "Unknown",
-      editMode: "Edit Mode",
-      previewMode: "Preview Mode",
+      editMode: "Edit",
+      previewMode: "Preview",
       saving: "Saving...",
       save: "Save",
       cancel: "Cancel",

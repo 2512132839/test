@@ -4,6 +4,7 @@ export default {
     unknown: "未知",
     loading: "加载中...",
     confirm: "确认",
+    required: "请填写必填项",
 
     // 通用权限提示
     noPermission: "无此功能权限，请联系管理员",
@@ -494,8 +495,8 @@ export default {
         storageConfigHint: "选择要使用的S3存储配置",
 
         mountPath: "挂载路径",
-        mountPathPlaceholder: "请输入挂载路径",
-        mountPathHint: "在存储中的路径，留空表示根目录",
+        mountPathPlaceholder: "例如：/documents 或 /images",
+        mountPathHint: "在存储中的路径，必须以/开头且后面跟具体路径，如：/documents、/images 等",
 
         remark: "备注",
         remarkPlaceholder: "请输入备注信息",
@@ -583,12 +584,17 @@ export default {
       // 验证错误
       validation: {
         nameRequired: "挂载点名称不能为空",
-        nameMinLength: "挂载点名称至少需要2个字符",
-        nameMaxLength: "挂载点名称不能超过50个字符",
-        storageConfigRequired: "请选择存储配置",
-        mountPathInvalid: "挂载路径格式不正确",
-        sortOrderInvalid: "排序必须是非负整数",
-        cacheTtlInvalid: "缓存时间必须是非负整数",
+        nameLength: "挂载点名称长度必须在1-50个字符之间",
+        storageTypeRequired: "请选择存储类型",
+        s3ConfigRequired: "请选择S3配置",
+        mountPathRequired: "挂载路径不能为空",
+        mountPathFormat: "挂载路径必须以/开头",
+        mountPathInvalid: "挂载路径格式不正确，必须是/xxx格式，只能包含字母、数字、下划线、连字符、中文和斜杠",
+        mountPathSystemReserved: "不能使用系统保留路径",
+        cacheTTLInteger: "缓存时间必须是整数",
+        cacheTTLNonNegative: "缓存时间不能为负数",
+        cacheTTLTooLarge: "缓存时间不能超过86400秒（24小时）",
+        sortOrderInteger: "排序顺序必须是整数",
       },
 
       // 空状态
