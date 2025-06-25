@@ -22,7 +22,7 @@ const props = defineProps({
 const emit = defineEmits(["close", "view-paste"]);
 
 // 导入统一的时间处理工具
-import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil } from "../../utils/timeUtils.js";
+import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil } from "../../../utils/timeUtils.js";
 
 /**
  * 格式化日期为本地日期时间字符串

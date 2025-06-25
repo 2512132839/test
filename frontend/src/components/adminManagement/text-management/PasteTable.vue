@@ -73,7 +73,7 @@ const truncateText = (text, length = 10) => {
 };
 
 // 导入统一的时间处理工具
-import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil, isExpired as isExpiredUtil } from "../../utils/timeUtils.js";
+import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil, isExpired as isExpiredUtil } from "../../../utils/timeUtils.js";
 
 /**
  * 格式化日期为本地日期时间字符串
