@@ -10,24 +10,24 @@ import { showPageUnavailableToast } from "../utils/offlineToast.js";
 // 懒加载组件 - 添加离线错误处理
 const createOfflineAwareImport = (importFn, componentName = "页面") => {
   return () =>
-      importFn().catch((error) => {
-        console.error("组件加载失败:", error);
+    importFn().catch((error) => {
+      console.error("组件加载失败:", error);
 
-        // 如果是离线状态且加载失败，显示离线回退页面和Toast提示
-        if (pwaState.isOffline || !navigator.onLine) {
-          console.log("[离线模式] 组件未缓存，显示离线回退页面");
+      // 如果是离线状态且加载失败，显示离线回退页面和Toast提示
+      if (pwaState.isOffline || !navigator.onLine) {
+        console.log("[离线模式] 组件未缓存，显示离线回退页面");
 
-          // 显示Toast提示
-          setTimeout(() => {
-            showPageUnavailableToast(componentName);
-          }, 100);
+        // 显示Toast提示
+        setTimeout(() => {
+          showPageUnavailableToast(componentName);
+        }, 100);
 
-          return OfflineFallback;
-        }
+        return OfflineFallback;
+      }
 
-        // 在线状态下的加载失败，重新抛出错误
-        throw error;
-      });
+      // 在线状态下的加载失败，重新抛出错误
+      throw error;
+    });
 };
 
 const HomeView = createOfflineAwareImport(() => import("../views/MarkdownEditorView.vue"), "首页");
@@ -114,18 +114,18 @@ const routes = [
       title: "挂载浏览 - CloudPaste",
       originalPage: "mount-explorer",
     },
-    children: [
-      {
-        path: "",
-        name: "MountExplorerMain",
-        component: () => import("../components/mount-explorer/MountExplorerMain.vue"),
-      },
-      {
-        path: ":pathMatch(.*)*",
-        name: "MountExplorerPath",
-        component: () => import("../components/mount-explorer/MountExplorerMain.vue"),
-      },
-    ],
+  },
+  {
+    path: "/mount-explorer/:pathMatch(.*)+",
+    name: "MountExplorerPath",
+    component: MountExplorerView,
+    props: (route) => ({
+      darkMode: route.meta.darkMode || false,
+    }),
+    meta: {
+      title: "挂载浏览 - CloudPaste",
+      originalPage: "mount-explorer",
+    },
   },
   {
     path: "/:pathMatch(.*)*",
@@ -175,7 +175,7 @@ router.beforeEach(async (to, from, next) => {
 
       // 检查是否有管理权限（管理员或有权限的API密钥用户）
       const hasManagementAccess =
-          authStore.isAdmin || (authStore.authType === "apikey" && (authStore.hasTextPermission || authStore.hasFilePermission || authStore.hasMountPermission));
+        authStore.isAdmin || (authStore.authType === "apikey" && (authStore.hasTextPermission || authStore.hasFilePermission || authStore.hasMountPermission));
 
       if (!hasManagementAccess) {
         console.log("路由守卫：用户无管理权限，重定向到首页");
@@ -193,7 +193,7 @@ router.beforeEach(async (to, from, next) => {
     }
 
     // 挂载浏览器页面权限检查
-    if (to.name === "MountExplorer" || to.name === "MountExplorerMain" || to.name === "MountExplorerPath") {
+    if (to.name === "MountExplorer" || to.name === "MountExplorerPath") {
       // 移除自动重定向逻辑，让组件自己处理权限显示
       // 这样用户可以看到友好的"无权限"提示而不是突然被重定向
 
@@ -289,7 +289,6 @@ router.afterEach(async (to, from) => {
         title = t("pageTitle.fileView");
         break;
       case "MountExplorer":
-      case "MountExplorerMain":
       case "MountExplorerPath":
         title = t("pageTitle.mountExplorer");
         break;

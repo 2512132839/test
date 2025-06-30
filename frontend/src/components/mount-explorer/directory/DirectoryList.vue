@@ -262,35 +262,6 @@
       </div>
     </div>
 
-    <!-- 删除确认对话框 -->
-    <div v-if="showDeleteDialog" class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center">
-      <div class="relative w-full max-w-md p-6 rounded-lg shadow-xl" :class="darkMode ? 'bg-gray-800' : 'bg-white'">
-        <div class="mb-4">
-          <h3 class="text-lg font-semibold" :class="darkMode ? 'text-gray-100' : 'text-gray-900'">{{ t("mount.delete.title") }}</h3>
-          <p class="text-sm mt-1" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
-            {{
-              t("mount.delete.message", {
-                type: itemToDelete?.isDirectory ? t("mount.fileTypes.folder") : t("mount.fileTypes.file"),
-                name: itemToDelete?.name,
-              })
-            }}
-            {{ itemToDelete?.isDirectory ? t("mount.delete.folderWarning") : "" }}
-          </p>
-        </div>
-
-        <div class="flex justify-end space-x-2">
-          <button
-            @click="showDeleteDialog = false"
-            class="px-4 py-2 rounded-md transition-colors"
-            :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'"
-          >
-            {{ t("mount.delete.cancel") }}
-          </button>
-          <button @click="confirmDelete" class="px-4 py-2 rounded-md text-white transition-colors bg-red-600 hover:bg-red-700">{{ t("mount.delete.confirm") }}</button>
-        </div>
-      </div>
-    </div>
-
     <!-- 链接复制成功通知 -->
     <div v-if="showLinkCopiedNotification" class="fixed bottom-4 right-4 z-50">
       <div
@@ -309,14 +280,18 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, inject, onMounted } from "vue";
+import { ref, computed, nextTick, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import FileItem from "./FileItem.vue";
-import { getFileIcon } from "../../utils/fileTypeIcons";
-import { api } from "../../api";
-import { copyToClipboard } from "@/utils/clipboard";
+import { getFileIcon } from "../../../utils/fileTypeIcons";
+import { useDirectorySort, useFileOperations } from "../../../composables/index.js";
 
 const { t } = useI18n();
+
+// 使用新的组合式函数
+const { sortField, sortOrder, handleSort, getSortIcon, createSortedItems, initializeSortState } = useDirectorySort();
+
+const { getFileLink, showLinkCopiedNotification } = useFileOperations();
 
 const props = defineProps({
   items: {
@@ -351,124 +326,11 @@ const props = defineProps({
 
 const emit = defineEmits(["navigate", "download", "rename", "delete", "preview", "item-select", "toggle-select-all"]);
 
-// 排序状态
-const sortField = ref("name"); // 当前排序字段：'name', 'size', 'modified'
-const sortOrder = ref("default"); // 当前排序顺序：'asc', 'desc', 'default'
-
-// 排序字段的状态循环：default -> asc -> desc -> default
-const sortStates = ["default", "asc", "desc"];
-
-// 初始化排序状态（从localStorage恢复）
-const initializeSortState = () => {
-  try {
-    const savedSortField = localStorage.getItem("file_explorer_sort_field");
-    const savedSortOrder = localStorage.getItem("file_explorer_sort_order");
-
-    if (savedSortField && ["name", "size", "modified"].includes(savedSortField)) {
-      sortField.value = savedSortField;
-    }
-
-    if (savedSortOrder && sortStates.includes(savedSortOrder)) {
-      sortOrder.value = savedSortOrder;
-    }
-  } catch (error) {
-    console.warn("Failed to restore sort state:", error);
-  }
-};
-
-// 保存排序状态到localStorage
-const saveSortState = () => {
-  try {
-    localStorage.setItem("file_explorer_sort_field", sortField.value);
-    localStorage.setItem("file_explorer_sort_order", sortOrder.value);
-  } catch (error) {
-    console.warn("Failed to save sort state:", error);
-  }
-};
-
-// 点击表头排序
-const handleSort = (field) => {
-  if (sortField.value === field) {
-    // 同一字段，切换排序状态
-    const currentIndex = sortStates.indexOf(sortOrder.value);
-    const nextIndex = (currentIndex + 1) % sortStates.length;
-    sortOrder.value = sortStates[nextIndex];
-  } else {
-    // 不同字段，重置为升序
-    sortField.value = field;
-    sortOrder.value = "asc";
-  }
-
-  // 保存排序状态
-  saveSortState();
-};
-
-// 获取排序图标
-const getSortIcon = (field) => {
-  if (sortField.value !== field || sortOrder.value === "default") {
-    return ""; // 默认状态不显示图标
-  }
-  return sortOrder.value === "asc" ? "↑" : "↓";
-};
-
-// 排序后的项目列表
-const sortedItems = computed(() => {
-  let items = [...props.items];
-
-  // 如果是默认排序，按名称排序
-  if (sortOrder.value === "default") {
-    return items.sort((a, b) => {
-      // 先按类型排序（目录在前，文件在后）
-      if (a.isDirectory && !b.isDirectory) return -1;
-      if (!a.isDirectory && b.isDirectory) return 1;
-      // 再按名称字母排序
-      return a.name.localeCompare(b.name);
-    });
-  }
-
-  // 自定义排序
-  return items.sort((a, b) => {
-    // 文件夹始终优先（除非两个都是文件夹或都是文件）
-    if (a.isDirectory && !b.isDirectory) return -1;
-    if (!a.isDirectory && b.isDirectory) return 1;
-
-    let comparison = 0;
-
-    switch (sortField.value) {
-      case "name":
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case "size":
-        // 虚拟目录的大小视为0
-        const aSize = a.isDirectory && a.isVirtual ? 0 : a.size || 0;
-        const bSize = b.isDirectory && b.isVirtual ? 0 : b.size || 0;
-        comparison = aSize - bSize;
-        break;
-      case "modified":
-        // 虚拟目录没有修改时间，视为最早
-        const aTime = a.isDirectory && a.isVirtual ? 0 : new Date(a.modified || 0).getTime();
-        const bTime = b.isDirectory && b.isVirtual ? 0 : new Date(b.modified || 0).getTime();
-        comparison = aTime - bTime;
-        break;
-      default:
-        comparison = a.name.localeCompare(b.name);
-    }
-
-    return sortOrder.value === "asc" ? comparison : -comparison;
-  });
-});
+// 使用新的排序逻辑
+const sortedItems = createSortedItems(computed(() => props.items));
 
 // 导入统一的工具函数
-import { formatFileSize } from "../../utils/fileUtils.js";
-
-// 导入统一的时间处理工具
-import { formatDateTime } from "../../utils/timeUtils.js";
-
-// 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return "";
-  return formatDateTime(dateString);
-};
+import { formatFileSize } from "../../../utils/fileUtils.js";
 
 // 判断一个项目是否被选中
 const isItemSelected = (item) => {
@@ -541,22 +403,9 @@ const confirmRename = () => {
   }
 };
 
-// 删除相关
-const showDeleteDialog = ref(false);
-const itemToDelete = ref(null);
-
 // 处理删除
 const handleDelete = (item) => {
-  itemToDelete.value = item;
-  showDeleteDialog.value = true;
-};
-
-// 确认删除
-const confirmDelete = () => {
-  if (itemToDelete.value) {
-    emit("delete", itemToDelete.value);
-    showDeleteDialog.value = false;
-  }
+  emit("delete", item);
 };
 
 // 处理项目选择
@@ -564,43 +413,15 @@ const handleItemSelect = (item, selected) => {
   emit("item-select", item, selected);
 };
 
-// 处理文件直链获取
-const showLinkCopiedNotification = ref(false);
-
-// 判断当前用户类型（是管理员还是普通用户）
-const isAdmin = inject("isAdmin", ref(true)); // 默认为管理员
-
+// 处理文件直链获取（使用新的 composable）
 const handleGetLink = async (item) => {
-  if (item.isDirectory) return; // 文件夹不提供直链
+  const result = await getFileLink(item);
 
-  try {
-    const getFileLink = isAdmin.value ? api.admin.getFileLink : api.user.fs.getFileLink;
-    // 使用S3配置的默认签名时间，强制下载
-    const response = await getFileLink(item.path, null, true);
-
-    if (response.success && response.data?.presignedUrl) {
-      // 复制链接到剪贴板
-      const success = await copyToClipboard(response.data.presignedUrl);
-
-      if (success) {
-        // 显示通知
-        showLinkCopiedNotification.value = true;
-
-        // 3秒后隐藏通知
-        setTimeout(() => {
-          showLinkCopiedNotification.value = false;
-        }, 3000);
-      } else {
-        throw new Error(t("mount.messages.copyFailed", { message: t("common.unknown") }));
-      }
-    } else {
-      console.error("获取文件直链失败:", response);
-      alert(t("mount.messages.getFileLinkFailed", { message: response.message || t("common.unknown") }));
-    }
-  } catch (error) {
-    console.error("获取文件直链错误:", error);
-    alert(t("mount.messages.getFileLinkError", { message: error.message || t("common.unknown") }));
+  if (!result.success) {
+    // 显示错误消息
+    alert(result.message);
   }
+  // 成功的情况下，通知显示由 composable 内部处理
 };
 
 // 组件挂载时初始化排序状态

@@ -356,36 +356,36 @@ defineExpose({
 
 // 监听属性变化
 watch(
-    () => props.darkMode,
-    () => {
-      applyThemeStyles();
-    },
-    { immediate: false }
+  () => props.darkMode,
+  () => {
+    applyThemeStyles();
+  },
+  { immediate: false }
 );
 
 watch(
-    () => props.theme,
-    () => {
-      if (aplayerInstance.value) {
-        aplayerInstance.value.theme(getThemeColor());
-      }
-      applyThemeStyles();
+  () => props.theme,
+  () => {
+    if (aplayerInstance.value) {
+      aplayerInstance.value.theme(getThemeColor());
     }
+    applyThemeStyles();
+  }
 );
 
 watch(
-    () => [props.currentAudio, props.audioList, props.loop, props.order],
-    () => {
-      initAPlayer();
-    },
-    { deep: true }
+  () => [props.currentAudio, props.audioList, props.loop, props.order],
+  () => {
+    initAPlayer();
+  },
+  { deep: true }
 );
 
 watch(
-    () => props.volume,
-    (newVolume) => {
-      setVolume(newVolume);
-    }
+  () => props.volume,
+  (newVolume) => {
+    setVolume(newVolume);
+  }
 );
 
 // 生命周期

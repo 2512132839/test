@@ -2,15 +2,15 @@
  * 文件类型图标工具
  * 提供根据文件类型返回相应SVG图标的功能
  *
- * 此模块专注于图标渲染，使用MimeTypeUtils.js来进行文件类型判断
+ * 此模块专注于图标渲染，使用新的 mimeUtils.js 来进行文件类型判断
  * 提供了三种方式获取图标：
  * 1. getFileIcon: 基于文件项对象获取图标
  * 2. getFileIconByMimeType: 基于MIME类型获取图标
  * 3. getFileIconByFilename: 基于文件名获取图标
  */
 
-// 导入MimeTypeUtils中的函数和常量
-import { getFileExtension, getFileTypeFromExtension, getMimeTypeGroup, MIME_GROUPS } from "./mimeTypeUtils";
+// 导入新的 mimeUtils 中的函数
+import { getFileExtension, getFileIcon as getFileIconType } from "./mimeUtils";
 
 // 文件类型图标映射
 const fileIconsMap = {
@@ -154,16 +154,61 @@ const fileIconsMap = {
   markdown: (darkMode = false) => `
     <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
       <!-- 文档基本形状 -->
-      <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+      <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
         stroke="${darkMode ? "#4ade80" : "#22c55e"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="${darkMode ? "#4ade80" : "#22c55e"}" fill-opacity="${
     darkMode ? "0.25" : "0.35"
   }"/>
-      
+
       <!-- 文档折角 -->
       <path d="M14 2V8H20" stroke="${darkMode ? "#4ade80" : "#22c55e"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      
+
       <!-- Markdown "MD" 标识 - 白色 -->
       <text x="12" y="15" font-family="Arial, sans-serif" font-size="6" font-weight="bold" text-anchor="middle" fill="white">MD</text>
+    </svg>
+  `,
+
+  // HTML文件 - 基于HTML5官方盾牌设计
+  html: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <!-- HTML5 盾牌形状 -->
+      <path d="M4 3L5.5 20L12 22L18.5 20L20 3H4Z"
+        fill="${darkMode ? "#e97528" : "#e34c26"}"
+        stroke="${darkMode ? "#d97528" : "#d34c26"}"
+        stroke-width="0.5"/>
+
+      <!-- 内部盾牌高光 -->
+      <path d="M5 4L6.3 19L12 20.8L17.7 19L19 4H5Z"
+        fill="${darkMode ? "#f16529" : "#ef652a"}"
+        stroke="none"/>
+
+      <!-- HTML5 标识 -->
+      <text x="12" y="10" font-family="Arial, sans-serif" font-size="6" font-weight="bold" text-anchor="middle" fill="white">HTML</text>
+      <text x="12" y="16" font-family="Arial, sans-serif" font-size="8" font-weight="bold" text-anchor="middle" fill="white">5</text>
+    </svg>
+  `,
+
+  // Office文件（通用）- 基于微软现代设计
+  office: (darkMode = false) => `
+    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <!-- 微软Office现代方形设计 -->
+      <rect x="3" y="3" width="18" height="18" rx="2"
+        fill="${darkMode ? "#d13438" : "#d13438"}"
+        stroke="none"/>
+
+      <!-- 内部高光效果 -->
+      <rect x="4" y="4" width="16" height="16" rx="1.5"
+        fill="${darkMode ? "#e74c3c" : "#e74c3c"}"
+        stroke="none"/>
+
+      <!-- Office "O" 标识 - 白色圆环 -->
+      <circle cx="12" cy="12" r="6"
+        fill="none"
+        stroke="white"
+        stroke-width="2"/>
+      <circle cx="12" cy="12" r="3"
+        fill="white"/>
+      <circle cx="12" cy="12" r="1.5"
+        fill="${darkMode ? "#d13438" : "#d13438"}"/>
     </svg>
   `,
 
@@ -303,28 +348,6 @@ const fileIconsMap = {
   `,
 };
 
-// MIME分组到图标类型的映射
-const mimeGroupToIconType = {
-  [MIME_GROUPS.IMAGE]: "image",
-  [MIME_GROUPS.VIDEO]: "video",
-  [MIME_GROUPS.AUDIO]: "audio",
-  [MIME_GROUPS.DOCUMENT]: "document",
-  [MIME_GROUPS.SPREADSHEET]: "spreadsheet",
-  [MIME_GROUPS.PRESENTATION]: "presentation",
-  [MIME_GROUPS.PDF]: "pdf",
-  [MIME_GROUPS.MARKDOWN]: "markdown",
-  [MIME_GROUPS.ARCHIVE]: "archive",
-  [MIME_GROUPS.CODE]: "code",
-  [MIME_GROUPS.CONFIG]: "config",
-  [MIME_GROUPS.TEXT]: "text",
-  [MIME_GROUPS.DATABASE]: "database",
-  [MIME_GROUPS.FONT]: "code",
-  [MIME_GROUPS.EXECUTABLE]: "executable",
-  [MIME_GROUPS.DESIGN]: "image",
-  [MIME_GROUPS.EBOOK]: "document",
-  [MIME_GROUPS.UNKNOWN]: "default",
-};
-
 /**
  * 获取文件类型对应的图标
  * @param {Object} item - 文件项对象
@@ -337,29 +360,13 @@ export const getFileIcon = (item, darkMode = false) => {
     return item.isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
   }
 
-  // 如果是文件，根据扩展名确定图标类型
-  const extension = getFileExtension(item.name);
-  const fileType = getFileTypeFromExtension(extension);
+  // 使用新的 mimeUtils 获取图标类型
+  const iconType = getFileIconType(item.mimeType || "", item.name || "");
 
   // Word文档特殊处理（doc, docx, rtf）
+  const extension = getFileExtension(item.name);
   if (extension && ["doc", "docx", "rtf"].includes(extension.toLowerCase())) {
     return fileIconsMap.word(darkMode);
-  }
-
-  // 有些文件类型可以直接映射到图标类型，否则尝试使用MIME分组映射
-  let iconType = "default";
-
-  // 如果fileType存在并且与图标类型直接对应
-  if (fileType && fileIconsMap[fileType]) {
-    iconType = fileType;
-  }
-  // 否则尝试通过MIME分组获取图标类型
-  else if (fileType) {
-    // 使用伪MIME类型（"fileType/"）来获取MIME分组
-    // 这样getMimeTypeGroup可以至少通过前缀进行匹配
-    const pseudoMimeType = `${fileType}/`;
-    const mimeGroup = getMimeTypeGroup(pseudoMimeType);
-    iconType = mimeGroupToIconType[mimeGroup] || "default";
   }
 
   return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
@@ -379,16 +386,13 @@ export const getFileIconByMimeType = (mimeType, isDirectory = false, isMount = f
     return isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
   }
 
+  // 使用新的 mimeUtils 获取图标类型
+  const iconType = getFileIconType(mimeType, "");
+
   // Word文档特殊处理
   if (mimeType === "application/msword" || mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || mimeType === "application/rtf") {
     return fileIconsMap.word(darkMode);
   }
-
-  // 从MIME类型获取文件类型分组
-  const mimeGroup = getMimeTypeGroup(mimeType);
-
-  // 使用MIME分组映射到图标类型
-  const iconType = mimeGroupToIconType[mimeGroup] || "default";
 
   return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
 };
@@ -407,25 +411,13 @@ export const getFileIconByFilename = (filename, isDirectory = false, isMount = f
     return isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
   }
 
-  // 获取扩展名并根据扩展名确定文件类型
-  const extension = getFileExtension(filename);
+  // 使用新的 mimeUtils 获取图标类型
+  const iconType = getFileIconType("", filename);
 
   // Word文档特殊处理（doc, docx, rtf）
+  const extension = getFileExtension(filename);
   if (extension && ["doc", "docx", "rtf"].includes(extension.toLowerCase())) {
     return fileIconsMap.word(darkMode);
-  }
-
-  const fileType = getFileTypeFromExtension(extension);
-
-  // 有些文件类型可以直接映射到图标类型，否则尝试使用MIME分组映射
-  let iconType = "default";
-
-  if (fileType && fileIconsMap[fileType]) {
-    iconType = fileType;
-  } else if (fileType) {
-    const pseudoMimeType = `${fileType}/`;
-    const mimeGroup = getMimeTypeGroup(pseudoMimeType);
-    iconType = mimeGroupToIconType[mimeGroup] || "default";
   }
 
   return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);

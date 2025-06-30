@@ -1,9 +1,10 @@
 /**
  * 文件操作工具函数
+ * 提供文件下载、认证、预览URL创建等核心功能
+ *
  */
 
-import { formatFileSize as formatFileSizeUtil, getFileIconClass as getFileIconClassUtil } from "./mimeTypeUtils.js";
-import { getFileIcon } from "./fileTypeIcons.js";
+import { formatFileSize as formatFileSizeUtil } from "./mimeUtils.js";
 
 /**
  * 使用fetch API下载文件并保存
@@ -82,11 +83,9 @@ export async function getAuthHeaders() {
 export async function createAuthenticatedPreviewUrl(url) {
   try {
     console.log("请求预览URL:", url);
-    // 使用fetch请求URL，添加认证头
+    // S3预签名URL不需要额外的认证头和credentials
     const response = await fetch(url, {
-      headers: await getAuthHeaders(),
       mode: "cors", // 明确设置跨域模式
-      credentials: "include", // 包含凭证（cookies等）
     });
 
     // 检查响应状态
@@ -155,25 +154,4 @@ export const getRemainingViewsClass = (item, darkMode = false, t = null) => {
     return darkMode ? "text-yellow-400" : "text-yellow-600";
   }
   return darkMode ? "text-gray-300" : "text-gray-700";
-};
-
-/**
- * 获取文件图标CSS类名 - 统一的文件图标样式函数
- * @param {string} mimetype - 文件MIME类型
- * @param {boolean} darkMode - 是否为暗色模式
- * @param {string} filename - 文件名（可选）
- * @returns {string} CSS类名
- */
-export const getFileIconClass = (mimetype, darkMode = false, filename = null) => {
-  return getFileIconClassUtil(mimetype, darkMode, filename);
-};
-
-/**
- * 获取文件图标SVG - 统一的文件图标函数（用于挂载浏览器等）
- * @param {Object} item - 文件项对象
- * @param {boolean} darkMode - 是否为暗色模式
- * @returns {string} SVG图标字符串
- */
-export const getFileIconSvg = (item, darkMode = false) => {
-  return getFileIcon(item, darkMode);
 };

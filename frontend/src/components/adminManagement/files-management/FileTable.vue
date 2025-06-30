@@ -410,7 +410,7 @@
 
 <script setup>
 import { defineProps, defineEmits, ref, reactive, computed } from "vue";
-import * as MimeTypeUtils from "../../../utils/mimeTypeUtils";
+import { formatFileSize as formatFileSizeUtil, formatMimeType as formatMimeTypeUtil, getMimeTypeBackgroundClass as getMimeTypeBackgroundClassUtil } from "../../../utils/mimeUtils";
 import { copyToClipboard } from "@/utils/clipboard";
 
 const props = defineProps({
@@ -463,7 +463,6 @@ const getRemainingViewsClass = (file) => {
   return getRemainingViewsClassUtil(file, props.darkMode); // 不传t函数，使用中文
 };
 
-
 /**
  * 简化MIME类型显示
  * @param {string} mimeType - 完整MIME类型
@@ -471,7 +470,7 @@ const getRemainingViewsClass = (file) => {
  * @returns {string} 简化的MIME类型
  */
 const getSimpleMimeType = (mimeType, filename) => {
-  return MimeTypeUtils.getSimpleMimeType(mimeType, filename);
+  return formatMimeTypeUtil(mimeType, filename);
 };
 
 /**
@@ -481,7 +480,7 @@ const getSimpleMimeType = (mimeType, filename) => {
  * @returns {string} 样式类名
  */
 const getMimeTypeClass = (mimeType, filename) => {
-  return MimeTypeUtils.getMimeTypeClass(mimeType, props.darkMode, filename);
+  return getMimeTypeBackgroundClassUtil(mimeType, filename, props.darkMode);
 };
 
 // 导入统一的时间处理工具

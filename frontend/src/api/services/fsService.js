@@ -39,15 +39,6 @@ export function getAdminFileDownloadUrl(path) {
 }
 
 /**
- * 管理员API - 预览文件
- * @param {string} path 文件路径
- * @returns {string} 文件预览URL
- */
-export function getAdminFilePreviewUrl(path) {
-  return `${API_BASE_URL}/api/admin/fs/preview?path=${encodeURIComponent(path)}`;
-}
-
-/**
  * 管理员API - 创建目录
  * @param {string} path 目录路径
  * @returns {Promise<Object>} 创建结果响应对象
@@ -114,12 +105,22 @@ export async function updateAdminFile(path, content) {
 /**
  * 管理员API - 获取文件直链
  * @param {string} path 文件路径
- * @param {number} expiresIn 过期时间（秒），默认7天
+ * @param {number|null} expiresIn 过期时间（秒），null表示使用S3配置的默认签名时间
  * @param {boolean} forceDownload 是否强制下载而非预览
  * @returns {Promise<Object>} 包含预签名URL的响应对象
  */
-export async function getAdminFileLink(path, expiresIn = 604800, forceDownload = false) {
-  return get(`/admin/fs/file-link?path=${encodeURIComponent(path)}&expires_in=${expiresIn}&force_download=${forceDownload}`);
+export async function getAdminFileLink(path, expiresIn = null, forceDownload = false) {
+  const params = new URLSearchParams({
+    path: path,
+    force_download: forceDownload.toString(),
+  });
+
+  // 只有当expiresIn不为null时才添加expires_in参数
+  if (expiresIn !== null) {
+    params.append("expires_in", expiresIn.toString());
+  }
+
+  return get(`/admin/fs/file-link?${params.toString()}`);
 }
 
 /**
@@ -147,7 +148,7 @@ export async function initAdminMultipartUpload(path, contentType, fileSize, file
  */
 export async function uploadAdminPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/admin/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-      key ? `&key=${encodeURIComponent(key)}` : ""
+    key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -298,15 +299,6 @@ export function getUserFileDownloadUrl(path) {
 }
 
 /**
- * API密钥用户API - 预览文件
- * @param {string} path 文件路径
- * @returns {string} 文件预览URL
- */
-export function getUserFilePreviewUrl(path) {
-  return `${API_BASE_URL}/api/user/fs/preview?path=${encodeURIComponent(path)}`;
-}
-
-/**
  * API密钥用户API - 创建目录
  * @param {string} path 目录路径
  * @returns {Promise<Object>} 创建结果响应对象
@@ -373,12 +365,22 @@ export async function updateUserFile(path, content) {
 /**
  * API密钥用户API - 获取文件直链
  * @param {string} path 文件路径
- * @param {number} expiresIn 过期时间（秒），默认7天
+ * @param {number|null} expiresIn 过期时间（秒），null表示使用S3配置的默认签名时间
  * @param {boolean} forceDownload 是否强制下载而非预览
  * @returns {Promise<Object>} 包含预签名URL的响应对象
  */
-export async function getUserFileLink(path, expiresIn = 604800, forceDownload = false) {
-  return get(`/user/fs/file-link?path=${encodeURIComponent(path)}&expires_in=${expiresIn}&force_download=${forceDownload}`);
+export async function getUserFileLink(path, expiresIn = null, forceDownload = false) {
+  const params = new URLSearchParams({
+    path: path,
+    force_download: forceDownload.toString(),
+  });
+
+  // 只有当expiresIn不为null时才添加expires_in参数
+  if (expiresIn !== null) {
+    params.append("expires_in", expiresIn.toString());
+  }
+
+  return get(`/user/fs/file-link?${params.toString()}`);
 }
 
 /**
@@ -406,7 +408,7 @@ export async function initUserMultipartUpload(path, contentType, fileSize, filen
  */
 export async function uploadUserPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
   const url = `/user/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-      key ? `&key=${encodeURIComponent(key)}` : ""
+    key ? `&key=${encodeURIComponent(key)}` : ""
   }`;
   return post(url, partData, {
     headers: { "Content-Type": "application/octet-stream" },
@@ -793,9 +795,10 @@ export async function uploadWithPresignedUrl(url, data, contentType, onProgress,
  * @param {boolean} isAdmin 是否为管理员
  * @param {Function} onProgress 进度回调函数
  * @param {Function} onCancel 取消检查函数
+ * @param {Function} onXhrCreated xhr创建回调函数
  * @returns {Promise<Object>} 上传结果
  */
-export async function performPresignedUpload(file, path, isAdmin, onProgress, onCancel) {
+export async function performPresignedUpload(file, path, isAdmin, onProgress, onCancel, onXhrCreated) {
   // 选择合适的API函数
   const getPresignedUploadUrl = isAdmin ? getAdminPresignedUploadUrl : getUserPresignedUploadUrl;
   const commitPresignedUpload = isAdmin ? commitAdminPresignedUpload : commitUserPresignedUpload;
@@ -814,6 +817,10 @@ export async function performPresignedUpload(file, path, isAdmin, onProgress, on
     // 2. 上传文件到预签名URL（使用后端推断的MIME类型）
     const uploadResult = await uploadWithPresignedUrl(uploadUrl, file, uploadInfo.contentType, onProgress, onCancel, (xhr) => {
       uploadXhr = xhr;
+      // 如果提供了xhr创建回调，也调用它
+      if (onXhrCreated) {
+        onXhrCreated(xhr);
+      }
     });
 
     // 3. 提交上传完成信息（后端会从文件名推断正确的MIME类型）
@@ -1119,13 +1126,13 @@ export async function performClientSideCopy(options) {
       } else {
         // 处理多个文件的复制，使用handleDirectoryCopy函数
         return await handleDirectoryCopy(
-            {
-              items: allItems,
-              targetMount: targetMount,
-            },
-            commitBatchCopy,
-            onProgress,
-            onCancel
+          {
+            items: allItems,
+            targetMount: targetMount,
+          },
+          commitBatchCopy,
+          onProgress,
+          onCancel
         );
       }
     }
@@ -1404,11 +1411,10 @@ async function handleDirectoryCopy(copyResult, commitBatchCopy, onProgress, onCa
  */
 export function getFsApiByUserType(isAdmin) {
   return isAdmin
-      ? {
+    ? {
         getDirectoryList: getAdminDirectoryList,
         getFileInfo: getAdminFileInfo,
         getFileDownloadUrl: getAdminFileDownloadUrl,
-        getFilePreviewUrl: getAdminFilePreviewUrl,
         getFileLink: getAdminFileLink,
         createDirectory: createAdminDirectory,
         uploadFile: uploadAdminFile,
@@ -1428,16 +1434,15 @@ export function getFsApiByUserType(isAdmin) {
         // 预签名URL上传相关
         getPresignedUploadUrl: getAdminPresignedUploadUrl,
         commitPresignedUpload: commitAdminPresignedUpload,
-        performPresignedUpload: (file, path, onProgress, onCancel) => performPresignedUpload(file, path, true, onProgress, onCancel),
+        performPresignedUpload: (file, path, onProgress, onCancel, onXhrCreated) => performPresignedUpload(file, path, true, onProgress, onCancel, onXhrCreated),
         // 复制完成信息
         commitCopy: commitAdminCopy,
         commitBatchCopy: commitAdminBatchCopy,
       }
-      : {
+    : {
         getDirectoryList: getUserDirectoryList,
         getFileInfo: getUserFileInfo,
         getFileDownloadUrl: getUserFileDownloadUrl,
-        getFilePreviewUrl: getUserFilePreviewUrl,
         getFileLink: getUserFileLink,
         createDirectory: createUserDirectory,
         uploadFile: uploadUserFile,
@@ -1457,7 +1462,7 @@ export function getFsApiByUserType(isAdmin) {
         // 预签名URL上传相关
         getPresignedUploadUrl: getUserPresignedUploadUrl,
         commitPresignedUpload: commitUserPresignedUpload,
-        performPresignedUpload: (file, path, onProgress, onCancel) => performPresignedUpload(file, path, false, onProgress, onCancel),
+        performPresignedUpload: (file, path, onProgress, onCancel, onXhrCreated) => performPresignedUpload(file, path, false, onProgress, onCancel, onXhrCreated),
         // 复制完成信息
         commitCopy: commitUserCopy,
         commitBatchCopy: commitUserBatchCopy,
@@ -1472,7 +1477,6 @@ export function getFsApiByUserType(isAdmin) {
 export const getDirectoryList = getAdminDirectoryList;
 export const getFileInfo = getAdminFileInfo;
 export const getFileDownloadUrl = getAdminFileDownloadUrl;
-export const getFilePreviewUrl = getAdminFilePreviewUrl;
 export const createDirectory = createAdminDirectory;
 export const uploadFile = uploadAdminFile;
 export const deleteItem = deleteAdminItem;

@@ -410,7 +410,7 @@
 import { ref, defineProps, defineEmits, watch, onUnmounted } from "vue";
 import { api } from "../../api";
 import { useI18n } from "vue-i18n";
-import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
+import { formatMimeType as formatMimeTypeUtil } from "../../utils/mimeUtils";
 import { copyToClipboard } from "@/utils/clipboard";
 
 const { t } = useI18n();
@@ -437,7 +437,8 @@ const props = defineProps({
 const emit = defineEmits(["refresh"]);
 
 // 导入统一的工具函数
-import { getRemainingViews as getRemainingViewsUtil, formatFileSize, getFileIconClass } from "../../utils/fileUtils.js";
+import { getRemainingViews as getRemainingViewsUtil, formatFileSize } from "../../utils/fileUtils.js";
+import { getFileIconClass as getFileIconClassUtil } from "../../utils/mimeUtils.js";
 
 /**
  * 计算剩余可访问次数
@@ -570,15 +571,13 @@ const startMessageTimer = () => {
   }
 };
 
-
 // 格式化MIME类型
 const formatMimeType = (mimetype, filename) => {
-  return MimeTypeUtils.formatMimeType(mimetype, filename);
+  return formatMimeTypeUtil(mimetype, filename);
 };
 
-
 const getFileIconClassLocal = (mimetype, filename) => {
-  return getFileIconClass(mimetype, props.darkMode, filename);
+  return getFileIconClassUtil(mimetype, filename, props.darkMode);
 };
 
 // 导入统一的时间处理工具

@@ -132,7 +132,7 @@
 <script setup>
 import { defineProps, defineEmits, computed, ref } from "vue";
 import { getFullApiUrl } from "../../../api/config.js";
-import { isOfficeFileType } from "../../file-view/FileViewUtils.js";
+import { isOffice as isOfficeFileType } from "../../../utils/mimeUtils.js";
 
 const props = defineProps({
   file: {

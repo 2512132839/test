@@ -707,6 +707,26 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
               storage_type: mount.storage_type,
             };
 
+            // 如果是文件，添加preview_url和download_url字段
+            if (!isDirectory) {
+              try {
+                const { generatePresignedUrl } = await import("../utils/s3Utils.js");
+
+                // 生成预览URL（不强制下载）
+                const previewUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, false);
+                result.preview_url = previewUrl;
+
+                // 生成下载URL（强制下载）
+                const downloadUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, true);
+                result.download_url = downloadUrl;
+
+                console.log(`为文件[${result.name}]生成预签名URL: preview=${!!previewUrl}, download=${!!downloadUrl}`);
+              } catch (urlError) {
+                console.warn(`生成预签名URL失败: ${urlError.message}`);
+                // 不阻断主流程，只是没有预签名URL
+              }
+            }
+
             // 保留关键调试日志：确认S3返回的ContentType
             console.log(`getFileInfo - 文件[${result.name}], S3 ContentType[${headResponse.ContentType}]`);
 
@@ -764,6 +784,26 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
                 mount_id: mount.id,
                 storage_type: mount.storage_type,
               };
+
+              // 如果是文件，添加preview_url和download_url字段
+              if (!isDirectory) {
+                try {
+                  const { generatePresignedUrl } = await import("../utils/s3Utils.js");
+
+                  // 生成预览URL（不强制下载）
+                  const previewUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, false);
+                  result.preview_url = previewUrl;
+
+                  // 生成下载URL（强制下载）
+                  const downloadUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, true);
+                  result.download_url = downloadUrl;
+
+                  console.log(`为文件[${result.name}]生成预签名URL: preview=${!!previewUrl}, download=${!!downloadUrl}`);
+                } catch (urlError) {
+                  console.warn(`生成预签名URL失败: ${urlError.message}`);
+                  // 不阻断主流程，只是没有预签名URL
+                }
+              }
 
               // 保留关键调试日志：确认S3返回的ContentType
               console.log(`getFileInfo(GET) - 文件[${result.name}], S3 ContentType[${getResponse.ContentType}]`);
@@ -830,59 +870,6 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
       },
       "获取文件信息",
       "获取文件信息失败"
-  );
-}
-
-/**
- * 预览文件
- * @param {D1Database} db - D1数据库实例
- * @param {string} path - 文件路径
- * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
- * @param {string} userType - 用户类型 (admin 或 apiKey)
- * @param {string} encryptionSecret - 加密密钥
- * @returns {Promise<Response>} 文件内容响应，用于预览
- */
-export async function previewFile(db, path, userIdOrInfo, userType, encryptionSecret) {
-  return handleFsError(
-      async () => {
-        // 查找挂载点
-        let mountResult;
-        if (userType === "admin") {
-          mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
-        } else if (userType === "apiKey") {
-          mountResult = await findMountPointByPathWithApiKey(db, path, userIdOrInfo);
-        } else {
-          throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
-        }
-
-        // 处理错误情况
-        if (mountResult.error) {
-          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
-        }
-
-        const { mount, subPath } = mountResult;
-
-        // 获取S3配置
-        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-        if (!s3Config) {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-        }
-
-        // 规范化S3子路径 (不添加斜杠，因为是文件)
-        const s3SubPath = normalizeS3SubPath(subPath, s3Config, false);
-
-        // 更新最后使用时间
-        await updateMountLastUsed(db, mount.id);
-
-        // 提取文件名
-        const fileName = path.split("/").filter(Boolean).pop() || "file";
-
-        // 使用getFileFromS3函数直接获取内容并返回
-        // 设置isPreview为true表示预览模式
-        return await getFileFromS3(s3Config, s3SubPath, fileName, true, encryptionSecret);
-      },
-      "预览文件",
-      "预览文件失败"
   );
 }
 
@@ -1875,11 +1862,6 @@ export async function updateFile(db, path, content, userIdOrInfo, userType, encr
               mimetype: originalMetadata?.ContentType || "text/plain",
             });
 
-            // 检查是否为可执行文件或危险文件类型
-            if (mimeGroup === MIME_GROUPS.EXECUTABLE) {
-              throw new HTTPException(ApiStatus.FORBIDDEN, { message: "不允许更新可执行文件类型" });
-            }
-
             contentType = mimeType;
             console.log(`文件 ${fileName} 的MIME类型确定为: ${contentType}, 分组: ${mimeGroup}`);
           } else if (content instanceof ArrayBuffer || content instanceof Uint8Array) {
@@ -1890,11 +1872,6 @@ export async function updateFile(db, path, content, userIdOrInfo, userType, encr
               filename: fileName,
               mimetype: originalMetadata?.ContentType || "application/octet-stream",
             });
-
-            // 检查是否为可执行文件或危险文件类型
-            if (mimeGroup === MIME_GROUPS.EXECUTABLE) {
-              throw new HTTPException(ApiStatus.FORBIDDEN, { message: "不允许更新可执行文件类型" });
-            }
 
             contentType = mimeType;
             console.log(`二进制文件 ${fileName} 的MIME类型确定为: ${contentType}, 分组: ${mimeGroup}`);

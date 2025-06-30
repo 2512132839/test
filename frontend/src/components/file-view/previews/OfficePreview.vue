@@ -2,14 +2,14 @@
   <div class="office-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col w-full">
     <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
       <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-        {{ isOfficeDocument ? "Word文档预览" : isSpreadsheet ? "Excel表格预览" : isPresentation ? "PowerPoint演示文稿预览" : "Office文档预览" }}
+        {{ officeTypeDisplayName }}
       </span>
       <div>
         <button
           @click="toggleOfficePreviewService"
           class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-700 text-blue-700 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600 transition-colors"
         >
-          {{ useGoogleDocsPreview ? "使用Microsoft预览" : "使用Google预览" }}
+          {{ useGoogleDocsPreview ? t("fileView.preview.office.useMicrosoft") : t("fileView.preview.office.useGoogle") }}
         </button>
       </div>
     </div>
@@ -25,13 +25,13 @@
       ></iframe>
       <div v-else class="w-full h-full flex items-center justify-center">
         <div class="text-center p-4">
-          <p class="text-gray-500 mb-2">{{ officePreviewError || "加载预览中..." }}</p>
+          <p class="text-gray-500 mb-2">{{ officePreviewError || t("fileView.preview.office.loading") }}</p>
           <div v-if="officePreviewError && officePreviewError.includes('401')">
-            <p class="text-amber-500 text-sm mb-2">似乎是密码验证问题，请尝试：</p>
+            <p class="text-amber-500 text-sm mb-2">{{ t("fileView.preview.office.passwordIssue") }}</p>
             <ul class="text-left text-sm text-gray-600 dark:text-gray-300 list-disc pl-5 mb-2">
-              <li>刷新页面后重新输入密码</li>
-              <li>确认您输入的密码正确</li>
-              <li>尝试在URL中直接添加密码参数</li>
+              <li>{{ t("fileView.preview.office.refreshAndRetry") }}</li>
+              <li>{{ t("fileView.preview.office.confirmPassword") }}</li>
+              <li>{{ t("fileView.preview.office.tryUrlPassword") }}</li>
             </ul>
           </div>
         </div>
@@ -48,10 +48,10 @@
               d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 0 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
-          <p class="text-blue-600">加载Office预览中，请稍候...</p>
+          <p class="text-blue-600">{{ t("fileView.preview.office.loadingDetail") }}</p>
           <p class="text-gray-500 text-sm mt-1">
-            {{ useGoogleDocsPreview ? "使用Google Docs服务" : "使用Microsoft Office服务" }}
-            {{ useProxy ? " (Worker代理模式)" : " (直接访问模式)" }}
+            {{ useGoogleDocsPreview ? t("fileView.preview.office.googleService") : t("fileView.preview.office.microsoftService") }}
+            {{ useProxy ? t("fileView.preview.office.proxyMode") : t("fileView.preview.office.directMode") }}
           </p>
         </div>
       </div>
@@ -59,11 +59,11 @@
     <div class="p-2 bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 text-center">
       <p v-if="officePreviewError" class="text-red-500 mb-1">{{ officePreviewError }}</p>
       <p>
-        如果预览不正常，请尝试
-        <button @click="updateOfficePreviewUrls" class="text-blue-500 hover:underline">刷新预览</button>
-        或切换预览服务，或
-        <a :href="downloadUrl" class="text-blue-500 hover:underline" target="_blank">下载文件</a>
-        后查看
+        {{ t("fileView.preview.office.previewTrouble") }}
+        <button @click="updateOfficePreviewUrls" class="text-blue-500 hover:underline">{{ t("fileView.preview.office.refreshPreview") }}</button>
+        {{ t("fileView.preview.office.switchService") }}
+        <a :href="downloadUrl" class="text-blue-500 hover:underline" target="_blank">{{ t("fileView.preview.office.downloadFile") }}</a>
+        {{ t("fileView.preview.office.afterDownload") }}
       </p>
     </div>
   </div>
@@ -71,6 +71,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps({
   microsoftOfficePreviewUrl: {
@@ -81,17 +84,13 @@ const props = defineProps({
     type: String,
     default: "",
   },
-  isOfficeDocument: {
-    type: Boolean,
-    default: false,
+  mimetype: {
+    type: String,
+    default: "",
   },
-  isSpreadsheet: {
-    type: Boolean,
-    default: false,
-  },
-  isPresentation: {
-    type: Boolean,
-    default: false,
+  filename: {
+    type: String,
+    default: "",
   },
   useProxy: {
     type: Boolean,
@@ -108,6 +107,71 @@ const emit = defineEmits(["load", "error", "toggle-service", "update-urls"]);
 const useGoogleDocsPreview = ref(false);
 const officePreviewLoading = ref(true);
 const officePreviewError = ref("");
+
+// Office子类型判断
+const isWordDocument = computed(() => {
+  const mime = props.mimetype?.toLowerCase() || "";
+  const filename = props.filename?.toLowerCase() || "";
+
+  // 通过MIME类型判断
+  if (
+    mime === "application/msword" ||
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime === "application/vnd.oasis.opendocument.text" ||
+    mime === "application/rtf"
+  ) {
+    return true;
+  }
+
+  // 通过文件扩展名判断
+  const ext = filename.split(".").pop() || "";
+  return ["doc", "docx", "odt", "rtf"].includes(ext);
+});
+
+const isSpreadsheet = computed(() => {
+  const mime = props.mimetype?.toLowerCase() || "";
+  const filename = props.filename?.toLowerCase() || "";
+
+  // 通过MIME类型判断
+  if (
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mime === "application/vnd.oasis.opendocument.spreadsheet" ||
+    mime === "text/csv"
+  ) {
+    return true;
+  }
+
+  // 通过文件扩展名判断
+  const ext = filename.split(".").pop() || "";
+  return ["xls", "xlsx", "ods", "csv"].includes(ext);
+});
+
+const isPresentation = computed(() => {
+  const mime = props.mimetype?.toLowerCase() || "";
+  const filename = props.filename?.toLowerCase() || "";
+
+  // 通过MIME类型判断
+  if (
+    mime === "application/vnd.ms-powerpoint" ||
+    mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+    mime === "application/vnd.oasis.opendocument.presentation"
+  ) {
+    return true;
+  }
+
+  // 通过文件扩展名判断
+  const ext = filename.split(".").pop() || "";
+  return ["ppt", "pptx", "odp"].includes(ext);
+});
+
+// Office类型显示名称
+const officeTypeDisplayName = computed(() => {
+  if (isWordDocument.value) return t("fileView.preview.office.wordPreview");
+  if (isSpreadsheet.value) return t("fileView.preview.office.excelPreview");
+  if (isPresentation.value) return t("fileView.preview.office.powerpointPreview");
+  return t("fileView.preview.office.title");
+});
 
 const currentOfficePreviewUrl = computed(() => {
   return useGoogleDocsPreview.value ? props.googleDocsPreviewUrl : props.microsoftOfficePreviewUrl;
@@ -133,7 +197,7 @@ const handleOfficePreviewLoad = () => {
 
 const handleOfficePreviewError = (event) => {
   console.error("Office预览加载失败:", event);
-  officePreviewError.value = "Office预览加载失败，请尝试切换预览服务或下载文件后查看。";
+  officePreviewError.value = t("fileView.preview.office.error");
   officePreviewLoading.value = false;
   emit("error", event);
 };

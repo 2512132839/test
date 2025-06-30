@@ -13,24 +13,35 @@
 
     <!-- 文件类型详细信息 -->
     <div v-if="showDetails" class="mt-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg text-left max-w-md">
-      <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">文件信息</h4>
+      <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ t("fileView.preview.generic.fileInfo") }}</h4>
       <div class="space-y-1 text-xs text-gray-600 dark:text-gray-400">
-        <div v-if="filename"><span class="font-medium">文件名:</span> {{ filename }}</div>
-        <div v-if="mimetype"><span class="font-medium">MIME类型:</span> {{ mimetype }}</div>
-        <div v-if="fileExtension"><span class="font-medium">文件扩展名:</span> {{ fileExtension }}</div>
-        <div v-if="suggestedApps.length > 0"><span class="font-medium">建议使用:</span> {{ suggestedApps.join(", ") }}</div>
+        <div v-if="filename">
+          <span class="font-medium">{{ t("fileView.preview.generic.filename") }}:</span> {{ filename }}
+        </div>
+        <div v-if="mimetype">
+          <span class="font-medium">{{ t("fileView.preview.generic.mimeType") }}:</span> {{ mimetype }}
+        </div>
+        <div v-if="fileExtension">
+          <span class="font-medium">{{ t("fileView.preview.generic.fileExtension") }}:</span> {{ fileExtension }}
+        </div>
+        <div v-if="suggestedApps.length > 0">
+          <span class="font-medium">{{ t("fileView.preview.generic.suggestedApps") }}:</span> {{ suggestedApps.join(", ") }}
+        </div>
       </div>
     </div>
 
     <!-- 显示/隐藏详细信息按钮 -->
     <button @click="showDetails = !showDetails" class="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:underline">
-      {{ showDetails ? "隐藏详细信息" : "显示详细信息" }}
+      {{ showDetails ? t("fileView.preview.generic.hideDetails") : t("fileView.preview.generic.showDetails") }}
     </button>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps({
   iconClass: {
@@ -99,14 +110,14 @@ const fileTypeDescription = computed(() => {
 
   // 根据MIME类型判断
   if (mime.startsWith("application/")) {
-    return "应用程序文件";
+    return t("fileView.preview.generic.applicationFile");
   } else if (mime.startsWith("font/")) {
-    return "字体文件";
+    return t("fileView.preview.generic.fontFile");
   } else if (mime.startsWith("model/")) {
-    return "3D模型文件";
+    return t("fileView.preview.generic.modelFile");
   }
 
-  return "此文件类型不支持在线预览";
+  return t("fileView.preview.generic.unsupportedType");
 });
 
 // 操作建议
@@ -114,18 +125,18 @@ const actionSuggestion = computed(() => {
   const ext = fileExtension.value.toLowerCase();
 
   if ([".zip", ".rar", ".7z", ".tar", ".gz"].includes(ext)) {
-    return "请下载后使用解压软件打开";
+    return t("fileView.preview.generic.downloadAndExtract");
   } else if ([".exe", ".msi", ".dmg", ".deb", ".rpm"].includes(ext)) {
-    return "请下载后安装或运行";
+    return t("fileView.preview.generic.downloadAndInstall");
   } else if ([".db", ".sqlite"].includes(ext)) {
-    return "请下载后使用数据库工具打开";
+    return t("fileView.preview.generic.downloadAndOpenWithDb");
   } else if ([".ttf", ".otf", ".woff"].includes(ext)) {
-    return "请下载后安装字体";
+    return t("fileView.preview.generic.downloadAndInstallFont");
   } else if (ext === ".iso") {
-    return "请下载后挂载或刻录";
+    return t("fileView.preview.generic.downloadAndMount");
   }
 
-  return "请下载后使用相应的应用程序打开";
+  return t("fileView.preview.generic.downloadAndOpenWith");
 });
 
 // 建议的应用程序

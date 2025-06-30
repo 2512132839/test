@@ -26,8 +26,8 @@
             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
           />
         </svg>
-        <p class="text-red-600 dark:text-red-400 mb-2">PDF预览加载失败</p>
-        <p class="text-gray-500 dark:text-gray-400 text-sm">请尝试刷新页面或下载文件查看</p>
+        <p class="text-red-600 dark:text-red-400 mb-2">{{ t("fileView.preview.pdf.error") }}</p>
+        <p class="text-gray-500 dark:text-gray-400 text-sm">{{ t("fileView.preview.downloadToView") }}</p>
       </div>
     </div>
   </div>
@@ -35,6 +35,9 @@
 
 <script setup>
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 defineProps({
   previewUrl: {

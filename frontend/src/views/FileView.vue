@@ -3,9 +3,9 @@
     <!-- 添加面包屑导航标题，与文本分享页面风格一致 -->
     <div class="max-w-4xl mx-auto w-full px-4 mt-4">
       <div class="py-3 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 mb-4">
-        <a href="/" class="hover:text-primary-600 dark:hover:text-primary-400">首页</a>
+        <a href="/" class="hover:text-primary-600 dark:hover:text-primary-400">{{ t("nav.home") }}</a>
         <span class="mx-2">/</span>
-        <span class="text-gray-700 dark:text-gray-300">文件预览</span>
+        <span class="text-gray-700 dark:text-gray-300">{{ t("fileView.title") }}</span>
       </div>
     </div>
 
@@ -18,13 +18,13 @@
           d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
       </svg>
-      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">文件错误</h2>
+      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("fileView.error") }}</h2>
       <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ error }}</p>
       <a
         href="/"
         class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
       >
-        返回
+        {{ t("common.back") }}
       </a>
     </div>
 
@@ -33,14 +33,14 @@
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-green-600 dark:text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" />
       </svg>
-      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">文件删除成功</h2>
-      <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">文件已成功删除，即将跳转到首页</p>
-      <div class="animate-pulse text-gray-500 dark:text-gray-400">{{ redirectCountdown }} 秒后自动跳转</div>
+      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("fileView.actions.deleteSuccess") }}</h2>
+      <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ t("fileView.actions.redirectMessage") }}</p>
+      <div class="animate-pulse text-gray-500 dark:text-gray-400">{{ redirectCountdown }} {{ t("fileView.actions.redirecting") }}</div>
     </div>
 
     <div v-else-if="loading" class="loading-container py-12 px-4 max-w-4xl mx-auto text-center">
       <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 mx-auto mb-4 border-blue-600 dark:border-blue-500"></div>
-      <p class="text-lg text-gray-600 dark:text-gray-300">加载中...</p>
+      <p class="text-lg text-gray-600 dark:text-gray-300">{{ t("fileView.loading") }}</p>
     </div>
 
     <div v-else class="file-container flex-1 flex flex-col py-8 px-4 max-w-4xl mx-auto w-full">
@@ -69,8 +69,11 @@
 
 <script setup>
 import { ref, computed, onMounted, defineProps, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { api } from "../api";
 import { useAuthStore } from "../stores/authStore.js";
+
+const { t } = useI18n();
 
 // 导入子组件
 import FileViewInfo from "../components/file-view/FileViewInfo.vue";
@@ -165,7 +168,7 @@ const loadFileInfo = async () => {
     // 确保使用计算属性获取slug
     const fileSlug = slug.value;
     if (!fileSlug) {
-      error.value = "缺少文件标识符";
+      error.value = t("fileView.errors.missingSlug");
       loading.value = false;
       return;
     }
@@ -220,11 +223,11 @@ const loadFileInfo = async () => {
       }
     } else {
       // 处理错误情况
-      error.value = response.message || "无法加载文件信息";
+      error.value = response.message || t("fileView.errors.loadFailed");
     }
   } catch (err) {
     console.error("加载文件出错:", err);
-    error.value = err.message || "加载文件时发生错误";
+    error.value = err.message || t("fileView.errors.unknown");
   } finally {
     loading.value = false;
   }
@@ -302,7 +305,7 @@ const openEditModal = async () => {
         };
       } else {
         console.error("获取文件详情失败:", response.message);
-        showError("获取详情失败", "获取文件详情失败，将使用当前显示的信息");
+        showError(t("fileView.errors.getDetailsFailed"), t("fileView.errors.getDetailsFailedMessage"));
       }
     }
 
@@ -310,7 +313,7 @@ const openEditModal = async () => {
     showEditModal.value = true;
   } catch (err) {
     console.error("获取文件详情出错:", err);
-    showError("获取详情失败", "获取文件详情时发生错误，将使用当前显示的信息");
+    showError(t("fileView.errors.getDetailsFailed"), t("fileView.errors.getDetailsFailedMessage"));
     showEditModal.value = true;
   }
 };
@@ -346,11 +349,11 @@ const saveFileChanges = async (updatedFile) => {
     } else {
       // 处理错误情况
       console.error("更新文件信息失败:", response.message);
-      showError("更新失败", `更新文件信息失败: ${response.message}`);
+      showError(t("fileView.errors.updateFailed"), `${t("fileView.errors.updateFailed")}: ${response.message}`);
     }
   } catch (err) {
     console.error("更新文件错误:", err);
-    showError("更新失败", "更新文件时发生错误，请稍后重试");
+    showError(t("fileView.errors.updateFailed"), t("fileView.errors.unknown"));
   }
 };
 

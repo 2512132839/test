@@ -38,17 +38,18 @@
       </div>
     </div>
 
-    <!-- 嵌套路由内容区域 -->
+    <!-- 挂载浏览器主组件 -->
     <div v-if="hasPermission" class="main-content">
-      <router-view />
+      <MountExplorerMain />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, provide, watch } from "vue";
+import { computed, provide, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/authStore.js";
+import MountExplorerMain from "../components/mount-explorer/MountExplorerMain.vue";
 
 // Vue Router
 const router = useRouter();

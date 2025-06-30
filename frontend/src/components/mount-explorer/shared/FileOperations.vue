@@ -14,7 +14,6 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
           <span>{{ t("mount.operations.upload") }}</span>
-          <input ref="uploadFileInput" type="file" @change="handleFileChange" class="hidden" multiple />
         </button>
 
         <!-- 新建文件夹按钮 -->
@@ -178,25 +177,9 @@ const changeViewMode = (mode) => {
   emit("changeViewMode", mode);
 };
 
-// 文件上传相关
-const uploadFileInput = ref(null);
-
 // 打开文件上传对话框
 const openUploadFileDialog = () => {
   emit("openUploadModal");
-};
-
-// 处理文件选择
-const handleFileChange = (event) => {
-  const files = event.target.files;
-  if (files && files.length > 0) {
-    // 如果选择了多个文件，逐个上传
-    for (let i = 0; i < files.length; i++) {
-      emit("upload", { file: files[i], path: props.currentPath });
-    }
-  }
-  // 清空文件输入，允许选择相同文件
-  event.target.value = "";
 };
 
 // 打开复制对话框

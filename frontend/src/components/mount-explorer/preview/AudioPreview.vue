@@ -34,9 +34,9 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
-import AudioPlayer from "../common/AudioPlayer.vue";
-import { api } from "../../api";
-import { getMimeTypeGroupByFileDetails, MIME_GROUPS } from "../../utils/mimeTypeUtils";
+import AudioPlayer from "../../common/AudioPlayer.vue";
+import { api } from "../../../api";
+import { isAudio } from "../../../utils/mimeUtils";
 
 const { t } = useI18n();
 
@@ -66,6 +66,11 @@ const props = defineProps({
   currentPath: {
     type: String,
     default: "",
+  },
+  // 目录项目列表（优化：使用已有数据，避免重复API调用）
+  directoryItems: {
+    type: Array,
+    default: () => [],
   },
 });
 
@@ -106,7 +111,7 @@ const updatePageTitle = (playing = false, fileName = null) => {
   // 使用传入的文件名，如果没有则使用默认值
   const title = fileName || t("mount.audioPreview.audioPlayer");
 
-  document.title = playing ? `🎵 ${title} - CloudPaste` : `${title} - CloudPaste`;
+  document.title = playing ? `🎵 ${title}` : `${title}`;
 };
 
 // 恢复原始页面标题
@@ -175,45 +180,64 @@ const loadAudioPlaylist = async () => {
   console.log("🎵 开始加载音频播放列表...");
   console.log("当前路径:", props.currentPath);
   console.log("是否为管理员:", props.isAdmin);
+  console.log("目录项目数量:", props.directoryItems?.length || 0);
 
   if (!props.currentPath || isLoadingPlaylist.value) {
     console.log("❌ 跳过加载: 路径为空或正在加载中");
     return;
   }
 
+  // 防重复加载：如果播放列表已存在且路径相同，跳过
+  if (audioPlaylist.value.length > 0) {
+    console.log("✅ 播放列表已存在，跳过重复加载");
+    return;
+  }
+
   try {
     isLoadingPlaylist.value = true;
-    const fsApi = props.isAdmin ? api.admin : api.user.fs;
-    const response = await fsApi.getDirectoryList(props.currentPath);
 
-    console.log("📁 目录列表响应:", response);
+    let directoryItems = [];
 
-    if (response.success && response.data?.items) {
-      console.log("📂 目录中的所有文件:", response.data.items);
-
-      // 过滤出音频文件
-      const audioFileList = response.data.items.filter((item) => {
-        if (item.isDirectory) return false;
-        const mimeGroup = getMimeTypeGroupByFileDetails(item.contentType || "", item.name || "");
-        const isAudio = mimeGroup === MIME_GROUPS.AUDIO;
-        console.log(`🎵 文件 ${item.name}: contentType=${item.contentType}, mimeGroup=${mimeGroup}, isAudio=${isAudio}`);
-        return isAudio;
-      });
-
-      console.log("🎵 过滤后的音频文件:", audioFileList);
-
-      // 按文件名排序
-      audioFileList.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-
-      // 生成播放列表（即使只有一个文件也生成，这样可以显示播放列表按钮）
-      if (audioFileList.length > 0) {
-        console.log(`🎵 找到 ${audioFileList.length} 个音频文件，开始生成播放列表...`);
-        await generateAudioPlaylist(audioFileList);
-      } else {
-        console.log("❌ 当前目录下没有找到音频文件");
-      }
+    // 优先使用传入的目录数据，避免重复API调用
+    if (props.directoryItems && props.directoryItems.length > 0) {
+      console.log("✅ 使用已有的目录数据，避免重复API调用");
+      directoryItems = props.directoryItems;
     } else {
-      console.log("❌ API 响应失败或数据为空:", response);
+      console.log("📡 目录数据为空，调用API获取");
+      const fsApi = props.isAdmin ? api.admin : api.user.fs;
+      const response = await fsApi.getDirectoryList(props.currentPath);
+
+      console.log("📁 目录列表响应:", response);
+
+      if (response.success && response.data?.items) {
+        directoryItems = response.data.items;
+      } else {
+        console.log("❌ API调用失败或无数据");
+        return;
+      }
+    }
+
+    console.log("📂 目录中的所有文件:", directoryItems);
+
+    // 过滤出音频文件
+    const audioFileList = directoryItems.filter((item) => {
+      if (item.isDirectory) return false;
+      const isAudioFile = isAudio(item.contentType || "", item.name || "");
+      console.log(`🎵 文件 ${item.name}: contentType=${item.contentType}, isAudio=${isAudioFile}`);
+      return isAudioFile;
+    });
+
+    console.log("🎵 过滤后的音频文件:", audioFileList);
+
+    // 按文件名排序
+    audioFileList.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+    // 生成播放列表（即使只有一个文件也生成，这样可以显示播放列表按钮）
+    if (audioFileList.length > 0) {
+      console.log(`🎵 找到 ${audioFileList.length} 个音频文件，开始生成播放列表...`);
+      await generateAudioPlaylist(audioFileList);
+    } else {
+      console.log("❌ 当前目录下没有找到音频文件");
     }
   } catch (error) {
     console.error("❌ 加载音频播放列表失败:", error);
@@ -438,8 +462,10 @@ onMounted(() => {
   // 添加键盘事件监听
   document.addEventListener("keydown", handleKeydown);
 
-  // 加载播放列表
-  loadAudioPlaylist();
+  // 延迟加载播放列表，确保props已经传递完成
+  nextTick(() => {
+    loadAudioPlaylist();
+  });
 });
 
 onBeforeUnmount(() => {

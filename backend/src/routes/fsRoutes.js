@@ -16,7 +16,6 @@ import {
   uploadFile,
   removeItem,
   renameItem,
-  previewFile,
   batchRemoveItems,
   getFilePresignedUrl,
   updateFile,
@@ -222,41 +221,6 @@ fsRoutes.get("/api/admin/fs/download", async (c) => {
   }
 });
 
-// 预览文件 - 管理员版本
-fsRoutes.get("/api/admin/fs/preview", async (c) => {
-  const db = c.env.DB;
-  const path = c.req.query("path");
-  const adminId = PermissionUtils.getUserId(c);
-
-  // 设置CORS头部
-  setCorsHeaders(c);
-
-  if (!path) {
-    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
-  }
-
-  try {
-    // 直接返回previewFile的响应，文件内容会直接从服务器流式传输
-    const response = await previewFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
-
-    // 替换Access-Control-Allow-Origin头部为实际的Origin
-    const origin = c.req.header("Origin");
-    if (origin) {
-      response.headers.set("Access-Control-Allow-Origin", origin);
-    }
-
-    return response;
-  } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
-    setCorsHeaders(c);
-    console.error("预览文件错误:", error);
-    if (error instanceof HTTPException) {
-      return c.json(createErrorResponse(error.status, error.message), error.status);
-    }
-    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "预览文件失败"), ApiStatus.INTERNAL_ERROR);
-  }
-});
-
 // 下载文件 - API密钥用户版本
 fsRoutes.get("/api/user/fs/download", async (c) => {
   const db = c.env.DB;
@@ -292,40 +256,6 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
   }
 });
 
-// 预览文件 - API密钥用户版本
-fsRoutes.get("/api/user/fs/preview", async (c) => {
-  const db = c.env.DB;
-  const path = c.req.query("path");
-  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
-
-  // 设置CORS头部
-  setCorsHeaders(c);
-
-  if (!path) {
-    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
-  }
-
-  try {
-    // 直接返回previewFile的响应，文件内容会直接从服务器流式传输
-    const response = await previewFile(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
-
-    // 替换Access-Control-Allow-Origin头部为实际的Origin
-    const origin = c.req.header("Origin");
-    if (origin) {
-      response.headers.set("Access-Control-Allow-Origin", origin);
-    }
-
-    return response;
-  } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
-    setCorsHeaders(c);
-    console.error("预览文件错误:", error);
-    if (error instanceof HTTPException) {
-      return c.json(createErrorResponse(error.status, error.message), error.status);
-    }
-    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "预览文件失败"), ApiStatus.INTERNAL_ERROR);
-  }
-});
 
 // 创建目录 - 管理员版本
 fsRoutes.post("/api/admin/fs/mkdir", async (c) => {

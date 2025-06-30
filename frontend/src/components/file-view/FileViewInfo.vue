@@ -51,7 +51,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">创建时间</span>
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.uploadTime") }}</span>
         </div>
         <p class="mt-1 text-sm pl-7 text-gray-800 dark:text-white">{{ formattedCreatedAt }}</p>
       </div>
@@ -68,11 +68,11 @@
               d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
             />
           </svg>
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">访问次数</span>
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.accessCount") }}</span>
         </div>
         <p class="mt-1 text-sm pl-7 text-gray-800 dark:text-white">
           {{ fileInfo.views || 0 }}
-          <span v-if="fileInfo.max_views" class="text-xs text-gray-500 dark:text-gray-400"> / {{ fileInfo.max_views }} (限制) </span>
+          <span v-if="fileInfo.max_views" class="text-xs text-gray-500 dark:text-gray-400"> / {{ fileInfo.max_views }} ({{ t("fileView.fileInfo.limit") }}) </span>
         </p>
       </div>
 
@@ -82,7 +82,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">过期时间</span>
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.expiresAt") }}</span>
         </div>
         <p class="mt-1 text-sm pl-7 text-gray-800 dark:text-white">{{ formattedExpiresAt }}</p>
       </div>
@@ -98,11 +98,11 @@
               d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
             />
           </svg>
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">访问模式</span>
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.accessMode") }}</span>
         </div>
         <p class="mt-1 text-sm pl-7 text-gray-800 dark:text-white">
           <span :class="{ 'text-green-600 dark:text-green-400': fileInfo.use_proxy, 'text-blue-600 dark:text-blue-400': !fileInfo.use_proxy }">
-            {{ fileInfo.use_proxy ? "Worker代理访问" : "S3直链访问" }}
+            {{ fileInfo.use_proxy ? t("fileView.fileInfo.proxyAccess") : t("fileView.fileInfo.directAccess") }}
           </span>
         </p>
       </div>
@@ -118,17 +118,17 @@
               d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
             />
           </svg>
-          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">文件链接</span>
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.fileLink") }}</span>
         </div>
         <div class="mt-1 pl-7 flex items-center relative">
           <p class="text-sm truncate flex-1 text-gray-800 dark:text-white">
-            {{ shareUrl || "需要密码访问" }}
+            {{ shareUrl || t("fileView.fileInfo.needPassword") }}
           </p>
           <button
             v-if="shareUrl"
             @click="copyToClipboard(shareUrl)"
             class="ml-2 p-1 rounded hover:bg-opacity-80 transition-colors bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
-            title="复制链接"
+            :title="t('fileView.fileInfo.copyLink')"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -149,7 +149,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
-              复制成功
+              {{ t("fileView.fileInfo.linkCopied") }}
             </div>
           </div>
         </div>
@@ -160,26 +160,26 @@
 
 <script setup>
 import { computed, ref, defineProps, onMounted, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { getFullApiUrl } from "../../api/config.js";
+
+const { t } = useI18n();
 import {
   formatFileSize,
-  formatDateTime,
-  getFileIconClass,
   formatMimeType,
-  isImageType,
-  isVideoType,
-  isAudioType,
-  isPdfType,
-  isMarkdownType,
-  isHtmlType,
-  isTextType,
-  isCodeType,
-  isConfigType,
-  isWordDocumentType,
-  isSpreadsheetType,
-  isPresentationType,
-  isOfficeFileType,
-} from "./FileViewUtils.js";
+  isImage as isImageType,
+  isVideo as isVideoType,
+  isAudio as isAudioType,
+  isPdf as isPdfType,
+  isMarkdown as isMarkdownType,
+  isHtml as isHtmlType,
+  isText as isTextType,
+  isCode as isCodeType,
+  isConfig as isConfigType,
+  isOffice as isOfficeFileType,
+  getFileIconClass as getFileIconClassUtil,
+} from "../../utils/mimeUtils.js";
+import { formatDateTime } from "../../utils/timeUtils.js";
 import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
 
 //导入预览组件
@@ -286,7 +286,7 @@ const formattedExpiresAt = computed(() => {
 
 // 文件图标类名
 const iconClass = computed(() => {
-  return getFileIconClass(props.fileInfo.mimetype, props.darkMode, props.fileInfo.filename);
+  return getFileIconClassUtil(props.fileInfo.mimetype, props.fileInfo.filename, props.darkMode);
 });
 
 // 文件类型检查
@@ -301,9 +301,6 @@ const isCode = computed(() => isCodeType(props.fileInfo.mimetype, props.fileInfo
 const isConfig = computed(() => isConfigType(props.fileInfo.mimetype, props.fileInfo.filename));
 
 // Office文件类型检查
-const isOfficeDocument = computed(() => isWordDocumentType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isSpreadsheet = computed(() => isSpreadsheetType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isPresentation = computed(() => isPresentationType(props.fileInfo.mimetype, props.fileInfo.filename));
 const isOfficeFile = computed(() => isOfficeFileType(props.fileInfo.mimetype, props.fileInfo.filename));
 
 // 动态组件逻辑
@@ -329,7 +326,7 @@ const shouldShowPreview = computed(() => {
 
 // 获取代码文件的语言类型
 const getCodeLanguage = computed(() => {
-  if (!props.fileInfo.filename) return "代码";
+  if (!props.fileInfo.filename) return t("fileView.preview.code.title");
 
   const extension = props.fileInfo.filename.split(".").pop().toLowerCase();
   const languageMap = {
@@ -358,12 +355,12 @@ const getCodeLanguage = computed(() => {
     tsx: "TSX",
   };
 
-  return languageMap[extension] || "代码";
+  return languageMap[extension] || t("fileView.preview.code.title");
 });
 
 // 获取配置文件的语言类型
 const getConfigLanguage = computed(() => {
-  if (!props.fileInfo.filename) return "配置";
+  if (!props.fileInfo.filename) return t("fileView.preview.config.title");
 
   const extension = props.fileInfo.filename.split(".").pop().toLowerCase();
   const configLanguageMap = {
@@ -377,7 +374,7 @@ const getConfigLanguage = computed(() => {
     conf: "CONF",
   };
 
-  return configLanguageMap[extension] || "配置";
+  return configLanguageMap[extension] || t("fileView.preview.config.title");
 });
 
 // 动态组件属性配置
@@ -391,14 +388,17 @@ const previewComponentProps = computed(() => {
   if (isText.value || isCode.value || isConfig.value) {
     return {
       ...baseProps,
-      title: isCode.value ? "代码预览" : isConfig.value ? "配置文件预览" : "文本文件预览",
+      title: isCode.value ? t("fileView.preview.code.title") : isConfig.value ? t("fileView.preview.config.title") : t("fileView.preview.text.title"),
       language: isCode.value ? getCodeLanguage.value : isConfig.value ? getConfigLanguage.value : "",
-      loadingText: isCode.value ? "加载代码内容中..." : isConfig.value ? "加载配置文件中..." : "加载文本内容中...",
+      loadingText: isCode.value ? t("fileView.preview.code.loading") : isConfig.value ? t("fileView.preview.config.loading") : t("fileView.preview.text.loading"),
     };
   }
 
   if (isMarkdown.value) {
-    return baseProps;
+    return {
+      ...baseProps,
+      darkMode: props.darkMode,
+    };
   }
 
   if (isHtml.value) {
@@ -409,9 +409,8 @@ const previewComponentProps = computed(() => {
     return {
       microsoftOfficePreviewUrl: microsoftOfficePreviewUrl.value,
       googleDocsPreviewUrl: googleDocsPreviewUrl.value,
-      isOfficeDocument: isOfficeDocument.value,
-      isSpreadsheet: isSpreadsheet.value,
-      isPresentation: isPresentation.value,
+      mimetype: props.fileInfo.mimetype,
+      filename: props.fileInfo.filename,
       useProxy: props.fileInfo.use_proxy,
       downloadUrl: props.fileUrls.downloadUrl,
     };

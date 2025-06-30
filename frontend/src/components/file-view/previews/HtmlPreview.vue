@@ -1,13 +1,13 @@
 <template>
   <div class="html-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col w-full">
     <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-      <span class="text-sm font-medium text-gray-700 dark:text-gray-300">HTML预览</span>
+      <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("fileView.preview.html.title") }}</span>
       <div>
         <button
           @click="toggleHtmlPreview"
           class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-700 text-blue-700 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600 transition-colors"
         >
-          {{ showHtmlIframe ? "查看源码" : "查看渲染" }}
+          {{ showHtmlIframe ? t("fileView.preview.html.viewSource") : t("fileView.preview.html.viewRendered") }}
         </button>
       </div>
     </div>
@@ -31,7 +31,7 @@
               d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 0 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
-          <p class="text-blue-600 dark:text-blue-400">加载HTML预览中...</p>
+          <p class="text-blue-600 dark:text-blue-400">{{ t("fileView.preview.html.loading") }}</p>
         </div>
       </div>
     </div>
@@ -44,7 +44,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 814 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <p class="text-blue-600 dark:text-blue-400">加载HTML源码中...</p>
+          <p class="text-blue-600 dark:text-blue-400">{{ t("fileView.preview.html.loadingSource") }}</p>
         </div>
       </div>
     </div>
@@ -53,6 +53,9 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps({
   previewUrl: {
@@ -76,11 +79,11 @@ const fetchHtmlContent = async () => {
     if (response.ok) {
       htmlContent.value = await response.text();
     } else {
-      htmlContent.value = `无法加载HTML内容：${response.status} ${response.statusText}`;
+      htmlContent.value = `${t("fileView.preview.html.error")}：${response.status} ${response.statusText}`;
     }
   } catch (err) {
     console.error("获取HTML内容失败:", err);
-    htmlContent.value = "获取HTML内容时出错，请刷新页面重试。";
+    htmlContent.value = t("fileView.preview.html.error");
     emit("error", err);
   } finally {
     textLoading.value = false;

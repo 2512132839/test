@@ -127,12 +127,12 @@
 <script setup>
 import { ref, watch, computed, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../../api";
-import { useTaskManager, TaskType, TaskStatus } from "../../utils/taskManager";
+import { api } from "../../../../api";
+import { useTaskManager, TaskType, TaskStatus } from "../../../../utils/taskManager";
 
 const { t } = useI18n();
 
-// 使用Vue 3的方式注册递归组件
+// 注册递归组件
 import { h } from "vue";
 
 // 目录缓存对象，用于存储已加载的目录内容

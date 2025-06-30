@@ -2,12 +2,16 @@
   <div class="audio-preview rounded-lg p-4 mb-2 bg-gray-100 dark:bg-gray-700 w-full">
     <audio controls class="w-full" @loadeddata="handleLoad" @error="handleError">
       <source :src="previewUrl" :type="mimetype" />
-      您的浏览器不支持音频标签
+      {{ t("fileView.preview.audio.notSupported") }}
     </audio>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
+
 defineProps({
   previewUrl: {
     type: String,

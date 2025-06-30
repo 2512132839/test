@@ -217,7 +217,7 @@
 <script setup>
 import { computed, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
-import { useTaskManager, TaskStatus, TaskType } from "../../utils/taskManager";
+import { useTaskManager, TaskStatus, TaskType } from "../../../../utils/taskManager";
 
 const { t } = useI18n();
 
@@ -426,7 +426,7 @@ const TIME_UNITS = {
 };
 
 // 导入统一的时间处理工具
-import { formatRelativeTime, formatDateTime as formatDateTimeUtil } from "../../utils/timeUtils.js";
+import { formatRelativeTime, formatDateTime as formatDateTimeUtil } from "../../../../utils/timeUtils.js";
 
 // 获取相对时间文本 - 使用统一的时间处理工具
 const getTimeAgo = (dateString) => {

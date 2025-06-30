@@ -15,7 +15,7 @@
           d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
         />
       </svg>
-      <span>预览文件</span>
+      <span>{{ t("fileView.actions.preview") }}</span>
     </button>
 
     <!-- 下载按钮 -->
@@ -27,7 +27,7 @@
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
       </svg>
-      <span>下载文件</span>
+      <span>{{ t("fileView.actions.download") }}</span>
     </button>
 
     <!-- 编辑按钮 (管理员可见所有文件，API密钥用户只能看到自己的文件) -->
@@ -44,7 +44,7 @@
           d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
         />
       </svg>
-      <span>编辑信息</span>
+      <span>{{ t("fileView.actions.edit") }}</span>
     </button>
 
     <!-- 分享按钮 -->
@@ -60,7 +60,7 @@
           d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
         />
       </svg>
-      <span>分享链接</span>
+      <span>{{ t("fileView.actions.share") }}</span>
     </button>
 
     <!-- 删除按钮 (管理员可见所有文件，API密钥用户只能看到自己的文件) -->
@@ -77,25 +77,25 @@
           d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
         />
       </svg>
-      <span>删除文件</span>
+      <span>{{ t("fileView.actions.delete") }}</span>
     </button>
 
     <!-- 删除确认模态框 -->
     <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
       <div class="rounded-lg p-6 max-w-sm w-full shadow-xl bg-white dark:bg-gray-800">
-        <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">确认删除文件</h3>
+        <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-white">{{ t("fileView.actions.delete") }}</h3>
         <p class="mb-6 text-gray-600 dark:text-gray-300">
-          您确定要删除文件 <strong>{{ fileInfo.filename }}</strong> 吗？此操作无法撤销。
+          {{ t("fileView.actions.deleteConfirm") }}
         </p>
         <div class="flex justify-end space-x-3">
           <button
             @click="showDeleteConfirm = false"
             class="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white"
           >
-            取消
+            {{ t("common.cancel") }}
           </button>
           <button @click="deleteFile" class="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white" :disabled="deleting">
-            {{ deleting ? "删除中..." : "确认删除" }}
+            {{ deleting ? t("fileView.actions.deleting") : t("common.confirm") }}
           </button>
         </div>
       </div>
@@ -109,7 +109,7 @@
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
       </svg>
-      <span>链接已复制到剪贴板!</span>
+      <span>{{ t("fileView.fileInfo.linkCopied") }}</span>
     </div>
 
     <!-- 错误提示组件 -->
@@ -126,13 +126,16 @@
 
 <script setup>
 import { ref, defineProps, defineEmits, computed, onMounted } from "vue";
-import { isOfficeFileType } from "./FileViewUtils";
+import { useI18n } from "vue-i18n";
+import { isOffice as isOfficeFileType } from "../../utils/mimeUtils.js";
 import { api } from "../../api";
 import { ApiStatus } from "../../api/ApiStatus";
 import { getFullApiUrl } from "../../api/config";
 import { copyToClipboard } from "@/utils/clipboard";
 import ErrorToast from "../common/ErrorToast.vue";
 import { useAuthStore } from "../../stores/authStore.js";
+
+const { t } = useI18n();
 
 const props = defineProps({
   fileInfo: {
@@ -273,13 +276,18 @@ const previewFile = async () => {
         const response = await fetch(apiUrl);
         if (!response.ok) {
           const errorData = await response.json();
-          showError("Office预览失败", `获取Office预览URL失败: ${errorData.error || response.statusText}`, "重试", () => emit("refresh-file-info"));
+          showError(
+            t("fileView.actions.previewFailed"),
+            `${t("fileView.actions.getPreviewUrlFailed")}: ${errorData.error || response.statusText}`,
+            t("fileView.actions.retry"),
+            () => emit("refresh-file-info")
+          );
           return;
         }
 
         const data = await response.json();
         if (!data.url) {
-          showError("Office预览失败", "获取Office预览URL失败: 返回数据中没有URL", "重试", () => emit("refresh-file-info"));
+          showError(t("fileView.actions.previewFailed"), t("fileView.actions.noUrlInResponse"), t("fileView.actions.retry"), () => emit("refresh-file-info"));
           return;
         }
 
@@ -347,7 +355,7 @@ const previewFile = async () => {
     window.open(previewUrl, "_blank");
   } catch (err) {
     console.error("预览文件失败:", err);
-    showError("预览失败", err.message || "预览文件时发生错误", "重试", () => emit("refresh-file-info"));
+    showError(t("fileView.actions.previewFailed"), err.message || t("fileView.errors.unknown"), t("fileView.actions.retry"), () => emit("refresh-file-info"));
   }
 };
 
@@ -362,7 +370,7 @@ const downloadFile = () => {
     console.log("开始下载文件:", props.fileInfo.filename);
 
     // 提取文件名，用于下载时的文件命名
-    const fileName = props.fileInfo.filename || "下载文件";
+    const fileName = props.fileInfo.filename || t("fileView.actions.downloadFile");
 
     // 检查是否是代理URL并添加密码参数
     let downloadUrl = props.fileUrls.downloadUrl;
@@ -427,9 +435,9 @@ const downloadFile = () => {
       err.code === ApiStatus.UNAUTHORIZED ||
       (err.message && (err.message.includes(ApiStatus.FORBIDDEN.toString()) || err.message.includes(ApiStatus.UNAUTHORIZED.toString())))
     ) {
-      showError("下载失败", "下载链接可能已过期，请尝试刷新获取新的下载链接。", "刷新", () => emit("refresh-file-info"));
+      showError(t("fileView.actions.downloadFailed"), t("fileView.actions.downloadExpired"), t("fileView.actions.refresh"), () => emit("refresh-file-info"));
     } else {
-      showError("下载失败", err.message || "下载文件时发生错误，请稍后重试");
+      showError(t("fileView.actions.downloadFailed"), err.message || t("fileView.errors.unknown"));
     }
   }
 };
@@ -446,7 +454,7 @@ const shareFile = async () => {
     try {
       await navigator.share({
         title: props.fileInfo.filename,
-        text: props.fileInfo.remark || `分享文件：${props.fileInfo.filename}`,
+        text: props.fileInfo.remark || `${t("fileView.actions.shareFileText")}：${props.fileInfo.filename}`,
         url: shareUrl,
       });
       console.log("文件分享成功");
@@ -476,12 +484,12 @@ const fallbackShare = async (url) => {
         showCopyToast.value = false;
       }, 3000);
     } else {
-      throw new Error("复制失败");
+      throw new Error(t("fileView.fileInfo.copyFailed"));
     }
   } catch (err) {
     console.error("复制失败:", err);
     // 如果复制失败，提示用户手动复制
-    showError("复制失败", `无法自动复制，请手动复制链接：${url}`);
+    showError(t("fileView.fileInfo.copyFailed"), `${t("fileView.actions.manualCopy")}：${url}`);
   }
 };
 
@@ -509,7 +517,7 @@ const deleteFile = async () => {
     } else if (hasApiKey.value && hasFilePermission.value && isCreator.value) {
       response = await api.file.deleteUserFile(props.fileInfo.id);
     } else {
-      throw new Error("没有足够的权限删除此文件");
+      throw new Error(t("fileView.actions.noPermission"));
     }
 
     if (response.success) {
@@ -520,11 +528,11 @@ const deleteFile = async () => {
     } else {
       // 处理删除失败的情况
       console.error("删除文件失败:", response.message);
-      showError("删除失败", `删除文件失败: ${response.message}`);
+      showError(t("fileView.actions.deleteFailed"), `${t("fileView.actions.deleteFailed")}: ${response.message}`);
     }
   } catch (err) {
     console.error("删除文件错误:", err);
-    showError("删除失败", err.message || "删除文件时发生错误，请稍后重试");
+    showError(t("fileView.actions.deleteFailed"), err.message || t("fileView.errors.unknown"));
   } finally {
     deleting.value = false;
   }

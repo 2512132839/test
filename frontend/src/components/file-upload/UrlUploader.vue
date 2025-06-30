@@ -461,7 +461,7 @@ import { useI18n } from "vue-i18n";
 import { api } from "../../api";
 // 导入文件类型工具
 import { getFileIcon } from "../../utils/fileTypeIcons";
-import * as MimeTypeUtils from "../../utils/mimeTypeUtils";
+import { formatFileSize as formatFileSizeUtil, getDetailedFileType } from "../../utils/mimeUtils";
 // 导入URL验证API（后端增强检测）
 import { validateUrlInfo } from "../../api/services/urlUploadService.js";
 
@@ -538,20 +538,12 @@ const displayMimeType = computed(() => {
 
   // 如果有明确的MIME类型且不是默认的application/octet-stream，使用它
   if (fileInfo.value.contentType && fileInfo.value.contentType !== "application/octet-stream") {
-    return MimeTypeUtils.getMimeTypeDisplay(fileInfo.value.contentType, fileInfo.value.filename);
+    return getDetailedFileType(fileInfo.value.contentType, fileInfo.value.filename);
   }
 
   // 否则，尝试从文件名猜测MIME类型
   if (fileInfo.value.filename) {
-    const ext = MimeTypeUtils.getFileExtension(fileInfo.value.filename);
-    // 使用 MimeTypeUtils 的方法获取文件类型和MIME类型
-    const fileType = MimeTypeUtils.getFileTypeFromExtension(ext);
-    if (fileType) {
-      const mimeType = MimeTypeUtils.fileTypeToMimeType(fileType);
-      if (mimeType) {
-        return MimeTypeUtils.getMimeTypeDisplay(mimeType, fileInfo.value.filename);
-      }
-    }
+    return getDetailedFileType("", fileInfo.value.filename);
   }
 
   // 如果无法猜测，不显示类型信息（返回null而不是"Unknown Type"）
@@ -726,7 +718,7 @@ const isValidUrl = (url) => {
  * @returns {string} 格式化后的文件大小
  */
 const formatFileSize = (bytes) => {
-  return MimeTypeUtils.formatFileSize(bytes);
+  return formatFileSizeUtil(bytes);
 };
 
 /**
