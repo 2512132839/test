@@ -113,4 +113,56 @@ systemRoutes.get("/api/admin/dashboard/stats", baseAuthMiddleware, requireAdminM
   }
 });
 
+// 获取系统版本信息（公共API）
+systemRoutes.get("/api/version", async (c) => {
+  // 判断运行环境和数据存储
+  const runtimeEnv = process.env.RUNTIME_ENV || "unknown";
+  const isDocker = runtimeEnv === "docker";
+
+  // 统一的默认版本配置
+  const DEFAULT_VERSION = "0.6.5";
+  const DEFAULT_NAME = "cloudpaste-api";
+
+  let version = DEFAULT_VERSION;
+  let name = DEFAULT_NAME;
+
+  // 根据环境获取版本信息
+  if (isDocker) {
+    // Docker环境：尝试读取package.json
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const packagePath = path.resolve("./package.json");
+      const packageContent = fs.readFileSync(packagePath, "utf8");
+      const packageJson = JSON.parse(packageContent);
+
+      version = DEFAULT_VERSION;
+      name = packageJson.name || DEFAULT_NAME;
+    } catch (error) {
+      console.warn("Docker环境读取package.json失败，使用默认值:", error.message);
+      // 保持默认值
+    }
+  } else {
+    // Workers环境
+    version =  DEFAULT_VERSION;
+    name = process.env.APP_NAME || DEFAULT_NAME;
+  }
+
+  const versionInfo = {
+    version,
+    name,
+    environment: isDocker ? "Docker" : "Cloudflare Workers",
+    storage: isDocker ? "SQLite" : "Cloudflare D1",
+    nodeVersion: process.version || "unknown",
+    uptime: Math.round(process.uptime()),
+  };
+
+  return c.json({
+    code: ApiStatus.SUCCESS,
+    message: "获取版本信息成功",
+    data: versionInfo,
+    success: true,
+  });
+});
+
 export default systemRoutes;

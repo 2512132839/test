@@ -88,6 +88,7 @@ export default {
     },
 
     // 系统信息
+    systemVersion: "系统版本",
     serverEnvironment: "服务器环境",
     dataStorage: "数据存储",
 

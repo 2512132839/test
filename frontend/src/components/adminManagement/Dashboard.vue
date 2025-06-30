@@ -50,6 +50,15 @@ const isCacheExpanded = ref(false);
 // 清理缓存状态
 const isClearingCache = ref(false);
 
+// 版本信息数据
+const versionInfo = ref({
+  version: "加载中...",
+  environment: "加载中...",
+  storage: "加载中...",
+  uptime: 0,
+  error: null,
+});
+
 // 当前选中的存储桶
 const selectedBucketId = ref(null);
 
@@ -308,6 +317,25 @@ const fetchCacheStats = async () => {
   }
 };
 
+// 获取版本信息
+const fetchVersionInfo = async () => {
+  try {
+    const response = await api.system.getVersionInfo();
+    if (response.success && response.data) {
+      versionInfo.value = {
+        version: response.data.version || "1.0.0",
+        environment: response.data.environment || "Docker",
+        storage: response.data.storage || "SQLite",
+        uptime: response.data.uptime || 0,
+        error: null,
+      };
+    }
+  } catch (err) {
+    console.warn("获取版本信息失败:", err);
+    versionInfo.value.error = "获取版本信息失败";
+  }
+};
+
 // 清理所有缓存
 const clearAllCache = async () => {
   if (isClearingCache.value) return;
@@ -341,10 +369,11 @@ const fetchDashboardStats = async () => {
   error.value = null;
 
   try {
-    // 并行获取仪表盘数据和缓存统计
+    // 并行获取仪表盘数据、缓存统计和版本信息
     const [dashboardResponse] = await Promise.all([
       api.admin.getDashboardStats(),
       fetchCacheStats(), // 缓存统计失败不影响主要数据
+      fetchVersionInfo(), // 版本信息失败不影响主要数据
     ]);
 
     if (dashboardResponse.success && dashboardResponse.data) {
@@ -857,9 +886,30 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- 系统信息卡片 -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="flex flex-col sm:flex-row gap-4">
+      <!-- 版本信息 -->
+      <div class="flex-1 p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
+        <div class="flex items-center mb-2">
+          <div class="w-6 h-6 rounded-full flex items-center justify-center mr-2" :class="darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m0 0V3a1 1 0 011 1v1M7 4V3a1 1 0 011-1v1m8 0V3a1 1 0 00-1-1v1m-8 0h8m-8 0v16a1 1 0 001 1h6a1 1 0 001-1V4"
+              />
+            </svg>
+          </div>
+          <h3 class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-500'">
+            {{ t("admin.dashboard.systemVersion") }}
+          </h3>
+        </div>
+        <p v-if="!versionInfo.error" class="text-sm ml-8" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">v{{ versionInfo.version }}</p>
+        <p v-else class="text-sm ml-8 text-red-500">{{ versionInfo.error }}</p>
+      </div>
+
       <!-- 服务器信息 -->
-      <div class="p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
+      <div class="flex-1 p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
         <div class="flex items-center mb-2">
           <div class="w-6 h-6 rounded-full flex items-center justify-center mr-2" :class="darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -875,11 +925,14 @@ onBeforeUnmount(() => {
             {{ t("admin.dashboard.serverEnvironment") }}
           </h3>
         </div>
-        <p class="text-sm ml-8" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">Cloudflare Workers</p>
+        <p v-if="!versionInfo.error" class="text-sm ml-8" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+          {{ versionInfo.environment }}
+        </p>
+        <p v-else class="text-sm ml-8 text-red-500">{{ versionInfo.error }}</p>
       </div>
 
       <!-- 数据库信息 -->
-      <div class="p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
+      <div class="flex-1 p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
         <div class="flex items-center mb-2">
           <div class="w-6 h-6 rounded-full flex items-center justify-center mr-2" :class="darkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600'">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -895,11 +948,14 @@ onBeforeUnmount(() => {
             {{ t("admin.dashboard.dataStorage") }}
           </h3>
         </div>
-        <p class="text-sm ml-8" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">Cloudflare D1</p>
+        <p v-if="!versionInfo.error" class="text-sm ml-8" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+          {{ versionInfo.storage }}
+        </p>
+        <p v-else class="text-sm ml-8 text-red-500">{{ versionInfo.error }}</p>
       </div>
 
       <!-- 上次更新时间 -->
-      <div class="p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
+      <div class="flex-1 p-3 rounded-lg shadow transition-shadow hover:shadow-md" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
         <div class="flex items-center mb-2">
           <div class="w-6 h-6 rounded-full flex items-center justify-center mr-2" :class="darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -88,6 +88,7 @@ export default {
     },
 
     // System information
+    systemVersion: "System Version",
     serverEnvironment: "Server Environment",
     dataStorage: "Data Storage",
 
