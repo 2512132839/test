@@ -14,6 +14,15 @@ export default {
     totalS3Configs: "S3配置",
     totalStorageUsed: "存储使用",
 
+    // 缓存监控
+    cacheMonitoring: "缓存监控",
+    directoryCache: "目录缓存",
+    s3UrlCache: "S3URL缓存",
+    hitRate: "命中率",
+    cacheItems: "缓存项",
+    cacheUnavailable: "缓存数据不可用",
+    clearAllCache: "清理所有缓存",
+
     // 存储相关
     storageUsage: "存储使用情况",
     allBuckets: "所有存储桶",
@@ -42,6 +51,7 @@ export default {
     weeklyFiles: "本周文件",
     mostActiveDate: "最活跃日期",
     highestDailyActivity: "最高日活跃",
+    activityOverview: "活动概览",
     items: "项",
     switchToLineChart: "切换到折线图",
     switchToBarChart: "切换到柱状图",

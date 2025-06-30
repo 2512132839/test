@@ -633,7 +633,7 @@ server.use("*", async (req, res) => {
  * 将Express请求转换为Cloudflare Workers兼容的Request对象
  */
 function createAdaptedRequest(expressReq) {
-  //使用X-Forwarded-Proto头部，回退到连接信息
+  // 正确处理协议：优先使用X-Forwarded-Proto头部，回退到连接信息
   const protocol = expressReq.headers["x-forwarded-proto"] || (expressReq.connection && expressReq.connection.encrypted ? "https" : "http");
 
   // 调试日志：记录协议检测结果
@@ -832,27 +832,66 @@ server.listen(PORT, "0.0.0.0", () => {
  * 内存使用监控和管理函数
  * 定期记录内存使用情况并尝试清理
  */
-function startMemoryMonitoring(interval = 60000) {
+function startMemoryMonitoring(interval = 1200000) {
+  // 简单读取容器内存使用情况
+  const getContainerMemory = () => {
+    try {
+      const fs = require("fs");
+      // 尝试读取cgroup内存使用（优先v2，回退v1）
+      let usage = null,
+          limit = null;
+
+      // cgroup v2
+      if (fs.existsSync("/sys/fs/cgroup/memory.current")) {
+        usage = parseInt(fs.readFileSync("/sys/fs/cgroup/memory.current", "utf8"));
+        const maxContent = fs.readFileSync("/sys/fs/cgroup/memory.max", "utf8").trim();
+        if (maxContent !== "max") limit = parseInt(maxContent);
+      }
+      // cgroup v1
+      else if (fs.existsSync("/sys/fs/cgroup/memory/memory.usage_in_bytes")) {
+        usage = parseInt(fs.readFileSync("/sys/fs/cgroup/memory/memory.usage_in_bytes", "utf8"));
+        const limitValue = parseInt(fs.readFileSync("/sys/fs/cgroup/memory/memory.limit_in_bytes", "utf8"));
+        if (limitValue < Number.MAX_SAFE_INTEGER) limit = limitValue;
+      }
+
+      return usage && limit ? { usage, limit } : null;
+    } catch (error) {
+      return null; // 静默失败，不在容器中或无权限
+    }
+  };
+
   // 记录内存使用情况
   const logMemoryUsage = () => {
     const memUsage = process.memoryUsage();
+    const containerMem = getContainerMemory();
 
-    logMessage("info", "内存使用情况:", {
+    const memoryInfo = {
       rss: `${Math.round(memUsage.rss / 1024 / 1024)} MB`, // 常驻集大小
       heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)} MB`, // 总堆内存
       heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)} MB`, // 已用堆内存
       external: `${Math.round(memUsage.external / 1024 / 1024)} MB`, // 外部内存
       arrayBuffers: memUsage.arrayBuffers ? `${Math.round(memUsage.arrayBuffers / 1024 / 1024)} MB` : "N/A", // Buffer内存
-    });
+    };
 
-    // 当内存使用率高于阈值时，尝试手动触发垃圾回收
-    // 增加对外部内存和ArrayBuffers的检查，以便在文件上传后更好地触发内存回收
-    if (
-        global.gc &&
-        (memUsage.heapUsed / memUsage.heapTotal > 0.85 ||
-            memUsage.external > 30 * 1024 * 1024 || // 外部内存超过30MB
-            (memUsage.arrayBuffers && memUsage.arrayBuffers > 50 * 1024 * 1024)) // ArrayBuffers超过50MB
-    ) {
+    // 如果在容器中，添加容器内存信息
+    if (containerMem) {
+      memoryInfo.container = `${Math.round(containerMem.usage / 1024 / 1024)} MB / ${Math.round(containerMem.limit / 1024 / 1024)} MB`;
+      memoryInfo.containerUsage = `${Math.round((containerMem.usage / containerMem.limit) * 100)}%`;
+    }
+
+    logMessage("info", "内存使用情况:", memoryInfo);
+
+    // 智能垃圾回收：优先使用容器内存，回退到进程内存
+    let shouldGC = false;
+    if (containerMem) {
+      // 容器内存使用率超过85%
+      shouldGC = containerMem.usage / containerMem.limit > 0.85;
+    } else {
+      // 回退到原有逻辑
+      shouldGC = memUsage.heapUsed / memUsage.heapTotal > 0.85 || memUsage.external > 50 * 1024 * 1024 || (memUsage.arrayBuffers && memUsage.arrayBuffers > 50 * 1024 * 1024);
+    }
+
+    if (global.gc && shouldGC) {
       logMessage("info", "检测到内存使用较高，尝试手动垃圾回收");
       global.gc();
     }

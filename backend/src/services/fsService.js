@@ -712,12 +712,19 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
               try {
                 const { generatePresignedUrl } = await import("../utils/s3Utils.js");
 
+                // 构建缓存选项 - 安全提取用户ID
+                const cacheOptions = {
+                  userType,
+                  userId: userType === "admin" ? userIdOrInfo : userIdOrInfo?.id || userIdOrInfo,
+                  enableCache: true,
+                };
+
                 // 生成预览URL（不强制下载）
-                const previewUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, false);
+                const previewUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, false, null, cacheOptions);
                 result.preview_url = previewUrl;
 
                 // 生成下载URL（强制下载）
-                const downloadUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, true);
+                const downloadUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, true, null, cacheOptions);
                 result.download_url = downloadUrl;
 
                 console.log(`为文件[${result.name}]生成预签名URL: preview=${!!previewUrl}, download=${!!downloadUrl}`);
@@ -790,12 +797,19 @@ export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSe
                 try {
                   const { generatePresignedUrl } = await import("../utils/s3Utils.js");
 
+                  // 构建缓存选项 - 安全提取用户ID
+                  const cacheOptions = {
+                    userType,
+                    userId: userType === "admin" ? userIdOrInfo : userIdOrInfo?.id || userIdOrInfo,
+                    enableCache: true,
+                  };
+
                   // 生成预览URL（不强制下载）
-                  const previewUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, false);
+                  const previewUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, false, null, cacheOptions);
                   result.preview_url = previewUrl;
 
                   // 生成下载URL（强制下载）
-                  const downloadUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, true);
+                  const downloadUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, null, true, null, cacheOptions);
                   result.download_url = downloadUrl;
 
                   console.log(`为文件[${result.name}]生成预签名URL: preview=${!!previewUrl}, download=${!!downloadUrl}`);
@@ -1753,7 +1767,15 @@ export async function getFilePresignedUrl(db, path, userIdOrInfo, userType, encr
 
         // 生成预签名URL，使用传入的expiresIn参数（保持现有API兼容性）
         const { generatePresignedUrl } = await import("../utils/s3Utils.js");
-        const presignedUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, expiresIn, forceDownload);
+
+        // 构建缓存选项 - 安全提取用户ID
+        const cacheOptions = {
+          userType,
+          userId: userType === "admin" ? userIdOrInfo : userIdOrInfo?.id || userIdOrInfo,
+          enableCache: true,
+        };
+
+        const presignedUrl = await generatePresignedUrl(s3Config, s3SubPath, encryptionSecret, expiresIn, forceDownload, null, cacheOptions);
 
         // 构建响应对象
         return {

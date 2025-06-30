@@ -95,6 +95,14 @@ export function clearCacheUser(options = {}) {
 }
 
 /**
+ * 获取缓存统计信息
+ * @returns {Promise<Object>} 缓存统计数据
+ */
+export function getCacheStats() {
+  return get("/admin/cache/stats");
+}
+
+/**
  * 系统健康检查
  * @returns {Promise<Object>} 健康检查结果
  */

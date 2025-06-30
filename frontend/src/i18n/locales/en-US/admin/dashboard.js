@@ -14,6 +14,15 @@ export default {
     totalS3Configs: "S3 Configs",
     totalStorageUsed: "Storage Used",
 
+    // Cache monitoring
+    cacheMonitoring: "Cache Monitoring",
+    directoryCache: "Directory Cache",
+    s3UrlCache: "S3 URL Cache",
+    hitRate: "Hit Rate",
+    cacheItems: "Cache Items",
+    cacheUnavailable: "Cache data unavailable",
+    clearAllCache: "Clear All Cache",
+
     // Storage related
     storageUsage: "Storage Usage",
     allBuckets: "All Buckets",
@@ -42,6 +51,7 @@ export default {
     weeklyFiles: "Weekly Files",
     mostActiveDate: "Most Active Date",
     highestDailyActivity: "Highest Daily Activity",
+    activityOverview: "Activity Overview",
     items: "items",
     switchToLineChart: "Switch to Line Chart",
     switchToBarChart: "Switch to Bar Chart",

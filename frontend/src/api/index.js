@@ -81,6 +81,7 @@ export const api = {
     getSystemSettings: systemService.getSystemSettings,
     updateSystemSettings: systemService.updateSystemSettings,
     getDashboardStats: systemService.getDashboardStats,
+    getCacheStats: systemService.getCacheStats,
     clearCache: systemService.clearCacheAdmin,
 
     // 文件系统管理

@@ -261,27 +261,54 @@ async function generateOriginalPresignedUrl(s3Config, storagePath, encryptionSec
 }
 
 /**
- * 生成S3文件的下载预签名URL（支持自定义域名）
+ * 生成S3文件的下载预签名URL（支持自定义域名和缓存）
  * @param {Object} s3Config - S3配置
  * @param {string} storagePath - S3存储路径
  * @param {string} encryptionSecret - 用于解密凭证的密钥
  * @param {number} expiresIn - URL过期时间（秒），如果为null则使用S3配置的默认值
  * @param {boolean} forceDownload - 是否强制下载（而非预览）
  * @param {string} mimetype - 文件的MIME类型（可选）
+ * @param {Object} cacheOptions - 缓存选项 {userType, userId, enableCache}
  * @returns {Promise<string>} 预签名URL或自定义域名URL
  */
-export async function generatePresignedUrl(s3Config, storagePath, encryptionSecret, expiresIn = null, forceDownload = false, mimetype = null) {
+export async function generatePresignedUrl(s3Config, storagePath, encryptionSecret, expiresIn = null, forceDownload = false, mimetype = null, cacheOptions = {}) {
   // 如果没有指定过期时间，使用S3配置中的默认值
   const finalExpiresIn = expiresIn || s3Config.signature_expires_in || 3600;
+
+  // 缓存功能：检查是否启用缓存且提供了必要的缓存参数
+  const { userType, userId, enableCache = true } = cacheOptions;
+
+  if (enableCache && userType && userId) {
+    // 动态导入缓存管理器，避免循环依赖
+    const { s3UrlCacheManager } = await import("./S3UrlCache.js");
+
+    // 尝试从缓存获取
+    const cachedUrl = s3UrlCacheManager.get(s3Config.id, storagePath, forceDownload, userType, userId);
+    if (cachedUrl) {
+      console.log(`🎯 S3URL缓存命中: ${storagePath}`);
+      return cachedUrl;
+    }
+  }
+
+  let generatedUrl;
 
   // 如果配置了自定义域名
   if (s3Config.custom_host) {
     // 自定义域名：直接返回自定义域名直链
-    return generateCustomHostDirectUrl(s3Config, storagePath);
+    generatedUrl = generateCustomHostDirectUrl(s3Config, storagePath);
   } else {
     // 没有自定义域名：使用原始S3预签名URL
-    return await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);
+    generatedUrl = await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);
   }
+
+  // 缓存生成的URL
+  if (enableCache && userType && userId && generatedUrl) {
+    const { s3UrlCacheManager } = await import("./S3UrlCache.js");
+    s3UrlCacheManager.set(s3Config.id, storagePath, forceDownload, userType, userId, generatedUrl, s3Config);
+    console.log(`💾 S3URL已缓存: ${storagePath}`);
+  }
+
+  return generatedUrl;
 }
 
 /**

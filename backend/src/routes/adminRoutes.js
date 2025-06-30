@@ -69,22 +69,54 @@ adminRoutes.get("/api/test/admin-token", baseAuthMiddleware, async (c) => {
   });
 });
 
-// 获取目录缓存统计信息
-adminRoutes.get("/api/admin/cache/stats", async (c) => {
+// 获取系统监控信息（包括缓存统计和系统内存）
+adminRoutes.get("/api/admin/cache/stats", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
   try {
-    const stats = directoryCacheManager.getStats();
+    const dirStats = directoryCacheManager.getStats();
+
+    // 获取S3URL缓存统计
+    let s3UrlStats = null;
+    try {
+      const { s3UrlCacheManager } = await import("../utils/S3UrlCache.js");
+      s3UrlStats = s3UrlCacheManager.getStats();
+    } catch (error) {
+      console.warn("获取S3URL缓存统计失败:", error);
+      s3UrlStats = { error: "S3URL缓存模块未加载" };
+    }
+
+    // 获取系统内存使用情况
+    const memUsage = process.memoryUsage();
+    const systemMemory = {
+      rss: Math.round(memUsage.rss / 1024 / 1024), // 常驻集大小(MB)
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024), // 总堆内存(MB)
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024), // 已用堆内存(MB)
+      external: Math.round(memUsage.external / 1024 / 1024), // 外部内存(MB)
+      arrayBuffers: memUsage.arrayBuffers ? Math.round(memUsage.arrayBuffers / 1024 / 1024) : 0, // Buffer内存(MB)
+      heapUsagePercent: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100), // 堆内存使用率
+    };
+
     return c.json({
       code: ApiStatus.SUCCESS,
-      message: "获取缓存统计成功",
-      data: stats,
+      message: "获取系统监控信息成功",
+      data: {
+        cache: {
+          directory: dirStats,
+          s3Url: s3UrlStats,
+        },
+        system: {
+          memory: systemMemory,
+          uptime: Math.round(process.uptime()), // 运行时间(秒)
+        },
+        timestamp: new Date().toISOString(),
+      },
       success: true,
     });
   } catch (error) {
-    console.error("获取缓存统计错误:", error);
+    console.error("获取系统监控信息错误:", error);
     return c.json(
         {
           code: ApiStatus.INTERNAL_ERROR,
-          message: error.message || "获取缓存统计失败",
+          message: error.message || "获取系统监控信息失败",
           success: false,
         },
         ApiStatus.INTERNAL_ERROR
@@ -114,8 +146,19 @@ adminRoutes.post("/api/admin/cache/clear", baseAuthMiddleware, requireAdminMiddl
     }
     // 如果没有指定参数，清理所有缓存
     else {
-      clearedCount = directoryCacheManager.invalidateAll();
-      console.log(`管理员手动清理所有缓存 - 清理项: ${clearedCount}`);
+      const dirCleared = directoryCacheManager.invalidateAll();
+      clearedCount += dirCleared;
+
+      // 同时清理S3URL缓存
+      try {
+        const { clearS3UrlCache } = await import("../utils/S3UrlCache.js");
+        const s3UrlCleared = await clearS3UrlCache();
+        clearedCount += s3UrlCleared;
+        console.log(`管理员手动清理所有缓存 - 目录缓存: ${dirCleared} 项, S3URL缓存: ${s3UrlCleared} 项, 总计: ${clearedCount} 项`);
+      } catch (error) {
+        console.warn("清理S3URL缓存失败:", error);
+        console.log(`管理员手动清理目录缓存 - 清理项: ${dirCleared}`);
+      }
     }
 
     return c.json({
@@ -163,8 +206,19 @@ adminRoutes.post("/api/user/cache/clear", baseAuthMiddleware, requireMountPermis
     }
     // 如果没有指定参数，清理所有缓存（API密钥用户只能清理所有缓存，不能指定特定缓存）
     else {
-      clearedCount = directoryCacheManager.invalidateAll();
-      console.log(`API密钥用户手动清理所有缓存 - 用户: ${apiKeyInfo.name}, 清理项: ${clearedCount}`);
+      const dirCleared = directoryCacheManager.invalidateAll();
+      clearedCount += dirCleared;
+
+      // 同时清理S3URL缓存
+      try {
+        const { clearS3UrlCache } = await import("../utils/S3UrlCache.js");
+        const s3UrlCleared = await clearS3UrlCache();
+        clearedCount += s3UrlCleared;
+        console.log(`API密钥用户手动清理所有缓存 - 用户: ${apiKeyInfo.name}, 目录缓存: ${dirCleared} 项, S3URL缓存: ${s3UrlCleared} 项, 总计: ${clearedCount} 项`);
+      } catch (error) {
+        console.warn("清理S3URL缓存失败:", error);
+        console.log(`API密钥用户手动清理目录缓存 - 用户: ${apiKeyInfo.name}, 清理项: ${dirCleared}`);
+      }
     }
 
     return c.json({

@@ -14,7 +14,6 @@ class DirectoryCacheManager {
     // 默认配置
     this.config = {
       maxItems: options.maxItems || 500,
-      maxMemoryMB: options.maxMemoryMB || 100, // 默认最大内存使用量为100MB
       prunePercentage: options.prunePercentage || 20, // 默认清理20%
     };
 
@@ -25,7 +24,6 @@ class DirectoryCacheManager {
       expired: 0,
       invalidations: 0,
       pruned: 0,
-      estimatedMemoryUsage: 0, // 估算的内存使用量(bytes)
     };
   }
 
@@ -60,8 +58,6 @@ class DirectoryCacheManager {
     if (Date.now() > cacheItem.expiresAt) {
       this.cache.delete(key);
       this.stats.expired++;
-      // 更新内存使用估算
-      this.stats.estimatedMemoryUsage -= cacheItem.estimatedSize || 0;
       return null;
     }
 
@@ -71,33 +67,6 @@ class DirectoryCacheManager {
 
     this.stats.hits++;
     return cacheItem.data;
-  }
-
-  /**
-   * 估算对象大小(字节)
-   * @param {Object} obj - 要估算大小的对象
-   * @returns {number} - 估算的大小(bytes)
-   */
-  estimateSize(obj) {
-    if (obj === null || obj === undefined) return 0;
-
-    // 基本类型大小估算
-    if (typeof obj === "boolean") return 4;
-    if (typeof obj === "number") return 8;
-    if (typeof obj === "string") return obj.length * 2; // UTF-16编码每个字符2字节
-
-    // 对于数组和对象，递归计算
-    if (Array.isArray(obj)) {
-      return obj.reduce((size, item) => size + this.estimateSize(item), 0);
-    }
-
-    if (typeof obj === "object") {
-      return Object.entries(obj).reduce((size, [key, value]) => {
-        return size + key.length * 2 + this.estimateSize(value);
-      }, 0);
-    }
-
-    return 0;
   }
 
   /**
@@ -112,29 +81,15 @@ class DirectoryCacheManager {
     const now = Date.now();
     const expiresAt = now + ttlSeconds * 1000;
 
-    // 估算数据大小
-    const estimatedSize = this.estimateSize(data);
-
-    // 检查是否为现有缓存项更新
-    if (this.cache.has(key)) {
-      const oldItem = this.cache.get(key);
-      this.stats.estimatedMemoryUsage -= oldItem.estimatedSize || 0;
-    }
-
     // 更新缓存
     this.cache.set(key, {
       data,
       expiresAt,
       lastAccessed: now,
-      estimatedSize,
     });
 
-    // 更新内存使用估算
-    this.stats.estimatedMemoryUsage += estimatedSize;
-
     // 检查是否需要清理缓存
-    const maxMemoryBytes = this.config.maxMemoryMB * 1024 * 1024;
-    if (this.cache.size > this.config.maxItems || this.stats.estimatedMemoryUsage > maxMemoryBytes) {
+    if (this.cache.size > this.config.maxItems) {
       this.prune();
     }
   }
@@ -150,10 +105,6 @@ class DirectoryCacheManager {
     const existed = this.cache.has(key);
 
     if (existed) {
-      // 更新内存使用估算
-      const cacheItem = this.cache.get(key);
-      this.stats.estimatedMemoryUsage -= cacheItem.estimatedSize || 0;
-
       this.cache.delete(key);
       this.stats.invalidations++;
       console.log(`目录缓存已失效 - 挂载点:${mountId}, 路径:${path}`);
@@ -169,14 +120,12 @@ class DirectoryCacheManager {
    */
   invalidateMount(mountId) {
     let count = 0;
-    let memorySaved = 0;
     const keysToDelete = [];
 
     // 找出所有属于该挂载点的缓存键
-    for (const [key, item] of this.cache.entries()) {
+    for (const [key] of this.cache.entries()) {
       if (key.startsWith(`${mountId}:`)) {
         keysToDelete.push(key);
-        memorySaved += item.estimatedSize || 0;
       }
     }
 
@@ -188,9 +137,7 @@ class DirectoryCacheManager {
 
     if (count > 0) {
       this.stats.invalidations += count;
-      // 更新内存使用估算
-      this.stats.estimatedMemoryUsage -= memorySaved;
-      console.log(`挂载点缓存已全部失效 - 挂载点:${mountId}, 删除项:${count}, 释放内存:${(memorySaved / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`挂载点缓存已全部失效 - 挂载点:${mountId}, 删除项:${count}`);
     }
 
     return count;
@@ -202,15 +149,11 @@ class DirectoryCacheManager {
    */
   invalidateAll() {
     const count = this.cache.size;
-    const memorySaved = this.stats.estimatedMemoryUsage;
-
     this.cache.clear();
 
     if (count > 0) {
       this.stats.invalidations += count;
-      // 重置内存使用估算
-      this.stats.estimatedMemoryUsage = 0;
-      console.log(`所有缓存已失效 - 删除项:${count}, 释放内存:${(memorySaved / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`所有缓存已失效 - 删除项:${count}`);
     }
 
     return count;
@@ -228,14 +171,9 @@ class DirectoryCacheManager {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     let currentPath = normalizedPath;
     let count = 0;
-    let memorySaved = 0;
 
     // 清除当前路径的缓存
     if (this.invalidate(mountId, currentPath)) {
-      const cacheItem = this.cache.get(this.generateKey(mountId, currentPath));
-      if (cacheItem) {
-        memorySaved += cacheItem.estimatedSize || 0;
-      }
       count++;
     }
 
@@ -247,10 +185,6 @@ class DirectoryCacheManager {
 
       // 清除父路径的缓存
       if (this.invalidate(mountId, currentPath)) {
-        const cacheItem = this.cache.get(this.generateKey(mountId, currentPath));
-        if (cacheItem) {
-          memorySaved += cacheItem.estimatedSize || 0;
-        }
         count++;
       }
 
@@ -259,7 +193,7 @@ class DirectoryCacheManager {
     }
 
     if (count > 0) {
-      console.log(`路径及父路径缓存已失效 - 挂载点:${mountId}, 路径:${path}, 删除项:${count}, 释放内存:${(memorySaved / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`路径及父路径缓存已失效 - 挂载点:${mountId}, 路径:${path}, 删除项:${count}`);
     }
 
     return count;
@@ -272,17 +206,15 @@ class DirectoryCacheManager {
     const now = Date.now();
     const entries = [...this.cache.entries()];
     let prunedCount = 0;
-    let memorySaved = 0;
 
     // 找出已过期的项目
     const expiredEntries = entries.filter(([_, item]) => now > item.expiresAt);
 
     // 如果有足够的过期项目，直接清理它们
     if (expiredEntries.length >= Math.ceil((entries.length * this.config.prunePercentage) / 100)) {
-      for (const [key, item] of expiredEntries) {
+      for (const [key] of expiredEntries) {
         this.cache.delete(key);
         prunedCount++;
-        memorySaved += item.estimatedSize || 0;
       }
     } else {
       // 否则，使用LRU策略：按最后访问时间排序并删除最久未访问的项目
@@ -291,10 +223,9 @@ class DirectoryCacheManager {
       const toDelete = Math.ceil((entries.length * this.config.prunePercentage) / 100);
       for (let i = 0; i < toDelete; i++) {
         if (i < entries.length) {
-          const [key, item] = entries[i];
+          const [key] = entries[i];
           this.cache.delete(key);
           prunedCount++;
-          memorySaved += item.estimatedSize || 0;
         }
       }
     }
@@ -302,8 +233,7 @@ class DirectoryCacheManager {
     // 更新统计信息
     if (prunedCount > 0) {
       this.stats.pruned += prunedCount;
-      this.stats.estimatedMemoryUsage -= memorySaved;
-      console.log(`缓存清理完成 - 删除项:${prunedCount}, 释放内存:${(memorySaved / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`缓存清理完成 - 删除项:${prunedCount}`);
     }
   }
 
@@ -312,17 +242,10 @@ class DirectoryCacheManager {
    * @returns {Object} 缓存统计数据，包括命中率和大小
    */
   getStats() {
-    // 计算命中率
-    const totalAccesses = this.stats.hits + this.stats.misses + this.stats.expired;
-    const hitRate = totalAccesses > 0 ? this.stats.hits / totalAccesses : 0;
-
     return {
       ...this.stats,
-      size: this.cache.size,
-      hitRate: hitRate,
-      memoryUsageMB: (this.stats.estimatedMemoryUsage / (1024 * 1024)).toFixed(2),
-      averageItemSizeKB: this.cache.size > 0 ? (this.stats.estimatedMemoryUsage / this.cache.size / 1024).toFixed(2) : 0,
-      config: this.config,
+      cacheSize: this.cache.size,
+      hitRate: this.stats.hits / (this.stats.hits + this.stats.misses) || 0,
     };
   }
 }
@@ -346,8 +269,8 @@ export async function clearCache(options = {}) {
     // 场景1: 直接提供挂载点ID - 清理单个挂载点
     if (mountId) {
       const clearedCount = directoryCacheManager.invalidateMount(mountId);
-      console.log(`已清理挂载点 ${mountId} 的所有缓存，共 ${clearedCount} 项`);
-      return clearedCount;
+      console.log(`已清理挂载点 ${mountId} 的目录缓存，共 ${clearedCount} 项`);
+      totalCleared += clearedCount;
     }
 
     // 场景2: 提供S3配置ID - 查找并清理所有关联挂载点
@@ -355,7 +278,7 @@ export async function clearCache(options = {}) {
       // 获取与S3配置相关的所有挂载点
       const mounts = await db
           .prepare(
-              `SELECT m.id 
+              `SELECT m.id
            FROM storage_mounts m
            WHERE m.storage_type = 'S3' AND m.storage_config_id = ?`
           )
@@ -364,58 +287,50 @@ export async function clearCache(options = {}) {
 
       if (!mounts?.results?.length) {
         console.log(`未找到与S3配置 ${s3ConfigId} 关联的挂载点`);
-        return 0;
+      } else {
+        // 清理每个关联挂载点的缓存
+        for (const mount of mounts.results) {
+          const clearedCount = directoryCacheManager.invalidateMount(mount.id);
+          totalCleared += clearedCount;
+        }
+
+        if (totalCleared > 0) {
+          console.log(`已清理 ${mounts.results.length} 个挂载点的目录缓存，共 ${totalCleared} 项`);
+        }
       }
 
-      // 清理每个关联挂载点的缓存
-      for (const mount of mounts.results) {
-        const clearedCount = directoryCacheManager.invalidateMount(mount.id);
-        totalCleared += clearedCount;
+      // 清理S3URL缓存
+      try {
+        const { clearS3UrlCache } = await import("./S3UrlCache.js");
+        const s3UrlCleared = await clearS3UrlCache({ s3ConfigId });
+        totalCleared += s3UrlCleared;
+        console.log(`已清理S3配置 ${s3ConfigId} 的URL缓存，共 ${s3UrlCleared} 项`);
+      } catch (error) {
+        console.warn("清理S3URL缓存失败:", error);
       }
-
-      if (totalCleared > 0) {
-        console.log(`已清理 ${mounts.results.length} 个挂载点的缓存，共 ${totalCleared} 项`);
-      }
-
-      return totalCleared;
     }
 
-    // 如果没有提供有效参数
-    console.warn("缓存清理失败：未提供有效的挂载点ID或S3配置信息");
-    return 0;
+    // 如果没有提供有效参数，清理所有缓存
+    if (!mountId && !s3ConfigId) {
+      const dirCleared = directoryCacheManager.invalidateAll();
+      totalCleared += dirCleared;
+
+      try {
+        const { clearS3UrlCache } = await import("./S3UrlCache.js");
+        const s3UrlCleared = await clearS3UrlCache();
+        totalCleared += s3UrlCleared;
+        console.log(`已清理所有缓存：目录缓存 ${dirCleared} 项，URL缓存 ${s3UrlCleared} 项`);
+      } catch (error) {
+        console.warn("清理S3URL缓存失败:", error);
+      }
+    }
+
+    return totalCleared;
   } catch (error) {
     console.error("清理缓存时出错:", error);
     return 0;
   }
 }
-
-// /**
-//  * 为文件路径清除相关缓存 - 兼容性函数，内部调用clearCache
-//  * @param {D1Database} db - 数据库连接
-//  * @param {string} filePath - 文件路径
-//  * @param {string} s3ConfigId - S3配置ID
-//  * @returns {Promise<number>} 清除的缓存项数量
-//  * @deprecated 请直接使用 clearCache 函数
-//  */
-// export async function clearCacheForFilePath(db, filePath, s3ConfigId) {
-//   console.warn("clearCacheForFilePath 已废弃，请使用 clearCache 函数");
-//   return await clearCache({ db, s3ConfigId });
-// }
-
-// /**
-//  * 为指定路径清除缓存 - 兼容性函数，内部调用clearCache
-//  * @param {string} mountId - 挂载点ID
-//  * @param {string} path - 路径
-//  * @param {boolean} recursive - 是否递归清除（已忽略）
-//  * @param {string} reason - 清除原因（已忽略）
-//  * @param {Object} s3Config - S3配置（已忽略）
-//  * @returns {number} 清除的缓存项数量
-//  * @deprecated 请直接使用 clearCache 函数
-//  */
-// export function clearCacheForPath(mountId, path, recursive, reason, s3Config) {
-//   console.warn("clearCacheForPath 已废弃，请使用 clearCache 函数");
-//   return directoryCacheManager.invalidateMount(mountId);
-// }
 
 // 导出单例实例和类 (单例用于实际应用，类用于测试和特殊场景)
 export { directoryCacheManager, DirectoryCacheManager };

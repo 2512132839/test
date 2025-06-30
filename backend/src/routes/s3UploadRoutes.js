@@ -1061,8 +1061,9 @@ export function registerS3UploadRoutes(app) {
       await clearCache({ db, s3ConfigId });
 
       // 生成预签名URL，使用S3配置的默认时效，传递MIME类型以确保正确的Content-Type
-      const previewDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, null, false, contentType);
-      const downloadDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, null, true, contentType);
+      // 注意：文件上传完成后生成的URL用于分享，没有特定用户上下文，禁用缓存
+      const previewDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, null, false, contentType, { enableCache: false });
+      const downloadDirectUrl = await generatePresignedUrl(s3Config, storagePath, encryptionSecret, null, true, contentType, { enableCache: false });
 
       // 构建API路径URL
       const baseUrl = c.req.url.split("/api/")[0];

@@ -306,7 +306,8 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       }
 
       // 生成预签名URL，使用S3配置的默认时效，传递MIME类型以确保正确的Content-Type
-      const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, null, forceDownload, contentType);
+      // 注意：文件分享页面没有用户上下文，禁用缓存避免权限泄露
+      const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, null, forceDownload, contentType, { enableCache: false });
 
       // 代理请求到实际的文件URL
       const fileRequest = new Request(presignedUrl);
@@ -449,7 +450,8 @@ export function registerFileViewRoutes(app) {
       try {
         // Office预览使用S3配置的默认时效
         // 生成临时预签名URL，适用于Office预览
-        const presignedUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false, file.mimetype);
+        // 注意：Office预览没有用户上下文，禁用缓存避免权限泄露
+        const presignedUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false, file.mimetype, { enableCache: false });
 
         // 返回直接访问URL
         return c.json({

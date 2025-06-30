@@ -128,10 +128,11 @@ export async function generateFileDownloadUrl(db, file, encryptionSecret, reques
     if (s3Config) {
       try {
         // 生成预览URL，使用S3配置的默认时效
-        previewUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false);
+        // 注意：文件分享页面没有用户上下文，禁用缓存避免权限泄露
+        previewUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false, null, { enableCache: false });
 
         // 生成下载URL，使用S3配置的默认时效，强制下载
-        downloadUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, true);
+        downloadUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, true, null, { enableCache: false });
       } catch (error) {
         console.error("生成预签名URL错误:", error);
         // 如果生成预签名URL失败，回退到使用原始S3 URL
