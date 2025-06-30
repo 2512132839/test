@@ -11,7 +11,7 @@
           :autoplay="false"
           :show-playlist="true"
           :list-folded="true"
-          :list-max-height="'300px'"
+          :list-max-height="'380px'"
           :mode="'normal'"
           :volume="0.7"
           :loop="'all'"

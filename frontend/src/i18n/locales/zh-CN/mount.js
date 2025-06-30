@@ -156,6 +156,10 @@ export default {
       loadingAudio: "正在加载音频...",
       audioPlayer: "音频播放器",
     },
+    videoPreview: {
+      loadingVideo: "正在加载视频...",
+      videoPlayer: "视频播放器",
+    },
 
     uploadModal: {
       title: "上传文件",

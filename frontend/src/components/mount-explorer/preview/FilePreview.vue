@@ -192,7 +192,7 @@
               v-if="authenticatedPreviewUrl"
               :src="authenticatedPreviewUrl"
               :alt="file.name"
-              class="max-w-full max-h-[500px] object-contain"
+              class="max-w-full max-h-[600px] object-contain"
               @load="handleContentLoaded"
               @error="handleContentError"
           />
@@ -202,14 +202,16 @@
         </div>
 
         <!-- 视频预览 -->
-        <div v-else-if="isVideo" class="video-preview p-4">
-          <video v-if="authenticatedPreviewUrl" controls class="max-w-full mx-auto max-h-[500px]" @loadeddata="handleContentLoaded" @error="handleContentError">
-            <source :src="authenticatedPreviewUrl" :type="file.contentType" />
-            {{ t("mount.filePreview.browserNotSupport") }} {{ t("mount.filePreview.videoTag") }}
-          </video>
-          <div v-else class="loading-indicator text-center py-8">
-            <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
-          </div>
+        <div v-else-if="isVideo">
+          <VideoPreview
+              :file="file"
+              :video-url="authenticatedPreviewUrl"
+              :dark-mode="darkMode"
+              :is-admin="isAdmin"
+              :current-path="getCurrentDirectoryPath()"
+              :directory-items="directoryItems"
+              @loaded="handleContentLoaded"
+          />
         </div>
 
         <!-- 音频预览 -->
@@ -229,7 +231,7 @@
         </div>
 
         <!-- PDF预览 -->
-        <div v-else-if="isPdf" class="pdf-preview h-[500px]">
+        <div v-else-if="isPdf" class="pdf-preview h-[600px]">
           <iframe
               v-if="authenticatedPreviewUrl"
               :src="authenticatedPreviewUrl"
@@ -244,7 +246,7 @@
         </div>
 
         <!-- Office文件预览 -->
-        <div v-else-if="isOffice" ref="officePreviewRef" class="office-preview h-[750px] w-full">
+        <div v-else-if="isOffice" ref="officePreviewRef" class="office-preview h-[900px] w-full">
           <!-- Office预览头部控制栏 -->
           <div class="sticky top-0 z-20 flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -325,11 +327,11 @@
         </div>
 
         <!-- Markdown预览 -->
-        <div v-else-if="isMarkdown" class="markdown-preview p-4 overflow-auto max-h-[500px]">
-          <div v-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
+        <div v-else-if="isMarkdown" class="markdown-preview" :class="isEditMode ? 'p-0' : 'p-4 overflow-auto max-h-[600px]'">
+          <div v-if="isEditMode" class="editor-container h-[600px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
                 v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none overflow-auto"
                 :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
                 spellcheck="false"
             ></textarea>
@@ -340,11 +342,11 @@
         </div>
 
         <!-- HTML预览 -->
-        <div v-else-if="isHtml" ref="htmlPreviewRef" class="html-preview overflow-auto max-h-[500px]">
-          <div v-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
+        <div v-else-if="isHtml" ref="htmlPreviewRef" class="html-preview" :class="isEditMode ? '' : 'overflow-auto max-h-[600px]'">
+          <div v-if="isEditMode" class="editor-container h-[600px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
                 v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none overflow-auto"
                 :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
                 spellcheck="false"
             ></textarea>
@@ -378,7 +380,7 @@
               <iframe
                   ref="htmlIframe"
                   sandbox="allow-same-origin allow-scripts"
-                  class="w-full min-h-[500px] border"
+                  class="w-full min-h-[600px] border"
                   :class="darkMode ? 'border-gray-700' : 'border-gray-300'"
               ></iframe>
             </div>
@@ -386,11 +388,11 @@
         </div>
 
         <!-- 代码预览（包括配置文件如 JSON、YAML 等） -->
-        <div v-else-if="isCode" class="code-preview p-4 overflow-auto max-h-[500px]">
-          <div v-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
+        <div v-else-if="isCode" class="code-preview" :class="isEditMode ? 'p-0' : 'p-4 overflow-auto max-h-[600px]'">
+          <div v-if="isEditMode" class="editor-container h-[600px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
                 v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none overflow-auto"
                 :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
                 spellcheck="false"
             ></textarea>
@@ -413,14 +415,14 @@
         </div>
 
         <!-- 普通文本预览 -->
-        <div v-else-if="isText" class="text-preview p-4 overflow-auto max-h-[500px]">
+        <div v-else-if="isText" class="text-preview" :class="isEditMode ? 'p-0' : 'p-4 overflow-auto max-h-[600px]'">
           <div v-if="isTextLoading || (!textContent && !loadError)" class="loading-indicator text-center py-8">
             <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
           </div>
-          <div v-else-if="isEditMode" class="editor-container h-[500px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
+          <div v-else-if="isEditMode" class="editor-container h-[600px] border" :class="darkMode ? 'border-gray-700' : 'border-gray-300'">
             <textarea
                 v-model="editContent"
-                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none"
+                class="w-full h-full p-4 font-mono text-sm focus:outline-none resize-none overflow-auto"
                 :class="darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'"
                 spellcheck="false"
             ></textarea>
@@ -480,6 +482,7 @@ import { useI18n } from "vue-i18n";
 import { usePreviewRenderers, useFilePreviewExtensions } from "../../../composables/index.js";
 import { useAuthStore } from "../../../stores/authStore.js";
 import AudioPreview from "./AudioPreview.vue";
+import VideoPreview from "./VideoPreview.vue";
 
 const { t } = useI18n();
 

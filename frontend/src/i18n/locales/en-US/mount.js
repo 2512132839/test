@@ -226,6 +226,10 @@ export default {
       loadingAudio: "Loading audio...",
       audioPlayer: "Audio Player",
     },
+    videoPreview: {
+      loadingVideo: "Loading video...",
+      videoPlayer: "Video Player",
+    },
 
     taskManager: {
       title: "Task Manager",
