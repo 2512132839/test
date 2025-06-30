@@ -86,8 +86,6 @@ export const useFileSystemStore = defineStore("fileSystem", () => {
       currentLoadingPath.value = normalizedPath;
       error.value = null;
 
-      console.log(`开始加载目录: ${normalizedPath}`);
-
       // 根据用户类型选择API函数
       const getDirectoryList = authStore.isAdmin ? api.fs.getAdminDirectoryList : api.fs.getUserDirectoryList;
 
@@ -97,7 +95,6 @@ export const useFileSystemStore = defineStore("fileSystem", () => {
       if (response.success) {
         directoryData.value = response.data;
         currentPath.value = normalizedPath;
-        console.log(`目录加载成功: ${normalizedPath}`);
       } else {
         throw new Error(response.message || "获取目录列表失败");
       }
@@ -117,7 +114,6 @@ export const useFileSystemStore = defineStore("fileSystem", () => {
    */
   const refreshDirectory = async () => {
     if (currentPath.value) {
-      console.log("用户主动刷新目录:", currentPath.value);
       await loadDirectory(currentPath.value, true);
     }
   };
@@ -236,8 +232,8 @@ export const useFileSystemStore = defineStore("fileSystem", () => {
     const route = router.currentRoute.value;
     const routeKey = `${route.path}?${new URLSearchParams(route.query).toString()}`;
 
-    if (initializationState.value.isInitializing || initializationState.value.lastProcessedRoute === routeKey) {
-      console.log("跳过重复初始化:", routeKey);
+    // 只防止正在初始化中的重复调用，不防止路由变化后的重新初始化
+    if (initializationState.value.isInitializing) {
       return;
     }
 
@@ -245,8 +241,6 @@ export const useFileSystemStore = defineStore("fileSystem", () => {
     initializationState.value.lastProcessedRoute = routeKey;
 
     try {
-      console.log("开始从路由初始化文件系统");
-
       // 等待认证状态就绪
       if (!authStore.isAuthenticated) {
         console.log("等待认证状态就绪...");
@@ -268,23 +262,15 @@ export const useFileSystemStore = defineStore("fileSystem", () => {
 
       // 2. 智能判断路由意图：只有在目录浏览时才加载目录
       const intent = getRouteIntent();
-      console.log("路由意图分析:", intent);
 
       if (intent.type === "directory_browse") {
-        console.log("目录浏览意图，加载目录列表");
         await loadDirectory(currentPath.value);
       } else if (intent.type === "file_preview") {
-        console.log("文件预览意图，检查目录是否已加载");
         // 如果目录未加载或路径不匹配，才加载目录
         if (!directoryData.value || currentPath.value !== intent.directoryPath) {
-          console.log("目录未加载或路径不匹配，加载目录");
           await loadDirectory(intent.directoryPath);
-        } else {
-          console.log("目录已加载，跳过重复加载");
         }
       }
-
-      console.log("文件系统初始化完成");
     } catch (err) {
       console.error("文件系统初始化失败:", err);
       error.value = err.message || "初始化失败";

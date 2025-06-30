@@ -3,25 +3,25 @@
     <!-- 音频预览 -->
     <div class="audio-preview p-4">
       <AudioPlayer
-        ref="audioPlayerRef"
-        v-if="audioUrl && audioData"
-        :audio-list="finalAudioList"
-        :current-audio="null"
-        :dark-mode="darkMode"
-        :autoplay="false"
-        :show-playlist="true"
-        :list-folded="true"
-        :list-max-height="'300px'"
-        :mode="'normal'"
-        :volume="0.7"
-        :loop="'all'"
-        :order="'list'"
-        @play="handlePlay"
-        @pause="handlePause"
-        @error="handleError"
-        @canplay="handleCanPlay"
-        @ended="handleAudioEnded"
-        @listswitch="handleListSwitch"
+          ref="audioPlayerRef"
+          v-if="audioUrl && audioData"
+          :audio-list="finalAudioList"
+          :current-audio="null"
+          :dark-mode="darkMode"
+          :autoplay="false"
+          :show-playlist="true"
+          :list-folded="true"
+          :list-max-height="'300px'"
+          :mode="'normal'"
+          :volume="0.7"
+          :loop="'all'"
+          :order="'list'"
+          @play="handlePlay"
+          @pause="handlePause"
+          @error="handleError"
+          @canplay="handleCanPlay"
+          @ended="handleAudioEnded"
+          @listswitch="handleListSwitch"
       />
       <div v-else class="loading-indicator text-center py-8">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -67,7 +67,7 @@ const props = defineProps({
     type: String,
     default: "",
   },
-  // 目录项目列表（优化：使用已有数据，避免重复API调用）
+  // 目录项目列表
   directoryItems: {
     type: Array,
     default: () => [],
@@ -88,9 +88,6 @@ const isLoadingPlaylist = ref(false);
 
 // 当前音频数据（响应式）
 const currentAudioData = ref(null);
-
-// 全局预签名URL缓存 (30分钟有效期)
-const globalUrlCache = window.audioUrlCache || (window.audioUrlCache = new Map());
 
 // 计算最终的播放列表（确保至少有当前音频）
 const finalAudioList = computed(() => {
@@ -217,13 +214,10 @@ const loadAudioPlaylist = async () => {
       }
     }
 
-    console.log("📂 目录中的所有文件:", directoryItems);
-
     // 过滤出音频文件
     const audioFileList = directoryItems.filter((item) => {
       if (item.isDirectory) return false;
       const isAudioFile = isAudio(item.contentType || "", item.name || "");
-      console.log(`🎵 文件 ${item.name}: contentType=${item.contentType}, isAudio=${isAudioFile}`);
       return isAudioFile;
     });
 
@@ -246,15 +240,23 @@ const loadAudioPlaylist = async () => {
   }
 };
 
-// 生成音频播放列表数据（使用 S3 预签名 URL）
+// 生成音频播放列表数据
 const generateAudioPlaylist = async (audioFileList) => {
   console.log("🎵 开始生成播放列表，文件数量:", audioFileList.length);
   const playlist = [];
 
   for (const audioFile of audioFileList) {
     console.log(`🎵 处理音频文件: ${audioFile.name}`);
+
+    //如果是当前正在播放的音频，直接使用已有数据，避免重复请求
+    if (audioFile.name === props.file?.name && currentAudioData.value) {
+      console.log(`✅ 跳过当前音频的重复请求，直接使用已有数据: ${audioFile.name}`);
+      playlist.push(currentAudioData.value);
+      continue;
+    }
+
     try {
-      // 生成 S3 预签名 URL（无需认证，支持流式播放）
+      // 只对其他音频文件生成 S3 预签名 URL
       const presignedUrl = await generateS3PresignedUrl(audioFile);
 
       if (presignedUrl) {
@@ -280,9 +282,10 @@ const generateAudioPlaylist = async (audioFileList) => {
     playlist.unshift(currentFile);
   }
 
+  console.log("🎵 播放列表生成完成，总数:", playlist.length);
   audioPlaylist.value = playlist;
 
-  // 延迟更新 APlayer，确保 Blob URL 都已准备好
+  // 延迟更新 APlayer
   if (audioPlayerRef.value && playlist.length > 0) {
     // 使用 setTimeout 确保所有异步操作完成
     setTimeout(() => {
@@ -313,36 +316,19 @@ const generateAudioPlaylist = async (audioFileList) => {
           }
         }
       });
-    }, 100); // 延迟 100ms 确保所有 Blob URL 准备完成
+    }, 100);
   }
 };
 
-// 生成 S3 预签名 URL（带缓存，避免重复请求）
+// 生成 S3 预签名 URL（直接调用后端API，后端已有缓存机制）
 const generateS3PresignedUrl = async (audioFile) => {
-  const cacheKey = audioFile.path;
-  const now = Date.now();
-
-  // 检查缓存（30分钟有效期）
-  const cached = globalUrlCache.get(cacheKey);
-  if (cached && now - cached.timestamp < 30 * 60 * 1000) {
-    return cached.url;
-  }
-
   try {
     const getFileLink = props.isAdmin ? api.admin.getFileLink : api.user.fs.getFileLink;
-    //使用S3配置的默认签名时间
+    // 使用S3配置的默认签名时间
     const response = await getFileLink(audioFile.path, null, false);
 
     if (response?.success && response.data?.presignedUrl) {
-      const presignedUrl = response.data.presignedUrl;
-
-      // 缓存URL
-      globalUrlCache.set(cacheKey, {
-        url: presignedUrl,
-        timestamp: now,
-      });
-
-      return presignedUrl;
+      return response.data.presignedUrl;
     }
   } catch (error) {
     console.error(`获取音频预签名URL失败: ${audioFile.name}`, error);
@@ -372,7 +358,7 @@ const generateDefaultCover = (name) => {
   return canvas.toDataURL();
 };
 
-// 初始化当前音频数据（使用 S3 预签名 URL）
+// 初始化当前音频数据（架构修复：统一使用S3预签名URL，消除重复请求）
 const initializeCurrentAudio = async () => {
   if (!props.file) {
     console.log("❌ 无法初始化当前音频：文件信息为空");
@@ -381,43 +367,41 @@ const initializeCurrentAudio = async () => {
 
   console.log("🎵 开始初始化当前音频:", props.file.name);
 
-  try {
-    // 生成 S3 预签名 URL（无需认证，支持流式播放）
-    console.log(`🔗 生成当前音频的 S3 预签名 URL: ${props.file.name}`);
-    const presignedUrl = await generateS3PresignedUrl(props.file);
-
+  // 使用S3预签名URL
+  if (props.audioUrl) {
+    console.log("🎵 使用传入的S3预签名URL:", props.audioUrl);
     currentAudioData.value = {
       name: props.file.name || "unknown",
       artist: "unknown",
-      url: presignedUrl || props.audioUrl, // 优先使用 S3 预签名 URL，失败时回退到原始 URL
+      url: props.audioUrl, // 直接使用，与播放列表保持一致
       cover: generateDefaultCover(props.file.name),
       contentType: props.file.contentType,
-      // 保存原始文件信息
       originalFile: props.file,
     };
-  } catch (error) {
-    console.error("初始化当前音频失败:", error);
-    // 失败时使用原始数据
-    currentAudioData.value = {
-      name: props.file.name || "unknown",
-      artist: "unknown",
-      url: props.audioUrl,
-      cover: generateDefaultCover(props.file.name),
-      contentType: props.file.contentType,
-    };
+    return;
   }
+
+  // 🔄 降级方案：理论上不应该到达这里，因为audioUrl应该总是存在
+  console.warn("⚠️ audioUrl为空，这表明上游有问题");
+  currentAudioData.value = {
+    name: props.file.name || "unknown",
+    artist: "unknown",
+    url: null,
+    cover: generateDefaultCover(props.file.name),
+    contentType: props.file.contentType,
+  };
 };
 
 // 监听 audioUrl 变化，当准备好时初始化当前音频
 watch(
-  () => props.audioUrl,
-  async (newAudioUrl) => {
-    if (newAudioUrl && props.file) {
-      console.log("🎵 检测到 audioUrl 变化，开始初始化当前音频:", newAudioUrl);
-      await initializeCurrentAudio();
+    () => props.audioUrl,
+    async (newAudioUrl, oldAudioUrl) => {
+      // 只有当audioUrl真正变化时才重新初始化（避免重复初始化）
+      if (newAudioUrl && props.file && newAudioUrl !== oldAudioUrl) {
+        console.log("🎵 检测到 audioUrl 变化，开始重新初始化当前音频:", newAudioUrl);
+        await initializeCurrentAudio();
+      }
     }
-  },
-  { immediate: true }
 );
 
 // 快捷键处理
@@ -462,8 +446,11 @@ onMounted(() => {
   // 添加键盘事件监听
   document.addEventListener("keydown", handleKeydown);
 
-  // 延迟加载播放列表，确保props已经传递完成
-  nextTick(() => {
+  // 延迟加载播放列表和初始化当前音频，确保props已经传递完成
+  nextTick(async () => {
+    // 先初始化当前音频，确保audioData有值
+    await initializeCurrentAudio();
+    // 然后加载播放列表
     loadAudioPlaylist();
   });
 });

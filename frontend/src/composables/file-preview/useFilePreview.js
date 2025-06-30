@@ -3,7 +3,7 @@
  * 管理文件预览相关的状态和操作
  */
 
-import { ref, computed} from "vue";
+import { ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../../api/index.js";
 import { useAuthStore } from "../../stores/authStore.js";
@@ -198,13 +198,13 @@ export function useFilePreview() {
     }
 
     router
-      .replace({
-        path: route.path,
-        query: newQuery,
-      })
-      .catch((err) => {
-        console.warn("更新预览URL失败:", err);
-      });
+        .replace({
+          path: route.path,
+          query: newQuery,
+        })
+        .catch((err) => {
+          console.warn("更新预览URL失败:", err);
+        });
   };
 
   /**
