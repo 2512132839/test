@@ -120,7 +120,7 @@ systemRoutes.get("/api/version", async (c) => {
   const isDocker = runtimeEnv === "docker";
 
   // 统一的默认版本配置
-  const DEFAULT_VERSION = "0.6.5";
+  const DEFAULT_VERSION = "0.6.6";
   const DEFAULT_NAME = "cloudpaste-api";
 
   let version = DEFAULT_VERSION;
