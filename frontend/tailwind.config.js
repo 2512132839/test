@@ -45,6 +45,8 @@ export default {
       },
       gridTemplateColumns: {
         "file-list": "2fr 0.8fr 1fr 0.8fr 0.8fr 1.5fr 0.8fr",
+        "search-result": "2fr 1fr 1fr 1.5fr auto",
+        "search-result-simple": "2fr 1fr auto",
       },
     },
   },

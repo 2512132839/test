@@ -24,19 +24,19 @@ import {
  */
 async function getFileBySlug(db, slug, includePassword = true) {
   const fields = includePassword
-      ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
-      : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
+    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
+    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
 
   return await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT ${fields}
       FROM ${DbTables.FILES} f
       WHERE f.slug = ?
     `
-      )
-      .bind(slug)
-      .first();
+    )
+    .bind(slug)
+    .first();
 }
 
 /**
@@ -137,8 +137,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取更新后的文件信息
   const updatedFile = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
         f.remark, f.password, f.max_views, f.views, f.created_by,
@@ -146,9 +146,9 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
       FROM ${DbTables.FILES} f
       WHERE f.id = ?
     `
-      )
-      .bind(file.id)
-      .first();
+    )
+    .bind(file.id)
+    .first();
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {

@@ -518,8 +518,8 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
 
   // 创建文件记录
   await db
-      .prepare(
-          `
+    .prepare(
+      `
       INSERT INTO ${DbTables.FILES} (
         id, slug, filename, storage_path, s3_url,
         s3_config_id, mimetype, size, etag,
@@ -530,21 +530,21 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
         ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
       )
     `
-      )
-      .bind(
-          fileId,
-          slug,
-          metadata.filename,
-          storagePath,
-          s3Url,
-          s3ConfigId,
-          metadata.contentType || "application/octet-stream",
-          metadata.size || 0, // 初始大小可能为0或来自元数据
-          null, // 初始ETag为null，在上传完成后更新
-          createdBy,
-          remark
-      )
-      .run();
+    )
+    .bind(
+      fileId,
+      slug,
+      metadata.filename,
+      storagePath,
+      s3Url,
+      s3ConfigId,
+      metadata.contentType || "application/octet-stream",
+      metadata.size || 0, // 初始大小可能为0或来自元数据
+      null, // 初始ETag为null，在上传完成后更新
+      createdBy,
+      remark
+    )
+    .run();
 
   // 返回上传信息
   return {
@@ -778,8 +778,8 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
 
     // 创建文件记录
     await db
-        .prepare(
-            `
+      .prepare(
+        `
         INSERT INTO ${DbTables.FILES} (
           id, slug, filename, storage_path, s3_url,
           s3_config_id, mimetype, size, etag,
@@ -792,31 +792,31 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
           ?, ?, ?
         )
       `
-        )
-        .bind(
-            fileId,
-            slug,
-            metadata.filename,
-            storagePath,
-            s3Url,
-            s3ConfigId,
-            metadata.contentType || "application/octet-stream",
-            totalSize, // 初始大小
-            null, // 初始ETag为null，在上传完成后更新
-            createdBy,
-            remark,
-            passwordHash,
-            expiresAt,
-            maxViews
-        )
-        .run();
+      )
+      .bind(
+        fileId,
+        slug,
+        metadata.filename,
+        storagePath,
+        s3Url,
+        s3ConfigId,
+        metadata.contentType || "application/octet-stream",
+        totalSize, // 初始大小
+        null, // 初始ETag为null，在上传完成后更新
+        createdBy,
+        remark,
+        passwordHash,
+        expiresAt,
+        maxViews
+      )
+      .run();
 
     // 如果设置了密码，保存明文密码记录（用于分享）
     if (options.password) {
       await db
-          .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-          .bind(fileId, options.password)
-          .run();
+        .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+        .bind(fileId, options.password)
+        .run();
     }
 
     // 返回分片上传信息
@@ -857,17 +857,17 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
 export async function completeMultipartUpload(db, fileId, uploadId, parts, encryptionSecret) {
   // 查询文件信息
   const file = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, slug, filename, storage_path, s3_url, 
         s3_config_id, mimetype, remark
       FROM ${DbTables.FILES}
       WHERE id = ?
         `
-      )
-      .bind(fileId)
-      .first();
+    )
+    .bind(fileId)
+    .first();
 
   if (!file) {
     throw new Error("文件不存在或已被删除");
@@ -922,8 +922,8 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
 
     // 更新文件记录
     await db
-        .prepare(
-            `
+      .prepare(
+        `
         UPDATE ${DbTables.FILES}
         SET
           etag = ?,
@@ -931,14 +931,14 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `
-        )
-        .bind(
-            etag,
-            totalSize > 0 ? 1 : 0, // 条件
-            totalSize,
-            fileId
-        )
-        .run();
+      )
+      .bind(
+        etag,
+        totalSize > 0 ? 1 : 0, // 条件
+        totalSize,
+        fileId
+      )
+      .run();
 
     // 更新父目录的修改时间
     const { updateParentDirectoriesModifiedTimeHelper } = await import("./fsService.js");
@@ -953,8 +953,8 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
 
     // 获取更新后的文件信息
     const updatedFile = await db
-        .prepare(
-            `
+      .prepare(
+        `
         SELECT 
           id, slug, filename, storage_path, s3_url, 
           mimetype, size, etag, 
@@ -962,9 +962,9 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
         FROM ${DbTables.FILES}
         WHERE id = ?
       `
-        )
-        .bind(fileId)
-        .first();
+      )
+      .bind(fileId)
+      .first();
 
     // 返回完成的文件信息
     return {
@@ -999,17 +999,17 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
 export async function abortMultipartUpload(db, fileId, uploadId, encryptionSecret) {
   // 查询文件信息
   const file = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, slug, filename, storage_path, s3_url, 
         s3_config_id, mimetype, remark
       FROM ${DbTables.FILES}
       WHERE id = ?
     `
-      )
-      .bind(fileId)
-      .first();
+    )
+    .bind(fileId)
+    .first();
 
   if (!file) {
     throw new Error("文件不存在或已被删除");

@@ -71,8 +71,8 @@ export const UNIFIED_MIME_MAP = {
   jpe: "image/jpeg",
   pjpeg: "image/jpeg",
   pjp: "image/jpeg",
-  jxl: "image/jxl",
-  raw: "image/x-canon-cr2",
+  jxl: "image/jxl", // JPEG XL 新一代图片格式
+  raw: "image/x-canon-cr2", // RAW 图片格式
   cr2: "image/x-canon-cr2",
   nef: "image/x-nikon-nef",
   arw: "image/x-sony-arw",
@@ -420,27 +420,27 @@ export function isOfficeFile(mimeType, filename) {
 
   // 通过MIME类型检查
   if (
-      mime.includes("wordprocessing") ||
-      mime.includes("spreadsheet") ||
-      mime.includes("presentation") ||
-      mime === "application/msword" ||
-      mime === "application/vnd.ms-excel" ||
-      mime === "application/vnd.ms-powerpoint"
+    mime.includes("wordprocessing") ||
+    mime.includes("spreadsheet") ||
+    mime.includes("presentation") ||
+    mime === "application/msword" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.ms-powerpoint"
   ) {
     return true;
   }
 
   // 通过文件扩展名检查
   if (
-      name.endsWith(".doc") ||
-      name.endsWith(".docx") ||
-      name.endsWith(".xls") ||
-      name.endsWith(".xlsx") ||
-      name.endsWith(".ppt") ||
-      name.endsWith(".pptx") ||
-      name.endsWith(".odt") ||
-      name.endsWith(".ods") ||
-      name.endsWith(".odp")
+    name.endsWith(".doc") ||
+    name.endsWith(".docx") ||
+    name.endsWith(".xls") ||
+    name.endsWith(".xlsx") ||
+    name.endsWith(".ppt") ||
+    name.endsWith(".pptx") ||
+    name.endsWith(".odt") ||
+    name.endsWith(".ods") ||
+    name.endsWith(".odp")
   ) {
     return true;
   }

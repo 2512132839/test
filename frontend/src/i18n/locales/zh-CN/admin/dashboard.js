@@ -18,6 +18,7 @@ export default {
     cacheMonitoring: "缓存监控",
     directoryCache: "目录缓存",
     s3UrlCache: "S3URL缓存",
+    searchCache: "搜索缓存",
     hitRate: "命中率",
     cacheItems: "缓存项",
     cacheUnavailable: "缓存数据不可用",

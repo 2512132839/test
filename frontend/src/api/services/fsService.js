@@ -30,6 +30,36 @@ export async function getAdminFileInfo(path) {
 }
 
 /**
+ * 管理员API - 搜索文件
+ * @param {string} query 搜索查询字符串
+ * @param {Object} searchParams 搜索参数对象
+ * @param {string} searchParams.scope 搜索范围 ('global', 'mount', 'directory')
+ * @param {string} searchParams.mountId 挂载点ID（当scope为'mount'时）
+ * @param {string} searchParams.path 搜索路径（当scope为'directory'时）
+ * @param {number} searchParams.limit 结果限制数量，默认50
+ * @param {number} searchParams.offset 结果偏移量，默认0
+ * @returns {Promise<Object>} 搜索结果响应对象
+ */
+export async function searchAdminFiles(query, searchParams = {}) {
+  const params = new URLSearchParams({
+    q: query,
+    scope: searchParams.scope || "global",
+    limit: (searchParams.limit || 50).toString(),
+    offset: (searchParams.offset || 0).toString(),
+  });
+
+  // 添加可选参数
+  if (searchParams.mountId) {
+    params.append("mount_id", searchParams.mountId);
+  }
+  if (searchParams.path) {
+    params.append("path", searchParams.path);
+  }
+
+  return get(`/admin/fs/search?${params.toString()}`);
+}
+
+/**
  * 管理员API - 下载文件
  * @param {string} path 文件路径
  * @returns {string} 文件下载URL
@@ -287,6 +317,36 @@ export async function getUserDirectoryList(path) {
  */
 export async function getUserFileInfo(path) {
   return get(`/user/fs/get?path=${encodeURIComponent(path)}`);
+}
+
+/**
+ * API密钥用户API - 搜索文件
+ * @param {string} query 搜索查询字符串
+ * @param {Object} searchParams 搜索参数对象
+ * @param {string} searchParams.scope 搜索范围 ('global', 'mount', 'directory')
+ * @param {string} searchParams.mountId 挂载点ID（当scope为'mount'时）
+ * @param {string} searchParams.path 搜索路径（当scope为'directory'时）
+ * @param {number} searchParams.limit 结果限制数量，默认50
+ * @param {number} searchParams.offset 结果偏移量，默认0
+ * @returns {Promise<Object>} 搜索结果响应对象
+ */
+export async function searchUserFiles(query, searchParams = {}) {
+  const params = new URLSearchParams({
+    q: query,
+    scope: searchParams.scope || "global",
+    limit: (searchParams.limit || 50).toString(),
+    offset: (searchParams.offset || 0).toString(),
+  });
+
+  // 添加可选参数
+  if (searchParams.mountId) {
+    params.append("mount_id", searchParams.mountId);
+  }
+  if (searchParams.path) {
+    params.append("path", searchParams.path);
+  }
+
+  return get(`/user/fs/search?${params.toString()}`);
 }
 
 /**
@@ -1414,6 +1474,7 @@ export function getFsApiByUserType(isAdmin) {
     ? {
         getDirectoryList: getAdminDirectoryList,
         getFileInfo: getAdminFileInfo,
+        searchFiles: searchAdminFiles,
         getFileDownloadUrl: getAdminFileDownloadUrl,
         getFileLink: getAdminFileLink,
         createDirectory: createAdminDirectory,
@@ -1442,6 +1503,7 @@ export function getFsApiByUserType(isAdmin) {
     : {
         getDirectoryList: getUserDirectoryList,
         getFileInfo: getUserFileInfo,
+        searchFiles: searchUserFiles,
         getFileDownloadUrl: getUserFileDownloadUrl,
         getFileLink: getUserFileLink,
         createDirectory: createUserDirectory,

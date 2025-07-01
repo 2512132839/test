@@ -5,6 +5,7 @@ import markdown from "./markdown.js";
 import mount from "./mount.js";
 import upload from "./upload.js";
 import fileBasket from "./fileBasket.js";
+import search from "./search.js";
 
 export default {
   ...admin,
@@ -14,4 +15,5 @@ export default {
   ...mount,
   ...upload,
   ...fileBasket,
+  ...search,
 };

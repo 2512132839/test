@@ -70,6 +70,7 @@ export function useUIState() {
   const isUploadModalOpen = ref(false);
   const isCopyModalOpen = ref(false);
   const isTasksModalOpen = ref(false);
+  const isSearchModalOpen = ref(false);
   const isDeleteConfirmModalOpen = ref(false);
   const isRenameModalOpen = ref(false);
   const isCreateFolderModalOpen = ref(false);
@@ -135,6 +136,27 @@ export function useUIState() {
    */
   const toggleTasksModal = () => {
     isTasksModalOpen.value = !isTasksModalOpen.value;
+  };
+
+  /**
+   * 打开搜索弹窗
+   */
+  const openSearchModal = () => {
+    isSearchModalOpen.value = true;
+  };
+
+  /**
+   * 关闭搜索弹窗
+   */
+  const closeSearchModal = () => {
+    isSearchModalOpen.value = false;
+  };
+
+  /**
+   * 切换搜索弹窗状态
+   */
+  const toggleSearchModal = () => {
+    isSearchModalOpen.value = !isSearchModalOpen.value;
   };
 
   /**
@@ -207,6 +229,7 @@ export function useUIState() {
     isUploadModalOpen.value = false;
     isCopyModalOpen.value = false;
     isTasksModalOpen.value = false;
+    isSearchModalOpen.value = false;
     isDeleteConfirmModalOpen.value = false;
     isRenameModalOpen.value = false;
     isCreateFolderModalOpen.value = false;
@@ -217,7 +240,15 @@ export function useUIState() {
    * @returns {boolean} 是否有弹窗打开
    */
   const hasOpenModal = computed(() => {
-    return isUploadModalOpen.value || isCopyModalOpen.value || isTasksModalOpen.value || isDeleteConfirmModalOpen.value || isRenameModalOpen.value || isCreateFolderModalOpen.value;
+    return (
+      isUploadModalOpen.value ||
+      isCopyModalOpen.value ||
+      isTasksModalOpen.value ||
+      isSearchModalOpen.value ||
+      isDeleteConfirmModalOpen.value ||
+      isRenameModalOpen.value ||
+      isCreateFolderModalOpen.value
+    );
   });
 
   /**
@@ -229,6 +260,7 @@ export function useUIState() {
     if (isUploadModalOpen.value) openModals.push("upload");
     if (isCopyModalOpen.value) openModals.push("copy");
     if (isTasksModalOpen.value) openModals.push("tasks");
+    if (isSearchModalOpen.value) openModals.push("search");
     if (isDeleteConfirmModalOpen.value) openModals.push("deleteConfirm");
     if (isRenameModalOpen.value) openModals.push("rename");
     if (isCreateFolderModalOpen.value) openModals.push("createFolder");
@@ -318,6 +350,7 @@ export function useUIState() {
     isUploadModalOpen,
     isCopyModalOpen,
     isTasksModalOpen,
+    isSearchModalOpen,
     isDeleteConfirmModalOpen,
     isRenameModalOpen,
     isCreateFolderModalOpen,
@@ -330,6 +363,9 @@ export function useUIState() {
     openTasksModal,
     closeTasksModal,
     toggleTasksModal,
+    openSearchModal,
+    closeSearchModal,
+    toggleSearchModal,
     openDeleteConfirmModal,
     closeDeleteConfirmModal,
     toggleDeleteConfirmModal,

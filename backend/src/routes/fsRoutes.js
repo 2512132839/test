@@ -22,6 +22,7 @@ import {
   copyItem,
   batchCopyItems,
 } from "../services/fsService.js";
+import { searchFiles } from "../services/searchService.js";
 import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
 import { generatePresignedPutUrl, buildS3Url, createS3Client } from "../utils/s3Utils.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
@@ -255,7 +256,6 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
     return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "下载文件失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
-
 
 // 创建目录 - 管理员版本
 fsRoutes.post("/api/admin/fs/mkdir", async (c) => {
@@ -631,21 +631,21 @@ fsRoutes.post("/api/admin/fs/multipart/init", async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "初始化分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "初始化分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -666,22 +666,22 @@ fsRoutes.post("/api/admin/fs/multipart/part", async (c) => {
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
 
     return c.json(
-        {
-          success: false,
-          message: error.message || "上传分片失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "上传分片失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -695,21 +695,21 @@ fsRoutes.post("/api/admin/fs/multipart/complete", async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "完成分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "完成分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -723,21 +723,21 @@ fsRoutes.post("/api/admin/fs/multipart/abort", async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "中止分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "中止分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -767,21 +767,21 @@ fsRoutes.post("/api/user/fs/multipart/init", async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "初始化分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "初始化分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -802,22 +802,22 @@ fsRoutes.post("/api/user/fs/multipart/part", async (c) => {
     // 返回适当的错误响应
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
 
     return c.json(
-        {
-          success: false,
-          message: error.message || "上传分片失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "上传分片失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -831,21 +831,21 @@ fsRoutes.post("/api/user/fs/multipart/complete", async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "完成分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "完成分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -859,21 +859,21 @@ fsRoutes.post("/api/user/fs/multipart/abort", async (c) => {
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
       return c.json(
-          {
-            success: false,
-            message: error.message,
-            code: error.status,
-          },
-          error.status
+        {
+          success: false,
+          message: error.message,
+          code: error.status,
+        },
+        error.status
       );
     }
     return c.json(
-        {
-          success: false,
-          message: error.message || "中止分片上传失败",
-          code: ApiStatus.INTERNAL_ERROR,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        success: false,
+        message: error.message || "中止分片上传失败",
+        code: ApiStatus.INTERNAL_ERROR,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -1148,15 +1148,15 @@ fsRoutes.post("/api/admin/fs/presign/commit", async (c) => {
 
     // 记录文件上传成功
     await db
-        .prepare(
-            `
+      .prepare(
+        `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `
-        )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId)
-        .run();
+      )
+      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId)
+      .run();
 
     // 更新父目录的修改时间
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -1249,15 +1249,15 @@ fsRoutes.post("/api/user/fs/presign/commit", async (c) => {
 
     // 记录文件上传成功
     await db
-        .prepare(
-            `
+      .prepare(
+        `
       INSERT INTO files (
         id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `
-        )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`)
-        .run();
+      )
+      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`)
+      .run();
 
     // 更新父目录的修改时间
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
@@ -1788,6 +1788,85 @@ fsRoutes.post("/api/user/fs/batch-copy-commit", baseAuthMiddleware, requireFileP
       return c.json(createErrorResponse(error.status, error.message), error.status);
     }
     return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "提交批量复制完成失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+/**
+ * 提取搜索参数
+ * @param {Record<string, string>} queryParams - 查询参数对象
+ * @returns {Object} 搜索参数对象
+ */
+function extractSearchParams(queryParams) {
+  const query = queryParams.q || "";
+  const scope = queryParams.scope || "global"; // global, mount, directory
+  const mountId = queryParams.mount_id || "";
+  const path = queryParams.path || "";
+  const limit = parseInt(queryParams.limit) || 50;
+  const offset = parseInt(queryParams.offset) || 0;
+
+  return {
+    query,
+    scope,
+    mountId,
+    path,
+    limit: Math.min(limit, 200), // 限制最大返回数量
+    offset: Math.max(offset, 0),
+  };
+}
+
+// 搜索文件 - 管理员版本
+fsRoutes.get("/api/admin/fs/search", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+  const db = c.env.DB;
+  const searchParams = extractSearchParams(c.req.query());
+  const adminId = PermissionUtils.getUserId(c);
+
+  // 参数验证
+  if (!searchParams.query || searchParams.query.trim().length < 2) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "搜索查询至少需要2个字符"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    const result = await searchFiles(db, searchParams, adminId, "admin", c.env.ENCRYPTION_SECRET);
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "搜索完成",
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("管理员搜索文件错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "搜索文件失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 搜索文件 - API密钥用户版本
+fsRoutes.get("/api/user/fs/search", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  const db = c.env.DB;
+  const searchParams = extractSearchParams(c.req.query());
+  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
+
+  // 参数验证
+  if (!searchParams.query || searchParams.query.trim().length < 2) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "搜索查询至少需要2个字符"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    const result = await searchFiles(db, searchParams, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "搜索完成",
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("API密钥用户搜索文件错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "搜索文件失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 

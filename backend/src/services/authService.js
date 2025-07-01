@@ -206,13 +206,13 @@ export class AuthService {
       try {
         // 查询是否存在对应的API密钥，获取完整信息
         const keyRecord = await this.db
-            .prepare(
-                `SELECT id, key, name, basic_path, text_permission, file_permission, mount_permission, expires_at
+          .prepare(
+            `SELECT id, key, name, basic_path, text_permission, file_permission, mount_permission, expires_at
              FROM ${DbTables.API_KEYS}
              WHERE key = ?`
-            )
-            .bind(username)
-            .first();
+          )
+          .bind(username)
+          .first();
 
         if (keyRecord) {
           // 检查mount_permission
@@ -228,13 +228,13 @@ export class AuthService {
 
               // 更新最后使用时间
               await this.db
-                  .prepare(
-                      `UPDATE ${DbTables.API_KEYS}
+                .prepare(
+                  `UPDATE ${DbTables.API_KEYS}
                    SET last_used = CURRENT_TIMESTAMP
                    WHERE id = ?`
-                  )
-                  .bind(keyRecord.id)
-                  .run();
+                )
+                .bind(keyRecord.id)
+                .run();
 
               // 构建权限对象
               const permissions = {
@@ -247,7 +247,7 @@ export class AuthService {
               const keyInfo = {
                 id: keyRecord.id,
                 name: keyRecord.name,
-                key: keyRecord.key,
+                key: keyRecord.key, 
                 basicPath: keyRecord.basic_path || "/",
                 permissions: permissions,
               };
@@ -281,13 +281,13 @@ export class AuthService {
     try {
       // 查询API密钥记录
       const keyRecord = await this.db
-          .prepare(
-              `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
+        .prepare(
+          `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
            FROM ${DbTables.API_KEYS}
            WHERE key = ?`
-          )
-          .bind(apiKey)
-          .first();
+        )
+        .bind(apiKey)
+        .first();
 
       if (!keyRecord) {
         return new AuthResult();
@@ -300,13 +300,13 @@ export class AuthService {
 
       // 更新最后使用时间
       await this.db
-          .prepare(
-              `UPDATE ${DbTables.API_KEYS}
+        .prepare(
+          `UPDATE ${DbTables.API_KEYS}
            SET last_used = CURRENT_TIMESTAMP
            WHERE id = ?`
-          )
-          .bind(keyRecord.id)
-          .run();
+        )
+        .bind(keyRecord.id)
+        .run();
 
       // 构建权限对象
       const permissions = {
@@ -319,7 +319,7 @@ export class AuthService {
       const keyInfo = {
         id: keyRecord.id,
         name: keyRecord.name,
-        key: apiKey,
+        key: apiKey, 
         basicPath: keyRecord.basic_path || "/",
         permissions: permissions,
       };

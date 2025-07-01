@@ -84,6 +84,16 @@ adminRoutes.get("/api/admin/cache/stats", baseAuthMiddleware, requireAdminMiddle
       s3UrlStats = { error: "S3URL缓存模块未加载" };
     }
 
+    // 获取搜索缓存统计
+    let searchStats = null;
+    try {
+      const { searchCacheManager } = await import("../utils/SearchCache.js");
+      searchStats = searchCacheManager.getStats();
+    } catch (error) {
+      console.warn("获取搜索缓存统计失败:", error);
+      searchStats = { error: "搜索缓存模块未加载" };
+    }
+
     // 获取系统内存使用情况
     const memUsage = process.memoryUsage();
     const systemMemory = {
@@ -102,6 +112,7 @@ adminRoutes.get("/api/admin/cache/stats", baseAuthMiddleware, requireAdminMiddle
         cache: {
           directory: dirStats,
           s3Url: s3UrlStats,
+          search: searchStats,
         },
         system: {
           memory: systemMemory,
@@ -114,12 +125,12 @@ adminRoutes.get("/api/admin/cache/stats", baseAuthMiddleware, requireAdminMiddle
   } catch (error) {
     console.error("获取系统监控信息错误:", error);
     return c.json(
-        {
-          code: ApiStatus.INTERNAL_ERROR,
-          message: error.message || "获取系统监控信息失败",
-          success: false,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        code: ApiStatus.INTERNAL_ERROR,
+        message: error.message || "获取系统监控信息失败",
+        success: false,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -173,12 +184,12 @@ adminRoutes.post("/api/admin/cache/clear", baseAuthMiddleware, requireAdminMiddl
   } catch (error) {
     console.error("管理员清理缓存错误:", error);
     return c.json(
-        {
-          code: ApiStatus.INTERNAL_ERROR,
-          message: error.message || "清理缓存失败",
-          success: false,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        code: ApiStatus.INTERNAL_ERROR,
+        message: error.message || "清理缓存失败",
+        success: false,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -233,12 +244,12 @@ adminRoutes.post("/api/user/cache/clear", baseAuthMiddleware, requireMountPermis
   } catch (error) {
     console.error("API密钥用户清理缓存错误:", error);
     return c.json(
-        {
-          code: ApiStatus.INTERNAL_ERROR,
-          message: error.message || "清理缓存失败",
-          success: false,
-        },
-        ApiStatus.INTERNAL_ERROR
+      {
+        code: ApiStatus.INTERNAL_ERROR,
+        message: error.message || "清理缓存失败",
+        success: false,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });

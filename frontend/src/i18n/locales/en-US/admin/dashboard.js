@@ -18,6 +18,7 @@ export default {
     cacheMonitoring: "Cache Monitoring",
     directoryCache: "Directory Cache",
     s3UrlCache: "S3 URL Cache",
+    searchCache: "Search Cache",
     hitRate: "Hit Rate",
     cacheItems: "Cache Items",
     cacheUnavailable: "Cache data unavailable",

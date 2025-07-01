@@ -1,34 +1,32 @@
 /**
  * S3预签名URL缓存管理器
- * 基于现有DirectoryCache架构，专门用于缓存S3预签名URL
+ * 基于BaseCache架构，专门用于缓存S3预签名URL
  * 支持多租户、权限隔离、智能过期和自定义域名优化
  */
+import { BaseCache } from "./BaseCache.js";
 
-class S3UrlCacheManager {
+class S3UrlCacheManager extends BaseCache {
   /**
    * 构造函数
    * @param {Object} options - 配置选项
    */
   constructor(options = {}) {
-    this.config = {
-      maxItems: options.maxItems || 1000, // 最大缓存项数量
-      prunePercentage: options.prunePercentage || 20, // 清理百分比
-      defaultTtl: options.defaultTtl || 3600, // 默认TTL(秒)
-      customHostTtl: options.customHostTtl || 86400 * 7, // 自定义域名TTL(7天)
-    };
+    super({
+      maxItems: options.maxItems || 1000,
+      prunePercentage: options.prunePercentage || 20,
+      defaultTtl: options.defaultTtl || 3600,
+      name: "S3UrlCache",
+      ...options,
+    });
 
-    this.cache = new Map();
-    this.stats = {
-      hits: 0,
-      misses: 0,
-      expired: 0,
-      invalidations: 0,
-      pruned: 0,
+    // S3UrlCache特有的配置
+    this.s3Config = {
+      customHostTtl: options.customHostTtl || 86400 * 7, // 自定义域名TTL(7天)
     };
   }
 
   /**
-   * 生成缓存键 - 支持多租户和权限隔离
+   * 生成缓存键 - 重写基类方法，支持多租户和权限隔离
    * @param {string} s3ConfigId - S3配置ID
    * @param {string} storagePath - 存储路径
    * @param {boolean} forceDownload - 是否强制下载
@@ -36,7 +34,7 @@ class S3UrlCacheManager {
    * @param {string} userId - 用户ID
    * @returns {string} 缓存键
    */
-  generateCacheKey(s3ConfigId, storagePath, forceDownload, userType, userId) {
+  generateKey(s3ConfigId, storagePath, forceDownload, userType, userId) {
     // 参数验证
     if (!s3ConfigId || !storagePath || !userType || !userId) {
       throw new Error(`缓存键生成失败：缺少必要参数 s3ConfigId=${s3ConfigId}, storagePath=${storagePath}, userType=${userType}, userId=${userId}`);
@@ -50,7 +48,15 @@ class S3UrlCacheManager {
   }
 
   /**
-   * 获取缓存的预签名URL
+   * 生成缓存键 - 兼容性方法
+   * @deprecated 使用 generateKey 方法
+   */
+  generateCacheKey(s3ConfigId, storagePath, forceDownload, userType, userId) {
+    return this.generateKey(s3ConfigId, storagePath, forceDownload, userType, userId);
+  }
+
+  /**
+   * 获取缓存的预签名URL - 重写基类方法，保持错误处理和返回URL
    * @param {string} s3ConfigId - S3配置ID
    * @param {string} storagePath - 存储路径
    * @param {boolean} forceDownload - 是否强制下载
@@ -60,7 +66,7 @@ class S3UrlCacheManager {
    */
   get(s3ConfigId, storagePath, forceDownload, userType, userId) {
     try {
-      const key = this.generateCacheKey(s3ConfigId, storagePath, forceDownload, userType, userId);
+      const key = this.generateKey(s3ConfigId, storagePath, forceDownload, userType, userId);
       const cacheItem = this.cache.get(key);
 
       if (!cacheItem) {
@@ -80,6 +86,7 @@ class S3UrlCacheManager {
       this.cache.set(key, cacheItem);
 
       this.stats.hits++;
+      // S3UrlCache特殊逻辑：返回url字段而不是data字段
       return cacheItem.url;
     } catch (error) {
       console.warn("S3URL缓存获取失败:", error.message);
@@ -89,7 +96,7 @@ class S3UrlCacheManager {
   }
 
   /**
-   * 设置预签名URL缓存
+   * 设置预签名URL缓存 - 完全重写，保持原有数据结构和智能TTL计算
    * @param {string} s3ConfigId - S3配置ID
    * @param {string} storagePath - 存储路径
    * @param {boolean} forceDownload - 是否强制下载
@@ -100,14 +107,14 @@ class S3UrlCacheManager {
    */
   set(s3ConfigId, storagePath, forceDownload, userType, userId, url, s3Config) {
     try {
-      const key = this.generateCacheKey(s3ConfigId, storagePath, forceDownload, userType, userId);
+      const key = this.generateKey(s3ConfigId, storagePath, forceDownload, userType, userId);
       const now = Date.now();
 
-      // 智能TTL计算
+      // S3UrlCache特殊逻辑：智能TTL计算
       let ttl;
       if (s3Config.custom_host) {
         // 自定义域名：长期缓存(7天)，因为不会过期
-        ttl = this.config.customHostTtl;
+        ttl = this.s3Config.customHostTtl;
       } else {
         // 预签名URL：使用S3配置的过期时间，但留10%缓冲时间
         const configTtl = s3Config.signature_expires_in || this.config.defaultTtl;
@@ -119,14 +126,14 @@ class S3UrlCacheManager {
       // 检查缓存项数量限制，必要时清理
       this.checkSizeAndPrune();
 
-      // 更新缓存
+      // S3UrlCache特殊数据结构：保持原有结构，直接存储url字段
       this.cache.set(key, {
-        url,
+        url, // 特殊：存储在url字段而不是data字段
         expiresAt,
         lastAccessed: now,
-        s3ConfigId,
-        userType,
-        userId,
+        s3ConfigId, // 必需：invalidateS3Config()方法依赖此字段
+        userType, // 必需：invalidateUser()方法依赖此字段
+        userId, // 必需：invalidateUser()方法依赖此字段
         isCustomHost: !!s3Config.custom_host,
       });
     } catch (error) {
@@ -174,57 +181,7 @@ class S3UrlCacheManager {
     return clearedCount;
   }
 
-  /**
-   * 清理所有缓存
-   * @returns {number} 清理的缓存项数量
-   */
-  invalidateAll() {
-    const clearedCount = this.cache.size;
-    this.cache.clear();
-    this.stats.invalidations += clearedCount;
-    return clearedCount;
-  }
-
-  /**
-   * 检查缓存大小并在必要时清理
-   */
-  checkSizeAndPrune() {
-    if (this.cache.size > this.config.maxItems) {
-      this.pruneCache();
-    }
-  }
-
-  /**
-   * 清理缓存 - LRU策略
-   */
-  pruneCache() {
-    const targetSize = Math.floor((this.cache.size * (100 - this.config.prunePercentage)) / 100);
-
-    // 按最后访问时间排序
-    const entries = Array.from(this.cache.entries()).sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
-
-    let prunedCount = 0;
-    while (this.cache.size > targetSize && prunedCount < entries.length) {
-      const [key] = entries[prunedCount];
-      this.cache.delete(key);
-      prunedCount++;
-    }
-
-    this.stats.pruned += prunedCount;
-    console.log(`S3URL缓存清理完成，清理了 ${prunedCount} 项，当前缓存项: ${this.cache.size}`);
-  }
-
-  /**
-   * 获取缓存统计信息
-   * @returns {Object} 统计信息
-   */
-  getStats() {
-    return {
-      ...this.stats,
-      cacheSize: this.cache.size,
-      hitRate: this.stats.hits / (this.stats.hits + this.stats.misses) || 0,
-    };
-  }
+  // invalidateAll()、checkSizeAndPrune()、pruneCache() 和 getStats() 方法已由基类提供，无需重复实现
 }
 
 // 创建单例实例

@@ -82,9 +82,9 @@ export async function createS3Client(config, encryptionSecret) {
 
   // 日志记录所选服务商和配置
   console.log(
-      `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
-          config.path_style ? "是" : "否"
-      }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
+    `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+      config.path_style ? "是" : "否"
+    }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
   );
 
   // 返回创建的S3客户端

@@ -136,15 +136,15 @@ systemRoutes.get("/api/version", async (c) => {
       const packageContent = fs.readFileSync(packagePath, "utf8");
       const packageJson = JSON.parse(packageContent);
 
-      version = DEFAULT_VERSION;
+      version = packageJson.version || DEFAULT_VERSION;
       name = packageJson.name || DEFAULT_NAME;
     } catch (error) {
       console.warn("Docker环境读取package.json失败，使用默认值:", error.message);
       // 保持默认值
     }
   } else {
-    // Workers环境
-    version =  DEFAULT_VERSION;
+    // Workers环境：使用环境变量或默认值
+    version = process.env.APP_VERSION || DEFAULT_VERSION;
     name = process.env.APP_NAME || DEFAULT_NAME;
   }
 

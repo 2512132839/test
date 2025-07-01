@@ -9,6 +9,9 @@ export default {
     noPermission: "无此功能权限，请联系管理员",
     contactAdmin: "联系管理员",
     permissionDenied: "权限不足",
+    actions: "操作",
+    reset: "重置",
+    selectOption: "请选择",
     pagination: {
       previousPage: "上一页",
       nextPage: "下一页",
