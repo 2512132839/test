@@ -32,7 +32,7 @@
           </div>
 
           <!-- 活动任务列表 -->
-          <div v-for="task in activeTasks" :key="task.id" class="border rounded-lg p-3" :class="getTaskCardClass(task)">
+          <div v-for="task in activeTasks" :key="task.id" class="task-item border rounded-lg p-3" :class="getTaskCardClass(task)">
             <!-- 任务标题和类型 -->
             <div class="flex justify-between items-start mb-2">
               <div class="flex items-start">
@@ -74,7 +74,7 @@
                 <div class="text-xs font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ Math.round(task.progress) }}%</div>
               </div>
               <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-                <div class="h-2 rounded-full transition-all duration-200" :class="getProgressBarClass(task)" :style="{ width: `${task.progress}%` }"></div>
+                <div class="h-2 rounded-full transition-width duration-300 ease-out" :class="getProgressBarClass(task)" :style="{ width: `${task.progress}%` }"></div>
               </div>
             </div>
 
@@ -82,8 +82,105 @@
             <div v-if="task.details && Object.keys(task.details).length > 0" class="mt-2 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
               <div v-if="task.details.processed && task.details.total">{{ t("mount.taskManager.processed", { current: task.details.processed, total: task.details.total }) }}</div>
 
-              <!-- 显示当前处理的文件 -->
-              <div v-if="task.details.currentFile" class="mt-1 truncate">{{ t("mount.taskManager.currentFile", { fileName: task.details.currentFile }) }}</div>
+              <!-- 并行下载详情显示 -->
+              <div v-if="task.details.showParallelDetails && task.details.parallelFiles" class="mt-1">
+                <!-- 总体信息和展开按钮 -->
+                <div class="flex justify-between items-center cursor-pointer" @click="toggleTaskDetails(task.id)">
+                  <span class="truncate">{{ t("mount.taskManager.currentFile", { fileName: task.details.currentFile || t("mount.taskManager.fileStatus.preparing") }) }}</span>
+                  <div class="flex items-center space-x-2">
+                    <span class="text-xs">{{ task.details.processed }}/{{ task.details.total }} {{ t("mount.taskManager.filesCount") }}</span>
+                    <!-- 现代化展开/收起箭头 -->
+                    <svg
+                      class="w-4 h-4 transition-transform duration-200 text-slate-500"
+                      :class="{ 'rotate-180': isTaskExpanded(task.id) }"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- 可折叠的文件详情列表 -->
+                <div v-if="isTaskExpanded(task.id)" class="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                  <div
+                    v-for="file in task.details.parallelFiles"
+                    :key="file.path"
+                    class="flex items-center justify-between text-xs p-2 rounded"
+                    :class="darkMode ? 'bg-gray-800' : 'bg-gray-50'"
+                  >
+                    <div class="flex items-center space-x-2 flex-1 min-w-0">
+                      <!-- 文件状态图标 (现代Heroicons风格) -->
+                      <div class="flex-shrink-0">
+                        <!-- 已完成 - 绿色勾选圆圈 -->
+                        <svg v-if="file.status === 'completed'" class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <!-- 失败 - 红色X圆圈 -->
+                        <svg v-else-if="file.status === 'failed'" class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        <!-- 下载中 - 蓝色下载箭头动画 -->
+                        <svg
+                          v-else-if="file.status === 'downloading'"
+                          class="w-4 h-4 text-blue-500 animate-pulse"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          stroke-width="2"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                          />
+                        </svg>
+                        <!-- 等待中 - 灰色时钟 -->
+                        <svg v-else class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                      </div>
+
+                      <!-- 文件名 -->
+                      <span class="truncate font-medium">{{ file.name }}</span>
+                    </div>
+
+                    <!-- 文件进度信息 (现代化颜色) -->
+                    <div class="flex items-center space-x-2 flex-shrink-0">
+                      <span v-if="file.status === 'downloading'" class="text-blue-600 font-medium">{{ file.progress }}%</span>
+                      <span v-else-if="file.status === 'completed'" class="text-emerald-600 font-medium">100%</span>
+                      <span v-else-if="file.status === 'failed'" class="text-red-600 font-medium">{{ t("mount.taskManager.fileStatus.failed") }}</span>
+                      <span v-else class="text-slate-500">{{ t("mount.taskManager.fileStatus.pending") }}</span>
+
+                      <span v-if="file.totalBytes > 0" class="text-slate-600 dark:text-slate-400 text-xs">
+                        {{ formatBytes(file.receivedBytes) }}/{{ formatBytes(file.totalBytes) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 单文件下载进度显示（非并行模式） -->
+              <div v-else-if="task.details.currentFile" class="mt-1">
+                <div class="truncate">{{ t("mount.taskManager.currentFile", { fileName: task.details.currentFile }) }}</div>
+
+                <!-- 单文件进度条 -->
+                <div v-if="task.details.fileProgress !== undefined && task.details.receivedBytes !== undefined" class="mt-1 text-xs">
+                  <div class="flex justify-between items-center">
+                    <span>{{ t("mount.taskManager.fileProgress") }}: {{ task.details.fileProgress }}%</span>
+                    <div class="flex items-center">
+                      <span v-if="task.details.totalBytes">{{ formatBytes(task.details.receivedBytes) }} / {{ formatBytes(task.details.totalBytes) }}</span>
+                      <span v-else>{{ formatBytes(task.details.receivedBytes) }}</span>
+                    </div>
+                  </div>
+                  <!-- 文件级别的进度条 -->
+                  <div class="w-full bg-gray-200 rounded-full h-1 mt-1 dark:bg-gray-600">
+                    <div class="h-1 rounded-full bg-blue-400 transition-width duration-300 ease-out" :style="{ width: `${task.details.fileProgress}%` }"></div>
+                  </div>
+                </div>
+              </div>
 
               <!-- 复制操作统计信息 - 活动任务也可能有统计 -->
               <div v-if="task.details.successCount !== undefined || task.details.skippedCount !== undefined || task.details.failedCount !== undefined" class="mt-1 space-x-2">
@@ -214,8 +311,27 @@
   </div>
 </template>
 
+<style scoped>
+/* 优化进度条动画性能，减少跳动 */
+.transition-width {
+  transition-property: width;
+  will-change: width;
+  transform: translateZ(0); /* 启用硬件加速 */
+}
+
+/* 减少文本更新时的闪烁 */
+.text-xs {
+  will-change: auto;
+}
+
+/* 优化任务列表的渲染性能 */
+.task-item {
+  contain: layout style paint;
+}
+</style>
+
 <script setup>
-import { computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useTaskManager, TaskStatus, TaskType } from "../../../../utils/taskManager";
 
@@ -463,6 +579,17 @@ const formatProgress = (processed, total) => {
   return `${processedNum}/${totalNum}`;
 };
 
+// 格式化字节大小
+const formatBytes = (bytes) => {
+  if (bytes === 0) return "0 B";
+
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
+
 // 格式化数字 (1000 -> 1K, 1000000 -> 1M)
 const formatNumber = (num) => {
   if (num < 1000) {
@@ -473,4 +600,12 @@ const formatNumber = (num) => {
     return (num / 1000000).toFixed(1) + "M";
   }
 };
+
+// 组件卸载时清理
+onUnmounted(() => {
+  // 清理展开状态
+  expandedTaskIds.value.clear();
+
+  console.log("TasksModal组件已卸载并清理");
+});
 </script>

@@ -4,6 +4,7 @@ import fileView from "./fileView.js";
 import markdown from "./markdown.js";
 import mount from "./mount.js";
 import upload from "./upload.js";
+import fileBasket from "./fileBasket.js";
 
 export default {
   ...admin,
@@ -12,4 +13,5 @@ export default {
   ...markdown,
   ...mount,
   ...upload,
+  ...fileBasket,
 };

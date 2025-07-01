@@ -520,43 +520,43 @@ defineExpose({
 
 // 监听属性变化
 watch(
-    () => props.darkMode,
-    () => {
-      applyThemeStyles();
-    },
-    { immediate: false }
+  () => props.darkMode,
+  () => {
+    applyThemeStyles();
+  },
+  { immediate: false }
 );
 
 watch(
-    () => props.theme,
-    () => {
-      if (artplayerInstance.value) {
-        artplayerInstance.value.theme = getThemeColor();
-      }
-      applyThemeStyles();
+  () => props.theme,
+  () => {
+    if (artplayerInstance.value) {
+      artplayerInstance.value.theme = getThemeColor();
     }
+    applyThemeStyles();
+  }
 );
 
 watch(
-    () => [props.video, props.loop, props.volume, props.muted],
-    () => {
-      initArtplayer();
-    },
-    { deep: true }
+  () => [props.video, props.loop, props.volume, props.muted],
+  () => {
+    initArtplayer();
+  },
+  { deep: true }
 );
 
 watch(
-    () => props.volume,
-    (newVolume) => {
-      setVolume(newVolume);
-    }
+  () => props.volume,
+  (newVolume) => {
+    setVolume(newVolume);
+  }
 );
 
 watch(
-    () => props.muted,
-    (newMuted) => {
-      setMuted(newMuted);
-    }
+  () => props.muted,
+  (newMuted) => {
+    setMuted(newMuted);
+  }
 );
 
 // 生命周期

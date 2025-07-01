@@ -32,6 +32,11 @@
 
       <!-- 右侧视图操作按钮组 -->
       <div class="flex items-center space-x-2">
+        <!-- 文件篮按钮 -->
+        <div class="mr-2">
+          <FileBasket :dark-mode="darkMode" @task-created="$emit('task-created', $event)" @show-message="$emit('show-message', $event)" />
+        </div>
+
         <!-- 任务管理按钮 -->
         <button
           @click="$emit('openTasksModal')"
@@ -143,6 +148,7 @@
 <script setup>
 import { ref, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
+import FileBasket from "./FileBasket.vue";
 
 const { t } = useI18n();
 
@@ -170,7 +176,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["upload", "createFolder", "refresh", "changeViewMode", "openUploadModal", "openCopyModal", "openTasksModal"]);
+const emit = defineEmits(["upload", "createFolder", "refresh", "changeViewMode", "openUploadModal", "openCopyModal", "openTasksModal", "task-created", "show-message"]);
 
 // 视图模式切换
 const changeViewMode = (mode) => {

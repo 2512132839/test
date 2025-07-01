@@ -198,13 +198,13 @@ export function useFilePreview() {
     }
 
     router
-        .replace({
-          path: route.path,
-          query: newQuery,
-        })
-        .catch((err) => {
-          console.warn("更新预览URL失败:", err);
-        });
+      .replace({
+        path: route.path,
+        query: newQuery,
+      })
+      .catch((err) => {
+        console.warn("更新预览URL失败:", err);
+      });
   };
 
   /**

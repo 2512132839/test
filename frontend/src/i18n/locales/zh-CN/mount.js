@@ -269,6 +269,17 @@ export default {
       unknownTime: "未知时间",
       copyTaskName: "复制 {count} 个项目到 {path}",
       copyStarted: "开始复制 {count} 个项目到 {path}，可在任务管理中查看进度",
+      // 文件状态
+      fileStatus: {
+        pending: "等待",
+        downloading: "下载中",
+        completed: "已完成",
+        failed: "失败",
+        preparing: "准备中...",
+      },
+      // 文件进度
+      fileProgress: "文件进度",
+      filesCount: "个文件",
     },
     copyModal: {
       title: "选择目标文件夹",
@@ -321,8 +332,15 @@ export default {
     batchOperations: "批量操作",
     enableSelection: "启用勾选",
     exitSelection: "退出勾选",
-    copySelected: "复制选中项",
-    deleteSelected: "删除选中项",
+    copySelected: "复制选中",
+    deleteSelected: "删除选中",
     selectedCount: "({count})",
+    // 移动端短文本
+    mobile: {
+      enableSelection: "勾选",
+      exitSelection: "退出",
+      copySelected: "复制",
+      deleteSelected: "删除",
+    },
   },
 };

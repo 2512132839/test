@@ -17,6 +17,7 @@ import { useFilePreview } from "./file-preview/useFilePreview.js";
 import { useFileOperations } from "./file-system/useFileOperations.js";
 import { useFileUpload } from "./file-system/useFileUpload.js";
 import { useDirectorySort } from "./file-system/useDirectorySort.js";
+import { useFileBasket } from "./file-system/useFileBasket.js";
 
 // ===== UI交互功能 =====
 import { useSelection } from "./ui-interaction/useSelection.js";
@@ -32,6 +33,7 @@ export {
   useFileOperations,
   useFileUpload,
   useDirectorySort,
+  useFileBasket,
   useSelection,
   useUIState,
 };
@@ -60,6 +62,7 @@ export const FileSystemComposables = {
   useFileOperations,
   useFileUpload,
   useDirectorySort,
+  useFileBasket,
 };
 
 /**
@@ -151,6 +154,7 @@ export default {
   useFileOperations,
   useFileUpload,
   useDirectorySort,
+  useFileBasket,
   useSelection,
   useUIState,
 

@@ -3,25 +3,25 @@
     <!-- 音频预览 -->
     <div class="audio-preview p-4">
       <AudioPlayer
-          ref="audioPlayerRef"
-          v-if="audioUrl && audioData"
-          :audio-list="finalAudioList"
-          :current-audio="null"
-          :dark-mode="darkMode"
-          :autoplay="false"
-          :show-playlist="true"
-          :list-folded="true"
-          :list-max-height="'380px'"
-          :mode="'normal'"
-          :volume="0.7"
-          :loop="'all'"
-          :order="'list'"
-          @play="handlePlay"
-          @pause="handlePause"
-          @error="handleError"
-          @canplay="handleCanPlay"
-          @ended="handleAudioEnded"
-          @listswitch="handleListSwitch"
+        ref="audioPlayerRef"
+        v-if="audioUrl && audioData"
+        :audio-list="finalAudioList"
+        :current-audio="null"
+        :dark-mode="darkMode"
+        :autoplay="false"
+        :show-playlist="true"
+        :list-folded="true"
+        :list-max-height="'380px'"
+        :mode="'normal'"
+        :volume="0.7"
+        :loop="'all'"
+        :order="'list'"
+        @play="handlePlay"
+        @pause="handlePause"
+        @error="handleError"
+        @canplay="handleCanPlay"
+        @ended="handleAudioEnded"
+        @listswitch="handleListSwitch"
       />
       <div v-else class="loading-indicator text-center py-8">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -394,14 +394,14 @@ const initializeCurrentAudio = async () => {
 
 // 监听 audioUrl 变化，当准备好时初始化当前音频
 watch(
-    () => props.audioUrl,
-    async (newAudioUrl, oldAudioUrl) => {
-      // 只有当audioUrl真正变化时才重新初始化（避免重复初始化）
-      if (newAudioUrl && props.file && newAudioUrl !== oldAudioUrl) {
-        console.log("🎵 检测到 audioUrl 变化，开始重新初始化当前音频:", newAudioUrl);
-        await initializeCurrentAudio();
-      }
+  () => props.audioUrl,
+  async (newAudioUrl, oldAudioUrl) => {
+    // 只有当audioUrl真正变化时才重新初始化（避免重复初始化）
+    if (newAudioUrl && props.file && newAudioUrl !== oldAudioUrl) {
+      console.log("🎵 检测到 audioUrl 变化，开始重新初始化当前音频:", newAudioUrl);
+      await initializeCurrentAudio();
     }
+  }
 );
 
 // 快捷键处理

@@ -29,20 +29,29 @@ const state = reactive({
   nextId: 1, // 下一个任务ID
 });
 
-// 保存任务到localStorage
+// 节流保存到localStorage（避免频繁保存导致性能问题）
+let saveTimeout = null;
 const saveTasksToStorage = () => {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        tasks: state.tasks,
-        nextId: state.nextId,
-      })
-    );
-    console.log("任务已保存到本地存储");
-  } catch (error) {
-    console.error("保存任务到本地存储失败:", error);
+  // 清除之前的定时器
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
   }
+
+  // 延迟保存，避免频繁写入
+  saveTimeout = setTimeout(() => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          tasks: state.tasks,
+          nextId: state.nextId,
+        })
+      );
+      console.log("任务已保存到本地存储");
+    } catch (error) {
+      console.error("保存任务到本地存储失败:", error);
+    }
+  }, 500); // 500ms延迟保存
 };
 
 // 清理过期任务

@@ -112,6 +112,7 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -133,9 +134,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  currentPath: {
+    type: String,
+    required: true,
+  },
 });
 
-const emit = defineEmits(["click", "download", "rename", "delete", "select", "getLink"]);
+const emit = defineEmits(["click", "download", "rename", "delete", "select", "getLink", "show-message"]);
 
 // 处理点击事件
 const handleClick = () => {

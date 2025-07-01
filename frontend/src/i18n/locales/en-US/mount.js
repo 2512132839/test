@@ -283,6 +283,17 @@ export default {
       unknownTime: "Unknown time",
       copyTaskName: "Copy {count} items to {path}",
       copyStarted: "Started copying {count} items to {path}, check progress in task manager",
+      // File status
+      fileStatus: {
+        pending: "Pending",
+        downloading: "Downloading",
+        completed: "Completed",
+        failed: "Failed",
+        preparing: "Preparing...",
+      },
+      // File progress
+      fileProgress: "File Progress",
+      filesCount: "files",
     },
     linkCopied: "File direct link copied to clipboard",
     fileTypes: {
@@ -313,5 +324,12 @@ export default {
     copySelected: "Copy Selected",
     deleteSelected: "Delete Selected",
     selectedCount: "({count})",
+    // Mobile short text
+    mobile: {
+      enableSelection: "Select",
+      exitSelection: "Exit",
+      copySelected: "Copy",
+      deleteSelected: "Delete",
+    },
   },
 };

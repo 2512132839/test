@@ -8,42 +8,44 @@
     <div class="card mb-4" :class="darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'">
       <div class="p-3">
         <FileOperations
-            :current-path="currentPath"
-            :is-virtual="isVirtualDirectory"
-            :dark-mode="darkMode"
-            :view-mode="viewMode"
-            :selected-items="selectedItems"
-            @create-folder="handleCreateFolder"
-            @refresh="handleRefresh"
-            @change-view-mode="handleViewModeChange"
-            @openUploadModal="handleOpenUploadModal"
-            @openCopyModal="handleBatchCopy"
-            @openTasksModal="handleOpenTasksModal"
+          :current-path="currentPath"
+          :is-virtual="isVirtualDirectory"
+          :dark-mode="darkMode"
+          :view-mode="viewMode"
+          :selected-items="selectedItems"
+          @create-folder="handleCreateFolder"
+          @refresh="handleRefresh"
+          @change-view-mode="handleViewModeChange"
+          @openUploadModal="handleOpenUploadModal"
+          @openCopyModal="handleBatchCopy"
+          @openTasksModal="handleOpenTasksModal"
+          @task-created="handleTaskCreated"
+          @show-message="handleShowMessage"
         />
       </div>
     </div>
 
     <!-- 上传弹窗 -->
     <UploadModal
-        :is-open="isUploadModalOpen"
-        :current-path="currentPath"
-        :dark-mode="darkMode"
-        :is-admin="authStore.isAdmin"
-        @close="handleCloseUploadModal"
-        @upload-success="handleUploadSuccess"
-        @upload-error="handleUploadError"
+      :is-open="isUploadModalOpen"
+      :current-path="currentPath"
+      :dark-mode="darkMode"
+      :is-admin="authStore.isAdmin"
+      @close="handleCloseUploadModal"
+      @upload-success="handleUploadSuccess"
+      @upload-error="handleUploadError"
     />
 
     <!-- 复制弹窗 -->
     <CopyModal
-        :is-open="isCopyModalOpen"
-        :dark-mode="darkMode"
-        :selected-items="getSelectedItems()"
-        :source-path="currentPath"
-        :is-admin="authStore.isAdmin"
-        :api-key-info="authStore.apiKeyInfo"
-        @close="handleCloseCopyModal"
-        @copy-complete="handleCopyComplete"
+      :is-open="isCopyModalOpen"
+      :dark-mode="darkMode"
+      :selected-items="getSelectedItems()"
+      :source-path="currentPath"
+      :is-admin="authStore.isAdmin"
+      :api-key-info="authStore.apiKeyInfo"
+      @close="handleCloseCopyModal"
+      @copy-complete="handleCopyComplete"
     />
 
     <!-- 任务管理弹窗 -->
@@ -98,25 +100,26 @@
     <!-- 面包屑导航 -->
     <div class="mb-4">
       <BreadcrumbNav
-          :current-path="currentPath"
-          :dark-mode="darkMode"
-          :preview-file="isPreviewMode ? previewFile : null"
-          @navigate="handleNavigate"
-          :is-checkbox-mode="isCheckboxMode"
-          :selected-count="selectedCount"
-          @toggle-checkbox-mode="toggleCheckboxMode"
-          @batch-delete="batchDelete"
-          @batch-copy="handleBatchCopy"
-          :basic-path="authStore.apiKeyInfo?.basic_path || '/'"
-          :user-type="authStore.isAdmin ? 'admin' : 'user'"
+        :current-path="currentPath"
+        :dark-mode="darkMode"
+        :preview-file="isPreviewMode ? previewFile : null"
+        @navigate="handleNavigate"
+        :is-checkbox-mode="isCheckboxMode"
+        :selected-count="selectedCount"
+        @toggle-checkbox-mode="toggleCheckboxMode"
+        @batch-delete="batchDelete"
+        @batch-copy="handleBatchCopy"
+        @batch-add-to-basket="handleBatchAddToBasket"
+        :basic-path="authStore.apiKeyInfo?.basic_path || '/'"
+        :user-type="authStore.isAdmin ? 'admin' : 'user'"
       />
     </div>
 
     <!-- 消息提示 -->
     <div v-if="message" class="mb-4">
       <div
-          class="p-3 rounded-md border"
-          :class="{
+        class="p-3 rounded-md border"
+        :class="{
           'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-700/50 dark:text-green-200': message.type === 'success',
           'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-200': message.type === 'error',
           'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200': message.type === 'warning',
@@ -150,9 +153,9 @@
           <div class="flex items-center">
             <svg class="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path
-                  fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clip-rule="evenodd"
+                fill-rule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                clip-rule="evenodd"
               ></path>
             </svg>
             <span class="text-red-800 dark:text-red-200">{{ error }}</span>
@@ -164,9 +167,9 @@
           <div class="flex items-center">
             <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path
-                  fill-rule="evenodd"
-                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                  clip-rule="evenodd"
+                fill-rule="evenodd"
+                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                clip-rule="evenodd"
               ></path>
             </svg>
             <span class="text-yellow-800 dark:text-yellow-200">
@@ -177,21 +180,23 @@
 
         <!-- 目录列表 -->
         <DirectoryList
-            v-else
-            :items="directoryItems"
-            :loading="loading"
-            :is-virtual="isVirtualDirectory"
-            :dark-mode="darkMode"
-            :view-mode="viewMode"
-            :is-checkbox-mode="isCheckboxMode"
-            :selected-items="getSelectedItems()"
-            @navigate="handleNavigate"
-            @download="handleDownload"
-            @rename="handleRename"
-            @delete="handleDelete"
-            @preview="handlePreview"
-            @item-select="handleItemSelect"
-            @toggle-select-all="toggleSelectAll"
+          v-else
+          :items="directoryItems"
+          :loading="loading"
+          :is-virtual="isVirtualDirectory"
+          :dark-mode="darkMode"
+          :view-mode="viewMode"
+          :is-checkbox-mode="isCheckboxMode"
+          :selected-items="getSelectedItems()"
+          :current-path="currentPath"
+          @navigate="handleNavigate"
+          @download="handleDownload"
+          @rename="handleRename"
+          @delete="handleDelete"
+          @preview="handlePreview"
+          @item-select="handleItemSelect"
+          @toggle-select-all="toggleSelectAll"
+          @show-message="handleShowMessage"
         />
       </div>
 
@@ -201,9 +206,9 @@
           <!-- 返回按钮 -->
           <div class="mb-4">
             <button
-                @click="closePreviewWithUrl"
-                class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+              @click="closePreviewWithUrl"
+              class="inline-flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
+              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
             >
               <svg class="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -214,16 +219,16 @@
 
           <!-- 文件预览内容 -->
           <FilePreview
-              :file="previewInfo || previewFile"
-              :dark-mode="darkMode"
-              :is-loading="isPreviewLoading"
-              :is-admin="authStore.isAdmin"
-              :api-key-info="authStore.apiKeyInfo"
-              :has-file-permission="authStore.hasFilePermission"
-              :directory-items="directoryItems"
-              @download="handleDownload"
-              @loaded="handlePreviewLoaded"
-              @error="handlePreviewError"
+            :file="previewInfo || previewFile"
+            :dark-mode="darkMode"
+            :is-loading="isPreviewLoading"
+            :is-admin="authStore.isAdmin"
+            :api-key-info="authStore.apiKeyInfo"
+            :has-file-permission="authStore.hasFilePermission"
+            :directory-items="directoryItems"
+            @download="handleDownload"
+            @loaded="handlePreviewLoaded"
+            @error="handlePreviewError"
           />
         </div>
       </div>
@@ -238,7 +243,7 @@ import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 
 // 组合式函数 - 使用统一聚合导出
-import { useSelection, useFilePreview, useFileOperations, useUIState } from "../../composables/index.js";
+import { useSelection, useFilePreview, useFileOperations, useUIState, useFileBasket } from "../../composables/index.js";
 
 // Store
 import { useAuthStore } from "../../stores/authStore.js";
@@ -268,6 +273,7 @@ const authStore = useAuthStore();
 
 // 使用新的组合式函数
 const uiState = useUIState();
+const fileBasket = useFileBasket();
 
 // 使用storeToRefs解构响应式状态
 const { currentPath, loading, error, hasPermissionForCurrentPath, directoryItems, isVirtualDirectory } = storeToRefs(fileSystemStore);
@@ -552,6 +558,46 @@ const handleCopyComplete = (event) => {
   refreshDirectory();
 };
 
+// ===== 文件篮相关事件处理 =====
+
+/**
+ * 处理批量添加到文件篮
+ */
+const handleBatchAddToBasket = () => {
+  try {
+    const selectedFiles = getSelectedItems();
+    const result = fileBasket.addSelectedToBasket(selectedFiles, currentPath.value);
+
+    if (result.success) {
+      showMessage("success", result.message);
+      // 可选：关闭勾选模式
+      // toggleCheckboxMode(false);
+    } else {
+      showMessage("error", result.message);
+    }
+  } catch (error) {
+    console.error("批量添加到文件篮失败:", error);
+    showMessage("error", t("fileBasket.messages.batchAddFailed"));
+  }
+};
+
+/**
+ * 处理任务创建事件
+ */
+const handleTaskCreated = (taskInfo) => {
+  console.log("文件篮任务已创建:", taskInfo);
+  // 可以在这里添加额外的任务跟踪逻辑
+  // 例如：打开任务管理器面板
+  // openTasksModal();
+};
+
+/**
+ * 处理消息显示事件
+ */
+const handleShowMessage = (messageInfo) => {
+  showMessage(messageInfo.type, messageInfo.message);
+};
+
 // 预览相关事件处理
 const handlePreviewLoaded = () => {
   console.log("预览加载完成");
@@ -574,11 +620,11 @@ const closePreviewWithUrl = () => {
 
 // 监听目录项目变化，更新选择状态
 watch(
-    () => directoryItems.value,
-    (newItems) => {
-      setAvailableItems(newItems);
-    },
-    { immediate: true }
+  () => directoryItems.value,
+  (newItems) => {
+    setAvailableItems(newItems);
+  },
+  { immediate: true }
 );
 
 /**
@@ -620,12 +666,12 @@ const createAuthStateComparator = () => {
       apiKeyId: currentAuth.apiKeyInfo?.id || null,
       basicPath: currentAuth.apiKeyInfo?.basic_path || null,
       permissions: currentAuth.apiKeyInfo?.permissions
-          ? {
+        ? {
             text: !!currentAuth.apiKeyInfo.permissions.text,
             file: !!currentAuth.apiKeyInfo.permissions.file,
             mount: !!currentAuth.apiKeyInfo.permissions.mount,
           }
-          : null,
+        : null,
     };
 
     // 首次调用
@@ -706,57 +752,57 @@ const asyncProcessor = createAsyncProcessor();
 
 // 权限状态监听器 - 高性能版本
 watch(
-    () => ({ isAdmin: authStore.isAdmin, apiKeyInfo: authStore.apiKeyInfo }),
-    (newAuth) => {
-      const comparison = authComparator(newAuth);
+  () => ({ isAdmin: authStore.isAdmin, apiKeyInfo: authStore.apiKeyInfo }),
+  (newAuth) => {
+    const comparison = authComparator(newAuth);
 
-      if (comparison.changed) {
-        console.log("权限状态变化检测:", {
-          isFirstCall: comparison.isFirstCall,
-          changes: comparison.changes,
-          newAuth: {
-            isAdmin: newAuth.isAdmin,
-            apiKeyId: newAuth.apiKeyInfo?.id,
-            basicPath: newAuth.apiKeyInfo?.basic_path,
-          },
-        });
+    if (comparison.changed) {
+      console.log("权限状态变化检测:", {
+        isFirstCall: comparison.isFirstCall,
+        changes: comparison.changes,
+        newAuth: {
+          isAdmin: newAuth.isAdmin,
+          apiKeyId: newAuth.apiKeyInfo?.id,
+          basicPath: newAuth.apiKeyInfo?.basic_path,
+        },
+      });
 
-        // 确保权限信息已经加载
-        if (typeof newAuth.isAdmin !== "boolean") {
-          console.log("等待权限信息加载...");
-          return;
-        }
-
-        // 使用异步处理器防止竞态条件
-        asyncProcessor(async () => {
-          await handleDirectoryChange();
-        });
+      // 确保权限信息已经加载
+      if (typeof newAuth.isAdmin !== "boolean") {
+        console.log("等待权限信息加载...");
+        return;
       }
-    },
-    { immediate: true }
+
+      // 使用异步处理器防止竞态条件
+      asyncProcessor(async () => {
+        await handleDirectoryChange();
+      });
+    }
+  },
+  { immediate: true }
 );
 
 // 路由路径监听器 - 独立处理
 watch(
-    () => route.params.pathMatch,
-    (newPath, oldPath) => {
-      if (newPath !== oldPath) {
-        asyncProcessor(async () => {
-          await handleDirectoryChange();
-        });
-      }
+  () => route.params.pathMatch,
+  (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      asyncProcessor(async () => {
+        await handleDirectoryChange();
+      });
     }
+  }
 );
 
 // 预览文件监听器 - 独立处理
 watch(
-    () => route.query.preview,
-    () => {
-      asyncProcessor(async () => {
-        await handlePreviewChange();
-      });
-    },
-    { immediate: true }
+  () => route.query.preview,
+  () => {
+    asyncProcessor(async () => {
+      await handlePreviewChange();
+    });
+  },
+  { immediate: true }
 );
 
 // 组件挂载时恢复视图首选项

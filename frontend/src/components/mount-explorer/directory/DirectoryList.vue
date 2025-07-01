@@ -118,12 +118,14 @@
           :dark-mode="darkMode"
           :is-checkbox-mode="isCheckboxMode"
           :is-selected="isItemSelected(item)"
+          :current-path="currentPath"
           @click="handleItemClick(item)"
           @download="handleDownload"
           @rename="handleRename"
           @delete="handleDelete"
           @select="handleItemSelect"
           @getLink="handleGetLink"
+          @show-message="handleShowMessage"
         />
       </div>
 
@@ -322,9 +324,13 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  currentPath: {
+    type: String,
+    required: true,
+  },
 });
 
-const emit = defineEmits(["navigate", "download", "rename", "delete", "preview", "item-select", "toggle-select-all"]);
+const emit = defineEmits(["navigate", "download", "rename", "delete", "preview", "item-select", "toggle-select-all", "show-message"]);
 
 // 使用新的排序逻辑
 const sortedItems = createSortedItems(computed(() => props.items));
@@ -422,6 +428,11 @@ const handleGetLink = async (item) => {
     alert(result.message);
   }
   // 成功的情况下，通知显示由 composable 内部处理
+};
+
+// 处理消息显示
+const handleShowMessage = (messageInfo) => {
+  emit("show-message", messageInfo);
 };
 
 // 组件挂载时初始化排序状态
