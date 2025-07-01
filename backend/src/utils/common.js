@@ -31,6 +31,8 @@ export function createErrorResponse(statusCode, message) {
   };
 }
 
+// getLocalTimeString() 函数已被移除
+// 现在所有时间处理都使用 CURRENT_TIMESTAMP 以支持更好的国际化
 
 /**
  * 格式化文件大小
@@ -145,5 +147,10 @@ export function getFileNameAndExt(filename) {
  * @returns {string} 安全的文件名
  */
 export function getSafeFileName(fileName) {
-  return fileName.replace(/[^\w\u4e00-\u9fa5\-\. ,!()'"?;:@&+]/g, "_"); // 扩展允许的字符集，包含常用标点符号
+  // 只过滤真正有害的字符：
+  // - 控制字符 (\x00-\x1F, \x7F)
+  // - 路径分隔符 (/ \)
+  // - Windows保留字符 (< > : " | ? *)
+  // 保留所有其他Unicode字符，包括中文标点符号
+  return fileName.replace(/[<>:"|?*\\/\x00-\x1F\x7F]/g, "_");
 }

@@ -21,6 +21,7 @@
     "highlight.js": "^11.11.1",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
+    "jszip": "^3.10.1",
     "mime-db": "^1.54.0",
     "pinia": "^3.0.3",
     "postcss": "^8.4.35",
