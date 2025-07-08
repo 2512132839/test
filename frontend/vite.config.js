@@ -8,44 +8,185 @@ export default defineConfig(({ command, mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), "");
 
+  // 🎯 统一版本管理
+  const APP_VERSION = "0.6.9";
+  const isDev = command === "serve";
+
   // 打印环境变量，帮助调试
   console.log("Vite环境变量:", {
     VITE_BACKEND_URL: env.VITE_BACKEND_URL || "未设置",
     VITE_APP_ENV: env.VITE_APP_ENV || "未设置",
+    APP_VERSION: APP_VERSION,
     MODE: mode,
     COMMAND: command,
   });
 
   return {
+    define: {
+      // 注入版本号到应用中
+      __APP_VERSION__: JSON.stringify(APP_VERSION),
+      // 注入环境变量到应用中
+      __APP_ENV__: JSON.stringify(env.VITE_APP_ENV || "production"),
+      __BACKEND_URL__: JSON.stringify(env.VITE_BACKEND_URL || ""),
+    },
     plugins: [
       vue(),
       VitePWA({
         registerType: "autoUpdate",
+        injectRegister: "auto", //自动注入更新检测代码
+        devOptions: {
+          enabled: true, // 开发环境启用PWA
+        },
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}"],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 增加到 5MB
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           skipWaiting: true,
           clientsClaim: true,
-          // 更新导航路由配置以支持所有现有路径的嵌套路由
+          cleanupOutdatedCaches: true,
           navigateFallback: "index.html",
-          navigateFallbackAllowlist: [
-            /^\/$/, // 根路径
-            /^\/upload$/, // 上传页面
-            /^\/admin/, // 管理页面（包含所有子路径）
-            /^\/paste\/.+/, // 文本分享页面
-            /^\/file\/.+/, // 文件预览页面
-            /^\/mount-explorer/, // 挂载浏览器（包含所有嵌套路径）
-          ],
+          navigateFallbackAllowlist: [/^\/$/, /^\/upload$/, /^\/admin/, /^\/paste\/.+/, /^\/file\/.+/, /^\/mount-explorer/],
+
+          // 🎯 集成自定义Service Worker代码以支持Background Sync API
+          importScripts: ["/sw-background-sync.js"],
+
+          // 🎯 基于主流PWA最佳实践的正确缓存策略
           runtimeCaching: [
-            // 系统信息API缓存策略 - 简单系统API，适合Cache API处理
+            // 📦 应用静态资源 - StaleWhileRevalidate
             {
-              urlPattern: /^.*\/api\/(system\/max-upload-size|health|version)$/i,
+              urlPattern: ({ request }) => request.destination === "style" || request.destination === "script" || request.destination === "worker",
+              handler: "StaleWhileRevalidate",
+              options: {
+                cacheName: "app-static-resources",
+                expiration: {
+                  maxEntries: 1000,
+                  maxAgeSeconds: 7 * 24 * 60 * 60, // 7天（依赖Vite版本控制）
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🔤 字体文件 - CacheFirst（字体很少变化，可长期缓存）
+            {
+              urlPattern: ({ request }) => request.destination === "font",
+              handler: "CacheFirst",
+              options: {
+                cacheName: "fonts",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 30 * 24 * 60 * 60, // 30天（字体变化频率低）
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🌍 第三方CDN资源 - CacheFirst（外部资源稳定）
+            {
+              urlPattern: ({ url }) =>
+                  url.origin !== self.location.origin &&
+                  (url.hostname.includes("cdn") ||
+                      url.hostname.includes("googleapis") ||
+                      url.hostname.includes("gstatic") ||
+                      url.hostname.includes("jsdelivr") ||
+                      url.hostname.includes("unpkg")),
+              handler: "CacheFirst",
+              options: {
+                cacheName: "external-cdn-resources",
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 30 * 24 * 60 * 60, // 30天（第三方资源稳定）
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🖼️ 图廊图片 - NetworkFirst
+            {
+              urlPattern: ({ request, url }) =>
+                  request.destination === "image" && (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
               handler: "NetworkFirst",
               options: {
-                cacheName: "cloudpaste-system-cache",
+                cacheName: "gallery-images",
                 expiration: {
-                  maxEntries: 20,
-                  maxAgeSeconds: 60 * 60 * 6, // 6小时，系统信息变化不频繁
+                  maxEntries: 300, // 增加图廊容量
+                  maxAgeSeconds: 7 * 24 * 60 * 60, // 7天（图片内容稳定）
+                },
+                networkTimeoutSeconds: 10, // NetworkFirst支持此参数
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🎵 用户媒体文件 - NetworkFirst（大文件适度缓存）
+            {
+              urlPattern: ({ request, url }) =>
+                  (request.destination === "video" || request.destination === "audio" || /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i.test(url.pathname)) &&
+                  (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "user-media",
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 2 * 60 * 60, // 2小时（媒体文件较大，适度缓存）
+                },
+                networkTimeoutSeconds: 15,
+                cacheableResponse: {
+                  statuses: [0, 200, 206], // 支持范围请求
+                },
+                rangeRequests: true,
+              },
+            },
+
+            // 📄 用户文档文件 - NetworkFirst（文档快速更新）
+            {
+              urlPattern: ({ url }) =>
+                  /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|md)$/i.test(url.pathname) &&
+                  (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "user-documents",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 2 * 60 * 60,
+                },
+                networkTimeoutSeconds: 10,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🖼️ 应用内置图片 - StaleWhileRevalidate（应用资源）
+            {
+              urlPattern: ({ request, url }) => request.destination === "image" && url.origin === self.location.origin && !url.pathname.includes("/api/"),
+              handler: "StaleWhileRevalidate",
+              options: {
+                cacheName: "app-images",
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 7 * 24 * 60 * 60, // 7天（应用图片）
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🔧 系统API缓存 - NetworkFirst
+            {
+              urlPattern: /^.*\/api\/(system\/max-upload-size|health|version).*$/,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "system-api",
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 30 * 60, // 30分钟
                 },
                 networkTimeoutSeconds: 3,
                 cacheableResponse: {
@@ -53,106 +194,173 @@ export default defineConfig(({ command, mode }) => {
                 },
               },
             },
-            // 静态资源缓存策略 - 缓存优先
+
+            // 📁 文件系统API缓存 - NetworkFirst（图廊优化：增加容量和时间）
             {
-              urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
-              handler: "CacheFirst",
+              urlPattern: /^.*\/api\/(admin\/fs|user\/fs)\/.*$/,
+              handler: "NetworkFirst",
               options: {
-                cacheName: "cloudpaste-images-cache",
+                cacheName: "fs-api",
                 expiration: {
-                  maxEntries: 300,
-                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30天
+                  maxEntries: 200, // 增加容量支持更多文件信息
+                  maxAgeSeconds: 30 * 60, // 30分钟（文件信息相对稳定）
+                },
+                networkTimeoutSeconds: 8, // 增加超时时间
+                cacheableResponse: {
+                  statuses: [0, 200],
                 },
               },
             },
-            // 字体文件缓存 - 缓存优先，字体很少变化
+
+            // 📝 文本分享API缓存 - NetworkFirst（内容短期缓存）
             {
-              urlPattern: /\.(?:woff|woff2|ttf|eot)$/,
-              handler: "CacheFirst",
+              urlPattern: /^.*\/api\/(admin\/pastes|user\/pastes|public\/pastes)\/.*$/,
+              handler: "NetworkFirst",
               options: {
-                cacheName: "cloudpaste-fonts-cache",
+                cacheName: "pastes-api",
                 expiration: {
                   maxEntries: 30,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1年
+                  maxAgeSeconds: 5 * 60, // 5分钟（文本内容短期缓存）
                 },
-              },
-            },
-            // 文件下载/预览API缓存策略 - 二进制文件，适合Cache API处理
-            {
-              urlPattern: /^.*\/api\/(file-download|file-view|office-preview)\/.*/i,
-              handler: "CacheFirst", // 文件内容缓存优先
-              options: {
-                cacheName: "cloudpaste-fileview-cache",
-                expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天，文件内容相对稳定
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            // 文件系统预览下载API缓存策略 - 二进制文件
-            {
-              urlPattern: /^.*\/api\/(admin|user)\/fs\/(preview|download).*/i,
-              handler: "CacheFirst", // 文件内容缓存优先
-              options: {
-                cacheName: "cloudpaste-fs-files-cache",
-                expiration: {
-                  maxEntries: 150,
-                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天，文件内容相对稳定
-                },
+                networkTimeoutSeconds: 4,
                 cacheableResponse: {
                   statuses: [0, 200],
                 },
               },
             },
 
-            // S3音频文件缓存策略 - 基于文件路径缓存，忽略S3签名参数
+            // 🗂️ 配置管理API缓存 - NetworkFirst（配置信息适度缓存）
             {
-              urlPattern: /^https:\/\/.*\.(mp3|wav|flac|aac|ogg|m4a)(\?.*)?$/i,
-              handler: "NetworkFirst", // 网络优先，确保音频文件能正常加载
+              urlPattern: /^.*\/api\/(admin\/mounts|admin\/s3-configs|admin\/api-keys|admin\/settings)\/.*$/,
+              handler: "NetworkFirst",
               options: {
-                cacheName: "cloudpaste-audio-cache",
-                networkTimeoutSeconds: 10, // 10秒网络超时
+                cacheName: "config-api",
                 expiration: {
-                  maxEntries: 100, // 增加缓存数量，因为现在缓存效率更高
-                  maxAgeSeconds: 60 * 60 * 24 * 4, // 4天，因为基于文件路径缓存更稳定
+                  maxEntries: 30,
+                  maxAgeSeconds: 30 * 60, // 30分钟（配置变更不频繁）
                 },
+                networkTimeoutSeconds: 4,
                 cacheableResponse: {
                   statuses: [0, 200],
                 },
-                plugins: [
-                  // 自定义缓存键策略：基于文件路径而不是完整URL
-                  {
-                    cacheKeyWillBeUsed: async ({ request }) => {
-                      const url = new URL(request.url);
-                      // 提取文件路径，移除S3签名参数，保留完整路径以避免冲突
-                      const pathWithoutQuery = `${url.origin}${url.pathname}`;
-                      console.log(`🎵 音频缓存键: ${request.url} → ${pathWithoutQuery}`);
-                      return pathWithoutQuery;
-                    },
-                    // 确保缓存查找时使用相同的键策略
-                    cachedResponseWillBeUsed: async ({ cachedResponse, request }) => {
-                      if (cachedResponse) {
-                        console.log(`🎵 使用缓存的音频文件: ${request.url}`);
-                      }
-                      return cachedResponse;
-                    },
-                  },
-                ],
               },
             },
 
-            // CDN资源缓存
+            // 🔍 搜索API缓存 - NetworkFirst
             {
-              urlPattern: /^https:\/\/cdn\./,
-              handler: "StaleWhileRevalidate",
+              urlPattern: /^.*\/api\/(admin\/search|user\/search)\/.*$/,
+              handler: "NetworkFirst",
               options: {
-                cacheName: "cloudpaste-cdn-cache",
+                cacheName: "search-api",
                 expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7天
+                  maxEntries: 20,
+                  maxAgeSeconds: 5 * 60, // 5分钟
+                },
+                networkTimeoutSeconds: 6,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 📤 上传API缓存 - NetworkFirst
+            {
+              urlPattern: /^.*\/api\/(upload|admin\/fs\/presign|user\/fs\/presign)\/.*$/,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "upload-api",
+                expiration: {
+                  maxEntries: 20,
+                  maxAgeSeconds: 10 * 60, // 10分钟
+                },
+                networkTimeoutSeconds: 8,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🌐 公共API缓存 - NetworkFirst
+            {
+              urlPattern: /^.*\/api\/public\/.*$/,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "public-api",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 30 * 60, // 30分钟
+                },
+                networkTimeoutSeconds: 4,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 📊 WebDAV缓存 - NetworkFirst（WebDAV操作无缓存）
+            {
+              urlPattern: /^.*\/dav\/.*$/,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "webdav-api",
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 1 * 60, // 1分钟（WebDAV操作几乎无缓存）
+                },
+                networkTimeoutSeconds: 10,
+                cacheableResponse: {
+                  statuses: [0, 200, 207], // 包含WebDAV的207状态码
+                },
+              },
+            },
+
+            // 🔗 预签名URL缓存 - NetworkFirst
+            {
+              urlPattern: ({ url }) => url.searchParams.has("X-Amz-Algorithm") || url.searchParams.has("Signature") || url.pathname.includes("/presigned/"),
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "presigned-urls",
+                expiration: {
+                  maxEntries: 20,
+                  maxAgeSeconds: 30 * 60, // 30分钟
+                },
+                networkTimeoutSeconds: 8,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🎯 页面导航缓存 - NetworkFirst（页面短期缓存）
+            {
+              urlPattern: ({ request }) => request.mode === "navigate",
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "pages",
+                expiration: {
+                  maxEntries: 20,
+                  maxAgeSeconds: 2 * 60 * 60, // 2小时
+                },
+                networkTimeoutSeconds: 3,
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+
+            // 🔄 通用API回退缓存 - NetworkFirst（其他API短期缓存）
+            {
+              urlPattern: /^.*\/api\/.*$/,
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "api-fallback",
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 10 * 60, // 10分钟
+                },
+                networkTimeoutSeconds: 5,
+                cacheableResponse: {
+                  statuses: [0, 200],
                 },
               },
             },
@@ -166,9 +374,11 @@ export default defineConfig(({ command, mode }) => {
           theme_color: "#0ea5e9",
           background_color: "#ffffff",
           display: "standalone",
-          orientation: "portrait",
+          orientation: "portrait-primary", // 与manifest.json保持一致
           scope: "/",
           start_url: "/",
+          lang: "zh-CN", // 添加语言设置
+          categories: ["productivity", "utilities"], // 添加应用分类
           icons: [
             {
               src: "icons/icons-32.png",
@@ -212,21 +422,12 @@ export default defineConfig(({ command, mode }) => {
             },
           ],
         },
-        devOptions: {
-          enabled: true,
-          type: "module",
-        },
       }),
     ],
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
-    },
-    // 将环境变量作为定义注入到应用中
-    define: {
-      __APP_ENV__: JSON.stringify(env.VITE_APP_ENV || "production"),
-      __BACKEND_URL__: JSON.stringify(env.VITE_BACKEND_URL || ""),
     },
     server: {
       port: 3000,
@@ -251,20 +452,6 @@ export default defineConfig(({ command, mode }) => {
             });
           },
         },
-      },
-      // 添加历史模式回退配置，确保所有路径都能正确路由到 index.html
-      historyApiFallback: {
-        rewrites: [
-          { from: /^\/$/, to: "/index.html" },
-          { from: /^\/paste\/.*$/, to: "/index.html" },
-          { from: /^\/file\/.*$/, to: "/index.html" },
-          { from: /^\/admin$/, to: "/index.html" },
-          { from: /^\/admin\/.*$/, to: "/index.html" },
-          { from: /^\/upload$/, to: "/index.html" },
-          { from: /^\/mount-explorer$/, to: "/index.html" },
-          { from: /^\/mount-explorer\/.*$/, to: "/index.html" },
-          { from: /./, to: "/index.html" },
-        ],
       },
     },
     optimizeDeps: {

@@ -112,11 +112,14 @@ class S3UrlCacheManager extends BaseCache {
 
       // S3UrlCache特殊逻辑：智能TTL计算
       let ttl;
-      if (s3Config.custom_host) {
-        // 自定义域名：长期缓存(7天)，因为不会过期
+      // 判断是否为自定义域名且非强制下载（即预览模式）
+      const isCustomHostPreview = s3Config.custom_host && !forceDownload;
+
+      if (isCustomHostPreview) {
+        // 自定义域名预览：长期缓存(7天)，因为不会过期
         ttl = this.s3Config.customHostTtl;
       } else {
-        // 预签名URL：使用S3配置的过期时间，但留10%缓冲时间
+        // 预签名URL或自定义域名强制下载（包含查询参数）：使用S3配置的过期时间，但留10%缓冲时间
         const configTtl = s3Config.signature_expires_in || this.config.defaultTtl;
         ttl = Math.floor(configTtl * 0.9); // 90%的有效期，避免边界过期
       }
@@ -134,7 +137,7 @@ class S3UrlCacheManager extends BaseCache {
         s3ConfigId, // 必需：invalidateS3Config()方法依赖此字段
         userType, // 必需：invalidateUser()方法依赖此字段
         userId, // 必需：invalidateUser()方法依赖此字段
-        isCustomHost: !!s3Config.custom_host,
+        isCustomHost: isCustomHostPreview, // 只有自定义域名预览才标记为true
       });
     } catch (error) {
       console.warn("S3URL缓存设置失败:", error.message);
@@ -180,8 +183,6 @@ class S3UrlCacheManager extends BaseCache {
     this.stats.invalidations += clearedCount;
     return clearedCount;
   }
-
-  // invalidateAll()、checkSizeAndPrune()、pruneCache() 和 getStats() 方法已由基类提供，无需重复实现
 }
 
 // 创建单例实例

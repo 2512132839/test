@@ -82,9 +82,9 @@ export async function createS3Client(config, encryptionSecret) {
 
   // 日志记录所选服务商和配置
   console.log(
-    `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
-      config.path_style ? "是" : "否"
-    }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
+      `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+          config.path_style ? "是" : "否"
+      }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
   );
 
   // 返回创建的S3客户端
@@ -294,8 +294,27 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
 
   // 如果配置了自定义域名
   if (s3Config.custom_host) {
-    // 自定义域名：直接返回自定义域名直链
-    generatedUrl = generateCustomHostDirectUrl(s3Config, storagePath);
+    // 自定义域名情况下的处理
+    if (forceDownload) {
+      // 强制下载时：使用自定义域名 + response-content-disposition参数
+      // 这样既能使用CDN加速，又能确保浏览器触发下载行为
+      console.log(`自定义域名强制下载：添加response-content-disposition参数`);
+
+      // 先生成预签名URL（包含response-content-disposition参数）
+      const presignedUrl = await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);
+
+      // 然后将域名替换为自定义域名，保留查询参数
+      const presignedUrlObj = new URL(presignedUrl);
+      const customHostUrl = generateCustomHostDirectUrl(s3Config, storagePath);
+      const customHostUrlObj = new URL(customHostUrl);
+
+      // 将预签名URL的查询参数（包含response-content-disposition）添加到自定义域名URL
+      customHostUrlObj.search = presignedUrlObj.search;
+      generatedUrl = customHostUrlObj.toString();
+    } else {
+      // 预览时：使用自定义域名直链
+      generatedUrl = generateCustomHostDirectUrl(s3Config, storagePath);
+    }
   } else {
     // 没有自定义域名：使用原始S3预签名URL
     generatedUrl = await generateOriginalPresignedUrl(s3Config, storagePath, encryptionSecret, finalExpiresIn, forceDownload, mimetype);

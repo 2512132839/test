@@ -69,6 +69,15 @@ export async function fetchApi(endpoint, options = {}) {
 
   console.log(`🚀 API请求: ${debugInfo.method} ${debugInfo.url}`, debugInfo);
 
+  // 🎯 PWA网络状态检测 - 符合最佳实践
+  if (!navigator.onLine) {
+    console.warn(`🔌 离线状态，API请求可能失败: ${url}`);
+    // Service Worker Cache API会处理HTTP缓存，这里处理离线操作队列
+    if (options.method && options.method !== "GET") {
+      await handleOfflineOperation(endpoint, options);
+    }
+  }
+
   // 检查请求体是否为FormData类型
   const isFormData = options.body instanceof FormData;
 
@@ -233,11 +242,157 @@ export async function fetchApi(endpoint, options = {}) {
       return responseData;
     }
 
+    // 成功响应后存储重要业务数据到IndexedDB
+    await handleSuccessfulResponse(endpoint, options, responseData);
+
     // 如果响应不符合统一格式，则直接返回
     return responseData;
   } catch (error) {
     console.error(`❌ API请求失败(${url}):`, error);
     throw error;
+  }
+}
+
+// 处理离线操作（PWA
+async function handleOfflineOperation(endpoint, options) {
+  console.log(`[PWA] 处理离线操作: ${options.method} ${endpoint}`);
+  try {
+    const { pwaUtils } = await import("../pwa/pwaManager.js");
+    if (!pwaUtils || !pwaUtils.storage) {
+      console.warn("[PWA] pwaUtils或storage不可用");
+      return;
+    }
+
+    // 获取当前认证信息
+    let authToken = null;
+    let authType = null;
+
+    try {
+      const { useAuthStore } = await import("../stores/authStore.js");
+      const authStore = useAuthStore();
+
+      if (authStore.authType === "admin" && authStore.adminToken) {
+        authToken = authStore.adminToken;
+        authType = "admin";
+        console.log(`[PWA] 获取管理员认证信息，token长度: ${authToken.length}`);
+      } else if (authStore.authType === "apikey" && authStore.apiKey) {
+        authToken = authStore.apiKey;
+        authType = "apikey";
+        console.log(`[PWA] 获取API密钥认证信息，token长度: ${authToken.length}`);
+      }
+    } catch (error) {
+      console.error("[PWA] 获取认证信息失败:", error);
+    }
+
+    const operation = {
+      endpoint,
+      method: options.method,
+      data: options.body,
+      authToken, // 保存认证token
+      authType, // 保存认证类型
+      timestamp: new Date().toISOString(),
+      status: "pending",
+    };
+
+
+    // 📝 文本分享操作 - 轻量级，适合离线队列
+    if (endpoint.includes("/paste") && options.method === "POST") {
+      operation.type = "createPaste";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线创建文本分享已加入队列");
+    }
+    // 📝 管理员文本分享操作 - 基于实际API（使用slug参数）
+    else if (endpoint.includes("/admin/pastes/") && options.method === "PUT") {
+      operation.type = "updateAdminPaste";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线更新管理员文本分享已加入队列");
+    } else if (endpoint.includes("/admin/pastes/") && options.method === "DELETE") {
+      operation.type = "deleteAdminPaste";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线删除管理员文本分享已加入队列");
+    } else if (endpoint.includes("/admin/pastes/batch-delete") && options.method === "POST") {
+      operation.type = "batchDeleteAdminPastes";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线批量删除管理员文本分享已加入队列");
+    } else if (endpoint.includes("/admin/pastes/clear-expired") && options.method === "POST") {
+      operation.type = "clearExpiredPastes";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线清理过期文本分享已加入队列");
+    }
+    // 📝 用户文本分享操作 - 基于实际API
+    else if (endpoint.includes("/user/pastes/") && options.method === "PUT") {
+      operation.type = "updateUserPaste";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线更新用户文本分享已加入队列");
+    } else if (endpoint.includes("/user/pastes/") && options.method === "DELETE") {
+      operation.type = "deleteUserPaste";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线删除用户文本分享已加入队列");
+    } else if (endpoint.includes("/user/pastes/batch-delete") && options.method === "POST") {
+      operation.type = "batchDeleteUserPastes";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线批量删除用户文本分享已加入队列");
+    }
+    // ⚙️ 系统管理操作 - 基于实际API
+    else if (endpoint.includes("/admin/system-settings") && options.method === "PUT") {
+      operation.type = "updateSystemSettings";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线系统设置更新已加入队列");
+    } else if (endpoint.includes("/admin/cache/clear") && options.method === "POST") {
+      operation.type = "clearCache";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线缓存清理已加入队列");
+    }
+    // 🔐 文件密码验证 - 轻量级操作
+    else if (endpoint.includes("/public/files/") && endpoint.includes("/verify") && options.method === "POST") {
+      operation.type = "verifyFilePassword";
+      await pwaUtils.storage.addToOfflineQueue(operation);
+      console.log("[PWA] 离线文件密码验证已加入队列");
+    } else {
+      // 其他操作不加入离线队列，因为大多数文件操作在离线状态下没有意义
+      console.log(`[PWA] 跳过离线操作（不适合离线处理）: ${options.method} ${endpoint}`);
+      return;
+    }
+
+    // 🎯 尝试注册Background Sync以确保可靠同步
+    if (pwaUtils.isBackgroundSyncSupported()) {
+      try {
+        await pwaUtils.registerBackgroundSync("sync-offline-queue");
+        console.log("[PWA] Background Sync 已注册，操作将在网络恢复时自动同步");
+      } catch (error) {
+        console.warn("[PWA] Background Sync 注册失败:", error);
+      }
+    }
+  } catch (error) {
+    console.warn("[PWA] 离线操作处理失败:", error);
+  }
+}
+
+// 处理成功响应的业务数据存储（PWA离线）
+async function handleSuccessfulResponse(endpoint, options, responseData) {
+  try {
+    const { pwaUtils } = await import("../pwa/pwaManager.js");
+    if (!pwaUtils || !pwaUtils.storage) return;
+
+    const method = options.method || "GET";
+
+    // 只存储用户创建的重要业务数据，不存储所有API响应
+    if (method === "POST" && endpoint.includes("/paste") && responseData.data) {
+      // 存储新创建的文本分享
+      await pwaUtils.storage.savePaste(responseData.data);
+      console.log(`[PWA] 已存储文本分享: ${responseData.data.slug}`);
+    } else if (method === "POST" && endpoint.includes("/upload") && responseData.data) {
+      // 存储上传的文件信息
+      await pwaUtils.storage.saveFile(responseData.data);
+      console.log(`[PWA] 已存储文件信息: ${responseData.data.filename || responseData.data.slug}`);
+    } else if (method === "POST" && endpoint.includes("/admin/settings")) {
+      // 存储重要设置更新
+      const settingKey = `admin_setting_${Date.now()}`;
+      await pwaUtils.storage.saveSetting(settingKey, responseData);
+      console.log(`[PWA] 已存储管理员设置: ${settingKey}`);
+    }
+  } catch (error) {
+    console.warn("[PWA] 业务数据存储失败:", error);
   }
 }
 

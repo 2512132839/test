@@ -126,17 +126,7 @@ const handleApiKeyLogin = async () => {
           <div>
             <label for="apiKey" class="block text-sm font-medium leading-6" :class="darkMode ? 'text-gray-200' : 'text-gray-900'">{{ $t("admin.login.apiKey") }}</label>
             <div class="mt-2">
-              <input
-                id="apiKey"
-                v-model="apiKeyForm.apiKey"
-                name="apiKey"
-                type="text"
-                required
-                :class="[
-                  'block w-full rounded-md border-0 py-1.5 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6',
-                  darkMode ? 'bg-gray-700 text-white ring-gray-600 focus:ring-primary-500' : 'text-gray-900 ring-gray-300 focus:ring-primary-600',
-                ]"
-              />
+              <input id="apiKey" v-model="apiKeyForm.apiKey" name="apiKey" type="text" required class="form-input" />
             </div>
           </div>
 
@@ -150,9 +140,9 @@ const handleApiKeyLogin = async () => {
 
           <div>
             <button
-              type="submit"
-              :disabled="loading"
-              :class="[
+                type="submit"
+                :disabled="loading"
+                :class="[
                 'flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
                 loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-500',
                 darkMode ? 'bg-primary-600 focus-visible:outline-primary-500' : 'bg-primary-600 focus-visible:outline-primary-600',
@@ -168,17 +158,7 @@ const handleApiKeyLogin = async () => {
           <div>
             <label for="username" class="block text-sm font-medium leading-6" :class="darkMode ? 'text-gray-200' : 'text-gray-900'">{{ $t("admin.login.username") }}</label>
             <div class="mt-2">
-              <input
-                id="username"
-                v-model="form.username"
-                name="username"
-                type="text"
-                required
-                :class="[
-                  'block w-full rounded-md border-0 py-1.5 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6',
-                  darkMode ? 'bg-gray-700 text-white ring-gray-600 focus:ring-primary-500' : 'text-gray-900 ring-gray-300 focus:ring-primary-600',
-                ]"
-              />
+              <input id="username" v-model="form.username" name="username" type="text" required class="form-input" />
             </div>
           </div>
 
@@ -187,17 +167,7 @@ const handleApiKeyLogin = async () => {
               <label for="password" class="block text-sm font-medium leading-6" :class="darkMode ? 'text-gray-200' : 'text-gray-900'">{{ $t("admin.login.password") }}</label>
             </div>
             <div class="mt-2">
-              <input
-                id="password"
-                v-model="form.password"
-                name="password"
-                type="password"
-                required
-                :class="[
-                  'block w-full rounded-md border-0 py-1.5 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset sm:text-sm sm:leading-6',
-                  darkMode ? 'bg-gray-700 text-white ring-gray-600 focus:ring-primary-500' : 'text-gray-900 ring-gray-300 focus:ring-primary-600',
-                ]"
-              />
+              <input id="password" v-model="form.password" name="password" type="password" required class="form-input" />
             </div>
           </div>
 
@@ -211,9 +181,9 @@ const handleApiKeyLogin = async () => {
 
           <div>
             <button
-              type="submit"
-              :disabled="loading"
-              :class="[
+                type="submit"
+                :disabled="loading"
+                :class="[
                 'flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
                 loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-500',
                 darkMode ? 'bg-primary-600 focus-visible:outline-primary-500' : 'bg-primary-600 focus-visible:outline-primary-600',
@@ -227,9 +197,9 @@ const handleApiKeyLogin = async () => {
 
         <div class="mt-6 text-center">
           <button
-            @click="toggleLoginMode"
-            class="text-sm transition-colors duration-200"
-            :class="darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-500'"
+              @click="toggleLoginMode"
+              class="text-sm transition-colors duration-200"
+              :class="darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-500'"
           >
             {{ isApiKeyMode ? $t("admin.login.useAdminAccount") : $t("admin.login.useApiKey") }}
           </button>

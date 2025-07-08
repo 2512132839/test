@@ -24,19 +24,19 @@ import {
  */
 async function getFileBySlug(db, slug, includePassword = true) {
   const fields = includePassword
-    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
-    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
+      ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
+      : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
 
   return await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT ${fields}
       FROM ${DbTables.FILES} f
       WHERE f.slug = ?
     `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 }
 
 /**
@@ -137,8 +137,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取更新后的文件信息
   const updatedFile = await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT 
         f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
         f.remark, f.password, f.max_views, f.views, f.created_by,
@@ -146,9 +146,9 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
       FROM ${DbTables.FILES} f
       WHERE f.id = ?
     `
-    )
-    .bind(file.id)
-    .first();
+      )
+      .bind(file.id)
+      .first();
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -309,8 +309,20 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       // 注意：文件分享页面没有用户上下文，禁用缓存避免权限泄露
       const presignedUrl = await generatePresignedUrl(s3Config, result.file.storage_path, encryptionSecret, null, forceDownload, contentType, { enableCache: false });
 
+      //处理Range请求
+      const rangeHeader = request.headers.get("Range");
+      const fileRequestHeaders = {};
+
+      // 如果有Range请求，转发给S3
+      if (rangeHeader) {
+        fileRequestHeaders["Range"] = rangeHeader;
+        console.log(`🎬 代理Range请求: ${rangeHeader}`);
+      }
+
       // 代理请求到实际的文件URL
-      const fileRequest = new Request(presignedUrl);
+      const fileRequest = new Request(presignedUrl, {
+        headers: fileRequestHeaders,
+      });
       const response = await fetch(fileRequest);
 
       // 创建一个新的响应，包含正确的文件名和Content-Type
@@ -324,11 +336,14 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
         }
       }
 
-      // 设置CORS头，允许所有源访问
+      // 设置CORS头，允许所有源访问，支持Range请求
       headers.set("Access-Control-Allow-Origin", "*");
       headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-      headers.set("Access-Control-Allow-Headers", "Content-Type, Content-Disposition");
-      headers.set("Access-Control-Expose-Headers", "Content-Type, Content-Disposition, Content-Length");
+      headers.set("Access-Control-Allow-Headers", "Content-Type, Content-Disposition, Range");
+      headers.set("Access-Control-Expose-Headers", "Content-Type, Content-Disposition, Content-Length, Content-Range, Accept-Ranges");
+
+      // 🎯 添加Accept-Ranges头，告诉客户端支持Range请求
+      headers.set("Accept-Ranges", "bytes");
 
       // 使用统一的内容类型和处置方式函数
       const { contentType: finalContentType, contentDisposition } = getContentTypeAndDisposition({

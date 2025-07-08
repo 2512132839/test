@@ -23,7 +23,7 @@ export function useUIState() {
   const messageContent = globalMessage.messageContent;
 
   // ===== 视图模式管理 =====
-  const viewMode = ref("list"); // 'list' | 'grid'
+  const viewMode = ref("list"); // 'list' | 'grid' | 'gallery'
 
   /**
    * 是否为列表模式
@@ -36,11 +36,16 @@ export function useUIState() {
   const isGridMode = computed(() => viewMode.value === "grid");
 
   /**
+   * 是否为图廊模式
+   */
+  const isGalleryMode = computed(() => viewMode.value === "gallery");
+
+  /**
    * 设置视图模式
-   * @param {string} mode - 目标模式 ('list' | 'grid')
+   * @param {string} mode - 目标模式 ('list' | 'grid' | 'gallery')
    */
   const setViewMode = (mode) => {
-    if (mode === "list" || mode === "grid") {
+    if (mode === "list" || mode === "grid" || mode === "gallery") {
       viewMode.value = mode;
     }
   };
@@ -64,6 +69,13 @@ export function useUIState() {
    */
   const switchToGridMode = () => {
     setViewMode("grid");
+  };
+
+  /**
+   * 切换到图廊模式
+   */
+  const switchToGalleryMode = () => {
+    setViewMode("gallery");
   };
 
   // ===== 弹窗状态管理 =====
@@ -341,10 +353,12 @@ export function useUIState() {
     viewMode,
     isListMode,
     isGridMode,
+    isGalleryMode,
     setViewMode,
     toggleViewMode,
     switchToListMode,
     switchToGridMode,
+    switchToGalleryMode,
 
     // 弹窗状态管理
     isUploadModalOpen,

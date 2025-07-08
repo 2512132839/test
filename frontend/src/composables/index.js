@@ -1,7 +1,5 @@
 /**
  * Composables 统一聚合导出
- * 提供所有重构后的组合式函数的统一入口
- * 直接使用新架构，不考虑向后兼容
  */
 
 // ===== 核心系统 =====
@@ -22,6 +20,8 @@ import { useFileBasket } from "./file-system/useFileBasket.js";
 // ===== UI交互功能 =====
 import { useSelection } from "./ui-interaction/useSelection.js";
 import { useUIState } from "./ui-interaction/useUIState.js";
+import { useGalleryView } from "./ui-interaction/useGalleryView.js";
+import { usePhotoSwipe } from "./ui-interaction/usePhotoSwipe.js";
 
 // 重新导出所有功能
 export {
@@ -36,10 +36,9 @@ export {
   useFileBasket,
   useSelection,
   useUIState,
+  useGalleryView,
+  usePhotoSwipe,
 };
-
-// ===== 聚合组合函数 =====
-// 注意：聚合函数已简化，请直接使用各个独立的 composables
 
 // ===== 便捷的聚合导出 =====
 
@@ -72,6 +71,8 @@ export const FileSystemComposables = {
 export const UIComposables = {
   useSelection,
   useUIState,
+  useGalleryView,
+  usePhotoSwipe,
 };
 
 // ===== 常量定义 =====
@@ -157,6 +158,8 @@ export default {
   useFileBasket,
   useSelection,
   useUIState,
+  useGalleryView,
+  usePhotoSwipe,
 
   // 聚合对象
   FilePreviewComposables,

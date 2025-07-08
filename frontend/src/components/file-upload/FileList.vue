@@ -11,12 +11,12 @@
     <!-- 无文件状态 -->
     <div v-else-if="!files.length" class="text-center py-8">
       <svg
-        xmlns="http://www.w3.org/2000/svg"
-        class="h-12 w-12 mx-auto mb-3"
-        :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-12 w-12 mx-auto mb-3"
+          :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
       >
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
       </svg>
@@ -40,10 +40,10 @@
       <!-- 文件卡片列表 -->
       <div class="space-y-3">
         <div
-          v-for="file in files"
-          :key="file.id"
-          class="file-item border rounded-lg overflow-hidden transition-all duration-200"
-          :class="darkMode ? 'border-gray-700 hover:border-gray-600 bg-gray-800/30' : 'border-gray-200 hover:border-gray-300 bg-white'"
+            v-for="file in files"
+            :key="file.id"
+            class="file-item border rounded-lg overflow-hidden transition-all duration-200"
+            :class="darkMode ? 'border-gray-700 hover:border-gray-600 bg-gray-800/30' : 'border-gray-200 hover:border-gray-300 bg-white'"
         >
           <!-- 桌面视图 - 表格式布局 -->
           <div class="hidden md:grid md:grid-cols-file-list gap-4 items-center p-4">
@@ -52,18 +52,18 @@
                 <!-- 文件图标 -->
                 <div class="flex-shrink-0 mr-2">
                   <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5"
-                    :class="getFileIconClassLocal(file.mimetype, file.filename)"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-5 w-5"
+                      :class="getFileIconClassLocal(file.mimetype, file.filename)"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                   >
                     <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
                 </div>
@@ -91,7 +91,7 @@
 
             <!-- 访问次数 -->
             <div
-              :class="[
+                :class="[
                 darkMode ? 'text-gray-300' : 'text-gray-600',
                 getRemainingViews(file) === t('file.usedUp')
                   ? 'text-red-500 dark:text-red-400'
@@ -106,9 +106,9 @@
             <!-- 密码状态 -->
             <div>
               <span
-                v-if="file.has_password"
-                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                :class="darkMode ? 'bg-yellow-900/40 text-yellow-200' : 'bg-yellow-100 text-yellow-800'"
+                  v-if="file.has_password"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                  :class="darkMode ? 'bg-yellow-900/40 text-yellow-200' : 'bg-yellow-100 text-yellow-800'"
               >
                 {{ t("file.encrypted") }}
               </span>
@@ -126,10 +126,10 @@
             <div class="flex justify-center items-center space-x-2">
               <!-- 打开链接按钮 -->
               <button
-                @click.stop="openFileUrl(file)"
-                class="p-1.5 rounded-md transition-colors"
-                :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
-                :title="t('file.open')"
+                  @click.stop="openFileUrl(file)"
+                  class="p-1.5 rounded-md transition-colors"
+                  :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
+                  :title="t('file.open')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -138,27 +138,27 @@
 
               <!-- 复制链接按钮 -->
               <button
-                @click.stop="copyFileUrl(file)"
-                class="p-1.5 rounded-md transition-colors"
-                :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
-                :title="t('file.copyLink')"
+                  @click.stop="copyFileUrl(file)"
+                  class="p-1.5 rounded-md transition-colors"
+                  :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
+                  :title="t('file.copyLink')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
                   />
                 </svg>
               </button>
 
               <!-- 复制直链按钮 -->
               <button
-                @click.stop="copyPermanentLink(file)"
-                class="p-1.5 rounded-md transition-colors relative"
-                :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
-                :title="t('file.copyDirectLink')"
+                  @click.stop="copyPermanentLink(file)"
+                  class="p-1.5 rounded-md transition-colors relative"
+                  :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
+                  :title="t('file.copyDirectLink')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
@@ -168,34 +168,34 @@
 
               <!-- 二维码按钮 -->
               <button
-                @click.stop="showQRCode(file)"
-                class="p-1.5 rounded-md transition-colors"
-                :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
-                :title="t('file.qrCode')"
+                  @click.stop="showQRCode(file)"
+                  class="p-1.5 rounded-md transition-colors"
+                  :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
+                  :title="t('file.qrCode')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
                   />
                 </svg>
               </button>
 
               <!-- 删除按钮 -->
               <button
-                @click.stop="confirmDelete(file.id)"
-                class="p-1.5 rounded-md transition-colors"
-                :class="darkMode ? 'hover:bg-red-900/30 text-gray-400 hover:text-red-300' : 'hover:bg-red-50 text-gray-500 hover:text-red-600'"
-                :title="t('file.delete')"
+                  @click.stop="confirmDelete(file.id)"
+                  class="p-1.5 rounded-md transition-colors"
+                  :class="darkMode ? 'hover:bg-red-900/30 text-gray-400 hover:text-red-300' : 'hover:bg-red-50 text-gray-500 hover:text-red-600'"
+                  :title="t('file.delete')"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                   />
                 </svg>
               </button>
@@ -209,18 +209,18 @@
                 <!-- 文件图标 -->
                 <div class="mr-3 mt-0.5">
                   <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-6 w-6"
-                    :class="getFileIconClassLocal(file.mimetype, file.filename)"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-6 w-6"
+                      :class="getFileIconClassLocal(file.mimetype, file.filename)"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                   >
                     <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
                 </div>
@@ -237,14 +237,14 @@
                     <div class="flex flex-wrap gap-x-3 gap-y-1">
                       <span>{{ formatFileSize(file.size) }}</span>
                       <span
-                        :class="[
+                          :class="[
                           getRemainingViews(file) === t('file.usedUp')
                             ? 'text-red-500 dark:text-red-400'
                             : getRemainingViews(file) !== t('file.unlimited') && getRemainingViews(file) < 3
                             ? 'text-yellow-500 dark:text-yellow-400'
                             : '',
                         ]"
-                        >{{ getRemainingViews(file) }}</span
+                      >{{ getRemainingViews(file) }}</span
                       >
                       <span>{{ formatDate(file.created_at) }}</span>
                     </div>
@@ -255,9 +255,9 @@
               <!-- 密码状态 -->
               <div class="flex flex-col items-end ml-2">
                 <span
-                  v-if="file.has_password"
-                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                  :class="darkMode ? 'bg-yellow-900/40 text-yellow-200' : 'bg-yellow-100 text-yellow-800'"
+                    v-if="file.has_password"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                    :class="darkMode ? 'bg-yellow-900/40 text-yellow-200' : 'bg-yellow-100 text-yellow-800'"
                 >
                   {{ t("file.encrypted") }}
                 </span>
@@ -271,45 +271,45 @@
             <div class="flex justify-end mt-3 space-x-3">
               <!-- 打开链接按钮 -->
               <button
-                @click.stop="openFileUrl(file)"
-                class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
+                  @click.stop="openFileUrl(file)"
+                  class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
+                  :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
               >
                 {{ t("file.open") }}
               </button>
 
               <!-- 复制链接按钮 -->
               <button
-                @click.stop="copyFileUrl(file)"
-                class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
+                  @click.stop="copyFileUrl(file)"
+                  class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
+                  :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
               >
                 {{ t("file.copyLink") }}
               </button>
 
               <!-- 复制直链按钮 -->
               <button
-                @click.stop="copyPermanentLink(file)"
-                class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
+                  @click.stop="copyPermanentLink(file)"
+                  class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
+                  :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
               >
                 {{ t("file.copyDirectLink") }}
               </button>
 
               <!-- 二维码按钮 -->
               <button
-                @click.stop="showQRCode(file)"
-                class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
-                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
+                  @click.stop="showQRCode(file)"
+                  class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
+                  :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
               >
                 {{ t("file.qrCode") }}
               </button>
 
               <!-- 删除按钮 -->
               <button
-                @click.stop="confirmDelete(file.id)"
-                class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
-                :class="darkMode ? 'bg-red-900/30 hover:bg-red-800/30 text-red-300' : 'bg-red-100 hover:bg-red-200 text-red-700'"
+                  @click.stop="confirmDelete(file.id)"
+                  class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded transition-colors"
+                  :class="darkMode ? 'bg-red-900/30 hover:bg-red-800/30 text-red-300' : 'bg-red-100 hover:bg-red-200 text-red-700'"
               >
                 {{ t("file.delete") }}
               </button>
@@ -327,9 +327,9 @@
         <p class="mb-6" :class="darkMode ? 'text-gray-300' : 'text-gray-600'">{{ t("file.confirmDeleteMessage") }}</p>
         <div class="flex justify-end space-x-3">
           <button
-            @click="cancelDelete"
-            class="px-4 py-2 text-sm font-medium rounded-md"
-            :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
+              @click="cancelDelete"
+              class="px-4 py-2 text-sm font-medium rounded-md"
+              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
           >
             {{ t("file.cancel") }}
           </button>
@@ -342,9 +342,9 @@
 
     <!-- 操作反馈消息 -->
     <div
-      v-if="message"
-      class="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 transform translate-y-0 opacity-100 z-50 max-w-xs"
-      :class="message.type === 'success' ? (darkMode ? 'bg-green-800 text-green-100' : 'bg-green-600 text-white') : darkMode ? 'bg-red-800 text-red-100' : 'bg-red-600 text-white'"
+        v-if="message"
+        class="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transition-all duration-300 transform translate-y-0 opacity-100 z-50 max-w-xs"
+        :class="message.type === 'success' ? (darkMode ? 'bg-green-800 text-green-100' : 'bg-green-600 text-white') : darkMode ? 'bg-red-800 text-red-100' : 'bg-red-600 text-white'"
     >
       <div class="flex items-center">
         <svg v-if="message.type === 'success'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -364,9 +364,9 @@
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-medium" :class="darkMode ? 'text-white' : 'text-gray-900'">{{ t("file.fileQrCode") }}</h3>
           <button
-            @click="closeQRCode"
-            class="p-1 rounded-md transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
+              @click="closeQRCode"
+              class="p-1 rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -375,14 +375,14 @@
         </div>
         <div class="flex flex-col items-center">
           <div class="bg-white p-3 rounded-md shadow-md mb-3">
-            <img v-if="qrCodeUrl" :src="qrCodeUrl" :alt="t('file.fileQrCode')" class="w-48 h-48" />
-            <div v-else class="w-48 h-48 flex items-center justify-center">
+            <img v-if="qrCodeUrl" :src="qrCodeUrl" :alt="t('file.fileQrCode')" class="w-60 h-60" />
+            <div v-else class="w-60 h-60 flex items-center justify-center">
               <svg class="animate-spin h-8 w-8" :class="darkMode ? 'text-gray-400' : 'text-gray-600'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
             </div>
@@ -391,9 +391,9 @@
             {{ currentFileUrl }}
           </p>
           <button
-            @click="downloadQRCode"
-            class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
-            :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'"
+              @click="downloadQRCode"
+              class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
+              :class="darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -439,6 +439,7 @@ const emit = defineEmits(["refresh"]);
 // 导入统一的工具函数
 import { getRemainingViews as getRemainingViewsUtil, formatFileSize } from "../../utils/fileUtils.js";
 import { getFileIconClass as getFileIconClassUtil } from "../../utils/mimeUtils.js";
+import QRCode from "qrcode";
 
 /**
  * 计算剩余可访问次数
@@ -614,11 +615,21 @@ const closeQRCode = () => {
 };
 
 // 生成二维码
-const generateQRCode = (url) => {
-  // 使用QR Code API生成二维码
-  // 这里使用QRServer.com的免费API
-  const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
-  qrCodeUrl.value = apiUrl;
+const generateQRCode = async (url) => {
+  try {
+    // 使用qrcode库生成二维码
+    const dataURL = await QRCode.toDataURL(url, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: props.darkMode ? "#ffffff" : "#000000",
+        light: props.darkMode ? "#000000" : "#ffffff",
+      },
+    });
+    qrCodeUrl.value = dataURL;
+  } catch (error) {
+    console.error("生成二维码失败:", error);
+  }
 };
 
 // 下载二维码
@@ -628,7 +639,7 @@ const downloadQRCode = () => {
   // 创建一个链接元素
   const a = document.createElement("a");
   a.href = qrCodeUrl.value;
-  a.download = `qrcode-${Date.now()}.png`;
+  a.download = `cloudpaste-file-qrcode-${Date.now()}.png`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -739,19 +750,19 @@ const getFilePassword = (file) => {
 
 // 清理定时器
 watch(
-  () => props.files,
-  (newFiles) => {
-    // 如果文件列表更新，且存在消息，确保消息会正常消失
-    if (message.value) {
-      startMessageTimer();
-    }
+    () => props.files,
+    (newFiles) => {
+      // 如果文件列表更新，且存在消息，确保消息会正常消失
+      if (message.value) {
+        startMessageTimer();
+      }
 
-    // 调试: 打印文件信息，检查has_password字段
-    if (newFiles && newFiles.length > 0) {
-      console.log("文件列表已更新:", newFiles);
-      console.log("第一个文件的密码状态:", newFiles[0].has_password);
+      // 调试: 打印文件信息，检查has_password字段
+      if (newFiles && newFiles.length > 0) {
+        console.log("文件列表已更新:", newFiles);
+        console.log("第一个文件的密码状态:", newFiles[0].has_password);
+      }
     }
-  }
 );
 
 // 组件生命周期钩子，确保定时器在组件卸载时被清理

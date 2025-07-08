@@ -41,6 +41,10 @@ const cacheStats = ref({
     cacheSize: 0,
     hitRate: 0,
   },
+  search: {
+    cacheSize: 0,
+    hitRate: 0,
+  },
   error: null,
 });
 

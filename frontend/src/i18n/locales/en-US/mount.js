@@ -30,6 +30,7 @@ export default {
     viewModes: {
       list: "List View",
       grid: "Grid View",
+      gallery: "Gallery View",
     },
     fileList: {
       loading: "Loading...",

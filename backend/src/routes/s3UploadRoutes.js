@@ -96,13 +96,13 @@ export function registerS3UploadRoutes(app) {
 
       // 获取系统最大上传限制
       const maxUploadSizeResult = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
           WHERE key = 'max_upload_size'
         `
-        )
-        .first();
+          )
+          .first();
 
       const maxUploadSizeMB = maxUploadSizeResult ? parseInt(maxUploadSizeResult.value) : DEFAULT_MAX_UPLOAD_SIZE_MB;
       const maxUploadSizeBytes = maxUploadSizeMB * 1024 * 1024;
@@ -110,21 +110,21 @@ export function registerS3UploadRoutes(app) {
       // 如果请求中包含了文件大小，则检查大小是否超过限制
       if (body.size && body.size > maxUploadSizeBytes) {
         return c.json(
-          createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(body.size)}`),
-          ApiStatus.BAD_REQUEST
+            createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(body.size)}`),
+            ApiStatus.BAD_REQUEST
         );
       }
 
       // 获取S3配置
       const s3Config = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT * FROM ${DbTables.S3_CONFIGS}
           WHERE id = ?
         `
-        )
-        .bind(body.s3_config_id)
-        .first();
+          )
+          .bind(body.s3_config_id)
+          .first();
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "指定的S3配置不存在"), ApiStatus.NOT_FOUND);
@@ -134,15 +134,15 @@ export function registerS3UploadRoutes(app) {
       if (body.size && s3Config.total_storage_bytes !== null) {
         // 获取当前存储桶已使用的总容量
         const usageResult = await db
-          .prepare(
-            `
+            .prepare(
+                `
             SELECT SUM(size) as total_used
             FROM ${DbTables.FILES}
             WHERE s3_config_id = ?
           `
-          )
-          .bind(body.s3_config_id)
-          .first();
+            )
+            .bind(body.s3_config_id)
+            .first();
 
         const currentUsage = usageResult?.total_used || 0;
         const fileSize = parseInt(body.size);
@@ -158,8 +158,8 @@ export function registerS3UploadRoutes(app) {
           const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
 
           return c.json(
-            createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
-            ApiStatus.BAD_REQUEST
+              createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
+              ApiStatus.BAD_REQUEST
           );
         }
       }
@@ -311,8 +311,8 @@ export function registerS3UploadRoutes(app) {
       const s3_url = buildS3Url(s3Config, storagePath);
 
       await db
-        .prepare(
-          `
+          .prepare(
+              `
           INSERT INTO ${DbTables.FILES} (
             id, slug, filename, storage_path, s3_url,
             s3_config_id, mimetype, size, etag,
@@ -323,20 +323,20 @@ export function registerS3UploadRoutes(app) {
             ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
           )
         `
-        )
-        .bind(
-          fileId,
-          slug,
-          body.filename,
-          storagePath,
-          s3_url,
-          body.s3_config_id,
-          mimetype,
-          0, // 初始大小为0，在上传完成后更新
-          null, // 初始ETag为null，在上传完成后更新
-          authType === "admin" ? userId : authType === "apikey" ? `apikey:${userId}` : null // 使用与传统上传一致的格式标记API密钥用户
-        )
-        .run();
+          )
+          .bind(
+              fileId,
+              slug,
+              body.filename,
+              storagePath,
+              s3_url,
+              body.s3_config_id,
+              mimetype,
+              0, // 初始大小为0，在上传完成后更新
+              null, // 初始ETag为null，在上传完成后更新
+              authType === "admin" ? userId : authType === "apikey" ? `apikey:${userId}` : null // 使用与传统上传一致的格式标记API密钥用户
+          )
+          .run();
 
       // 返回预签名URL和文件信息
       return c.json({
@@ -384,15 +384,15 @@ export function registerS3UploadRoutes(app) {
 
       // 查询待提交的文件信息
       const file = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT id, filename, storage_path, s3_config_id, size, s3_url, slug, created_by
           FROM ${DbTables.FILES}
           WHERE id = ?
         `
-        )
-        .bind(body.file_id)
-        .first();
+          )
+          .bind(body.file_id)
+          .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -412,9 +412,9 @@ export function registerS3UploadRoutes(app) {
 
       const s3ConfigParams = isAdmin ? [file.s3_config_id, userId] : [file.s3_config_id];
       const s3Config = await db
-        .prepare(s3ConfigQuery)
-        .bind(...s3ConfigParams)
-        .first();
+          .prepare(s3ConfigQuery)
+          .bind(...s3ConfigParams)
+          .first();
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "无效的S3配置ID或无权访问该配置"), ApiStatus.BAD_REQUEST);
@@ -424,15 +424,15 @@ export function registerS3UploadRoutes(app) {
       if (s3Config.total_storage_bytes !== null) {
         // 获取当前存储桶已使用的总容量（不包括当前待提交的文件）
         const usageResult = await db
-          .prepare(
-            `
+            .prepare(
+                `
             SELECT SUM(size) as total_used
             FROM ${DbTables.FILES}
             WHERE s3_config_id = ? AND id != ?
           `
-          )
-          .bind(file.s3_config_id, file.id)
-          .first();
+            )
+            .bind(file.s3_config_id, file.id)
+            .first();
 
         const currentUsage = usageResult?.total_used || 0;
         const fileSize = parseInt(body.size || 0);
@@ -459,11 +459,11 @@ export function registerS3UploadRoutes(app) {
           const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
 
           return c.json(
-            createErrorResponse(
-              ApiStatus.BAD_REQUEST,
-              `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。文件已被删除。`
-            ),
-            ApiStatus.BAD_REQUEST
+              createErrorResponse(
+                  ApiStatus.BAD_REQUEST,
+                  `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。文件已被删除。`
+              ),
+              ApiStatus.BAD_REQUEST
           );
         }
       }
@@ -507,8 +507,8 @@ export function registerS3UploadRoutes(app) {
 
       // 更新文件记录
       await db
-        .prepare(
-          `
+          .prepare(
+              `
         UPDATE ${DbTables.FILES}
         SET
           etag = ?,
@@ -521,19 +521,19 @@ export function registerS3UploadRoutes(app) {
           size = CASE WHEN ? IS NOT NULL THEN ? ELSE size END
         WHERE id = ?
       `
-        )
-        .bind(
-          body.etag || null, // 如果ETag为空，保存为null
-          creator,
-          remark,
-          passwordHash,
-          expiresAt,
-          maxViews,
-          fileSize !== null ? 1 : null, // 条件参数
-          fileSize, // 文件大小值
-          body.file_id
-        )
-        .run();
+          )
+          .bind(
+              body.etag || null, // 如果ETag为空，保存为null
+              creator,
+              remark,
+              passwordHash,
+              expiresAt,
+              maxViews,
+              fileSize !== null ? 1 : null, // 条件参数
+              fileSize, // 文件大小值
+              body.file_id
+          )
+          .run();
 
       // 处理明文密码保存
       if (body.password) {
@@ -546,9 +546,9 @@ export function registerS3UploadRoutes(app) {
         } else {
           // 插入新密码
           await db
-            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-            .bind(body.file_id, body.password)
-            .run();
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+              .bind(body.file_id, body.password)
+              .run();
         }
       }
 
@@ -562,8 +562,8 @@ export function registerS3UploadRoutes(app) {
 
       // 获取更新后的文件记录
       const updatedFile = await db
-        .prepare(
-          `
+          .prepare(
+              `
         SELECT 
           id, slug, filename, storage_path, s3_url, 
           mimetype, size, remark, 
@@ -571,9 +571,9 @@ export function registerS3UploadRoutes(app) {
         FROM ${DbTables.FILES}
         WHERE id = ?
       `
-        )
-        .bind(body.file_id)
-        .first();
+          )
+          .bind(body.file_id)
+          .first();
 
       // 返回成功响应
       return c.json({
@@ -642,9 +642,9 @@ export function registerS3UploadRoutes(app) {
       }
 
       const defaultConfig = await db
-        .prepare(defaultConfigQuery)
-        .bind(...params)
-        .first();
+          .prepare(defaultConfigQuery)
+          .bind(...params)
+          .first();
 
       if (defaultConfig) {
         s3ConfigId = defaultConfig.id;
@@ -705,8 +705,8 @@ export function registerS3UploadRoutes(app) {
       // 检查文件大小是否超过限制
       if (fileSize > maxUploadSizeBytes) {
         return c.json(
-          createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(fileSize)}`),
-          ApiStatus.BAD_REQUEST
+            createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(fileSize)}`),
+            ApiStatus.BAD_REQUEST
         );
       }
 
@@ -728,8 +728,8 @@ export function registerS3UploadRoutes(app) {
           const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
 
           return c.json(
-            createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
-            ApiStatus.BAD_REQUEST
+              createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
+              ApiStatus.BAD_REQUEST
           );
         }
       }
@@ -1011,8 +1011,8 @@ export function registerS3UploadRoutes(app) {
 
       // 保存文件记录到数据库
       await db
-        .prepare(
-          `INSERT INTO ${DbTables.FILES} (
+          .prepare(
+              `INSERT INTO ${DbTables.FILES} (
             id, slug, filename, storage_path, s3_url,
             s3_config_id, mimetype, size, etag,
             created_by, created_at, updated_at,
@@ -1025,32 +1025,32 @@ export function registerS3UploadRoutes(app) {
             ?, ?, ?, ?,
             ?
           )`
-        )
-        .bind(
-          fileId,
-          slug,
-          filename,
-          storagePath,
-          s3Url,
-          s3ConfigId,
-          contentType,
-          fileSize,
-          etag,
-          isAdmin ? userId : `apikey:${userId}`,
-          remark,
-          expiresAt,
-          maxViews > 0 ? maxViews : null,
-          useProxy,
-          passwordHash // 添加密码哈希作为新参数
-        )
-        .run();
+          )
+          .bind(
+              fileId,
+              slug,
+              filename,
+              storagePath,
+              s3Url,
+              s3ConfigId,
+              contentType,
+              fileSize,
+              etag,
+              isAdmin ? userId : `apikey:${userId}`,
+              remark,
+              expiresAt,
+              maxViews > 0 ? maxViews : null,
+              useProxy,
+              passwordHash // 添加密码哈希作为新参数
+          )
+          .run();
 
       // 如果设置了密码，保存明文密码记录
       if (password) {
         await db
-          .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-          .bind(fileId, password)
-          .run();
+            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+            .bind(fileId, password)
+            .run();
       }
 
       // 更新父目录的修改时间

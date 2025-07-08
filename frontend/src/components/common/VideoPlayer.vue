@@ -118,11 +118,23 @@ const getThemeColor = () => {
 };
 
 // 初始化 Artplayer
-const initArtplayer = () => {
+const initArtplayer = async () => {
   if (!artplayerContainer.value || !props.video?.url) return;
 
   // 销毁现有实例
   if (artplayerInstance.value) {
+    // 清理FLV播放器实例
+    if (artplayerInstance.value.flvPlayer) {
+      try {
+        artplayerInstance.value.flvPlayer.pause();
+        artplayerInstance.value.flvPlayer.unload();
+        artplayerInstance.value.flvPlayer.detachMediaElement();
+        artplayerInstance.value.flvPlayer.destroy();
+      } catch (error) {
+        console.warn("清理FLV播放器时出错:", error);
+      }
+    }
+
     artplayerInstance.value.destroy();
     artplayerInstance.value = null;
   }
@@ -198,9 +210,18 @@ const initArtplayer = () => {
     options.controls = [];
   }
 
+  // 🎯 检测并添加FLV支持
+  await addFLVSupport(options);
+
   try {
     // 创建 Artplayer 实例
     artplayerInstance.value = new Artplayer(options);
+
+    // 如果是FLV播放器，将flvPlayer实例从video元素转移到artplayerInstance
+    if (options.type === "flv" && artplayerInstance.value.video && artplayerInstance.value.video.flvPlayer) {
+      artplayerInstance.value.flvPlayer = artplayerInstance.value.video.flvPlayer;
+      console.log("🎬 FLV播放器实例已转移到Artplayer实例");
+    }
 
     // 绑定事件监听器
     bindEvents();
@@ -214,6 +235,140 @@ const initArtplayer = () => {
   } catch (error) {
     console.error("Artplayer 初始化失败:", error);
     emit("error", error);
+  }
+};
+
+// 🎯 添加FLV支持函数
+const addFLVSupport = async (options) => {
+  const videoUrl = props.video?.url || "";
+  const contentType = props.video?.contentType || props.video?.mimetype || "";
+  const fileName = props.video?.name || "";
+
+  // 检测是否为FLV格式
+  const isFLV = videoUrl.toLowerCase().includes(".flv") || contentType.includes("flv") || contentType === "video/x-flv" || fileName.toLowerCase().endsWith(".flv");
+
+  if (!isFLV) {
+    console.log("🎬 非FLV格式，使用默认播放器");
+    return;
+  }
+
+  console.log("🎬 检测到FLV格式，正在加载flv.js...");
+
+  try {
+    // 动态导入flv.js
+    const flvjs = await import("flv.js");
+
+    // 检查浏览器支持
+    if (!flvjs.default.isSupported()) {
+      console.warn("🎬 当前浏览器不支持FLV播放");
+      emit("error", {
+        type: "flv_not_supported",
+        message: "当前浏览器不支持FLV播放，请使用Chrome、Firefox或Edge浏览器",
+      });
+      return;
+    }
+
+    console.log("🎬 flv.js加载成功，配置FLV播放器...");
+
+    // 初始化customType对象
+    options.customType = options.customType || {};
+
+    // 配置FLV自定义类型
+    options.customType.flv = function (video, url) {
+      console.log("🎬 初始化FLV播放器，URL:", url);
+
+      const flvPlayer = flvjs.default.createPlayer(
+          {
+            type: "flv",
+            url: url,
+            isLive: false,
+            cors: true,
+            withCredentials: false,
+            hasAudio: true,
+            hasVideo: true,
+          },
+          {
+            enableWorker: false, // 🔧 禁用Web Worker避免Vite兼容性问题
+            enableStashBuffer: true, // 启用缓冲
+            stashInitialSize: 128, // 初始缓冲大小(KB)
+            autoCleanupSourceBuffer: true, // 自动清理缓冲
+            autoCleanupMaxBackwardDuration: 30, // 最大后向清理时长(秒)
+            autoCleanupMinBackwardDuration: 10, // 最小后向清理时长(秒)
+            fixAudioTimestampGap: true, // 修复音频时间戳间隙
+            accurateSeek: true, // 精确定位
+            seekType: "range", // 定位类型
+            lazyLoad: true, // 懒加载
+            lazyLoadMaxDuration: 3 * 60, // 懒加载最大时长(秒)
+            lazyLoadRecoverDuration: 30, // 懒加载恢复时长(秒)
+          }
+      );
+
+      // 绑定到video元素
+      flvPlayer.attachMediaElement(video);
+
+      // FLV播放器事件处理
+      flvPlayer.on("error", (errorType, errorDetail) => {
+        console.error("🎬 FLV播放错误:", errorType, errorDetail);
+
+        let errorMessage = "FLV播放出现错误";
+        switch (errorType) {
+          case "NetworkError":
+            errorMessage = "网络错误，无法加载FLV视频";
+            break;
+          case "MediaError":
+            errorMessage = "媒体解码错误，FLV格式可能不兼容";
+            break;
+          case "LoadError":
+            errorMessage = "加载错误，无法获取FLV视频数据";
+            break;
+          case "UnrecoverableEarlyEof":
+            errorMessage = "视频文件不完整或已损坏";
+            break;
+          default:
+            errorMessage = `FLV播放错误: ${errorDetail?.info || "未知错误"}`;
+        }
+
+        emit("error", {
+          type: "flv_error",
+          errorType,
+          errorDetail,
+          message: errorMessage,
+        });
+      });
+
+      flvPlayer.on("loading_complete", () => {
+        console.log("🎬 FLV加载完成");
+      });
+
+      flvPlayer.on("recovered_early_eof", () => {
+        console.log("🎬 FLV早期EOF恢复");
+      });
+
+      flvPlayer.on("media_info", (mediaInfo) => {
+        console.log("🎬 FLV媒体信息:", mediaInfo);
+      });
+
+      // 加载视频
+      flvPlayer.load();
+
+      // 存储flvPlayer实例以便后续清理
+      // 注意：此时artplayerInstance.value还未创建，需要在创建后再存储
+      video.flvPlayer = flvPlayer;
+
+      console.log("🎬 FLV播放器初始化完成");
+    };
+
+    // 设置URL类型为flv
+    options.type = "flv";
+
+    console.log("🎬 FLV支持配置完成");
+  } catch (error) {
+    console.error("🎬 加载flv.js失败:", error);
+    emit("error", {
+      type: "flv_load_error",
+      message: `加载FLV播放器失败: ${error.message}`,
+      originalError: error,
+    });
   }
 };
 
@@ -520,43 +675,43 @@ defineExpose({
 
 // 监听属性变化
 watch(
-  () => props.darkMode,
-  () => {
-    applyThemeStyles();
-  },
-  { immediate: false }
+    () => props.darkMode,
+    () => {
+      applyThemeStyles();
+    },
+    { immediate: false }
 );
 
 watch(
-  () => props.theme,
-  () => {
-    if (artplayerInstance.value) {
-      artplayerInstance.value.theme = getThemeColor();
+    () => props.theme,
+    () => {
+      if (artplayerInstance.value) {
+        artplayerInstance.value.theme = getThemeColor();
+      }
+      applyThemeStyles();
     }
-    applyThemeStyles();
-  }
 );
 
 watch(
-  () => [props.video, props.loop, props.volume, props.muted],
-  () => {
-    initArtplayer();
-  },
-  { deep: true }
+    () => [props.video, props.loop, props.volume, props.muted],
+    () => {
+      initArtplayer();
+    },
+    { deep: true }
 );
 
 watch(
-  () => props.volume,
-  (newVolume) => {
-    setVolume(newVolume);
-  }
+    () => props.volume,
+    (newVolume) => {
+      setVolume(newVolume);
+    }
 );
 
 watch(
-  () => props.muted,
-  (newMuted) => {
-    setMuted(newMuted);
-  }
+    () => props.muted,
+    (newMuted) => {
+      setMuted(newMuted);
+    }
 );
 
 // 生命周期
@@ -568,6 +723,21 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (artplayerInstance.value) {
+    // 清理FLV播放器实例
+    if (artplayerInstance.value.flvPlayer) {
+      try {
+        console.log("🧹 清理FLV播放器实例...");
+        artplayerInstance.value.flvPlayer.pause();
+        artplayerInstance.value.flvPlayer.unload();
+        artplayerInstance.value.flvPlayer.detachMediaElement();
+        artplayerInstance.value.flvPlayer.destroy();
+        console.log("🧹 FLV播放器清理完成");
+      } catch (error) {
+        console.warn("清理FLV播放器时出错:", error);
+      }
+    }
+
+    // 清理Artplayer实例
     artplayerInstance.value.destroy();
     artplayerInstance.value = null;
   }

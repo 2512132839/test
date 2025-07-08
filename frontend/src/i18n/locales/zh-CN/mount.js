@@ -33,6 +33,7 @@ export default {
     viewModes: {
       list: "列表视图",
       grid: "网格视图",
+      gallery: "图廊视图",
     },
     fileList: {
       loading: "加载中...",

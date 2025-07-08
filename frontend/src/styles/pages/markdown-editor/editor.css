@@ -1,0 +1,351 @@
+/* ===== Markdown编辑器静态样式 ===== */
+/* 注意：所有使用v-bind()的动态样式都保留在MarkdownEditorView.vue组件内 */
+
+/* ===== 编辑器容器基础样式 ===== */
+.editor-container {
+  min-height: 700px;
+  box-sizing: border-box;
+}
+
+/* ===== 页面头部样式 ===== */
+.header {
+  margin-bottom: 1rem;
+  border-bottom-width: 1px;
+  padding-bottom: 0.5rem;
+}
+
+/* ===== Vditor编辑器基础样式 ===== */
+:deep(.vditor) {
+  border: 1px solid;
+  border-radius: 0.375rem;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+/* ===== 工具栏基础样式 ===== */
+:deep(.vditor-toolbar) {
+  border-bottom-width: 1px;
+  transition: background-color 0.2s;
+  z-index: 10;
+}
+
+/* ===== 编辑器文本基础样式 ===== */
+:deep(.vditor-reset),
+:deep(.vditor-sv),
+:deep(.vditor-ir),
+:deep(.vditor-wysiwyg) {
+  font-size: 16px;
+  line-height: 1.6;
+  tab-size: 4;
+  -moz-tab-size: 4;
+}
+
+/* ===== 表格基础样式 ===== */
+:deep(.vditor-ir table),
+:deep(.vditor-preview table),
+:deep(.vditor-wysiwyg table) {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  width: 100%;
+}
+
+:deep(.vditor-ir th),
+:deep(.vditor-preview th),
+:deep(.vditor-wysiwyg th) {
+  padding: 8px 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+:deep(.vditor-ir td),
+:deep(.vditor-preview td),
+:deep(.vditor-wysiwyg td) {
+  padding: 8px 12px;
+}
+
+/* ===== 列表样式 ===== */
+:deep(.vditor-reset ol),
+:deep(.vditor-ir ol),
+:deep(.vditor-wysiwyg ol) {
+  list-style-type: decimal;
+  padding-left: 2em;
+}
+
+:deep(.vditor-reset ol ol),
+:deep(.vditor-ir ol ol),
+:deep(.vditor-wysiwyg ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-reset ol ol ol),
+:deep(.vditor-ir ol ol ol),
+:deep(.vditor-wysiwyg ol ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-reset ul),
+:deep(.vditor-ir ul),
+:deep(.vditor-wysiwyg ul) {
+  list-style-type: disc;
+  padding-left: 2em;
+}
+
+:deep(.vditor-reset ul ul),
+:deep(.vditor-ir ul ul),
+:deep(.vditor-wysiwyg ul ul) {
+  list-style-type: circle;
+}
+
+:deep(.vditor-reset ul ul ul),
+:deep(.vditor-ir ul ul ul),
+:deep(.vditor-wysiwyg ul ul ul) {
+  list-style-type: square;
+}
+
+/* ===== 预览区域基础样式 ===== */
+:deep(.vditor-preview ol) {
+  list-style-type: decimal;
+  padding-left: 2em;
+}
+
+:deep(.vditor-preview ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-preview ol ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-preview ul) {
+  list-style-type: disc;
+  padding-left: 2em;
+}
+
+:deep(.vditor-preview ul ul) {
+  list-style-type: circle;
+}
+
+:deep(.vditor-preview ul ul ul) {
+  list-style-type: square;
+}
+
+:deep(.vditor-preview h1, .vditor-preview h2) {
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+
+:deep(.vditor-preview blockquote) {
+  border-left-width: 4px;
+  border-left-style: solid;
+  padding-left: 1rem;
+  margin: 1rem 0;
+}
+
+:deep(.vditor-preview code:not(.hljs)) {
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+/* ===== 大纲基础样式 ===== */
+:deep(.vditor-outline) {
+  border-right-width: 1px;
+  border-right-style: solid;
+}
+
+:deep(.vditor-outline__item) {
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+/* ===== 拖动区域样式 ===== */
+:deep(.vditor-resize) {
+  padding: 3px 0;
+  cursor: row-resize;
+  user-select: none;
+  position: absolute;
+  width: 100%;
+  z-index: 20;
+  transition: none;
+}
+
+:deep(.vditor-resize > div) {
+  height: 3px;
+  border-radius: 3px;
+  transition: background-color 0.15s;
+}
+
+/* ===== 表单样式 ===== */
+.editor-form {
+  margin-top: 1rem;
+  border-top-width: 1px;
+  padding-top: 0.75rem;
+  width: 100%;
+  overflow: hidden;
+}
+
+.form-input {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.5rem;
+  border-width: 1px;
+  border-radius: 0.375rem;
+  transition: all 0.2s;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+/* ===== 提交区域样式 ===== */
+.submit-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.saving-status {
+  margin-left: auto;
+  font-size: 0.875rem;
+}
+
+/* ===== 按钮样式 ===== */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  color: white;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ===== 动画样式 ===== */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mt-4 {
+  animation: slideDown 0.25s ease-out;
+}
+
+/* ===== 分享链接样式 ===== */
+.share-link-box {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.link-text {
+  text-decoration: none;
+  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-text:hover {
+  text-decoration: underline;
+}
+
+/* ===== 复制格式菜单样式 ===== */
+#copyFormatMenu {
+  min-width: 180px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+  transform-origin: top left;
+}
+
+#copyFormatMenu div {
+  transition: background-color 0.15s ease-in-out;
+}
+
+/* ===== 编辑器包装器样式 ===== */
+.editor-wrapper {
+  width: 100%;
+}
+
+.editor-wrapper textarea {
+  resize: vertical;
+  min-height: 400px;
+  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+  line-height: 1.6;
+  tab-size: 4;
+  -moz-tab-size: 4;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.editor-wrapper textarea:focus {
+  outline: none;
+}
+
+.editor-wrapper textarea.bg-gray-800 {
+  color: #d4d4d4;
+}
+
+/* ===== 移动端响应式样式 ===== */
+@media (max-width: 640px) {
+  .editor-container {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  :deep(.vditor) {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  :deep(.vditor-toolbar) {
+    overflow-x: auto;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  :deep(.vditor-toolbar__item) {
+    margin-bottom: 4px;
+  }
+
+  .form-input,
+  .form-label {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .form-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .share-link-box {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+}
