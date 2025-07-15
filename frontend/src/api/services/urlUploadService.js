@@ -13,11 +13,7 @@ import { getFullApiUrl } from "../config";
  * @returns {Promise<Object>} 包含文件元信息的响应
  */
 export async function validateUrlInfo(url) {
-  try {
-    return await post("url/info", { url });
-  } catch (error) {
-    throw new Error(`验证URL失败: ${error.message}`);
-  }
+  return await post("url/info", { url });
 }
 
 /**
@@ -26,8 +22,8 @@ export async function validateUrlInfo(url) {
  * @returns {string} 代理URL
  */
 export function getProxyUrl(url) {
-  const encodedUrl = encodeURIComponent(url);
-  return getFullApiUrl(`url/proxy?url=${encodedUrl}`);
+  const params = new URLSearchParams({ url });
+  return getFullApiUrl(`url/proxy?${params.toString()}`);
 }
 
 /**
@@ -402,15 +398,15 @@ export class S3MultipartUploader {
           activeUploads.add(uploadPromise);
 
           uploadPromise
-            .then(() => {
-              activeUploads.delete(uploadPromise);
-              processNext();
-            })
-            .catch((error) => {
-              activeUploads.delete(uploadPromise);
-              this.onError(error, part.partNumber);
-              reject(error);
-            });
+              .then(() => {
+                activeUploads.delete(uploadPromise);
+                processNext();
+              })
+              .catch((error) => {
+                activeUploads.delete(uploadPromise);
+                this.onError(error, part.partNumber);
+                reject(error);
+              });
 
           // 继续处理下一个
           processNext();

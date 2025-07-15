@@ -16,6 +16,7 @@ import * as mountService from "./services/mountService";
 import * as systemService from "./services/systemService";
 import * as urlUploadService from "./services/urlUploadService";
 import * as fsService from "./services/fsService";
+import * as previewService from "./services/previewService";
 
 // 统一服务导出 - 按功能模块重新组织
 export const api = {
@@ -27,6 +28,9 @@ export const api = {
 
   // 文件管理相关
   file: fileService,
+
+  // 文件预览相关
+  preview: previewService,
 
   // 存储配置相关
   storage: storageService,

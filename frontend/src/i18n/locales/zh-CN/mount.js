@@ -73,6 +73,7 @@ export default {
       fileUploadFailedUnknown: "文件上传失败: {message}",
       uploadCancelling: "正在取消上传...",
       folderCreateSuccess: "文件夹创建成功",
+      createFolderSuccess: "文件夹创建成功",
       folderCreateFailed: "文件夹创建失败: {message}",
       folderCreateFailedUnknown: "文件夹创建失败: {message}",
       renameSuccess: "{type}重命名成功",

@@ -17,7 +17,7 @@ import { API_BASE_URL } from "../config";
  * @returns {Promise<Object>} 目录列表响应对象
  */
 export async function getAdminDirectoryList(path) {
-  return get(`/admin/fs/list?path=${encodeURIComponent(path)}`);
+  return get("/admin/fs/list", { params: { path } });
 }
 
 /**
@@ -26,7 +26,7 @@ export async function getAdminDirectoryList(path) {
  * @returns {Promise<Object>} 文件信息响应对象
  */
 export async function getAdminFileInfo(path) {
-  return get(`/admin/fs/get?path=${encodeURIComponent(path)}`);
+  return get("/admin/fs/get", { params: { path } });
 }
 
 /**
@@ -41,22 +41,22 @@ export async function getAdminFileInfo(path) {
  * @returns {Promise<Object>} 搜索结果响应对象
  */
 export async function searchAdminFiles(query, searchParams = {}) {
-  const params = new URLSearchParams({
+  const params = {
     q: query,
     scope: searchParams.scope || "global",
     limit: (searchParams.limit || 50).toString(),
     offset: (searchParams.offset || 0).toString(),
-  });
+  };
 
   // 添加可选参数
   if (searchParams.mountId) {
-    params.append("mount_id", searchParams.mountId);
+    params.mount_id = searchParams.mountId;
   }
   if (searchParams.path) {
-    params.append("path", searchParams.path);
+    params.path = searchParams.path;
   }
 
-  return get(`/admin/fs/search?${params.toString()}`);
+  return get("/admin/fs/search", { params });
 }
 
 /**
@@ -100,7 +100,8 @@ export async function uploadAdminFile(path, file, useMultipart = true, onXhrCrea
  * @returns {Promise<Object>} 删除结果响应对象
  */
 export async function deleteAdminItem(path) {
-  return del(`/admin/fs/remove?path=${encodeURIComponent(path)}`);
+  const params = new URLSearchParams({ path });
+  return del(`/admin/fs/remove?${params.toString()}`);
 }
 
 /**
@@ -140,17 +141,17 @@ export async function updateAdminFile(path, content) {
  * @returns {Promise<Object>} 包含预签名URL的响应对象
  */
 export async function getAdminFileLink(path, expiresIn = null, forceDownload = false) {
-  const params = new URLSearchParams({
+  const params = {
     path: path,
     force_download: forceDownload.toString(),
-  });
+  };
 
   // 只有当expiresIn不为null时才添加expires_in参数
   if (expiresIn !== null) {
-    params.append("expires_in", expiresIn.toString());
+    params.expires_in = expiresIn.toString();
   }
 
-  return get(`/admin/fs/file-link?${params.toString()}`);
+  return get("/admin/fs/file-link", { params });
 }
 
 /**
@@ -307,7 +308,7 @@ export async function commitAdminBatchCopy(data) {
  * @returns {Promise<Object>} 目录列表响应对象
  */
 export async function getUserDirectoryList(path) {
-  return get(`/user/fs/list?path=${encodeURIComponent(path)}`);
+  return get("/user/fs/list", { params: { path } });
 }
 
 /**
@@ -316,7 +317,7 @@ export async function getUserDirectoryList(path) {
  * @returns {Promise<Object>} 文件信息响应对象
  */
 export async function getUserFileInfo(path) {
-  return get(`/user/fs/get?path=${encodeURIComponent(path)}`);
+  return get("/user/fs/get", { params: { path } });
 }
 
 /**
@@ -331,22 +332,22 @@ export async function getUserFileInfo(path) {
  * @returns {Promise<Object>} 搜索结果响应对象
  */
 export async function searchUserFiles(query, searchParams = {}) {
-  const params = new URLSearchParams({
+  const params = {
     q: query,
     scope: searchParams.scope || "global",
     limit: (searchParams.limit || 50).toString(),
     offset: (searchParams.offset || 0).toString(),
-  });
+  };
 
   // 添加可选参数
   if (searchParams.mountId) {
-    params.append("mount_id", searchParams.mountId);
+    params.mount_id = searchParams.mountId;
   }
   if (searchParams.path) {
-    params.append("path", searchParams.path);
+    params.path = searchParams.path;
   }
 
-  return get(`/user/fs/search?${params.toString()}`);
+  return get("/user/fs/search", { params });
 }
 
 /**
@@ -390,7 +391,8 @@ export async function uploadUserFile(path, file, useMultipart = true, onXhrCreat
  * @returns {Promise<Object>} 删除结果响应对象
  */
 export async function deleteUserItem(path) {
-  return del(`/user/fs/remove?path=${encodeURIComponent(path)}`);
+  const params = new URLSearchParams({ path });
+  return del(`/user/fs/remove?${params.toString()}`);
 }
 
 /**
@@ -430,17 +432,17 @@ export async function updateUserFile(path, content) {
  * @returns {Promise<Object>} 包含预签名URL的响应对象
  */
 export async function getUserFileLink(path, expiresIn = null, forceDownload = false) {
-  const params = new URLSearchParams({
+  const params = {
     path: path,
     force_download: forceDownload.toString(),
-  });
+  };
 
   // 只有当expiresIn不为null时才添加expires_in参数
   if (expiresIn !== null) {
-    params.append("expires_in", expiresIn.toString());
+    params.expires_in = expiresIn.toString();
   }
 
-  return get(`/user/fs/file-link?${params.toString()}`);
+  return get("/user/fs/file-link", { params });
 }
 
 /**
@@ -1120,7 +1122,7 @@ export async function performClientSideCopy(options) {
         console.log(`下载源文件: ${singleFileCopy.fileName || "未知文件"}`);
         const fileContent = await fetchFileContent({
           url: singleFileCopy.downloadUrl,
-          onProgress: (progress, loaded, total, phase) => {
+          onProgress: (progress, loaded, total) => {
             if (onProgress) {
               // 下载阶段提供更详细的进度信息
               onProgress("downloading", progress, {
@@ -1142,7 +1144,7 @@ export async function performClientSideCopy(options) {
           url: singleFileCopy.uploadUrl,
           data: fileContent,
           contentType: singleFileCopy.contentType || "application/octet-stream",
-          onProgress: (progress, loaded, total, phase) => {
+          onProgress: (progress, loaded, total) => {
             if (onProgress) {
               // 上传阶段提供更详细的进度信息
               onProgress("uploading", progress, {
@@ -1206,7 +1208,7 @@ export async function performClientSideCopy(options) {
       console.log(`下载源文件: ${copyResult.fileName || "未知文件"}`);
       const fileContent = await fetchFileContent({
         url: copyResult.downloadUrl,
-        onProgress: (progress, loaded, total, phase) => {
+        onProgress: (progress, loaded, total) => {
           if (onProgress) {
             // 下载阶段提供更详细的进度信息
             onProgress("downloading", progress, {
@@ -1228,7 +1230,7 @@ export async function performClientSideCopy(options) {
         url: copyResult.uploadUrl,
         data: fileContent,
         contentType: copyResult.contentType || "application/octet-stream",
-        onProgress: (progress, loaded, total, phase) => {
+        onProgress: (progress, loaded, total) => {
           if (onProgress) {
             // 上传阶段提供更详细的进度信息
             onProgress("uploading", progress, {

@@ -161,7 +161,7 @@
 <script setup>
 import { computed, ref, defineProps, onMounted, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { getFullApiUrl } from "../../api/config.js";
+import { api } from "../../api/index.js";
 
 const { t } = useI18n();
 import {
@@ -549,17 +549,10 @@ const getOfficeDirectUrlForPreview = async () => {
   if (!props.fileInfo.slug) return null;
 
   try {
-    // 使用 getFullApiUrl 构建API请求URL后端域名
-    let apiUrl = getFullApiUrl(`office-preview/${props.fileInfo.slug}`);
-
     // 获取可能的密码
     const filePassword = getFilePassword();
 
-    // 只要有密码，就添加到请求中，不再依赖requires_password标志
-    if (filePassword) {
-      apiUrl += `?password=${encodeURIComponent(filePassword)}`;
-      console.log("正在将密码添加到Office预览请求", { passwordLength: filePassword.length });
-    } else if (props.fileInfo.password) {
+    if (!filePassword && props.fileInfo.password) {
       // 如果文件确实需要密码但我们没有获取到，记录日志
       console.warn("文件需要密码，但无法获取到密码", {
         hasCurrentPassword: !!props.fileInfo.currentPassword,
@@ -568,24 +561,16 @@ const getOfficeDirectUrlForPreview = async () => {
       });
     }
 
-    // 发送请求获取直接URL
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("获取Office直接URL失败:", errorData.error || response.statusText, {
-        status: response.status,
-        fileRequiresPassword: !!props.fileInfo.password,
-        passwordProvided: !!filePassword,
-      });
-      officePreviewError.value = `获取预览失败: ${errorData.error || "服务器错误"}`;
-      return null;
-    }
+    console.log("正在获取Office直接URL", { slug: props.fileInfo.slug, hasPassword: !!filePassword });
 
-    // 解析响应
-    const data = await response.json();
+    // 使用统一的预览服务获取所有预览URL
+    const previewUrls = await api.preview.getOfficePreviewUrl(props.fileInfo.slug, {
+      password: filePassword,
+      returnAll: true,
+    });
 
     // 缓存获取的直接URL
-    officeDirectUrl.value = data.url;
+    officeDirectUrl.value = previewUrls.directUrl;
 
     // 确保密码被保存到会话存储中以便后续使用
     if (filePassword && props.fileInfo.slug) {
@@ -596,7 +581,7 @@ const getOfficeDirectUrlForPreview = async () => {
       }
     }
 
-    return data.url;
+    return previewUrls.directUrl;
   } catch (error) {
     console.error("获取Office直接URL出错:", error);
     officePreviewError.value = `获取预览失败: ${error.message || "未知错误"}`;
@@ -636,20 +621,18 @@ const updateOfficePreviewUrls = async () => {
       const directUrl = await getOfficeDirectUrlForPreview();
 
       if (directUrl) {
-        // 确保URL是完整的绝对URL
-        const encodedUrl = encodeURIComponent(directUrl);
-        const microsoftUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
-        const googleUrl = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
+        // 使用统一的预览服务
+        const previewUrls = await api.preview.getOfficePreviewUrl({ directUrl }, { returnAll: true });
 
-        microsoftOfficePreviewUrl.value = microsoftUrl;
-        googleDocsPreviewUrl.value = googleUrl;
+        microsoftOfficePreviewUrl.value = previewUrls.microsoft;
+        googleDocsPreviewUrl.value = previewUrls.google;
 
         // 缓存URL（代理模式的URL有时效性，缓存时间较短 - 10分钟）
         officePreviewCache.set(
             cacheKey,
             {
-              microsoft: microsoftUrl,
-              google: googleUrl,
+              microsoft: previewUrls.microsoft,
+              google: previewUrls.google,
             },
             10 * 60 * 1000
         );
@@ -676,20 +659,18 @@ const updateOfficePreviewUrls = async () => {
         url = url.startsWith("/") ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
       }
 
-      // 使用encodeURIComponent对URL进行编码，确保安全
-      const encodedUrl = encodeURIComponent(url);
-      const microsoftUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encodedUrl}`;
-      const googleUrl = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
+      // 使用统一的预览服务
+      const previewUrls = await api.preview.getOfficePreviewUrl({ directUrl: url }, { returnAll: true });
 
-      microsoftOfficePreviewUrl.value = microsoftUrl;
-      googleDocsPreviewUrl.value = googleUrl;
+      microsoftOfficePreviewUrl.value = previewUrls.microsoft;
+      googleDocsPreviewUrl.value = previewUrls.google;
 
       // 缓存URL（直链模式的URL相对稳定，可以缓存更长时间 - 30分钟）
       officePreviewCache.set(
           cacheKey,
           {
-            microsoft: microsoftUrl,
-            google: googleUrl,
+            microsoft: previewUrls.microsoft,
+            google: previewUrls.google,
           },
           30 * 60 * 1000
       );

@@ -70,6 +70,7 @@ export default {
       fileUploadFailedUnknown: "File upload failed: {message}",
       uploadCancelling: "Cancelling upload...",
       folderCreateSuccess: "Folder created successfully",
+      createFolderSuccess: "Folder created successfully",
       folderCreateFailed: "Folder creation failed: {message}",
       folderCreateFailedUnknown: "Folder creation failed: {message}",
       renameSuccess: "{type} renamed successfully",
