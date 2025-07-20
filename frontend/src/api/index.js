@@ -44,10 +44,9 @@ export const api = {
   // URL上传相关
   urlUpload: urlUploadService,
 
-  // 文件系统相关
+  // 文件系统相关 - 统一API，自动根据认证信息处理用户类型
   fs: {
     ...fsService,
-    getUserTypeApi: fsService.getFsApiByUserType,
   },
 
   // 兼容性导出 - 保持向后兼容
@@ -88,22 +87,20 @@ export const api = {
     getCacheStats: systemService.getCacheStats,
     clearCache: systemService.clearCacheAdmin,
 
-    // 文件系统管理
-    getDirectoryList: fsService.getAdminDirectoryList,
-    getFileInfo: fsService.getAdminFileInfo,
-    getFileDownloadUrl: fsService.getAdminFileDownloadUrl,
-    getFileLink: fsService.getAdminFileLink,
-    createDirectory: fsService.createAdminDirectory,
-    uploadFile: fsService.uploadAdminFile,
-    deleteItem: fsService.deleteAdminItem,
-    batchDeleteItems: fsService.batchDeleteAdminItems,
-    renameItem: fsService.renameAdminItem,
-    updateFile: fsService.updateAdminFile,
+    // 文件系统管理 - 使用统一API
+    getDirectoryList: fsService.getDirectoryList,
+    getFileInfo: fsService.getFileInfo,
+    getFileDownloadUrl: fsService.getFileDownloadUrl,
+    getFileLink: fsService.getFileLink,
+    createDirectory: fsService.createDirectory,
+    uploadFile: fsService.uploadFile,
+    deleteItem: fsService.deleteItem,
+    batchDeleteItems: fsService.batchDeleteItems,
+    renameItem: fsService.renameItem,
+    updateFile: fsService.updateFile,
     // 复制相关
-    copyItem: fsService.copyAdminItem,
-    batchCopyItems: fsService.batchCopyAdminItems,
-    commitBatchCopy: fsService.commitAdminBatchCopy,
-    commitCopy: fsService.commitAdminCopy,
+    batchCopyItems: fsService.batchCopyItems,
+    commitBatchCopy: fsService.commitBatchCopy,
   },
 
   file: {
@@ -171,23 +168,21 @@ export const api = {
       getMountById: mountService.getUserMountById,
     },
 
-    // API密钥用户的文件系统服务
+    // API密钥用户的文件系统服务 - 使用统一API
     fs: {
-      getDirectoryList: fsService.getUserDirectoryList,
-      getFileInfo: fsService.getUserFileInfo,
-      getFileDownloadUrl: fsService.getUserFileDownloadUrl,
-      getFileLink: fsService.getUserFileLink,
-      createDirectory: fsService.createUserDirectory,
-      uploadFile: fsService.uploadUserFile,
-      deleteItem: fsService.deleteUserItem,
-      batchDeleteItems: fsService.batchDeleteUserItems,
-      renameItem: fsService.renameUserItem,
-      updateFile: fsService.updateUserFile,
+      getDirectoryList: fsService.getDirectoryList,
+      getFileInfo: fsService.getFileInfo,
+      getFileDownloadUrl: fsService.getFileDownloadUrl,
+      getFileLink: fsService.getFileLink,
+      createDirectory: fsService.createDirectory,
+      uploadFile: fsService.uploadFile,
+      deleteItem: fsService.deleteItem,
+      batchDeleteItems: fsService.batchDeleteItems,
+      renameItem: fsService.renameItem,
+      updateFile: fsService.updateFile,
       // 复制相关
-      copyItem: fsService.copyUserItem,
-      batchCopyItems: fsService.batchCopyUserItems,
-      commitBatchCopy: fsService.commitUserBatchCopy,
-      commitCopy: fsService.commitUserCopy,
+      batchCopyItems: fsService.batchCopyItems,
+      commitBatchCopy: fsService.commitBatchCopy,
     },
 
     // API密钥用户的URL上传服务

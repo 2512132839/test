@@ -140,9 +140,9 @@ const handleApiKeyLogin = async () => {
 
           <div>
             <button
-                type="submit"
-                :disabled="loading"
-                :class="[
+              type="submit"
+              :disabled="loading"
+              :class="[
                 'flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
                 loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-500',
                 darkMode ? 'bg-primary-600 focus-visible:outline-primary-500' : 'bg-primary-600 focus-visible:outline-primary-600',
@@ -181,9 +181,9 @@ const handleApiKeyLogin = async () => {
 
           <div>
             <button
-                type="submit"
-                :disabled="loading"
-                :class="[
+              type="submit"
+              :disabled="loading"
+              :class="[
                 'flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
                 loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-500',
                 darkMode ? 'bg-primary-600 focus-visible:outline-primary-500' : 'bg-primary-600 focus-visible:outline-primary-600',
@@ -197,9 +197,9 @@ const handleApiKeyLogin = async () => {
 
         <div class="mt-6 text-center">
           <button
-              @click="toggleLoginMode"
-              class="text-sm transition-colors duration-200"
-              :class="darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-500'"
+            @click="toggleLoginMode"
+            class="text-sm transition-colors duration-200"
+            :class="darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-500'"
           >
             {{ isApiKeyMode ? $t("admin.login.useAdminAccount") : $t("admin.login.useApiKey") }}
           </button>

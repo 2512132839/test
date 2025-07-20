@@ -1,18 +1,16 @@
 /**
  * 文件操作 Composable
- * 处理文件操作相关的UI逻辑，直接使用 authStore
+ * 处理文件操作相关的UI逻辑，使用统一的文件系统API
  */
 
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../../api/index.js";
-import { useAuthStore } from "../../stores/authStore.js";
 import { downloadFileWithAuth } from "../../utils/fileUtils.js";
 import { copyToClipboard } from "../../utils/clipboard.js";
 
 export function useFileOperations() {
   const { t } = useI18n();
-  const authStore = useAuthStore();
 
   // 操作状态
   const loading = ref(false);
@@ -59,7 +57,7 @@ export function useFileOperations() {
       }
 
       // 如果没有download_url，尝试通过API获取下载链接
-      const getFileInfo = authStore.isAdmin ? api.fs.getAdminFileInfo : api.fs.getUserFileInfo;
+      const getFileInfo = api.fs.getFileInfo;
       const response = await getFileInfo(item.path);
 
       if (response.success && response.data?.download_url) {
@@ -96,7 +94,7 @@ export function useFileOperations() {
       loading.value = true;
       error.value = null;
 
-      const deleteItemApi = authStore.isAdmin ? api.fs.deleteAdminItem : api.fs.deleteUserItem;
+      const deleteItemApi = api.fs.deleteItem;
       const response = await deleteItemApi(path);
 
       if (response.success) {
@@ -124,7 +122,7 @@ export function useFileOperations() {
       loading.value = true;
       error.value = null;
 
-      const renameItemApi = authStore.isAdmin ? api.fs.renameAdminItem : api.fs.renameUserItem;
+      const renameItemApi = api.fs.renameItem;
       const response = await renameItemApi(oldPath, newPath);
 
       if (response.success) {
@@ -155,7 +153,7 @@ export function useFileOperations() {
       // 构造完整路径，确保目录路径以 / 结尾
       const fullPath = parentPath.endsWith("/") ? `${parentPath}${folderName}/` : `${parentPath}/${folderName}/`;
 
-      const createFolderApi = authStore.isAdmin ? api.fs.createAdminDirectory : api.fs.createUserDirectory;
+      const createFolderApi = api.fs.createDirectory;
       const response = await createFolderApi(fullPath);
 
       if (response.success) {
@@ -186,7 +184,7 @@ export function useFileOperations() {
       loading.value = true;
       error.value = null;
 
-      const deleteItemApi = authStore.isAdmin ? api.fs.deleteAdminItem : api.fs.deleteUserItem;
+      const deleteItemApi = api.fs.deleteItem;
 
       // 逐个删除项目
       const promises = items.map((item) => deleteItemApi(item.path));
@@ -227,8 +225,8 @@ export function useFileOperations() {
       loading.value = true;
       error.value = null;
 
-      // 根据用户类型选择API函数
-      const getFileLinkApi = authStore.isAdmin ? api.admin.getFileLink : api.user.fs.getFileLink;
+      // 使用统一API函数
+      const getFileLinkApi = api.fs.getFileLink;
 
       // 调用API获取直链
       const response = await getFileLinkApi(item.path, expiresIn, forceDownload);

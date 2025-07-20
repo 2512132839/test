@@ -86,8 +86,8 @@ export const useFileSystemStore = defineStore("fileSystem", () => {
       currentLoadingPath.value = normalizedPath;
       error.value = null;
 
-      // 根据用户类型选择API函数
-      const getDirectoryList = authStore.isAdmin ? api.fs.getAdminDirectoryList : api.fs.getUserDirectoryList;
+      // 使用统一API函数
+      const getDirectoryList = api.fs.getDirectoryList;
 
       // 调用API获取目录内容
       const response = await getDirectoryList(normalizedPath);

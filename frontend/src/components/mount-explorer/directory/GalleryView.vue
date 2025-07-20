@@ -16,10 +16,10 @@
               <!-- 图廊图标 -->
               <svg class="w-5 h-5" :class="darkMode ? 'text-blue-400' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                 />
               </svg>
               <span class="font-medium text-sm" :class="darkMode ? 'text-gray-200' : 'text-gray-900'">
@@ -41,9 +41,9 @@
             <!-- 排序按钮 -->
             <div class="relative">
               <button
-                  @click="toggleSortMenu"
-                  class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors"
-                  :class="darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-700'"
+                @click="toggleSortMenu"
+                class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors"
+                :class="darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-700'"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
@@ -56,17 +56,17 @@
 
               <!-- 排序菜单 -->
               <div
-                  v-if="showSortMenu"
-                  class="absolute right-0 top-full mt-1 w-48 rounded-md shadow-lg z-[9999]"
-                  :class="darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
+                v-if="showSortMenu"
+                class="absolute right-0 top-full mt-1 w-48 rounded-md shadow-lg z-[9999]"
+                :class="darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
               >
                 <div class="py-1">
                   <button
-                      v-for="option in sortOptions"
-                      :key="option.value"
-                      @click="handleSortChange(option.value)"
-                      class="w-full text-left px-3 py-2 text-sm transition-colors"
-                      :class="[
+                    v-for="option in sortOptions"
+                    :key="option.value"
+                    @click="handleSortChange(option.value)"
+                    class="w-full text-left px-3 py-2 text-sm transition-colors"
+                    :class="[
                       sortBy === option.value
                         ? darkMode
                           ? 'bg-gray-700 text-white'
@@ -84,16 +84,16 @@
 
             <!-- 视图设置按钮 -->
             <button
-                @click="toggleViewSettings"
-                class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors"
-                :class="darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-700'"
+              @click="toggleViewSettings"
+              class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-700'"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4"
                 />
               </svg>
               <span class="hidden sm:inline">{{ t("gallery.settings") }}</span>
@@ -113,9 +113,9 @@
             <div class="flex items-center gap-2">
               <!-- 自动按钮 -->
               <button
-                  @click="columnCount = 'auto'"
-                  class="px-3 py-1.5 text-xs rounded-md transition-colors"
-                  :class="[
+                @click="columnCount = 'auto'"
+                class="px-3 py-1.5 text-xs rounded-md transition-colors"
+                :class="[
                   columnCount === 'auto'
                     ? darkMode
                       ? 'bg-blue-600 text-white'
@@ -131,11 +131,11 @@
               <!-- 列数按钮组 -->
               <div class="flex rounded-md overflow-hidden border" :class="darkMode ? 'border-gray-600' : 'border-gray-300'">
                 <button
-                    v-for="cols in [2, 3, 4, 5, 6]"
-                    :key="cols"
-                    @click="columnCount = cols.toString()"
-                    class="px-2 py-1.5 text-xs transition-colors"
-                    :class="[
+                  v-for="cols in [2, 3, 4, 5, 6]"
+                  :key="cols"
+                  @click="columnCount = cols.toString()"
+                  class="px-2 py-1.5 text-xs transition-colors"
+                  :class="[
                     columnCount === cols.toString()
                       ? darkMode
                         ? 'bg-gray-700 text-white'
@@ -158,10 +158,10 @@
                 {{ t("gallery.spacing") }}
               </label>
               <button
-                  @click="resetGallerySettings"
-                  :disabled="isDefaultSettings"
-                  class="text-xs px-2 py-1 rounded transition-colors"
-                  :class="[
+                @click="resetGallerySettings"
+                :disabled="isDefaultSettings"
+                class="text-xs px-2 py-1 rounded transition-colors"
+                :class="[
                   isDefaultSettings
                     ? darkMode
                       ? 'text-gray-600 cursor-not-allowed'
@@ -170,7 +170,7 @@
                     ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700'
                     : 'text-gray-600 hover:text-gray-700 hover:bg-gray-100',
                 ]"
-                  :title="isDefaultSettings ? t('gallery.alreadyDefault') : t('gallery.resetSettings')"
+                :title="isDefaultSettings ? t('gallery.alreadyDefault') : t('gallery.resetSettings')"
               >
                 {{ t("gallery.reset") }}
               </button>
@@ -188,13 +188,13 @@
                 </div>
                 <div class="relative">
                   <input
-                      v-model.number="horizontalGap"
-                      type="range"
-                      min="0"
-                      max="48"
-                      step="2"
-                      class="w-full h-2 rounded-lg appearance-none cursor-pointer spacing-slider horizontal-slider"
-                      :class="darkMode ? 'bg-gray-700' : 'bg-gray-200'"
+                    v-model.number="horizontalGap"
+                    type="range"
+                    min="0"
+                    max="48"
+                    step="2"
+                    class="w-full h-2 rounded-lg appearance-none cursor-pointer spacing-slider horizontal-slider"
+                    :class="darkMode ? 'bg-gray-700' : 'bg-gray-200'"
                   />
                   <div class="flex justify-between text-xs mt-1" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">
                     <span>{{ t("gallery.tight") }}</span>
@@ -213,13 +213,13 @@
                 </div>
                 <div class="relative">
                   <input
-                      v-model.number="verticalGap"
-                      type="range"
-                      min="0"
-                      max="48"
-                      step="2"
-                      class="w-full h-2 rounded-lg appearance-none cursor-pointer spacing-slider vertical-slider"
-                      :class="darkMode ? 'bg-gray-700' : 'bg-gray-200'"
+                    v-model.number="verticalGap"
+                    type="range"
+                    min="0"
+                    max="48"
+                    step="2"
+                    class="w-full h-2 rounded-lg appearance-none cursor-pointer spacing-slider vertical-slider"
+                    :class="darkMode ? 'bg-gray-700' : 'bg-gray-200'"
                   />
                   <div class="flex justify-between text-xs mt-1" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">
                     <span>{{ t("gallery.tight") }}</span>
@@ -235,15 +235,15 @@
 
     <!-- 瀑布流容器 -->
     <MasonryWall
-        v-if="allImages.length > 0"
-        :items="masonryItems"
-        :column-width="columnWidth"
-        :gap="baseGap"
-        :min-columns="minColumns"
-        :max-columns="maxColumns"
-        :ssr-columns="1"
-        :key-mapper="(item, column, row, index) => item.id || index"
-        class="masonry-wall-gallery"
+      v-if="allImages.length > 0"
+      :items="masonryItems"
+      :column-width="columnWidth"
+      :gap="baseGap"
+      :min-columns="minColumns"
+      :max-columns="maxColumns"
+      :ssr-columns="1"
+      :key-mapper="(item, column, row, index) => item.id || index"
+      class="masonry-wall-gallery"
     >
       <template #default="{ item, index }">
         <div class="masonry-item" @click="handleItemClick(item.image)" v-context-menu="(event) => handleContextMenu(event, item.image)">
@@ -251,10 +251,10 @@
             <!-- 选择框 -->
             <div v-if="isCheckboxMode" class="absolute top-2 left-2 z-10" @click.stop="toggleItemSelect(item.image)">
               <input
-                  type="checkbox"
-                  :checked="isItemSelected(item.image)"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  :class="darkMode ? 'bg-gray-700 border-gray-500' : ''"
+                type="checkbox"
+                :checked="isItemSelected(item.image)"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                :class="darkMode ? 'bg-gray-700 border-gray-500' : ''"
               />
             </div>
 
@@ -262,13 +262,13 @@
             <div class="masonry-image-wrapper">
               <!-- 真实图片：只有URL时才显示 -->
               <img
-                  v-if="getImageSrc(item.image)"
-                  :src="getImageSrc(item.image)"
-                  :alt="item.image.name"
-                  class="masonry-image"
-                  decoding="async"
-                  @load="(event) => handleImageLoad(item.image, event)"
-                  @error="handleImageError(item.image)"
+                v-if="getImageSrc(item.image)"
+                :src="getImageSrc(item.image)"
+                :alt="item.image.name"
+                class="masonry-image"
+                decoding="async"
+                @load="(event) => handleImageLoad(item.image, event)"
+                @error="handleImageError(item.image)"
               />
 
               <!-- 错误占位图：图片加载失败时显示 -->
@@ -277,10 +277,10 @@
                   <div class="w-8 h-8 mx-auto mb-2 opacity-50">
                     <svg class="w-full h-full text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
                       />
                     </svg>
                   </div>
@@ -319,10 +319,10 @@
         <div class="w-24 h-24 mx-auto mb-6 opacity-30">
           <svg class="w-full h-full" :class="darkMode ? 'text-gray-500' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
         </div>
@@ -583,33 +583,33 @@ const initImageLazyLoading = () => {
   }
 
   imageObserver.value = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const placeholder = entry.target;
-            const imagePath = placeholder.dataset.imagePath;
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const placeholder = entry.target;
+          const imagePath = placeholder.dataset.imagePath;
 
-            if (imagePath) {
-              // 查找对应的图片对象
-              const image = allImages.find((img) => img.path === imagePath);
-              if (image) {
-                // 根据可见比例确定优先级
-                const priority = entry.intersectionRatio > 0.5 ? "high" : "normal";
-                console.log(`🔍 懒加载触发: ${image.name} (intersectionRatio: ${entry.intersectionRatio.toFixed(2)}, priority: ${priority})`);
+          if (imagePath) {
+            // 查找对应的图片对象
+            const image = allImages.find((img) => img.path === imagePath);
+            if (image) {
+              // 根据可见比例确定优先级
+              const priority = entry.intersectionRatio > 0.5 ? "high" : "normal";
+              console.log(`🔍 懒加载触发: ${image.name} (intersectionRatio: ${entry.intersectionRatio.toFixed(2)}, priority: ${priority})`);
 
-                // 触发图片URL加载，传递优先级
-                loadImageUrl(image, priority);
-                // 停止观察这个占位符
-                imageObserver.value.unobserve(placeholder);
-              }
+              // 触发图片URL加载，传递优先级
+              loadImageUrl(image, priority);
+              // 停止观察这个占位符
+              imageObserver.value.unobserve(placeholder);
             }
           }
-        });
-      },
-      {
-        rootMargin: "100px", // 增加提前加载范围，配合预加载策略
-        threshold: [0.1, 0.5], // 多个阈值：10%触发加载，50%触发高优先级
-      }
+        }
+      });
+    },
+    {
+      rootMargin: "100px", // 增加提前加载范围，配合预加载策略
+      threshold: [0.1, 0.5], // 多个阈值：10%触发加载，50%触发高优先级
+    }
   );
 };
 
@@ -686,10 +686,10 @@ const handleItemClick = async (item) => {
 
     // 使用PhotoSwipe打开图片预览
     await openPhotoSwipe(
-        allImages, // 所有图片数组
-        currentIndex, // 当前图片索引
-        imageStates.value, // 图片状态管理
-        loadImageUrl // 图片URL加载函数
+      allImages, // 所有图片数组
+      currentIndex, // 当前图片索引
+      imageStates.value, // 图片状态管理
+      loadImageUrl // 图片URL加载函数
     );
   } catch (error) {
     console.error("❌ PhotoSwipe预览失败:", error);
@@ -738,23 +738,23 @@ const updateSpacingCSSVariables = () => {
 
 // 监听垂直间距变化
 watch(
-    verticalGap,
-    () => {
-      updateSpacingCSSVariables();
-    },
-    { immediate: true }
+  verticalGap,
+  () => {
+    updateSpacingCSSVariables();
+  },
+  { immediate: true }
 );
 
 // 监听masonryItems变化，重新观察新的懒加载图片
 watch(
-    masonryItems,
-    () => {
-      // 延迟观察，等待MasonryWall重新渲染完成
-      safeSetTimeout(() => {
-        observeLazyImages();
-      }, 100);
-    },
-    { flush: "post" }
+  masonryItems,
+  () => {
+    // 延迟观察，等待MasonryWall重新渲染完成
+    safeSetTimeout(() => {
+      observeLazyImages();
+    }, 100);
+  },
+  { flush: "post" }
 );
 
 // 🔍 检查Service Worker状态

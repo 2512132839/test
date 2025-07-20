@@ -224,7 +224,7 @@ export async function fetchApi(endpoint, options = {}) {
     // 如果没有提供signal，使用AbortSignal.timeout()（现代浏览器）
     if (!signal) {
       if (typeof AbortSignal.timeout === "function") {
-        // 使用AbortSignal.timeout()
+        // 使用官方推荐的AbortSignal.timeout()
         signal = AbortSignal.timeout(timeoutMs);
       } else {
         // 降级到传统方式（兼容旧浏览器）

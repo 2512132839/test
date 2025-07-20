@@ -484,8 +484,8 @@ export function useFileUpload() {
       const uploadResults = [];
       const errors = [];
 
-      // 根据认证类型选择API
-      const fsApi = api.fs.getFsApiByUserType(authStore.isAdmin);
+      // 使用统一的文件系统API
+      const fsApi = api.fs;
 
       // 逐个上传文件
       for (let i = 0; i < fileItems.value.length; i++) {
@@ -666,8 +666,8 @@ export function useFileUpload() {
       fileItem.message = t("mount.uploadModal.uploading");
       fileItem.xhr = null;
 
-      // 根据认证类型选择API
-      const fsApi = api.fs.getFsApiByUserType(authStore.isAdmin);
+      // 使用统一的文件系统API
+      const fsApi = api.fs;
 
       // 重试时也要计算总进度和速度 - 修复用户体验问题
       const updateProgress = (progress) => {

@@ -278,29 +278,29 @@ const addFLVSupport = async (options) => {
       console.log("🎬 初始化FLV播放器，URL:", url);
 
       const flvPlayer = flvjs.default.createPlayer(
-          {
-            type: "flv",
-            url: url,
-            isLive: false,
-            cors: true,
-            withCredentials: false,
-            hasAudio: true,
-            hasVideo: true,
-          },
-          {
-            enableWorker: false, // 🔧 禁用Web Worker避免Vite兼容性问题
-            enableStashBuffer: true, // 启用缓冲
-            stashInitialSize: 128, // 初始缓冲大小(KB)
-            autoCleanupSourceBuffer: true, // 自动清理缓冲
-            autoCleanupMaxBackwardDuration: 30, // 最大后向清理时长(秒)
-            autoCleanupMinBackwardDuration: 10, // 最小后向清理时长(秒)
-            fixAudioTimestampGap: true, // 修复音频时间戳间隙
-            accurateSeek: true, // 精确定位
-            seekType: "range", // 定位类型
-            lazyLoad: true, // 懒加载
-            lazyLoadMaxDuration: 3 * 60, // 懒加载最大时长(秒)
-            lazyLoadRecoverDuration: 30, // 懒加载恢复时长(秒)
-          }
+        {
+          type: "flv",
+          url: url,
+          isLive: false,
+          cors: true,
+          withCredentials: false,
+          hasAudio: true,
+          hasVideo: true,
+        },
+        {
+          enableWorker: false, // 🔧 禁用Web Worker避免Vite兼容性问题
+          enableStashBuffer: true, // 启用缓冲
+          stashInitialSize: 128, // 初始缓冲大小(KB)
+          autoCleanupSourceBuffer: true, // 自动清理缓冲
+          autoCleanupMaxBackwardDuration: 30, // 最大后向清理时长(秒)
+          autoCleanupMinBackwardDuration: 10, // 最小后向清理时长(秒)
+          fixAudioTimestampGap: true, // 修复音频时间戳间隙
+          accurateSeek: true, // 精确定位
+          seekType: "range", // 定位类型
+          lazyLoad: true, // 懒加载
+          lazyLoadMaxDuration: 3 * 60, // 懒加载最大时长(秒)
+          lazyLoadRecoverDuration: 30, // 懒加载恢复时长(秒)
+        }
       );
 
       // 绑定到video元素
@@ -675,43 +675,43 @@ defineExpose({
 
 // 监听属性变化
 watch(
-    () => props.darkMode,
-    () => {
-      applyThemeStyles();
-    },
-    { immediate: false }
+  () => props.darkMode,
+  () => {
+    applyThemeStyles();
+  },
+  { immediate: false }
 );
 
 watch(
-    () => props.theme,
-    () => {
-      if (artplayerInstance.value) {
-        artplayerInstance.value.theme = getThemeColor();
-      }
-      applyThemeStyles();
+  () => props.theme,
+  () => {
+    if (artplayerInstance.value) {
+      artplayerInstance.value.theme = getThemeColor();
     }
+    applyThemeStyles();
+  }
 );
 
 watch(
-    () => [props.video, props.loop, props.volume, props.muted],
-    () => {
-      initArtplayer();
-    },
-    { deep: true }
+  () => [props.video, props.loop, props.volume, props.muted],
+  () => {
+    initArtplayer();
+  },
+  { deep: true }
 );
 
 watch(
-    () => props.volume,
-    (newVolume) => {
-      setVolume(newVolume);
-    }
+  () => props.volume,
+  (newVolume) => {
+    setVolume(newVolume);
+  }
 );
 
 watch(
-    () => props.muted,
-    (newMuted) => {
-      setMuted(newMuted);
-    }
+  () => props.muted,
+  (newMuted) => {
+    setMuted(newMuted);
+  }
 );
 
 // 生命周期

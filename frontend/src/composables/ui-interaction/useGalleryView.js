@@ -193,10 +193,8 @@ export function useGalleryView() {
     imageStates.value.set(imagePath, { status: "loading", url: null });
 
     try {
-      // 根据用户类型选择正确的API路径
-      const getFileInfo = authStore.isAdmin
-          ? api.admin.getFileInfo // 管理员：直接在admin下
-          : api.user.fs.getFileInfo; // 用户：在user.fs下
+      // 使用统一的API函数
+      const getFileInfo = api.fs.getFileInfo;
 
       // 获取文件信息，包含preview_url字段
       const response = await getFileInfo(imagePath);

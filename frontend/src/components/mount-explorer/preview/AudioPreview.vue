@@ -201,8 +201,7 @@ const loadAudioPlaylist = async () => {
       directoryItems = props.directoryItems;
     } else {
       console.log("📡 目录数据为空，调用API获取");
-      const fsApi = props.isAdmin ? api.admin : api.user.fs;
-      const response = await fsApi.getDirectoryList(props.currentPath);
+      const response = await api.fs.getDirectoryList(props.currentPath);
 
       console.log("📁 目录列表响应:", response);
 
@@ -323,7 +322,7 @@ const generateAudioPlaylist = async (audioFileList) => {
 // 生成 S3 预签名 URL（直接调用后端API，后端已有缓存机制）
 const generateS3PresignedUrl = async (audioFile) => {
   try {
-    const getFileLink = props.isAdmin ? api.admin.getFileLink : api.user.fs.getFileLink;
+    const getFileLink = api.fs.getFileLink;
     // 使用S3配置的默认签名时间
     const response = await getFileLink(audioFile.path, null, false);
 
@@ -467,30 +466,5 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.audio-preview-container {
-  width: 100%;
-}
-
-.audio-preview {
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  position: relative;
-}
-
-.loading-indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 移动端优化 */
-@media (max-width: 768px) {
-  .audio-preview {
-    padding: 0.75rem !important;
-    min-height: 100px;
-  }
-}
+@import "@/styles/pages/mount-explorer/audio-preview.css";
 </style>

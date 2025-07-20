@@ -3,24 +3,24 @@
     <!-- 视频预览 -->
     <div class="video-preview">
       <VideoPlayer
-          ref="videoPlayerRef"
-          v-if="previewUrl && videoData"
-          :video="videoData"
-          :dark-mode="darkMode"
-          :autoplay="false"
-          :volume="0.7"
-          :muted="false"
-          :loop="false"
-          :custom-controls="[]"
-          @play="handlePlay"
-          @pause="handlePause"
-          @error="handleError"
-          @canplay="handleCanPlay"
-          @ended="handleVideoEnded"
-          @timeupdate="handleTimeUpdate"
-          @fullscreen="handleFullscreen"
-          @fullscreenExit="handleFullscreenExit"
-          @ready="handlePlayerReady"
+        ref="videoPlayerRef"
+        v-if="previewUrl && videoData"
+        :video="videoData"
+        :dark-mode="darkMode"
+        :autoplay="false"
+        :volume="0.7"
+        :muted="false"
+        :loop="false"
+        :custom-controls="[]"
+        @play="handlePlay"
+        @pause="handlePause"
+        @error="handleError"
+        @canplay="handleCanPlay"
+        @ended="handleVideoEnded"
+        @timeupdate="handleTimeUpdate"
+        @fullscreen="handleFullscreen"
+        @fullscreenExit="handleFullscreenExit"
+        @ready="handlePlayerReady"
       />
       <div v-else class="loading-indicator text-center py-8">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
@@ -191,15 +191,15 @@ const initializeCurrentVideo = async () => {
 
 // 监听 previewUrl 变化，当准备好时初始化当前视频
 watch(
-    () => props.previewUrl,
-    async (newPreviewUrl) => {
-      // 当previewUrl存在时，初始化视频数据
-      if (newPreviewUrl) {
-        console.log("🎬 检测到 previewUrl 变化，开始重新初始化当前视频:", newPreviewUrl);
-        await initializeCurrentVideo();
-      }
-    },
-    { immediate: true } // 立即执行，确保首次加载时也会触发
+  () => props.previewUrl,
+  async (newPreviewUrl) => {
+    // 当previewUrl存在时，初始化视频数据
+    if (newPreviewUrl) {
+      console.log("🎬 检测到 previewUrl 变化，开始重新初始化当前视频:", newPreviewUrl);
+      await initializeCurrentVideo();
+    }
+  },
+  { immediate: true } // 立即执行，确保首次加载时也会触发
 );
 
 // 快捷键处理

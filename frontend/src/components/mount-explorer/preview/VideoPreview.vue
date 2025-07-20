@@ -308,30 +308,5 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.video-preview-container {
-  width: 100%;
-}
-
-.video-preview {
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  position: relative;
-}
-
-.loading-indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 移动端优化 */
-@media (max-width: 768px) {
-  .video-preview {
-    padding: 0.75rem !important;
-    min-height: 150px;
-  }
-}
+@import "@/styles/pages/mount-explorer/video-preview.css";
 </style>

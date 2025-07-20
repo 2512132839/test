@@ -137,10 +137,10 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
         }
         // 判断是否是存储容量不足的错误
         else if (
-            presignedData.message.includes("存储空间不足") ||
-            presignedData.message.includes("insufficient storage") ||
-            presignedData.message.includes("exceed") ||
-            presignedData.message.includes("容量")
+          presignedData.message.includes("存储空间不足") ||
+          presignedData.message.includes("insufficient storage") ||
+          presignedData.message.includes("exceed") ||
+          presignedData.message.includes("容量")
         ) {
           throw new Error(`存储空间不足: ${presignedData.message}`);
         }

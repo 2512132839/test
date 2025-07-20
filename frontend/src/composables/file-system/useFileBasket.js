@@ -669,8 +669,8 @@ export function useFileBasket() {
         return file.download_url;
       }
 
-      // 根据用户类型选择API获取文件直链
-      const getFileLinkApi = authStore.isAdmin ? api.admin.getFileLink : api.user.fs.getFileLink;
+      // 使用统一API获取文件直链
+      const getFileLinkApi = api.fs.getFileLink;
       const response = await getFileLinkApi(file.path, null, true); // 强制下载
 
       if (response.success && response.data) {

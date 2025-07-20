@@ -13,9 +13,9 @@ export function useFilePreview() {
   const router = useRouter();
   const authStore = useAuthStore();
 
-  // API调用函数
+  // API调用函数 - 使用统一API
   const getFileInfo = computed(() => {
-    return authStore.isAdmin ? api.fs.getAdminFileInfo : api.fs.getUserFileInfo;
+    return api.fs.getFileInfo;
   });
 
   // 状态管理

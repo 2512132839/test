@@ -61,8 +61,8 @@ const DirectoryItemVue = {
             isDirectory: true,
           }));
         } else {
-          // 对于其他路径，调用正确的API获取子目录
-          const response = await api.admin.getDirectoryList(props.item.path);
+          // 对于其他路径，调用统一API获取子目录
+          const response = await api.fs.getDirectoryList(props.item.path);
           if (response.success && response.data && response.data.items) {
             // 获取目录项，并只保留目录类型
             dirItems = response.data.items

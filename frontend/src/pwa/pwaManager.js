@@ -367,17 +367,17 @@ class OfflineStorage {
 
         settings.forEach((setting) => {
           if (
-              setting.key.startsWith("api_cache_") ||
-              setting.key.startsWith("admin_") ||
-              setting.key.startsWith("user_") ||
-              setting.key.startsWith("system_") ||
-              setting.key.startsWith("test_") ||
-              setting.key.startsWith("s3_config_") ||
-              setting.key.startsWith("url_") ||
-              setting.key.startsWith("public_file_") ||
-              setting.key.startsWith("raw_paste_") ||
-              setting.key === "s3_configs_list" ||
-              setting.key === "url_info_cache"
+            setting.key.startsWith("api_cache_") ||
+            setting.key.startsWith("admin_") ||
+            setting.key.startsWith("user_") ||
+            setting.key.startsWith("system_") ||
+            setting.key.startsWith("test_") ||
+            setting.key.startsWith("s3_config_") ||
+            setting.key.startsWith("url_") ||
+            setting.key.startsWith("public_file_") ||
+            setting.key.startsWith("raw_paste_") ||
+            setting.key === "s3_configs_list" ||
+            setting.key === "url_info_cache"
           ) {
             store.delete(setting.key);
           }
@@ -611,11 +611,11 @@ class PWAManager {
     const { post, put, del } = await import("../api/client.js");
 
     switch (type) {
-        // 📝 文本分享操作
+      // 📝 文本分享操作
       case "createPaste":
         return await post("/api/paste", data);
 
-        // 📝 管理员文本分享操作
+      // 📝 管理员文本分享操作
       case "updateAdminPaste":
         return await put(endpoint, data); // /api/admin/pastes/:slug
       case "deleteAdminPaste":
@@ -625,7 +625,7 @@ class PWAManager {
       case "clearExpiredPastes":
         return await post("/api/admin/pastes/clear-expired", data);
 
-        // 📝 用户文本分享操作
+      // 📝 用户文本分享操作
       case "updateUserPaste":
         return await put(endpoint, data); // /api/user/pastes/:slug
       case "deleteUserPaste":
@@ -633,13 +633,13 @@ class PWAManager {
       case "batchDeleteUserPastes":
         return await post("/api/user/pastes/batch-delete", data);
 
-        // ⚙️ 系统管理操作
+      // ⚙️ 系统管理操作
       case "updateSystemSettings":
         return await put("/api/admin/system-settings", data);
       case "clearCache":
         return await post("/api/admin/cache/clear", data);
 
-        // 🔐 文件密码验证
+      // 🔐 文件密码验证
       case "verifyFilePassword":
         return await post(endpoint, data); // /api/public/files/:slug/verify
 
@@ -731,31 +731,31 @@ class PWAManager {
 
     // 🎯 等待Service Worker注册完成，获取registration对象
     navigator.serviceWorker.ready
-        .then((registration) => {
-          pwaState.registration = registration;
-          console.log("[PWA] Service Worker 已注册");
+      .then((registration) => {
+        pwaState.registration = registration;
+        console.log("[PWA] Service Worker 已注册");
 
-          // 更新Service Worker状态
-          if (registration.active) {
-            pwaState.swState = "active";
-          }
-        })
-        .catch((error) => {
-          console.error("[PWA] Service Worker 注册失败:", error);
-          pwaState.updateError = error.message;
-        });
+        // 更新Service Worker状态
+        if (registration.active) {
+          pwaState.swState = "active";
+        }
+      })
+      .catch((error) => {
+        console.error("[PWA] Service Worker 注册失败:", error);
+        pwaState.updateError = error.message;
+      });
   }
 
   // 通知更新可用
   notifyUpdate() {
     // 发送自定义事件
     window.dispatchEvent(
-        new CustomEvent("pwa-update-available", {
-          detail: {
-            version: pwaState.version,
-            swVersion: pwaState.swVersion,
-          },
-        })
+      new CustomEvent("pwa-update-available", {
+        detail: {
+          version: pwaState.version,
+          swVersion: pwaState.swVersion,
+        },
+      })
     );
   }
 
@@ -780,17 +780,17 @@ class PWAManager {
 
       // 发送通用的同步完成事件
       window.dispatchEvent(
-          new CustomEvent("pwa:sync-completed", {
-            detail: eventDetail,
-          })
+        new CustomEvent("pwa:sync-completed", {
+          detail: eventDetail,
+        })
       );
 
       // 根据同步类型发送特定事件
       if (payload.syncType === "offline-queue") {
         window.dispatchEvent(
-            new CustomEvent("pwa:offline-queue-synced", {
-              detail: eventDetail,
-            })
+          new CustomEvent("pwa:offline-queue-synced", {
+            detail: eventDetail,
+          })
         );
       }
 
@@ -825,15 +825,15 @@ class PWAManager {
 
       // 检查是否有文本分享相关的同步操作
       const hasTextOperations = syncedOperations.some(
-          (op) =>
-              op.type === "createPaste" ||
-              op.type === "updateUserPaste" ||
-              op.type === "updateAdminPaste" ||
-              op.type === "deleteUserPaste" ||
-              op.type === "deleteAdminPaste" ||
-              op.type === "batchDeleteUserPastes" ||
-              op.type === "batchDeleteAdminPastes" ||
-              op.type === "clearExpiredPastes"
+        (op) =>
+          op.type === "createPaste" ||
+          op.type === "updateUserPaste" ||
+          op.type === "updateAdminPaste" ||
+          op.type === "deleteUserPaste" ||
+          op.type === "deleteAdminPaste" ||
+          op.type === "batchDeleteUserPastes" ||
+          op.type === "batchDeleteAdminPastes" ||
+          op.type === "clearExpiredPastes"
       );
 
       // 如果当前在文本管理页面且有文本相关操作，则刷新页面

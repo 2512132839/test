@@ -122,16 +122,16 @@ onUnmounted(() => {
     <!-- 离线状态指示器 -->
     <Transition name="fade-slide">
       <div
-          v-if="isOffline"
-          :class="['fixed bottom-20 right-4 z-50 px-2 py-1 rounded-full shadow-lg text-xs font-medium', darkMode ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-500 text-white']"
+        v-if="isOffline"
+        :class="['fixed bottom-20 right-4 z-50 px-2 py-1 rounded-full shadow-lg text-xs font-medium', darkMode ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-500 text-white']"
       >
         <div class="flex items-center space-x-1">
           <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
             />
           </svg>
           <span class="whitespace-nowrap">{{ t("pwa.status.offline") }}</span>
@@ -142,8 +142,8 @@ onUnmounted(() => {
     <!-- 安装提示 -->
     <Transition name="slide-up">
       <div
-          v-if="showInstallPrompt && canInstall"
-          :class="[
+        v-if="showInstallPrompt && canInstall"
+        :class="[
           'fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-40 rounded-lg shadow-lg p-4',
           darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200',
         ]"
@@ -159,9 +159,9 @@ onUnmounted(() => {
             <p :class="['text-sm mt-1', darkMode ? 'text-gray-300' : 'text-gray-600']">{{ t("pwa.installPrompt.message") }}</p>
             <div class="flex space-x-2 mt-3">
               <button
-                  @click="installApp"
-                  :disabled="isInstalling"
-                  :class="[
+                @click="installApp"
+                :disabled="isInstalling"
+                :class="[
                   'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
                   darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-800' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-400',
                 ]"
@@ -171,17 +171,17 @@ onUnmounted(() => {
                   <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
                   <span>{{ t("pwa.install.installing") }}</span>
                 </span>
               </button>
               <button
-                  @click="dismissInstallPrompt"
-                  :class="[
+                @click="dismissInstallPrompt"
+                :class="[
                   'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
                   darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100',
                 ]"
@@ -191,8 +191,8 @@ onUnmounted(() => {
             </div>
           </div>
           <button
-              @click="dismissInstallPrompt"
-              :class="['flex-shrink-0 p-1 rounded-md transition-colors', darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600']"
+            @click="dismissInstallPrompt"
+            :class="['flex-shrink-0 p-1 rounded-md transition-colors', darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600']"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -205,8 +205,8 @@ onUnmounted(() => {
     <!-- 更新提示 -->
     <Transition name="slide-up">
       <div
-          v-if="showUpdatePrompt && hasUpdate"
-          :class="[
+        v-if="showUpdatePrompt && hasUpdate"
+        :class="[
           'fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-40 rounded-lg shadow-lg p-4',
           darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200',
         ]"
@@ -215,10 +215,10 @@ onUnmounted(() => {
           <div :class="['flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center', darkMode ? 'bg-green-900' : 'bg-green-100']">
             <svg :class="['w-6 h-6', darkMode ? 'text-green-400' : 'text-green-600']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
           </div>
@@ -227,9 +227,9 @@ onUnmounted(() => {
             <p :class="['text-sm mt-1', darkMode ? 'text-gray-300' : 'text-gray-600']">{{ t("pwa.updatePrompt.message") }}</p>
             <div class="flex space-x-2 mt-3">
               <button
-                  @click="updateApp"
-                  :disabled="isUpdating"
-                  :class="[
+                @click="updateApp"
+                :disabled="isUpdating"
+                :class="[
                   'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
                   darkMode ? 'bg-green-600 hover:bg-green-700 text-white disabled:bg-green-800' : 'bg-green-600 hover:bg-green-700 text-white disabled:bg-green-400',
                 ]"
@@ -239,17 +239,17 @@ onUnmounted(() => {
                   <svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
                   <span>{{ t("pwa.update.updating") }}</span>
                 </span>
               </button>
               <button
-                  @click="dismissUpdatePrompt"
-                  :class="[
+                @click="dismissUpdatePrompt"
+                :class="[
                   'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
                   darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100',
                 ]"
@@ -259,8 +259,8 @@ onUnmounted(() => {
             </div>
           </div>
           <button
-              @click="dismissUpdatePrompt"
-              :class="['flex-shrink-0 p-1 rounded-md transition-colors', darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600']"
+            @click="dismissUpdatePrompt"
+            :class="['flex-shrink-0 p-1 rounded-md transition-colors', darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600']"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

@@ -430,8 +430,8 @@ const props = defineProps({
 
 const emit = defineEmits(["close", "copy-complete"]);
 
-// 获取API函数
-const fsApi = api.fs.getUserTypeApi(props.isAdmin);
+// 使用统一的文件系统API
+const fsApi = api.fs;
 
 // 计算用户的基本路径
 const userBasicPath = computed(() => {

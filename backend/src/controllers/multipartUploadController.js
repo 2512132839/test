@@ -5,25 +5,24 @@
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { initializeMultipartUpload, uploadPart, completeMultipartUpload, abortMultipartUpload } from "../services/multipartUploadService.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
 
 /**
- * 从Hono上下文中获取用户ID和类型
+ * 从Hono上下文中获取用户ID和类型（使用统一认证中间件设置的userInfo）
  * @param {HonoContext} c - Hono上下文
  * @returns {Object} 包含userIdOrInfo和userType的对象
  */
 async function getUserIdAndTypeFromContext(c) {
-  // 使用新的权限工具获取用户信息
-  const isAdmin = PermissionUtils.isAdmin(c);
-  const userId = PermissionUtils.getUserId(c);
-  const authType = PermissionUtils.getAuthType(c);
+  // 使用统一认证中间件已经设置的userInfo
+  const userInfo = c.get("userInfo");
 
-  if (isAdmin) {
-    return { userIdOrInfo: userId, userType: "admin" };
-  } else if (authType === "apikey") {
-    // 对于API密钥用户，需要获取完整的API密钥信息
-    const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
-    return { userIdOrInfo: apiKeyInfo, userType: "apiKey" };
+  if (!userInfo) {
+    throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
+  }
+
+  if (userInfo.type === "admin") {
+    return { userIdOrInfo: userInfo.id, userType: "admin" };
+  } else if (userInfo.type === "apiKey") {
+    return { userIdOrInfo: userInfo.info, userType: "apiKey" };
   }
 
   // 如果无法确定用户类型，则抛出未授权错误
@@ -161,16 +160,16 @@ export async function handleCompleteMultipartUpload(c) {
 
     // 完成分片上传（后端会统一从文件名推断MIME类型，不依赖前端传来的contentType）
     const result = await completeMultipartUpload(
-        db,
-        path,
-        uploadId,
-        parts,
-        userIdOrInfo,
-        userType,
-        c.env.ENCRYPTION_SECRET,
-        key,
-        null, // 不传递MIME类型，让后端统一推断
-        fileSize || 0 // 添加文件大小
+      db,
+      path,
+      uploadId,
+      parts,
+      userIdOrInfo,
+      userType,
+      c.env.ENCRYPTION_SECRET,
+      key,
+      null, // 不传递MIME类型，让后端统一推断
+      fileSize || 0 // 添加文件大小
     );
 
     // 返回完成结果

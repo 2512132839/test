@@ -510,18 +510,18 @@ ${textContent.value}
       // 进入全屏
       if (elementRef.value && document.fullscreenEnabled) {
         elementRef.value
-            .requestFullscreen()
-            .then(() => {
-              isFullscreenState.value = true;
-              if (onEnter) onEnter();
-              console.log("进入全屏模式");
-            })
-            .catch((error) => {
-              console.error("进入全屏失败:", error);
-              // 降级处理：使用CSS全屏效果
-              isFullscreenState.value = true;
-              if (onEnter) onEnter();
-            });
+          .requestFullscreen()
+          .then(() => {
+            isFullscreenState.value = true;
+            if (onEnter) onEnter();
+            console.log("进入全屏模式");
+          })
+          .catch((error) => {
+            console.error("进入全屏失败:", error);
+            // 降级处理：使用CSS全屏效果
+            isFullscreenState.value = true;
+            if (onEnter) onEnter();
+          });
       } else {
         // 降级处理：使用CSS全屏效果
         isFullscreenState.value = true;
@@ -531,17 +531,17 @@ ${textContent.value}
       // 退出全屏
       if (document.fullscreenElement) {
         document
-            .exitFullscreen()
-            .then(() => {
-              isFullscreenState.value = false;
-              if (onExit) onExit();
-              console.log("退出全屏模式");
-            })
-            .catch((error) => {
-              console.error("退出全屏失败:", error);
-              isFullscreenState.value = false;
-              if (onExit) onExit();
-            });
+          .exitFullscreen()
+          .then(() => {
+            isFullscreenState.value = false;
+            if (onExit) onExit();
+            console.log("退出全屏模式");
+          })
+          .catch((error) => {
+            console.error("退出全屏失败:", error);
+            isFullscreenState.value = false;
+            if (onExit) onExit();
+          });
       } else {
         isFullscreenState.value = false;
         if (onExit) onExit();
@@ -554,16 +554,16 @@ ${textContent.value}
    */
   const toggleOfficeFullscreen = () => {
     toggleFullscreen(
-        officePreviewRef,
-        isOfficeFullscreen,
-        () => {
-          // 进入全屏时的回调
-          console.log("Office预览进入全屏");
-        },
-        () => {
-          // 退出全屏时的回调
-          console.log("Office预览退出全屏");
-        }
+      officePreviewRef,
+      isOfficeFullscreen,
+      () => {
+        // 进入全屏时的回调
+        console.log("Office预览进入全屏");
+      },
+      () => {
+        // 退出全屏时的回调
+        console.log("Office预览退出全屏");
+      }
     );
   };
 
@@ -572,16 +572,16 @@ ${textContent.value}
    */
   const toggleHtmlFullscreen = () => {
     toggleFullscreen(
-        htmlPreviewRef,
-        isHtmlFullscreen,
-        () => {
-          // 进入全屏时的回调
-          console.log("HTML预览进入全屏");
-        },
-        () => {
-          // 退出全屏时的回调
-          console.log("HTML预览退出全屏");
-        }
+      htmlPreviewRef,
+      isHtmlFullscreen,
+      () => {
+        // 进入全屏时的回调
+        console.log("HTML预览进入全屏");
+      },
+      () => {
+        // 退出全屏时的回调
+        console.log("HTML预览退出全屏");
+      }
     );
   };
 
@@ -773,101 +773,101 @@ ${textContent.value}
    * 监听暗色模式变化
    */
   watch(
-      () => darkMode?.value,
-      () => {
-        reinitializePreviewOnThemeChange();
-      }
+    () => darkMode?.value,
+    () => {
+      reinitializePreviewOnThemeChange();
+    }
   );
 
   /**
    * 监听文件变化
    */
   watch(
-      () => file.value,
-      (newFile) => {
-        // 重置所有状态（与 initializeForFile 相同）
-        textContent.value = "";
-        loadError.value = false;
-        authenticatedPreviewUrl.value = null;
-        highlightedContent.value = "";
-        codeLanguage.value = "";
-        isMarkdownRendered.value = false;
+    () => file.value,
+    (newFile) => {
+      // 重置所有状态（与 initializeForFile 相同）
+      textContent.value = "";
+      loadError.value = false;
+      authenticatedPreviewUrl.value = null;
+      highlightedContent.value = "";
+      codeLanguage.value = "";
+      isMarkdownRendered.value = false;
 
-        // 重置Office预览状态
-        microsoftOfficePreviewUrl.value = "";
-        googleDocsPreviewUrl.value = "";
-        officePreviewLoading.value = false;
-        officePreviewError.value = "";
-        officePreviewTimedOut.value = false;
-        clearPreviewLoadTimeout();
+      // 重置Office预览状态
+      microsoftOfficePreviewUrl.value = "";
+      googleDocsPreviewUrl.value = "";
+      officePreviewLoading.value = false;
+      officePreviewError.value = "";
+      officePreviewTimedOut.value = false;
+      clearPreviewLoadTimeout();
 
-        // 重置编辑模式状态
-        isEditMode.value = false;
-        editContent.value = "";
-        isSaving.value = false;
-        showModeDropdown.value = false;
+      // 重置编辑模式状态
+      isEditMode.value = false;
+      editContent.value = "";
+      isSaving.value = false;
+      showModeDropdown.value = false;
 
-        // 重置扩展功能状态
-        isGeneratingPreview.value = false;
-        isOfficeFullscreen.value = false;
-        isHtmlFullscreen.value = false;
+      // 重置扩展功能状态
+      isGeneratingPreview.value = false;
+      isOfficeFullscreen.value = false;
+      isHtmlFullscreen.value = false;
 
-        // 只有当文件存在时才初始化预览
-        if (newFile) {
-          // 添加详细的文件类型判断日志
-          console.group(`📁 文件预览类型分析: ${newFile.name}`);
-          console.log("🔍 文件信息:", {
-            name: newFile.name,
-            contentType: newFile.contentType || newFile.mimetype,
-            size: newFile.size,
-            path: newFile.path,
-          });
+      // 只有当文件存在时才初始化预览
+      if (newFile) {
+        // 添加详细的文件类型判断日志
+        console.group(`📁 文件预览类型分析: ${newFile.name}`);
+        console.log("🔍 文件信息:", {
+          name: newFile.name,
+          contentType: newFile.contentType || newFile.mimetype,
+          size: newFile.size,
+          path: newFile.path,
+        });
 
-          // 获取文件类型信息
-          const typeInfo = fileTypeInfo.value;
-          console.log("🎯 文件类型检测结果:", typeInfo);
+        // 获取文件类型信息
+        const typeInfo = fileTypeInfo.value;
+        console.log("🎯 文件类型检测结果:", typeInfo);
 
-          // 显示各种类型判断结果
-          const typeChecks = {
-            isImage: isImage.value,
-            isVideo: isVideo.value,
-            isAudio: isAudio.value,
-            isPdf: isPdf.value,
-            isOffice: isOffice.value,
-            isMarkdown: isMarkdown.value,
-            isHtml: isHtml.value,
-            isCode: isCode.value,
-            isText: isText.value,
-          };
-          console.log("📋 类型判断结果:", typeChecks);
+        // 显示各种类型判断结果
+        const typeChecks = {
+          isImage: isImage.value,
+          isVideo: isVideo.value,
+          isAudio: isAudio.value,
+          isPdf: isPdf.value,
+          isOffice: isOffice.value,
+          isMarkdown: isMarkdown.value,
+          isHtml: isHtml.value,
+          isCode: isCode.value,
+          isText: isText.value,
+        };
+        console.log("📋 类型判断结果:", typeChecks);
 
-          // 显示最终选择的预览类型
-          const selectedType = Object.entries(typeChecks).find(([, value]) => value)?.[0] || "unknown";
-          console.log(`✅ 最终预览类型: ${selectedType}`);
-          console.groupEnd();
+        // 显示最终选择的预览类型
+        const selectedType = Object.entries(typeChecks).find(([, value]) => value)?.[0] || "unknown";
+        console.log(`✅ 最终预览类型: ${selectedType}`);
+        console.groupEnd();
 
-          // 对于需要加载文本内容的文件类型（文本、代码、Markdown、HTML），先设置加载状态，然后加载内容
-          if (typeChecks.isText || typeChecks.isCode || typeChecks.isMarkdown || typeChecks.isHtml) {
-            isTextLoading.value = true;
-            loadTextContent();
-          } else {
-            isTextLoading.value = false;
-          }
-
-          //使用S3预签名URL
-          if (typeChecks.isImage || typeChecks.isVideo || typeChecks.isAudio || typeChecks.isPdf) {
-            authenticatedPreviewUrl.value = previewUrl.value;
-          }
-
-          // 如果是Office文件，更新Office预览URL
-          if (typeChecks.isOffice) {
-            updateOfficePreviewUrls();
-          }
+        // 对于需要加载文本内容的文件类型（文本、代码、Markdown、HTML），先设置加载状态，然后加载内容
+        if (typeChecks.isText || typeChecks.isCode || typeChecks.isMarkdown || typeChecks.isHtml) {
+          isTextLoading.value = true;
+          loadTextContent();
         } else {
           isTextLoading.value = false;
         }
-      },
-      { immediate: true }
+
+        //使用S3预签名URL
+        if (typeChecks.isImage || typeChecks.isVideo || typeChecks.isAudio || typeChecks.isPdf) {
+          authenticatedPreviewUrl.value = previewUrl.value;
+        }
+
+        // 如果是Office文件，更新Office预览URL
+        if (typeChecks.isOffice) {
+          updateOfficePreviewUrls();
+        }
+      } else {
+        isTextLoading.value = false;
+      }
+    },
+    { immediate: true }
   );
 
   // ===== 生命周期钩子 =====

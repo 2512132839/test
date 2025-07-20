@@ -7,10 +7,10 @@
         <div class="file-icon flex items-center justify-center w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" :class="iconClass" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
             />
           </svg>
         </div>
@@ -33,13 +33,13 @@
     <!--使用动态组件进行文件预览 -->
     <div v-if="shouldShowPreview" class="file-preview mb-6 flex-grow flex flex-col justify-center items-center">
       <component
-          :is="currentPreviewComponent"
-          v-bind="previewComponentProps"
-          @load="handlePreviewLoad"
-          @error="handlePreviewError"
-          @toggle-mode="handleToggleMode"
-          @toggle-service="handleToggleService"
-          @update-urls="handleUpdateUrls"
+        :is="currentPreviewComponent"
+        v-bind="previewComponentProps"
+        @load="handlePreviewLoad"
+        @error="handlePreviewError"
+        @toggle-mode="handleToggleMode"
+        @toggle-service="handleToggleService"
+        @update-urls="handleUpdateUrls"
       />
     </div>
 
@@ -62,10 +62,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
             />
           </svg>
           <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.accessCount") }}</span>
@@ -92,10 +92,10 @@
         <div class="flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
             />
           </svg>
           <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.accessMode") }}</span>
@@ -112,10 +112,10 @@
         <div class="flex items-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
             />
           </svg>
           <span class="text-sm font-medium text-gray-600 dark:text-gray-200">{{ t("fileView.fileInfo.fileLink") }}</span>
@@ -125,25 +125,25 @@
             {{ shareUrl || t("fileView.fileInfo.needPassword") }}
           </p>
           <button
-              v-if="shareUrl"
-              @click="copyToClipboard(shareUrl)"
-              class="ml-2 p-1 rounded hover:bg-opacity-80 transition-colors bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
-              :title="t('fileView.fileInfo.copyLink')"
+            v-if="shareUrl"
+            @click="copyToClipboard(shareUrl)"
+            class="ml-2 p-1 rounded hover:bg-opacity-80 transition-colors bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
+            :title="t('fileView.fileInfo.copyLink')"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
               />
             </svg>
           </button>
 
           <!-- 复制成功提示 -->
           <div
-              v-if="showCopyToast"
-              class="absolute right-0 -top-10 px-3 py-2 rounded-md shadow-md text-sm transition-opacity duration-300 bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-600"
+            v-if="showCopyToast"
+            class="absolute right-0 -top-10 px-3 py-2 rounded-md shadow-md text-sm transition-opacity duration-300 bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-600"
           >
             <div class="flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -629,12 +629,12 @@ const updateOfficePreviewUrls = async () => {
 
         // 缓存URL（代理模式的URL有时效性，缓存时间较短 - 10分钟）
         officePreviewCache.set(
-            cacheKey,
-            {
-              microsoft: previewUrls.microsoft,
-              google: previewUrls.google,
-            },
-            10 * 60 * 1000
+          cacheKey,
+          {
+            microsoft: previewUrls.microsoft,
+            google: previewUrls.google,
+          },
+          10 * 60 * 1000
         );
 
         console.log("缓存Office预览URL (代理模式)", { cacheKey });
@@ -667,12 +667,12 @@ const updateOfficePreviewUrls = async () => {
 
       // 缓存URL（直链模式的URL相对稳定，可以缓存更长时间 - 30分钟）
       officePreviewCache.set(
-          cacheKey,
-          {
-            microsoft: previewUrls.microsoft,
-            google: previewUrls.google,
-          },
-          30 * 60 * 1000
+        cacheKey,
+        {
+          microsoft: previewUrls.microsoft,
+          google: previewUrls.google,
+        },
+        30 * 60 * 1000
       );
 
       console.log("缓存Office预览URL (直链模式)", { cacheKey });
@@ -733,11 +733,11 @@ onMounted(() => {
 
 // 监听预览URL变化（预览组件会自动响应URL变化）
 watch(
-    () => processedPreviewUrl.value,
-    (newUrl) => {
-      console.log("预览URL变化:", newUrl);
-    },
-    { immediate: true }
+  () => processedPreviewUrl.value,
+  (newUrl) => {
+    console.log("预览URL变化:", newUrl);
+  },
+  { immediate: true }
 );
 
 // 组件卸载时清理资源

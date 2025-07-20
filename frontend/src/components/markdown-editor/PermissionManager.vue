@@ -53,7 +53,6 @@ const checkPermissionStatus = async () => {
   emit("permission-change", hasPermission.value);
 };
 
-// API密钥验证逻辑已移至认证Store
 
 // 导航到管理员登录页面
 const navigateToAdmin = () => {
