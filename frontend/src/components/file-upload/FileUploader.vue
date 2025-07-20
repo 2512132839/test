@@ -824,11 +824,11 @@ const cancelUpload = () => {
 
         // 如果已获取了文件ID，则删除相应的文件记录
         if (fileItem.fileId) {
-          // 根据用户身份选择合适的删除API
-          const deleteApi = props.isAdmin ? api.file.deleteFile : api.file.deleteUserFile;
+          // 根据用户身份选择合适的批量删除API
+          const deleteApi = props.isAdmin ? api.file.batchDeleteFiles : api.file.batchDeleteUserFiles;
 
           // 删除文件记录
-          deleteApi(fileItem.fileId)
+          deleteApi([fileItem.fileId])
             .then(() => {
               console.log("已成功删除被取消的文件记录", fileItem.fileId);
             })
@@ -1412,11 +1412,11 @@ const cancelSingleUpload = (index) => {
 
   // 如果已获取了文件ID，则删除相应的文件记录
   if (fileItem.fileId) {
-    // 根据用户身份选择合适的删除API
-    const deleteApi = props.isAdmin ? api.file.deleteFile : api.file.deleteUserFile;
+    // 根据用户身份选择合适的批量删除API
+    const deleteApi = props.isAdmin ? api.file.batchDeleteFiles : api.file.batchDeleteUserFiles;
 
     // 删除文件记录
-    deleteApi(fileItem.fileId)
+    deleteApi([fileItem.fileId])
       .then(() => {
         console.log("已成功删除被取消的文件记录", fileItem.fileId);
       })

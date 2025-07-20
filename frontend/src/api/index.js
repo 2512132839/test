@@ -27,7 +27,12 @@ export const api = {
   paste: pasteService,
 
   // 文件管理相关
-  file: fileService,
+  file: {
+    ...fileService,
+    // 添加批量删除的便捷方法
+    batchDeleteFiles: fileService.batchDeleteAdminFiles,
+    batchDeleteUserFiles: fileService.batchDeleteUserFiles,
+  },
 
   // 文件预览相关
   preview: previewService,
@@ -94,7 +99,6 @@ export const api = {
     getFileLink: fsService.getFileLink,
     createDirectory: fsService.createDirectory,
     uploadFile: fsService.uploadFile,
-    deleteItem: fsService.deleteItem,
     batchDeleteItems: fsService.batchDeleteItems,
     renameItem: fsService.renameItem,
     updateFile: fsService.updateFile,
@@ -115,13 +119,13 @@ export const api = {
     getFiles: fileService.getAdminFiles,
     getFile: fileService.getAdminFile,
     updateFile: fileService.updateAdminFile,
-    deleteFile: fileService.deleteAdminFile,
+    batchDeleteFiles: fileService.batchDeleteAdminFiles,
 
     // API密钥用户文件管理
     getUserFiles: fileService.getUserFiles,
     getUserFile: fileService.getUserFile,
     updateUserFile: fileService.updateUserFile,
-    deleteUserFile: fileService.deleteUserFile,
+    batchDeleteUserFiles: fileService.batchDeleteUserFiles,
 
     // 公共文件访问
     getPublicFile: fileService.getPublicFile,
@@ -176,7 +180,6 @@ export const api = {
       getFileLink: fsService.getFileLink,
       createDirectory: fsService.createDirectory,
       uploadFile: fsService.uploadFile,
-      deleteItem: fsService.deleteItem,
       batchDeleteItems: fsService.batchDeleteItems,
       renameItem: fsService.renameItem,
       updateFile: fsService.updateFile,

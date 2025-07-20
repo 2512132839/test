@@ -607,7 +607,7 @@ const getFileIconHtml = (filename) => {
  */
 const getDefaultFileIcon = () => {
   return `<svg xmlns="http://www.w3.org/2000/svg" class="h-full w-full" viewBox="0 0 24 24" fill="none">
-    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"
       stroke="${props.darkMode ? "#93c5fd" : "#3b82f6"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="${
     props.darkMode ? "#93c5fd" : "#3b82f6"
   }" fill-opacity="${props.darkMode ? "0.1" : "0.1"}"/>
@@ -616,7 +616,7 @@ const getDefaultFileIcon = () => {
 };
 
 /**
- * 解析URL获取文件信息（增强版）
+ * 解析URL获取文件信息
  */
 const analyzeUrl = async () => {
   if (!urlInput.value || isAnalyzing.value || isUploading.value) return;
@@ -734,6 +734,35 @@ const formatSpeed = (bytesPerSecond) => {
   } else {
     return `${Math.round((bytesPerSecond / (1024 * 1024)) * 10) / 10} MB/s`;
   }
+};
+
+/**
+ * 清理文件的所有上传相关引用和状态
+ * @param {Object} fileItem - 文件项对象
+ */
+const cleanupFileUploadReferences = (fileItem) => {
+  // 清理所有可能的上传引用
+  if (fileItem.multipartUploader) {
+    try {
+      fileItem.multipartUploader.abort();
+    } catch (error) {
+      console.warn("清理multipartUploader时出错:", error);
+    }
+    fileItem.multipartUploader = null;
+  }
+
+  if (fileItem.xhr) {
+    try {
+      fileItem.xhr.abort();
+    } catch (error) {
+      console.warn("清理xhr时出错:", error);
+    }
+    fileItem.xhr = null;
+  }
+
+  // 清理其他上传相关状态
+  fileItem.uploadStartTime = null;
+  fileItem.lastProgressTime = null;
 };
 
 /**
@@ -982,39 +1011,31 @@ const presignedDirectUpload = async () => {
 
 /**
  * 分片上传方式
- * 实现URL内容获取后，通过分片上传到S3
- * 流程：1.获取URL内容 -> 2.计算分片信息 -> 3.初始化分片上传 -> 4.上传分片 -> 5.完成上传
+ * 先从URL获取内容，然后使用分片上传到S3
  */
 const chunkedMultipartUpload = async () => {
   try {
     // 重置取消标志
     isCancelled.value = false;
 
-    // 设置初始进度为5%（开始阶段）
-    uploadProgress.value = 5;
-    // 设置当前阶段为"开始"
+    // 设置初始阶段和进度
     currentStage.value = "starting";
-
-    // 步骤1: 获取URL内容 (5% -> 35%)
     uploadProgress.value = 5;
-    // 更新当前阶段为"下载中"
-    currentStage.value = "downloading";
 
-    // 使用通用的URL内容获取函数，自动处理直接获取/代理模式
-    console.log(`开始获取URL内容: ${urlInput.value}`);
+    // 步骤1: 下载文件内容 (5% -> 40%)
+    currentStage.value = "downloading";
 
     // 重置上传速度计算相关变量
     lastLoaded.value = 0;
     lastTime.value = Date.now();
 
-    // 使用统一的URL内容获取函数，会先尝试直接获取，失败则自动使用代理
     const blob = await api.urlUpload.fetchUrlContent({
       url: urlInput.value,
       onProgress: (progress, loaded, _total, _phase, phaseType) => {
         if (isCancelled.value) return;
 
-        // 下载阶段占总进度的30%（从5%到35%），计算公式需要适应fetchUrlContent的进度范围变化(0-49%)
-        const downloadProgress = 5 + Math.round((progress / 49) * 30);
+        // 下载阶段占总进度的35%（从5%到40%）
+        const downloadProgress = 5 + Math.round((progress / 49) * 35);
         uploadProgress.value = downloadProgress;
 
         // 如果是使用代理的方式，更新阶段状态
@@ -1042,162 +1063,61 @@ const chunkedMultipartUpload = async () => {
       },
     });
 
-    // 如果已经取消，则终止上传
     if (isCancelled.value) {
-      // 此时还没有初始化上传，所以没有文件ID和上传ID可以取消
-      // 但需要清理activeXhr引用
-      if (activeXhr.value) {
-        activeXhr.value = null;
-      }
       throw new Error(t("file.messages.uploadCancelled"));
     }
 
-    // 步骤2: 准备分片信息 (35% -> 40%)
-    uploadProgress.value = 35;
-    // 更新当前阶段为"准备中"
-    currentStage.value = "preparing";
-
-    // 计算分片大小和数量
-    const partSize = 5 * 1024 * 1024; // 5MB分片大小
-    const totalSize = blob.size;
-    const parts = api.urlUpload.createParts(blob, partSize);
-    const partCount = parts.length;
-
-    console.log(`文件大小为 ${totalSize} 字节，已分割为 ${partCount} 个分片，每个分片大小约 ${Math.round((partSize / 1024 / 1024) * 100) / 100} MB`);
-
     uploadProgress.value = 40;
 
-    // 步骤3: 初始化分片上传 (40% -> 45%)
-    currentStage.value = "initializing";
-    const initResult = await api.urlUpload.initializeMultipartUpload({
-      url: urlInput.value,
+    // 步骤2: 准备上传配置
+    const uploadConfig = {
       s3_config_id: formData.s3_config_id,
       filename: customFilename.value || fileInfo.value.filename,
+      slug: formData.slug,
       remark: formData.remark,
       password: formData.password,
       expires_in: Number(formData.expires_in),
       max_views: formData.max_views,
-      slug: formData.slug,
       path: formData.path,
-      // 添加分片信息参数
-      part_size: partSize,
-      total_size: totalSize,
-      part_count: partCount,
-    });
+    };
 
-    if (!initResult.success || !initResult.data) {
-      throw new Error(t("file.messages.initMultipartUploadFailed"));
-    }
-
-    // 保存文件ID和上传ID
-    fileId.value = initResult.data.file_id;
-    uploadId.value = initResult.data.upload_id; // 显式保存 uploadId
-
-    // 如果已经取消，则终止上传
-    if (isCancelled.value) {
-      await api.urlUpload.abortMultipartUpload(fileId.value, uploadId.value); // 传递 uploadId
-      throw new Error(t("file.uploadCancelled"));
-    }
-
-    uploadProgress.value = 45;
-
-    // 步骤4: 开始上传分片 (45% -> 95%)
-    // 更新当前阶段为"上传中"
+    // 步骤3: 执行分片上传 (40% -> 100%)
     currentStage.value = "uploading";
-    // 创建分片上传实例
-    multipartUploader.value = new api.urlUpload.S3MultipartUploader({
-      maxConcurrentUploads: 3, // 最多同时上传3个分片
-      onProgress: (progress, loaded, total) => {
-        // 上传占总进度的50%，45%~95%之间，修改为45%~99%，让最后1%留给完成阶段
-        const adjustedProgress = 45 + Math.round(progress * 0.54);
-        // 确保进度不会超过99%，保留1%用于完成阶段
-        uploadProgress.value = Math.min(adjustedProgress, 99);
 
-        // 计算上传速度
-        const now = Date.now();
-        const timeElapsed = (now - lastTime.value) / 1000; // 转换为秒
+    const result = await api.urlUpload.performUrlMultipartUpload(urlInput.value, blob, uploadConfig, {
+      onProgress: (progress, uploadedBytes, totalBytes, speed) => {
+        // 上传占总进度的60%，40%~100%之间
+        const adjustedProgress = 40 + Math.round(progress * 0.6);
+        uploadProgress.value = Math.min(adjustedProgress, 100);
 
-        if (timeElapsed > 0.5) {
-          // 每0.5秒更新一次速度
-          const loadedChange = loaded - lastLoaded.value; // 这段时间内上传的字节数
-          const speed = loadedChange / timeElapsed; // 字节/秒
+        // 更新上传速度
+        if (speed > 0) {
           uploadSpeed.value = formatSpeed(speed);
-
-          // 更新上次加载值和时间
-          lastLoaded.value = loaded;
-          lastTime.value = now;
         }
       },
-      onPartComplete: (partNumber, etag) => {
-        console.log(`分片 ${partNumber} 上传成功，ETag: ${etag}`);
+      onCancel: () => isCancelled.value,
+      onXhrCreated: (uploaderRef) => {
+        // 保存上传器引用，用于取消操作
+        multipartUploader.value = uploaderRef;
       },
       onError: (error, partNumber) => {
-        console.error(`分片 ${partNumber} 上传失败:`, error);
+        console.error(`分片 ${partNumber || "未知"} 上传失败:`, error);
       },
     });
 
-    // 设置分片内容和上传信息
-    multipartUploader.value.setContent(blob, partSize);
-    multipartUploader.value.setUploadInfo(initResult.data.file_id, initResult.data.upload_id, initResult.data.presigned_urls);
-
-    // 重置上传速度计算相关变量
-    lastLoaded.value = 0;
-    lastTime.value = Date.now();
-
-    // 开始上传分片
-    const uploadedParts = await multipartUploader.value.uploadAllParts();
-
-    // 如果已经取消，则终止上传
-    if (isCancelled.value) {
-      await api.urlUpload.abortMultipartUpload(fileId.value, uploadId.value); // 传递 uploadId
-      throw new Error(t("file.uploadCancelled"));
+    if (!result.success) {
+      throw new Error(result.message || "分片上传失败");
     }
 
-    // 步骤5: 完成分片上传
-    // 更新当前阶段为"完成中"
-    currentStage.value = "finalizing";
-
-    await api.urlUpload.completeMultipartUpload({
-      file_id: fileId.value,
-      upload_id: uploadId.value, // 传递 uploadId
-      parts: uploadedParts,
-    });
-
-    // 上传完成
+    // 完成
+    currentStage.value = "completed";
     uploadProgress.value = 100;
     uploadSpeed.value = "";
-    // 更新当前阶段为"已完成"
-    currentStage.value = "completed";
 
     return true;
   } catch (error) {
     console.error("分片上传失败:", error);
-
-    // 如果上传已初始化但失败，尝试终止上传
-    if (fileId.value && uploadId.value && !isCancelled.value) {
-      try {
-        await api.urlUpload.abortMultipartUpload(fileId.value, uploadId.value); // 传递 uploadId
-      } catch (abortError) {
-        console.error("终止分片上传失败:", abortError);
-      }
-    }
-    // 如果只有文件ID但没有uploadId（或已经尝试终止分片上传失败），尝试取消并清理文件记录
-    else if (fileId.value && !uploadId.value) {
-      try {
-        await api.urlUpload.cancelUrlUpload(fileId.value);
-        console.log(`已清理未完成的上传记录: ${fileId.value}`);
-      } catch (cancelError) {
-        console.error("清理未完成的上传记录失败:", cancelError);
-      }
-      // 重置fileId
-      fileId.value = null;
-    }
-
     throw error;
-  } finally {
-    // 清理分片上传器和状态
-    multipartUploader.value = null;
-    uploadId.value = null; // 重置 uploadId
   }
 };
 
@@ -1213,16 +1133,16 @@ const cancelUpload = async () => {
   // 设置取消状态
   currentStage.value = "cancelled";
 
-  // 如果有活动的XHR请求，则中止它
-  if (activeXhr.value) {
-    activeXhr.value.abort();
-    activeXhr.value = null;
-  }
+  // 使用统一的清理函数清理所有上传引用
+  const tempFileItem = {
+    multipartUploader: multipartUploader.value,
+    xhr: activeXhr.value,
+  };
+  cleanupFileUploadReferences(tempFileItem);
 
-  // 如果有分片上传器，取消上传
-  if (multipartUploader.value) {
-    multipartUploader.value.abort();
-  }
+  // 更新引用
+  multipartUploader.value = null;
+  activeXhr.value = null;
 
   // 如果已经有文件ID和uploadId，尝试通知服务器取消上传
   if (fileId.value && uploadId.value) {
@@ -1268,8 +1188,17 @@ const resetForm = () => {
   uploadId.value = null; // 重置 uploadId
   urlError.value = "";
   isCancelled.value = false;
-  multipartUploader.value = null;
   currentStage.value = ""; // 重置上传阶段
+
+  // 使用统一的清理函数清理所有上传引用
+  const tempFileItem = {
+    multipartUploader: multipartUploader.value,
+    xhr: activeXhr.value,
+  };
+  cleanupFileUploadReferences(tempFileItem);
+
+  multipartUploader.value = null;
+  activeXhr.value = null;
 
   // 保留S3配置ID，重置其他表单字段
   const s3ConfigId = formData.s3_config_id;

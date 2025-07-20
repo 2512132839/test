@@ -4,10 +4,10 @@
  */
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
-import { getMountsByAdmin } from "./storageMountService.js";
-import { getAccessibleMountsByBasicPath, checkPathPermissionForNavigation, checkPathPermission } from "./apiKeyService.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
 import { createS3Client, listS3Directory } from "../utils/s3Utils.js";
-import { normalizeS3SubPath, updateMountLastUsed } from "../webdav/utils/webdavUtils.js";
+import { normalizeS3SubPath } from "../storage/drivers/s3/utils/S3PathUtils.js";
+import { updateMountLastUsed } from "../storage/fs/utils/MountResolver.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
 import { searchCacheManager } from "../utils/SearchCache.js";
 import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
@@ -80,26 +80,22 @@ export async function searchFiles(db, searchParams, userIdOrInfo, userType, encr
         return cachedResult;
       }
 
-      // 根据用户类型获取可访问的挂载点
-      let accessibleMounts;
-      if (userType === "admin") {
-        accessibleMounts = await getMountsByAdmin(db, userIdOrInfo);
-      } else if (userType === "apiKey") {
+      // 对于API密钥用户，检查基本路径权限
+      if (userType === "apiKey" && scope === "directory" && path) {
         const apiKeyInfo = userIdOrInfo;
-
-        // 对于API密钥用户，检查基本路径权限
-        if (scope === "directory" && path) {
-          console.log(`检查目录搜索权限: basicPath=${apiKeyInfo.basicPath}, searchPath=${path}`);
-          if (!checkPathPermission(apiKeyInfo.basicPath, path)) {
-            console.log(`权限检查失败: basicPath=${apiKeyInfo.basicPath}, searchPath=${path}`);
-            throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限搜索此路径" });
-          }
-          console.log(`权限检查通过: basicPath=${apiKeyInfo.basicPath}, searchPath=${path}`);
+        console.log(`检查目录搜索权限: basicPath=${apiKeyInfo.basicPath}, searchPath=${path}`);
+        if (!PermissionUtils.checkPathPermission(apiKeyInfo.basicPath, path)) {
+          console.log(`权限检查失败: basicPath=${apiKeyInfo.basicPath}, searchPath=${path}`);
+          throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限搜索此路径" });
         }
+        console.log(`权限检查通过: basicPath=${apiKeyInfo.basicPath}, searchPath=${path}`);
+      }
 
-        // 获取API密钥可访问的挂载点
-        accessibleMounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
-      } else {
+      // 根据用户类型获取可访问的挂载点 - 使用统一的挂载点获取方法
+      let accessibleMounts;
+      try {
+        accessibleMounts = await PermissionUtils.getAccessibleMounts(db, userIdOrInfo, userType);
+      } catch (error) {
         throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
       }
 

@@ -283,14 +283,14 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
         const { useAuthStore } = await import("../../stores/authStore.js");
         const authStore = useAuthStore();
 
-        // 根据用户身份选择合适的删除API
+        // 根据用户身份选择合适的批量删除API
         if (authStore.isAdmin) {
-          // 使用管理员API删除文件
-          await deleteAdminFile(fileId);
+          // 使用管理员批量删除API删除文件
+          await batchDeleteAdminFiles([fileId]);
           console.log("已成功删除上传失败的文件记录（管理员API）");
         } else if (authStore.authType === "apikey" && authStore.apiKey) {
-          // 使用用户API删除文件
-          await deleteUserFile(fileId);
+          // 使用用户批量删除API删除文件
+          await batchDeleteUserFiles([fileId]);
           console.log("已成功删除上传失败的文件记录（用户API）");
         } else {
           console.warn("未检测到有效的管理员令牌或API密钥，无法删除文件记录");
@@ -339,12 +339,12 @@ export async function updateAdminFile(id, metadata) {
 }
 
 /**
- * 删除管理员文件
- * @param {string} id - 文件ID
- * @returns {Promise<Object>} 删除响应
+ * 批量删除管理员文件
+ * @param {Array<string>} ids - 文件ID数组
+ * @returns {Promise<Object>} 批量删除响应
  */
-export async function deleteAdminFile(id) {
-  return await del(`admin/files/${id}`);
+export async function batchDeleteAdminFiles(ids) {
+  return await del(`admin/files/batch-delete`, { ids });
 }
 
 /******************************************************************************
@@ -381,12 +381,12 @@ export async function updateUserFile(id, metadata) {
 }
 
 /**
- * 删除API密钥用户的文件
- * @param {string} id - 文件ID
- * @returns {Promise<Object>} 删除响应
+ * 批量删除API密钥用户的文件
+ * @param {Array<string>} ids - 文件ID数组
+ * @returns {Promise<Object>} 批量删除响应
  */
-export async function deleteUserFile(id) {
-  return await del(`user/files/${id}`);
+export async function batchDeleteUserFiles(ids) {
+  return await del(`user/files/batch-delete`, { ids });
 }
 
 /******************************************************************************
@@ -416,4 +416,3 @@ export async function verifyFilePassword(slug, password) {
 export const getFiles = getAdminFiles;
 export const getFile = getAdminFile;
 export const updateFile = updateAdminFile;
-export const deleteFile = deleteAdminFile;

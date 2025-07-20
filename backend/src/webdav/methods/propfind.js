@@ -1,16 +1,300 @@
-import { getMountsByAdmin, getMountsByApiKey } from "../../services/storageMountService.js";
-import { createS3Client } from "../../utils/s3Utils.js";
-import { ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
-import { handleWebDAVError } from "../utils/errorUtils.js";
-import { checkPathPermission, checkPathPermissionForNavigation } from "../../services/apiKeyService.js";
+/**
+ * WebDAV PROPFIND方法实现
+ * 符合RFC 4918标准，支持propname、allprop、prop请求类型
+ * 在单个文件内修复所有标准违反问题
+ */
 
-// 添加配置常量，用于控制分页行为
-const ABSOLUTE_MAX_ITEMS = 10000; // 绝对最大项目数，防止过度消耗资源
-const DEFAULT_PAGE_SIZE = 500; // 每页项目数
+import { PermissionUtils } from "../../utils/permissionUtils.js";
+import { handleWebDAVError } from "../utils/errorUtils.js";
+import { MountManager } from "../../storage/managers/MountManager.js";
+import { FileSystem } from "../../storage/fs/FileSystem.js";
+import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
+import { getLockManager } from "../utils/LockManager.js";
+import { buildLockDiscoveryXML } from "../utils/lockUtils.js";
+
+// 导入虚拟目录处理函数
+import { isVirtualPath, getVirtualDirectoryListing } from "../../storage/fs/utils/VirtualDirectory.js";
+
+// ===== RFC 4918标准实现：请求类型枚举 =====
+const PropfindRequestType = {
+  PROPNAME: "propname",
+  ALLPROP: "allprop",
+  PROP: "prop",
+};
+
+// ===== RFC 4918标准实现：属性状态枚举 =====
+const PropertyStatus = {
+  OK: 200,
+  NOT_FOUND: 404,
+  FORBIDDEN: 403,
+  CONFLICT: 409,
+};
+
+// ===== RFC 4918标准实现：请求体解析函数 =====
 
 /**
- * 转义XML特殊字符，确保生成有效的XML
+ * 解析PROPFIND请求体
+ * 符合RFC 4918标准，支持propname、allprop、prop三种请求类型
+ * @param {string} requestBody - XML请求体
+ * @returns {Object} 解析结果
+ */
+function parsePropfindRequest(requestBody) {
+  // 如果请求体为空，按照RFC 4918标准应该当作allprop处理
+  if (!requestBody || requestBody.trim() === "") {
+    return {
+      type: PropfindRequestType.ALLPROP,
+      properties: [],
+      include: [],
+    };
+  }
+
+  try {
+    const cleanBody = requestBody.trim();
+
+    // 检查是否为propname请求
+    if (cleanBody.includes("<D:propname") || cleanBody.includes("<propname")) {
+      return {
+        type: PropfindRequestType.PROPNAME,
+        properties: [],
+        include: [],
+      };
+    }
+
+    // 检查是否为allprop请求
+    if (cleanBody.includes("<D:allprop") || cleanBody.includes("<allprop")) {
+      return {
+        type: PropfindRequestType.ALLPROP,
+        properties: [],
+        include: [],
+      };
+    }
+
+    // 检查是否为prop请求（指定属性）
+    if (cleanBody.includes("<D:prop") || cleanBody.includes("<prop")) {
+      const properties = parseRequestedProperties(cleanBody);
+      return {
+        type: PropfindRequestType.PROP,
+        properties: properties,
+        include: [],
+      };
+    }
+
+    // 如果无法识别，默认当作allprop处理
+    return {
+      type: PropfindRequestType.ALLPROP,
+      properties: [],
+      include: [],
+    };
+  } catch (error) {
+    console.error("解析PROPFIND请求体失败:", error);
+    return {
+      type: PropfindRequestType.ALLPROP,
+      properties: [],
+      include: [],
+    };
+  }
+}
+
+/**
+ * 解析prop元素中请求的属性
+ * @param {string} xmlBody - XML请求体
+ * @returns {Array} 请求的属性列表
+ */
+function parseRequestedProperties(xmlBody) {
+  const properties = [];
+
+  try {
+    // 查找prop元素
+    const propMatch = xmlBody.match(/<D:prop[^>]*>(.*?)<\/D:prop>/s) || xmlBody.match(/<prop[^>]*>(.*?)<\/prop>/s);
+
+    if (propMatch) {
+      const propContent = propMatch[1];
+      // 提取属性名称
+      const propertyMatches = propContent.match(/<[^\/][^>]*>/g) || [];
+
+      for (const match of propertyMatches) {
+        const propertyName = extractPropertyName(match);
+        if (propertyName) {
+          properties.push(propertyName);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("解析请求属性失败:", error);
+  }
+
+  return properties;
+}
+
+/**
+ * 从XML标签中提取属性名称
+ * @param {string} xmlTag - XML标签
+ * @returns {string|null} 属性名称
+ */
+function extractPropertyName(xmlTag) {
+  try {
+    const tagContent = xmlTag.replace(/[<>]/g, "");
+    const cleanTag = tagContent.replace(/\/$/, "");
+    const tagName = cleanTag.split(/\s+/)[0];
+    const localName = tagName.includes(":") ? tagName.split(":")[1] : tagName;
+    return localName || null;
+  } catch (error) {
+    console.error("提取属性名称失败:", error, xmlTag);
+    return null;
+  }
+}
+
+// ===== RFC 4918标准实现：属性管理函数 =====
+
+/**
+ * 获取所有标准DAV属性
+ * 符合RFC 4918标准
+ * @param {Object} item - 文件/目录项
+ * @param {string} path - 资源路径
+ * @returns {Object} 属性映射
+ */
+function getAllProperties(item, path) {
+  const isDirectory = item.isDirectory || false;
+  const lockManager = getLockManager();
+
+  return {
+    resourcetype: {
+      value: isDirectory ? "<D:collection/>" : "",
+      status: PropertyStatus.OK,
+    },
+    displayname: {
+      value: escapeXmlChars(item.name || ""),
+      status: PropertyStatus.OK,
+    },
+    getlastmodified: {
+      value: item.modified ? new Date(item.modified).toUTCString() : null,
+      status: item.modified ? PropertyStatus.OK : PropertyStatus.NOT_FOUND,
+    },
+    creationdate: {
+      value: item.created ? new Date(item.created).toISOString() : null,
+      status: item.created ? PropertyStatus.OK : PropertyStatus.NOT_FOUND,
+    },
+    getetag: {
+      value: generateETag(item, path),
+      status: PropertyStatus.OK,
+    },
+    getcontentlength: {
+      value: !isDirectory ? (item.size || 0).toString() : null,
+      status: !isDirectory ? PropertyStatus.OK : PropertyStatus.NOT_FOUND,
+    },
+    getcontenttype: {
+      value: !isDirectory ? getMimeTypeFromFilename(item.name || "") : null,
+      status: !isDirectory ? PropertyStatus.OK : PropertyStatus.NOT_FOUND,
+    },
+    getcontentlanguage: {
+      value: null,
+      status: PropertyStatus.NOT_FOUND,
+    },
+    lockdiscovery: {
+      value: (() => {
+        // 获取当前路径的锁定信息
+        const lockInfo = lockManager.getLock(item.path || path);
+        return buildLockDiscoveryXML(lockInfo);
+      })(),
+      status: PropertyStatus.OK,
+    },
+    supportedlock: {
+      value: `<D:lockentry>
+        <D:lockscope><D:exclusive/></D:lockscope>
+        <D:locktype><D:write/></D:locktype>
+      </D:lockentry>`,
+      status: PropertyStatus.OK,
+    },
+    source: {
+      value: null,
+      status: PropertyStatus.NOT_FOUND,
+    },
+  };
+}
+
+/**
+ * 获取指定的属性
+ * @param {Object} item - 文件/目录项
+ * @param {string} path - 资源路径
+ * @param {Array} requestedProperties - 请求的属性列表
+ * @returns {Object} 属性映射
+ */
+function getRequestedProperties(item, path, requestedProperties) {
+  const allProperties = getAllProperties(item, path);
+  const result = {};
+
+  for (const propertyName of requestedProperties) {
+    if (allProperties[propertyName]) {
+      result[propertyName] = allProperties[propertyName];
+    } else {
+      // 未知属性返回404
+      result[propertyName] = {
+        value: null,
+        status: PropertyStatus.NOT_FOUND,
+      };
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 获取属性名称列表（用于propname请求）
+ * @param {Object} item - 文件/目录项
+ * @param {string} path - 资源路径
+ * @returns {Object} 属性名称映射
+ */
+function getPropertyNames(item, path) {
+  const allProperties = getAllProperties(item, path);
+  const result = {};
+
+  for (const [propertyName, propertyInfo] of Object.entries(allProperties)) {
+    // 只返回存在的属性名称
+    if (propertyInfo.status === PropertyStatus.OK) {
+      result[propertyName] = {
+        value: "", // propname请求不返回值，只返回名称
+        status: PropertyStatus.OK,
+      };
+    }
+  }
+
+  return result;
+}
+
+// ===== RFC 4918标准实现：工具函数 =====
+
+/**
+ * 生成ETag
+ * @param {Object} item - 文件/目录项
+ * @param {string} path - 资源路径
+ * @returns {string} ETag值
+ */
+function generateETag(item, path) {
+  // 基于路径、修改时间和大小生成稳定的ETag
+  const pathHash = simpleHash(path);
+  const timeHash = item.modified ? new Date(item.modified).getTime().toString(16) : "0";
+  const sizeHash = (item.size || 0).toString(16);
+
+  return `"${pathHash}-${timeHash}-${sizeHash}"`;
+}
+
+/**
+ * 简单哈希函数
+ * @param {string} str - 输入字符串
+ * @returns {string} 哈希值
+ */
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // 转换为32位整数
+  }
+  return Math.abs(hash).toString(16);
+}
+
+/**
+ * 转义XML特殊字符
  * @param {string} text - 需要转义的文本
  * @returns {string} 转义后的文本
  */
@@ -20,778 +304,468 @@ function escapeXmlChars(text) {
 }
 
 /**
- * 对URI路径进行编码，确保WebDAV客户端能正确解析
- * 这个函数特别处理了WebDAV客户端可能不兼容的字符
- * @param {string} path - 需要编码的URI路径
- * @returns {string} 编码后的URI路径
+ * 编码URI路径
+ * @param {string} path - 路径
+ * @returns {string} 编码后的路径
  */
 function encodeUriPath(path) {
-  if (typeof path !== "string") return "";
-
-  // 将路径分割成段，单独编码每一段，然后重新组合
-  // 这样可以保留路径分隔符"/"
   return path
-      .split("/")
-      .map((segment) => {
-        // 对每个段进行URL编码，但保留某些合法的URI字符
-        return encodeURIComponent(segment)
-            .replace(/%20/g, "%20") // 保留空格的编码
-            .replace(/'/g, "%27") // 单引号编码
-            .replace(/\(/g, "%28") // 左括号编码
-            .replace(/\)/g, "%29") // 右括号编码
-            .replace(/\*/g, "%2A") // 星号编码
-            .replace(/%2F/g, "/"); // 恢复被错误编码的斜杠
-      })
-      .join("/");
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 }
 
 /**
- * 从挂载路径列表中获取指定路径下的目录结构
- * @param {Array} mounts - 挂载点列表
- * @param {string} currentPath - 当前路径，以/开头且以/结尾
- * @returns {Object} 包含子目录和挂载点的对象
+ * 规范化路径（确保目录以/结尾，文件不以/结尾）
+ * @param {string} path - 原始路径
+ * @param {boolean} isDirectory - 是否为目录
+ * @returns {string} 规范化后的路径
  */
-function getDirectoryStructure(mounts, currentPath) {
-  // 确保currentPath以/开头且以/结尾
-  currentPath = currentPath.startsWith("/") ? currentPath : "/" + currentPath;
-  currentPath = currentPath.endsWith("/") ? currentPath : currentPath + "/";
+function normalizePath(path, isDirectory) {
+  if (isDirectory && !path.endsWith("/")) {
+    return path + "/";
+  } else if (!isDirectory && path.endsWith("/")) {
+    return path.slice(0, -1);
+  }
+  return path;
+}
 
-  // 目录结构结果
-  const result = {
-    directories: new Set(), // 存储子目录名称
-    mounts: [], // 存储当前路径下的挂载点
+/**
+ * 根据请求类型获取属性
+ * @param {Object} item - 文件/目录项
+ * @param {string} path - 路径
+ * @param {Object} requestInfo - 请求信息
+ * @returns {Object} 属性映射
+ */
+function getPropertiesForRequest(item, path, requestInfo) {
+  switch (requestInfo.type) {
+    case PropfindRequestType.PROPNAME:
+      return getPropertyNames(item, path);
+
+    case PropfindRequestType.PROP:
+      return getRequestedProperties(item, path, requestInfo.properties);
+
+    case PropfindRequestType.ALLPROP:
+    default:
+      const allProperties = getAllProperties(item, path);
+
+      // 如果有include属性，添加额外的属性
+      if (requestInfo.include && requestInfo.include.length > 0) {
+        const includeProperties = getRequestedProperties(item, path, requestInfo.include);
+        return { ...allProperties, ...includeProperties };
+      }
+
+      return allProperties;
+  }
+}
+
+// ===== RFC 4918标准实现：Multi-Status响应构建 =====
+
+/**
+ * 构建Multi-Status XML响应
+ * 符合RFC 4918标准，支持属性级错误处理
+ * @param {Array} responses - 响应数组
+ * @returns {string} Multi-Status XML
+ */
+function buildMultiStatusXML(responses) {
+  let xml = `<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:">`;
+
+  for (const response of responses) {
+    xml += buildResponseXML(response);
+  }
+
+  xml += `
+</D:multistatus>`;
+
+  return xml;
+}
+
+/**
+ * 构建单个响应的XML
+ * @param {Object} response - 响应对象
+ * @returns {string} 响应XML
+ */
+function buildResponseXML(response) {
+  let xml = `
+  <D:response>
+    <D:href>${encodeUriPath(response.href)}</D:href>`;
+
+  if (response.status) {
+    // 资源级别的错误
+    xml += `
+    <D:status>HTTP/1.1 ${response.status} ${getStatusText(response.status)}</D:status>`;
+  } else if (response.properties) {
+    // 属性级别的响应
+    const propstatGroups = groupPropertiesByStatus(response.properties);
+
+    for (const propstat of propstatGroups) {
+      xml += buildPropstatXML(propstat);
+    }
+  }
+
+  xml += `
+  </D:response>`;
+
+  return xml;
+}
+
+/**
+ * 按状态码分组属性
+ * @param {Object} properties - 属性映射
+ * @returns {Array} propstat组列表
+ */
+function groupPropertiesByStatus(properties) {
+  const statusGroups = {};
+
+  // 按状态码分组
+  for (const [propertyName, propertyInfo] of Object.entries(properties)) {
+    const status = propertyInfo.status;
+
+    if (!statusGroups[status]) {
+      statusGroups[status] = [];
+    }
+
+    statusGroups[status].push({
+      name: propertyName,
+      value: propertyInfo.value,
+    });
+  }
+
+  // 转换为propstat数组
+  const propstats = [];
+  for (const [status, props] of Object.entries(statusGroups)) {
+    propstats.push({
+      properties: props,
+      status: parseInt(status),
+    });
+  }
+
+  return propstats;
+}
+
+/**
+ * 构建propstat的XML
+ * @param {Object} propstat - propstat对象
+ * @returns {string} propstat XML
+ */
+function buildPropstatXML(propstat) {
+  let xml = `
+    <D:propstat>
+      <D:prop>`;
+
+  for (const property of propstat.properties) {
+    if (property.value !== null && property.value !== undefined) {
+      xml += `
+        <D:${property.name}>${property.value}</D:${property.name}>`;
+    } else {
+      // 空属性（用于propname或不存在的属性）
+      xml += `
+        <D:${property.name}/>`;
+    }
+  }
+
+  xml += `
+      </D:prop>
+      <D:status>HTTP/1.1 ${propstat.status} ${getStatusText(propstat.status)}</D:status>
+    </D:propstat>`;
+
+  return xml;
+}
+
+/**
+ * 获取HTTP状态码对应的文本
+ * @param {number} status - HTTP状态码
+ * @returns {string} 状态文本
+ */
+function getStatusText(status) {
+  const statusTexts = {
+    200: "OK",
+    403: "Forbidden",
+    404: "Not Found",
+    409: "Conflict",
+    422: "Unprocessable Entity",
+    423: "Locked",
+    424: "Failed Dependency",
+    507: "Insufficient Storage",
   };
 
-  // 遍历所有挂载点
-  for (const mount of mounts) {
-    let mountPath = mount.mount_path;
-
-    // 确保挂载路径以/开头
-    mountPath = mountPath.startsWith("/") ? mountPath : "/" + mountPath;
-
-    // 如果挂载路径正好等于当前路径，将其添加到挂载点列表
-    if (mountPath + "/" === currentPath || mountPath === currentPath) {
-      result.mounts.push(mount);
-      continue;
-    }
-
-    // 检查挂载路径是否在当前路径下
-    if (mountPath.startsWith(currentPath)) {
-      // 提取相对路径
-      const relativePath = mountPath.substring(currentPath.length);
-      // 获取第一级目录
-      const firstDir = relativePath.split("/")[0];
-      if (firstDir) {
-        result.directories.add(firstDir);
-      }
-      continue;
-    }
-
-    // 检查当前路径是否是挂载路径的父级路径
-    // 例如: 当前路径是 /private/，挂载点路径是 /private/test2/
-    if (currentPath !== "/" && mountPath.startsWith(currentPath)) {
-      const relativePath = mountPath.substring(currentPath.length);
-      const firstDir = relativePath.split("/")[0];
-      if (firstDir) {
-        result.directories.add(firstDir);
-      }
-    }
-  }
-
-  return {
-    directories: Array.from(result.directories),
-    mounts: result.mounts,
-  };
+  return statusTexts[status] || "Unknown";
 }
 
 /**
- * 处理PROPFIND请求
- * @param {Object} c - Hono上下文
- * @param {string} path - 请求路径
- * @param {string} userId - 用户ID
- * @param {string} userType - 用户类型 (admin 或 apiKey)
- * @param {D1Database} db - D1数据库实例
+ * 创建标准错误响应
+ * @param {string} href - 资源URI
+ * @param {number} status - HTTP状态码
+ * @param {string} message - 错误消息
+ * @returns {Response} HTTP响应对象
  */
-export async function handlePropfind(c, path, userId, userType, db) {
-  // 获取请求头中的Depth (默认为infinity)
-  const depth = c.req.header("Depth") || "infinity";
-  if (depth !== "0" && depth !== "1" && depth !== "infinity") {
-    return new Response("Bad Request: Invalid Depth Header", { status: 400 });
-  }
+function createErrorResponse(href, status, message) {
+  const xml = buildMultiStatusXML([
+    {
+      href: href,
+      status: status,
+      description: message,
+    },
+  ]);
 
-  // 获取客户端请求的最大项目数（如果有）
-  let maxItems = parseInt(c.req.header("X-Max-Items") || "0", 10);
-  if (isNaN(maxItems) || maxItems <= 0) {
-    // 如果未指定或无效，使用默认值
-    maxItems = ABSOLUTE_MAX_ITEMS;
-  } else {
-    // 确保不超过绝对最大值
-    maxItems = Math.min(maxItems, ABSOLUTE_MAX_ITEMS);
-  }
-
-  try {
-    // 规范化路径
-    path = path.startsWith("/") ? path : "/" + path;
-    path = path.endsWith("/") ? path : path + "/";
-
-    // 获取挂载点列表
-    let mounts;
-    if (userType === "admin") {
-      mounts = await getMountsByAdmin(db, userId);
-    } else if (userType === "apiKey") {
-      // 对于API密钥用户，userId现在是完整的API密钥信息对象
-      if (typeof userId === "object" && userId.basicPath) {
-        // 使用基于基本路径的挂载点获取逻辑
-        const { getAccessibleMountsByBasicPath } = await import("../../services/apiKeyService.js");
-        mounts = await getAccessibleMountsByBasicPath(db, userId.basicPath);
-      } else {
-        // 兼容旧的逻辑，如果userId是字符串
-        const apiKeyId = typeof userId === "string" ? userId : userId.id;
-        mounts = await getMountsByApiKey(db, apiKeyId);
-      }
-    } else {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    // 如果是根路径或者是虚拟目录路径，则返回虚拟目录列表
-    let isVirtualPath = true;
-    let matchingMount = null;
-    let subPath = "";
-
-    // 按照路径长度降序排序，以便优先匹配最长的路径
-    mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
-
-    // 检查是否匹配到实际的挂载点
-    for (const mount of mounts) {
-      const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
-
-      // 如果请求路径完全匹配挂载点或者是挂载点的子路径
-      if (path === mountPath + "/" || path.startsWith(mountPath + "/")) {
-        matchingMount = mount;
-        subPath = path.substring(mountPath.length);
-        if (!subPath.startsWith("/")) {
-          subPath = "/" + subPath;
-        }
-        isVirtualPath = false;
-        break;
-      }
-    }
-
-    // 处理虚拟目录路径 (根目录或中间目录)
-    if (isVirtualPath) {
-      return await respondWithMounts(userId, userType, db, path);
-    }
-
-    // 处理实际挂载点路径
-    // 获取挂载点对应的S3配置
-    const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(matchingMount.storage_config_id).first();
-
-    if (!s3Config) {
-      return new Response("Storage Configuration Not Found", { status: 404 });
-    }
-
-    // 创建S3客户端
-    const s3Client = await createS3Client(s3Config, c.env.ENCRYPTION_SECRET);
-
-    // 规范化S3子路径
-    let s3SubPath = subPath.startsWith("/") ? subPath.substring(1) : subPath;
-
-    // 处理root_prefix
-    const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
-
-    // 构建完整的S3路径
-    s3SubPath = rootPrefix + s3SubPath;
-
-    // 规范化S3子路径，移除多余的斜杠
-    s3SubPath = s3SubPath.replace(/\/+/g, "/");
-
-    // 更新最后使用时间
-    try {
-      await db.prepare("UPDATE storage_mounts SET last_used = CURRENT_TIMESTAMP WHERE id = ?").bind(matchingMount.id).run();
-    } catch (updateError) {
-      // 更新失败不中断主流程
-      console.warn("更新存储挂载点最后使用时间失败:", updateError);
-    }
-
-    // 构建响应，传递最大项目数限制和用户信息
-    return await buildPropfindResponse(s3Client, s3Config.bucket_name, s3SubPath, depth, path, maxItems, userId, userType);
-  } catch (error) {
-    // 使用统一的错误处理
-    return handleWebDAVError("PROPFIND", error);
-  }
-}
-
-/**
- * 响应挂载点列表
- * @param {Object} c - Hono上下文
- * @param {string} userId - 用户ID
- * @param {string} userType - 用户类型 (admin 或 apiKey)
- * @param {D1Database} db - D1数据库实例
- * @param {string} path - 当前路径
- */
-async function respondWithMounts(userIdOrInfo, userType, db, path = "/") {
-  let mounts;
-  if (userType === "admin") {
-    // 对于WebDAV访问，管理员也只能看到激活的挂载点
-    mounts = await getMountsByAdmin(db, userIdOrInfo, false);
-  } else if (userType === "apiKey") {
-    // 对于API密钥用户，userIdOrInfo现在是完整的API密钥信息对象
-    if (typeof userIdOrInfo === "object" && userIdOrInfo.basicPath) {
-      // 使用基于基本路径的挂载点获取逻辑
-      const { getAccessibleMountsByBasicPath } = await import("../../services/apiKeyService.js");
-      mounts = await getAccessibleMountsByBasicPath(db, userIdOrInfo.basicPath);
-    } else {
-      // 兼容旧的逻辑，如果userIdOrInfo是字符串
-      const apiKeyId = typeof userIdOrInfo === "string" ? userIdOrInfo : userIdOrInfo.id;
-      mounts = await getMountsByApiKey(db, apiKeyId);
-    }
-  } else {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  // 规范化路径
-  path = path.startsWith("/") ? path : "/" + path;
-  path = path.endsWith("/") ? path : path + "/";
-
-  // 对于API密钥用户，检查是否有导航权限访问此路径
-  if (userType === "apiKey" && typeof userIdOrInfo === "object" && userIdOrInfo.basicPath) {
-    if (!checkPathPermissionForNavigation(userIdOrInfo.basicPath, path)) {
-      return new Response("没有权限访问此路径", { status: 403 });
-    }
-  }
-
-  // 获取当前路径下的目录结构
-  const structure = getDirectoryStructure(mounts, path);
-
-  // 获取当前目录的显示名称
-  const pathParts = path.split("/").filter(Boolean);
-  const displayName = path === "/" ? "/" : pathParts.length > 0 ? pathParts[pathParts.length - 1] : "/";
-
-  // 转义显示名称中的XML特殊字符
-  const escapedDisplayName = escapeXmlChars(displayName);
-
-  // 编码路径
-  const encodedPath = encodeUriPath(path);
-
-  // 获取当前时间，用于lastmodified和creationdate
-  const currentDate = new Date();
-  const currentDateStr = currentDate.toUTCString();
-  const isoDateStr = currentDate.toISOString();
-
-  // 构建XML响应
-  let xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
-  <D:multistatus xmlns:D="DAV:">
-    <D:response>
-      <D:href>/dav${encodedPath}</D:href>
-      <D:propstat>
-        <D:prop>
-          <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>${escapedDisplayName}</D:displayname>
-          <D:getlastmodified>${currentDateStr}</D:getlastmodified>
-          <D:creationdate>${isoDateStr}</D:creationdate>
-          <D:getetag>"${Date.now().toString(16)}-${Math.random().toString(16).substring(2, 10)}"</D:getetag>
-          <D:supportedlock>
-            <D:lockentry>
-              <D:lockscope><D:exclusive/></D:lockscope>
-              <D:locktype><D:write/></D:locktype>
-            </D:lockentry>
-          </D:supportedlock>
-        </D:prop>
-        <D:status>HTTP/1.1 200 OK</D:status>
-      </D:propstat>
-    </D:response>`;
-
-  // 添加子目录
-  for (const dir of structure.directories) {
-    // 转义目录名中的XML特殊字符
-    const escapedDirName = escapeXmlChars(dir);
-
-    // 构建并编码目录路径
-    const dirPath = path + dir + "/";
-    const encodedDirPath = encodeUriPath(dirPath);
-
-    // 为目录生成唯一的ETag
-    const dirEtag = `"dir-${Date.now().toString(16)}-${Math.random().toString(16).substring(2, 10)}"`;
-
-    xmlBody += `
-    <D:response>
-      <D:href>/dav${encodedDirPath}</D:href>
-      <D:propstat>
-        <D:prop>
-          <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>${escapedDirName}</D:displayname>
-          <D:getlastmodified>${currentDateStr}</D:getlastmodified>
-          <D:creationdate>${isoDateStr}</D:creationdate>
-          <D:getetag>${dirEtag}</D:getetag>
-          <D:supportedlock>
-            <D:lockentry>
-              <D:lockscope><D:exclusive/></D:lockscope>
-              <D:locktype><D:write/></D:locktype>
-            </D:lockentry>
-          </D:supportedlock>
-        </D:prop>
-        <D:status>HTTP/1.1 200 OK</D:status>
-      </D:propstat>
-    </D:response>`;
-  }
-
-  // 添加当前路径下的挂载点
-  for (const mount of structure.mounts) {
-    // 获取挂载点的显示名称，优先使用挂载点名称，如果没有则使用路径的最后一部分
-    const mountName = mount.name || mount.mount_path.split("/").filter(Boolean).pop() || mount.id;
-
-    // 转义挂载点名称中的XML特殊字符
-    const escapedMountName = escapeXmlChars(mountName);
-
-    const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
-
-    // 编码挂载点路径
-    const encodedMountPath = encodeUriPath(mountPath + "/");
-
-    // 检查该挂载点是否已经作为子目录显示
-    const relativePath = mountPath.substring(path.length);
-
-    // 获取挂载点的修改时间和创建时间
-    const mountModified = new Date(mount.updated_at || mount.created_at).toUTCString();
-    const mountCreated = new Date(mount.created_at).toISOString();
-
-    // 为挂载点生成唯一的ETag
-    const mountEtag = `"mount-${mount.id}-${Date.now().toString(16)}"`;
-
-    // 如果挂载点直接在当前路径下，显示它
-    if (!relativePath.includes("/") || relativePath === "") {
-      xmlBody += `
-      <D:response>
-        <D:href>/dav${encodedMountPath}</D:href>
-        <D:propstat>
-          <D:prop>
-            <D:resourcetype><D:collection/></D:resourcetype>
-            <D:displayname>${escapedMountName}</D:displayname>
-            <D:getlastmodified>${mountModified}</D:getlastmodified>
-            <D:creationdate>${mountCreated}</D:creationdate>
-            <D:getetag>${mountEtag}</D:getetag>
-            <D:supportedlock>
-              <D:lockentry>
-                <D:lockscope><D:exclusive/></D:lockscope>
-                <D:locktype><D:write/></D:locktype>
-              </D:lockentry>
-            </D:supportedlock>
-          </D:prop>
-          <D:status>HTTP/1.1 200 OK</D:status>
-        </D:propstat>
-      </D:response>`;
-    }
-  }
-
-  xmlBody += `</D:multistatus>`;
-
-  return new Response(xmlBody, {
+  return new Response(xml, {
     status: 207, // Multi-Status
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
+      DAV: "1, 2",
     },
   });
 }
 
+// ===== RFC 4918标准实现：主要处理函数 =====
+
 /**
- * 构建PROPFIND响应
+ * 主要的PROPFIND处理函数
+ * 符合RFC 4918标准，修复所有标准违反问题
  * @param {Object} c - Hono上下文
- * @param {S3Client} s3Client - S3客户端
- * @param {string} bucketName - 存储桶名称
- * @param {string} prefix - S3前缀
- * @param {string} depth - 深度
- * @param {string} requestPath - 请求路径
- * @param {number} maxItems - 最大项目数
- * @param {Object} userInfo - 用户信息（用于权限检查）
- * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} path - 请求路径（由WebDAV中间件解析）
+ * @param {string|Object} userId - 用户ID或信息
+ * @param {string} userType - 用户类型
+ * @param {D1Database} db - 数据库实例
+ * @returns {Response} HTTP响应
  */
-async function buildPropfindResponse(s3Client, bucketName, prefix, depth, requestPath, maxItems = ABSOLUTE_MAX_ITEMS, userInfo = null, userType = "admin") {
-  // 确保路径以斜杠结尾
-  if (!prefix.endsWith("/") && prefix !== "") {
-    prefix += "/";
-  }
-
-  // 删除开头的斜杠
-  if (prefix.startsWith("/")) {
-    prefix = prefix.substring(1);
-  }
-
-  // 初始化计数器变量
-  let itemCount = 0;
-
+export async function handlePropfind(c, path, userId, userType, db) {
   try {
-    // 先尝试以当前路径为目录列出内容
-    const listParams = {
-      Bucket: bucketName,
-      Prefix: prefix,
-      Delimiter: "/",
-      MaxKeys: DEFAULT_PAGE_SIZE, // 使用较小的页面大小，提高响应速度
-    };
+    // 修复：Depth默认值应该是"infinity"（符合RFC 4918标准）
+    const depth = c.req.header("Depth") || "infinity";
 
-    const listCommand = new ListObjectsV2Command(listParams);
-    const listResponse = await s3Client.send(listCommand);
+    // 验证depth值
+    if (!["0", "1", "infinity"].includes(depth)) {
+      return createErrorResponse("/dav" + path, 400, "Invalid Depth header value");
+    }
 
-    // 获取当前目录的显示名称
-    const displayName = requestPath.split("/").filter(Boolean).pop() || "/";
-    // 转义显示名称中的XML特殊字符
-    const escapedDisplayName = escapeXmlChars(displayName);
-    // 正确编码请求路径
-    const encodedRequestPath = encodeUriPath(requestPath);
+    console.log(`WebDAV PROPFIND - 路径: ${path}, 深度: ${depth}`);
 
-    // 获取当前时间，用于lastmodified和creationdate
-    const currentDate = new Date();
-    const currentDateStr = currentDate.toUTCString();
-    const isoDateStr = currentDate.toISOString();
+    // 修复：解析请求体（支持propname、allprop、prop三种类型）
+    let requestBody = "";
+    try {
+      requestBody = await c.req.text();
+    } catch (error) {
+      console.log("PROPFIND请求体解析失败，当作allprop处理");
+    }
 
-    // 为当前目录生成唯一的ETag
-    const dirEtag = `"dir-${Date.now().toString(16)}-${Math.random().toString(16).substring(2, 10)}"`;
+    const requestInfo = parsePropfindRequest(requestBody);
+    requestInfo.depth = depth;
 
-    // 构建XML响应
-    let xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
-    <D:multistatus xmlns:D="DAV:">
-      <D:response>
-        <D:href>/dav${encodedRequestPath}</D:href>
-        <D:propstat>
-          <D:prop>
-            <D:resourcetype><D:collection/></D:resourcetype>
-            <D:displayname>${escapedDisplayName}</D:displayname>
-            <D:getlastmodified>${currentDateStr}</D:getlastmodified>
-            <D:creationdate>${isoDateStr}</D:creationdate>
-            <D:getetag>${dirEtag}</D:getetag>
-            <D:supportedlock>
-              <D:lockentry>
-                <D:lockscope><D:exclusive/></D:lockscope>
-                <D:locktype><D:write/></D:locktype>
-              </D:lockentry>
-            </D:supportedlock>
-          </D:prop>
-          <D:status>HTTP/1.1 200 OK</D:status>
-        </D:propstat>
-      </D:response>`;
+    console.log("PROPFIND请求解析结果:", requestInfo);
 
-    // 如果深度不是0，则加入子项
-    if (depth !== "0") {
-      // 跟踪已处理的项目数
-      let truncated = false;
-
-      // 处理目录（CommonPrefixes）
-      if (listResponse.CommonPrefixes) {
-        for (const item of listResponse.CommonPrefixes) {
-          // 检查是否达到最大项目数
-          if (itemCount >= maxItems) {
-            truncated = true;
-            break;
-          }
-
-          const folderName = item.Prefix.split("/").filter(Boolean).pop();
-          if (!folderName) continue; // 跳过空文件夹名
-
-          // 构建文件夹路径用于权限检查
-          const folderPath = `${requestPath}${folderName}/`;
-
-          // 对于API密钥用户，检查是否有权限访问此目录
-          if (userType === "apiKey" && userInfo && userInfo.basicPath) {
-            if (!checkPathPermission(userInfo.basicPath, folderPath)) {
-              continue; // 跳过没有权限的目录
-            }
-          }
-
-          // 转义文件夹名中的XML特殊字符
-          const escapedFolderName = escapeXmlChars(folderName);
-          // 编码文件夹路径
-          const encodedFolderPath = encodeUriPath(folderPath);
-
-          // 为子目录生成唯一的ETag
-          const subDirEtag = `"dir-${folderName}-${Date.now().toString(16)}"`;
-
-          xmlBody += `
-    <D:response>
-      <D:href>/dav${encodedFolderPath}</D:href>
-      <D:propstat>
-        <D:prop>
-          <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>${escapedFolderName}</D:displayname>
-          <D:getlastmodified>${currentDateStr}</D:getlastmodified>
-          <D:creationdate>${isoDateStr}</D:creationdate>
-          <D:getetag>${subDirEtag}</D:getetag>
-          <D:supportedlock>
-            <D:lockentry>
-              <D:lockscope><D:exclusive/></D:lockscope>
-              <D:locktype><D:write/></D:locktype>
-            </D:lockentry>
-          </D:supportedlock>
-        </D:prop>
-        <D:status>HTTP/1.1 200 OK</D:status>
-      </D:propstat>
-    </D:response>`;
-
-          itemCount++;
-        }
+    // 获取用户信息（适配WebDAV中间件的格式）
+    let userIdOrInfo, actualUserType;
+    if (userType === "admin") {
+      userIdOrInfo = userId;
+      actualUserType = "admin";
+    } else if (userType === "apiKey") {
+      // 对于API密钥用户，userId已经是完整的信息对象
+      if (typeof userId === "object") {
+        userIdOrInfo = {
+          id: userId.id,
+          name: userId.name,
+          basicPath: userId.basicPath,
+          permissions: userId.permissions || {},
+        };
+      } else {
+        return createErrorResponse("/dav" + path, 401, "API密钥信息格式错误");
       }
+      actualUserType = "apiKey";
+    } else {
+      return createErrorResponse("/dav" + path, 401, "未知用户类型");
+    }
 
-      // 处理文件（Contents）
-      if (listResponse.Contents && !truncated) {
-        for (const item of listResponse.Contents) {
-          // 检查是否达到最大项目数
-          if (itemCount >= maxItems) {
-            truncated = true;
-            break;
-          }
+    return await processPropfindRequest(path, requestInfo, userIdOrInfo, actualUserType, db, c.env.ENCRYPTION_SECRET);
+  } catch (error) {
+    console.error("PROPFIND处理失败:", error);
+    return handleWebDAVError(error, "PROPFIND");
+  }
+}
 
-          // 跳过当前目录本身
-          if (item.Key === prefix) continue;
-
-          // 跳过以斜杠结尾的项（目录）
-          if (item.Key.endsWith("/")) continue;
-
-          const fileName = item.Key.split("/").pop();
-          if (!fileName) continue; // 跳过空文件名
-
-          // 构建文件路径用于权限检查
-          const filePath = `${requestPath}${fileName}`;
-
-          // 对于API密钥用户，检查是否有权限访问此文件
-          if (userType === "apiKey" && userInfo && userInfo.basicPath) {
-            if (!checkPathPermission(userInfo.basicPath, filePath)) {
-              continue; // 跳过没有权限的文件
-            }
-          }
-
-          // 转义文件名中的XML特殊字符
-          const escapedFileName = escapeXmlChars(fileName);
-          // 编码文件路径
-          const encodedFilePath = encodeUriPath(filePath);
-
-          // 统一从文件名推断MIME类型
-          const contentType = getMimeTypeFromFilename(fileName);
-          console.log(`WebDAV PROPFIND - 从文件名[${fileName}]推断MIME类型: ${contentType}`);
-
-          // 获取文件的修改时间和创建时间
-          const fileModified = new Date(item.LastModified).toUTCString();
-          const fileCreated = new Date(item.LastModified).toISOString();
-
-          // 为文件生成ETag，使用S3提供的ETag或生成一个
-          const fileEtag = item.ETag || `"file-${fileName}-${Date.now().toString(16)}"`;
-
-          xmlBody += `
-    <D:response>
-      <D:href>/dav${encodedFilePath}</D:href>
-      <D:propstat>
-        <D:prop>
-          <D:resourcetype></D:resourcetype>
-          <D:displayname>${escapedFileName}</D:displayname>
-          <D:getlastmodified>${fileModified}</D:getlastmodified>
-          <D:creationdate>${fileCreated}</D:creationdate>
-          <D:getcontentlength>${item.Size}</D:getcontentlength>
-          <D:getcontenttype>${contentType}</D:getcontenttype>
-          <D:getetag>${fileEtag}</D:getetag>
-          <D:supportedlock>
-            <D:lockentry>
-              <D:lockscope><D:exclusive/></D:lockscope>
-              <D:locktype><D:write/></D:locktype>
-            </D:lockentry>
-          </D:supportedlock>
-        </D:prop>
-        <D:status>HTTP/1.1 200 OK</D:status>
-      </D:propstat>
-    </D:response>`;
-
-          itemCount++;
-        }
-      }
-
-      // 处理分页 - 如果有更多结果且未达到最大项目数，继续获取
-      if (listResponse.IsTruncated && listResponse.NextContinuationToken && !truncated) {
-        // 迭代方式获取下一页结果
-        let nextToken = listResponse.NextContinuationToken;
-        let pageCount = 1; // 跟踪已处理的页数
-
-        while (nextToken && !truncated) {
-          // 记录当前页码，用于日志和调试
-          console.log(`PROPFIND分页: 处理第${pageCount + 1}页，当前项目数: ${itemCount}`);
-
-          const nextParams = {
-            ...listParams,
-            ContinuationToken: nextToken,
-          };
-
-          const nextCommand = new ListObjectsV2Command(nextParams);
-          const nextResponse = await s3Client.send(nextCommand);
-
-          // 处理额外的目录
-          if (nextResponse.CommonPrefixes) {
-            for (const item of nextResponse.CommonPrefixes) {
-              // 检查是否达到最大项目数
-              if (itemCount >= maxItems) {
-                truncated = true;
-                break;
-              }
-
-              const folderName = item.Prefix.split("/").filter(Boolean).pop();
-              if (!folderName) continue;
-
-              // 构建文件夹路径用于权限检查
-              const folderPath = `${requestPath}${folderName}/`;
-
-              // 对于API密钥用户，检查是否有权限访问此目录
-              if (userType === "apiKey" && userInfo && userInfo.basicPath) {
-                if (!checkPathPermission(userInfo.basicPath, folderPath)) {
-                  continue; // 跳过没有权限的目录
-                }
-              }
-
-              const escapedFolderName = escapeXmlChars(folderName);
-              const encodedFolderPath = encodeUriPath(folderPath);
-
-              // 为子目录生成唯一的ETag
-              const subDirEtag = `"dir-${folderName}-${Date.now().toString(16)}"`;
-
-              xmlBody += `
-    <D:response>
-      <D:href>/dav${encodedFolderPath}</D:href>
-      <D:propstat>
-        <D:prop>
-          <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>${escapedFolderName}</D:displayname>
-          <D:getlastmodified>${currentDateStr}</D:getlastmodified>
-          <D:creationdate>${isoDateStr}</D:creationdate>
-          <D:getetag>${subDirEtag}</D:getetag>
-          <D:supportedlock>
-            <D:lockentry>
-              <D:lockscope><D:exclusive/></D:lockscope>
-              <D:locktype><D:write/></D:locktype>
-            </D:lockentry>
-          </D:supportedlock>
-        </D:prop>
-        <D:status>HTTP/1.1 200 OK</D:status>
-      </D:propstat>
-    </D:response>`;
-
-              itemCount++;
-            }
-          }
-
-          // 如果已达到最大项目数，中断循环
-          if (truncated) break;
-
-          // 处理额外的文件
-          if (nextResponse.Contents) {
-            for (const item of nextResponse.Contents) {
-              // 检查是否达到最大项目数
-              if (itemCount >= maxItems) {
-                truncated = true;
-                break;
-              }
-
-              if (item.Key === prefix || item.Key.endsWith("/")) continue;
-
-              const fileName = item.Key.split("/").pop();
-              if (!fileName) continue;
-
-              // 构建文件路径用于权限检查
-              const filePath = `${requestPath}${fileName}`;
-
-              // 对于API密钥用户，检查是否有权限访问此文件
-              if (userType === "apiKey" && userInfo && userInfo.basicPath) {
-                if (!checkPathPermission(userInfo.basicPath, filePath)) {
-                  continue; // 跳过没有权限的文件
-                }
-              }
-
-              const escapedFileName = escapeXmlChars(fileName);
-              const encodedFilePath = encodeUriPath(filePath);
-
-              // 统一从文件名推断MIME类型
-              const contentType = getMimeTypeFromFilename(fileName);
-
-              // 获取文件的修改时间和创建时间
-              const fileModified = new Date(item.LastModified).toUTCString();
-              const fileCreated = new Date(item.LastModified).toISOString();
-
-              // 为文件生成ETag，使用S3提供的ETag或生成一个
-              const fileEtag = item.ETag || `"file-${fileName}-${Date.now().toString(16)}"`;
-
-              xmlBody += `
-    <D:response>
-      <D:href>/dav${encodedFilePath}</D:href>
-      <D:propstat>
-        <D:prop>
-          <D:resourcetype></D:resourcetype>
-          <D:displayname>${escapedFileName}</D:displayname>
-          <D:getlastmodified>${fileModified}</D:getlastmodified>
-          <D:creationdate>${fileCreated}</D:creationdate>
-          <D:getcontentlength>${item.Size}</D:getcontentlength>
-          <D:getcontenttype>${contentType}</D:getcontenttype>
-          <D:getetag>${fileEtag}</D:getetag>
-          <D:supportedlock>
-            <D:lockentry>
-              <D:lockscope><D:exclusive/></D:lockscope>
-              <D:locktype><D:write/></D:locktype>
-            </D:lockentry>
-          </D:supportedlock>
-        </D:prop>
-        <D:status>HTTP/1.1 200 OK</D:status>
-      </D:propstat>
-    </D:response>`;
-
-              itemCount++;
-            }
-          }
-
-          // 检查是否还有更多结果
-          if (nextResponse.IsTruncated && nextResponse.NextContinuationToken) {
-            nextToken = nextResponse.NextContinuationToken;
-            pageCount++;
-
-            // 安全检查：限制最大页数，防止无限循环
-            if (pageCount >= 100) {
-              // 100页 * 500项/页 = 最多50,000项
-              console.warn(`PROPFIND分页: 达到最大页数限制(${pageCount})，截断结果`);
-              truncated = true;
-              break;
-            }
-          } else {
-            nextToken = null; // 结束循环
-          }
-        }
-      }
-
-      // 如果结果被截断，添加一个特殊的响应项，表示还有更多结果
-      if (truncated) {
-        console.log(`PROPFIND结果被截断: 达到最大项目数限制(${maxItems})`);
-
-        xmlBody += `
-    <D:response>
-      <D:href>/dav${encodedRequestPath}?truncated=true</D:href>
-      <D:propstat>
-        <D:prop>
-          <D:resourcetype><D:collection/></D:resourcetype>
-          <D:displayname>...</D:displayname>
-          <D:getlastmodified>${currentDateStr}</D:getlastmodified>
-          <D:creationdate>${isoDateStr}</D:creationdate>
-          <D:getetag>"truncated-${Date.now().toString(16)}"</D:getetag>
-          <D:truncated>true</D:truncated>
-        </D:prop>
-        <D:status>HTTP/1.1 200 OK</D:status>
-      </D:propstat>
-    </D:response>`;
+/**
+ * 处理PROPFIND请求的核心逻辑
+ * @param {string} path - 请求路径
+ * @param {Object} requestInfo - 解析后的请求信息
+ * @param {string|Object} userIdOrInfo - 用户ID或信息
+ * @param {string} actualUserType - 实际用户类型
+ * @param {D1Database} db - 数据库实例
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Response} HTTP响应
+ */
+async function processPropfindRequest(path, requestInfo, userIdOrInfo, actualUserType, db, encryptionSecret) {
+  try {
+    // 检查API密钥用户的路径权限
+    if (actualUserType === "apiKey") {
+      if (!PermissionUtils.checkPathPermissionForNavigation(userIdOrInfo.basicPath, path)) {
+        return createErrorResponse("/dav" + path, 403, "没有权限访问此路径");
       }
     }
 
-    xmlBody += `</D:multistatus>`;
+    // 获取用户可访问的挂载点列表
+    const mounts = await PermissionUtils.getAccessibleMounts(db, userIdOrInfo, actualUserType);
 
-    // 添加额外的响应头，指示是否有分页和项目数量
-    const responseHeaders = {
-      "Content-Type": "application/xml; charset=utf-8",
-      "X-WebDAV-Item-Count": String(typeof itemCount !== "undefined" ? itemCount : 0),
-    };
+    // 检查是否为虚拟路径
+    if (isVirtualPath(path, mounts)) {
+      // 处理虚拟目录
+      const basicPath = actualUserType === "apiKey" ? userIdOrInfo.basicPath : null;
+      return await handleVirtualDirectoryPropfind(mounts, path, basicPath, requestInfo);
+    }
 
-    return new Response(xmlBody, {
+    // 处理实际存储路径
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    return await handleStoragePropfind(fileSystem, path, requestInfo, userIdOrInfo, actualUserType);
+  } catch (error) {
+    console.error("处理PROPFIND请求失败:", error);
+
+    if (error.message && error.message.includes("权限")) {
+      return createErrorResponse("/dav" + path, 403, "权限不足");
+    } else if (error.message && error.message.includes("不存在")) {
+      return createErrorResponse("/dav" + path, 404, "资源不存在");
+    } else {
+      return createErrorResponse("/dav" + path, 500, "内部服务器错误");
+    }
+  }
+}
+
+/**
+ * 处理虚拟目录的PROPFIND请求
+ * @param {Object} mounts - 挂载点列表
+ * @param {string} path - 请求路径
+ * @param {string} basicPath - 基础路径（API密钥用户）
+ * @param {Object} requestInfo - 请求信息
+ * @returns {Response} HTTP响应
+ */
+async function handleVirtualDirectoryPropfind(mounts, path, basicPath, requestInfo) {
+  try {
+    const result = await getVirtualDirectoryListing(mounts, path, basicPath);
+
+    const responses = [];
+
+    // 处理当前虚拟目录
+    const webdavPath = "/dav" + normalizePath(path, true);
+    const properties = getPropertiesForRequest(result, path, requestInfo);
+    responses.push({
+      href: webdavPath,
+      properties: properties,
+    });
+
+    // 如果depth=1，添加子项
+    if (requestInfo.depth === "1" && result.items) {
+      for (const item of result.items) {
+        const itemPath = "/dav" + normalizePath(item.path, item.isDirectory);
+        const itemProperties = getPropertiesForRequest(item, item.path, requestInfo);
+        responses.push({
+          href: itemPath,
+          properties: itemProperties,
+        });
+      }
+    }
+
+    const xml = buildMultiStatusXML(responses);
+
+    return new Response(xml, {
       status: 207, // Multi-Status
-      headers: responseHeaders,
+      headers: {
+        "Content-Type": "application/xml; charset=utf-8",
+        DAV: "1, 2",
+      },
     });
   } catch (error) {
-    console.error("构建PROPFIND响应错误:", error);
-    return new Response("Internal Server Error: " + error.message, { status: 500 });
+    console.error("处理虚拟目录PROPFIND失败:", error);
+    return createErrorResponse("/dav" + path, 500, "内部服务器错误");
+  }
+}
+
+/**
+ * 处理实际存储的PROPFIND请求
+ * @param {Object} fileSystem - 文件系统实例
+ * @param {string} path - 请求路径
+ * @param {Object} requestInfo - 请求信息
+ * @param {string|Object} userIdOrInfo - 用户ID或信息
+ * @param {string} actualUserType - 实际用户类型
+ * @returns {Response} HTTP响应
+ */
+async function handleStoragePropfind(fileSystem, path, requestInfo, userIdOrInfo, actualUserType) {
+  try {
+    let result;
+
+    if (requestInfo.depth === "0") {
+      // 只获取当前资源信息
+      const fileInfo = await fileSystem.getFileInfo(path, userIdOrInfo, actualUserType);
+      result = {
+        path: path,
+        isDirectory: fileInfo.isDirectory,
+        name: fileInfo.name,
+        size: fileInfo.size,
+        modified: fileInfo.modified,
+        created: fileInfo.created,
+        items: [], // depth=0时不包含子项
+      };
+    } else if (requestInfo.depth === "1") {
+      // 获取当前资源和直接子项
+      result = await fileSystem.listDirectory(path, userIdOrInfo, actualUserType);
+    } else {
+      // infinity深度 - 大多数服务器会拒绝此请求
+      return createErrorResponse("/dav" + path, 403, "Depth infinity is not supported for performance reasons");
+    }
+
+    const responses = [];
+
+    // 处理当前资源
+    // 修复：根据返回的数据结构判断是否为目录
+    const isCurrentDirectory = result.type === "directory" || result.isDirectory === true;
+    const webdavPath = "/dav" + normalizePath(path, isCurrentDirectory);
+
+    // 修复：为当前资源构建正确的属性对象
+    const currentResource = {
+      ...result,
+      isDirectory: isCurrentDirectory,
+      name: result.name || path.split("/").filter(Boolean).pop() || "",
+    };
+
+    const properties = getPropertiesForRequest(currentResource, path, requestInfo);
+    responses.push({
+      href: webdavPath,
+      properties: properties,
+    });
+
+    // 如果depth=1且是目录，处理子项
+    if (requestInfo.depth === "1" && isCurrentDirectory && result.items) {
+      for (const item of result.items) {
+        // 修复：确保子项有正确的isDirectory属性
+        const itemIsDirectory = item.isDirectory === true;
+        const itemPath = "/dav" + normalizePath(item.path, itemIsDirectory);
+
+        const itemProperties = getPropertiesForRequest(item, item.path, requestInfo);
+        responses.push({
+          href: itemPath,
+          properties: itemProperties,
+        });
+      }
+    }
+
+    const xml = buildMultiStatusXML(responses);
+
+    return new Response(xml, {
+      status: 207, // Multi-Status
+      headers: {
+        "Content-Type": "application/xml; charset=utf-8",
+        DAV: "1, 2",
+      },
+    });
+  } catch (error) {
+    console.error("处理存储PROPFIND失败:", error);
+
+    if (error.message && error.message.includes("权限")) {
+      return createErrorResponse("/dav" + path, 403, "权限不足");
+    } else if (error.message && error.message.includes("不存在")) {
+      return createErrorResponse("/dav" + path, 404, "资源不存在");
+    } else {
+      return createErrorResponse("/dav" + path, 500, "内部服务器错误");
+    }
   }
 }

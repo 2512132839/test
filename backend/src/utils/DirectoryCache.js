@@ -3,6 +3,8 @@
  * 提供目录列表的缓存功能，用于提高频繁访问目录的性能
  */
 import { BaseCache } from "./BaseCache.js";
+import { clearS3UrlCache } from "./S3UrlCache.js";
+import { clearSearchCache } from "./SearchCache.js";
 
 class DirectoryCacheManager extends BaseCache {
   /**
@@ -157,8 +159,18 @@ export async function clearCache(options = {}) {
     // 场景1: 直接提供挂载点ID - 清理单个挂载点
     if (mountId) {
       const clearedCount = directoryCacheManager.invalidateMount(mountId);
-      console.log(`已清理挂载点 ${mountId} 的目录缓存，共 ${clearedCount} 项`);
       totalCleared += clearedCount;
+
+      // 同时清理该挂载点的搜索缓存
+      let searchCleared = 0;
+      try {
+        searchCleared = clearSearchCache({ mountId });
+        totalCleared += searchCleared;
+      } catch (error) {
+        console.warn("清理搜索缓存失败:", error);
+      }
+
+      console.log(`已清理挂载点 ${mountId} 的缓存，目录缓存: ${clearedCount} 项，搜索缓存: ${searchCleared} 项`);
     }
 
     // 场景2: 提供S3配置ID - 查找并清理所有关联挂载点
@@ -177,19 +189,28 @@ export async function clearCache(options = {}) {
         console.log(`未找到与S3配置 ${s3ConfigId} 关联的挂载点`);
       } else {
         // 清理每个关联挂载点的缓存
+        let searchTotalCleared = 0;
         for (const mount of mounts.results) {
           const clearedCount = directoryCacheManager.invalidateMount(mount.id);
           totalCleared += clearedCount;
+
+          // 同时清理该挂载点的搜索缓存
+          try {
+            const searchCleared = clearSearchCache({ mountId: mount.id });
+            totalCleared += searchCleared;
+            searchTotalCleared += searchCleared;
+          } catch (error) {
+            console.warn(`清理挂载点 ${mount.id} 搜索缓存失败:`, error);
+          }
         }
 
         if (totalCleared > 0) {
-          console.log(`已清理 ${mounts.results.length} 个挂载点的目录缓存，共 ${totalCleared} 项`);
+          console.log(`已清理 ${mounts.results.length} 个挂载点的缓存，目录缓存: ${totalCleared - searchTotalCleared} 项，搜索缓存: ${searchTotalCleared} 项`);
         }
       }
 
       // 清理S3URL缓存
       try {
-        const { clearS3UrlCache } = await import("./S3UrlCache.js");
         const s3UrlCleared = await clearS3UrlCache({ s3ConfigId });
         totalCleared += s3UrlCleared;
         console.log(`已清理S3配置 ${s3ConfigId} 的URL缓存，共 ${s3UrlCleared} 项`);
@@ -203,14 +224,23 @@ export async function clearCache(options = {}) {
       const dirCleared = directoryCacheManager.invalidateAll();
       totalCleared += dirCleared;
 
+      let s3UrlCleared = 0;
       try {
-        const { clearS3UrlCache } = await import("./S3UrlCache.js");
-        const s3UrlCleared = await clearS3UrlCache();
+        s3UrlCleared = await clearS3UrlCache();
         totalCleared += s3UrlCleared;
-        console.log(`已清理所有缓存：目录缓存 ${dirCleared} 项，URL缓存 ${s3UrlCleared} 项`);
       } catch (error) {
         console.warn("清理S3URL缓存失败:", error);
       }
+
+      let searchCleared = 0;
+      try {
+        searchCleared = clearSearchCache();
+        totalCleared += searchCleared;
+      } catch (error) {
+        console.warn("清理搜索缓存失败:", error);
+      }
+
+      console.log(`已清理所有缓存：目录缓存 ${dirCleared} 项，URL缓存 ${s3UrlCleared} 项，搜索缓存 ${searchCleared} 项`);
     }
 
     return totalCleared;

@@ -10,6 +10,8 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { S3ProviderTypes } from "../constants/index.js";
 import { ConfiguredRetryStrategy } from "@smithy/util-retry";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
+import { normalizeS3SubPath } from "../storage/drivers/s3/utils/S3PathUtils.js";
+import { updateParentDirectoriesModifiedTimeHelper } from "../storage/drivers/s3/utils/S3DirectoryUtils.js";
 
 // 默认最大上传限制（MB）
 const DEFAULT_MAX_UPLOAD_SIZE_MB = 100;
@@ -245,8 +247,7 @@ export function registerS3UploadRoutes(app) {
         const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
         if (apiKeyInfo && apiKeyInfo.basicPath && apiKeyInfo.basicPath !== "/") {
           // 获取API密钥可访问的挂载点
-          const { getAccessibleMountsByBasicPath } = await import("../services/apiKeyService.js");
-          const mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
+          const mounts = await PermissionUtils.getAccessibleMounts(db, apiKeyInfo, "apiKey");
 
           // 检查当前S3配置是否在API密钥的权限范围内
           const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
@@ -275,7 +276,6 @@ export function registerS3UploadRoutes(app) {
               }
 
               // 使用normalizeS3SubPath来规范化子路径
-              const { normalizeS3SubPath } = await import("../webdav/utils/webdavUtils.js");
               actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
               break;
             }
@@ -554,7 +554,6 @@ export function registerS3UploadRoutes(app) {
 
       // 更新父目录的修改时间
       const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
-      const { updateParentDirectoriesModifiedTimeHelper } = await import("../services/fsService.js");
       await updateParentDirectoriesModifiedTimeHelper(s3Config, file.storage_path, encryptionSecret);
 
       // 清除与文件相关的缓存 - 使用统一的clearCache函数
@@ -842,8 +841,7 @@ export function registerS3UploadRoutes(app) {
         const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
         if (apiKeyInfo && apiKeyInfo.basicPath && apiKeyInfo.basicPath !== "/") {
           // 获取API密钥可访问的挂载点
-          const { getAccessibleMountsByBasicPath } = await import("../services/apiKeyService.js");
-          const mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
+          const mounts = await PermissionUtils.getAccessibleMounts(db, apiKeyInfo, "apiKey");
 
           // 检查当前S3配置是否在API密钥的权限范围内
           const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
@@ -872,7 +870,6 @@ export function registerS3UploadRoutes(app) {
               }
 
               // 使用normalizeS3SubPath来规范化子路径
-              const { normalizeS3SubPath } = await import("../webdav/utils/webdavUtils.js");
               actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
               break;
             }
@@ -975,6 +972,18 @@ export function registerS3UploadRoutes(app) {
           }
           break;
 
+        case S3ProviderTypes.ALIYUN_OSS:
+          // 阿里云OSS特定处理 - 使用标准S3 SDK方式
+          try {
+            const ossResult = await s3Client.send(new PutObjectCommand(uploadParams));
+            etag = ossResult.ETag ? ossResult.ETag.replace(/"/g, "") : null;
+            console.log(`阿里云OSS上传成功 - ETag: ${etag}`);
+          } catch (ossError) {
+            console.error(`阿里云OSS上传错误:`, ossError);
+            throw ossError;
+          }
+          break;
+
         default:
           // 默认处理 (AWS S3或其他兼容存储)
           try {
@@ -1054,7 +1063,6 @@ export function registerS3UploadRoutes(app) {
       }
 
       // 更新父目录的修改时间
-      const { updateParentDirectoriesModifiedTimeHelper } = await import("../services/fsService.js");
       await updateParentDirectoriesModifiedTimeHelper(s3Config, storagePath, encryptionSecret);
 
       // 清除与文件相关的缓存 - 使用统一的clearCache函数

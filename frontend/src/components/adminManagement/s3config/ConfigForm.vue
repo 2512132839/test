@@ -43,6 +43,7 @@ const providerTypes = [
   { value: "Cloudflare R2", label: "Cloudflare R2" },
   { value: "Backblaze B2", label: "Backblaze B2" },
   { value: "AWS S3", label: "AWS S3" },
+  { value: "Aliyun OSS", label: "阿里云OSS" },
   { value: "Other", label: "其他S3兼容服务" },
 ];
 
@@ -66,6 +67,8 @@ const getDefaultStorageByProvider = (provider) => {
       return 10 * 1024 * 1024 * 1024; // 10GB
     case "Backblaze B2":
       return 10 * 1024 * 1024 * 1024; // 10GB
+    case "Aliyun OSS":
+      return 5 * 1024 * 1024 * 1024; // 5GB
     default:
       return 5 * 1024 * 1024 * 1024; // 5GB
   }
@@ -182,6 +185,11 @@ const updateEndpoint = () => {
       break;
     case "AWS S3":
       formData.value.endpoint_url = "https://s3.amazonaws.com";
+      formData.value.path_style = false;
+      break;
+    case "Aliyun OSS":
+      formData.value.endpoint_url = "https://oss-cn-hangzhou.aliyuncs.com";
+      formData.value.region = "oss-cn-hangzhou";
       formData.value.path_style = false;
       break;
     default:

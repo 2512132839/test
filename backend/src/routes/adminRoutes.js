@@ -4,6 +4,8 @@ import { PermissionUtils } from "../utils/permissionUtils.js";
 import { login, logout, changePassword, testAdminToken } from "../services/adminService.js";
 import { ApiStatus } from "../constants/index.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
+import { s3UrlCacheManager, clearS3UrlCache } from "../utils/S3UrlCache.js";
+import { searchCacheManager, clearSearchCache } from "../utils/SearchCache.js";
 
 const adminRoutes = new Hono();
 
@@ -77,7 +79,6 @@ adminRoutes.get("/api/admin/cache/stats", baseAuthMiddleware, requireAdminMiddle
     // 获取S3URL缓存统计
     let s3UrlStats = null;
     try {
-      const { s3UrlCacheManager } = await import("../utils/S3UrlCache.js");
       s3UrlStats = s3UrlCacheManager.getStats();
     } catch (error) {
       console.warn("获取S3URL缓存统计失败:", error);
@@ -87,7 +88,6 @@ adminRoutes.get("/api/admin/cache/stats", baseAuthMiddleware, requireAdminMiddle
     // 获取搜索缓存统计
     let searchStats = null;
     try {
-      const { searchCacheManager } = await import("../utils/SearchCache.js");
       searchStats = searchCacheManager.getStats();
     } catch (error) {
       console.warn("获取搜索缓存统计失败:", error);
@@ -161,15 +161,24 @@ adminRoutes.post("/api/admin/cache/clear", baseAuthMiddleware, requireAdminMiddl
       clearedCount += dirCleared;
 
       // 同时清理S3URL缓存
+      let s3UrlCleared = 0;
       try {
-        const { clearS3UrlCache } = await import("../utils/S3UrlCache.js");
-        const s3UrlCleared = await clearS3UrlCache();
+        s3UrlCleared = await clearS3UrlCache();
         clearedCount += s3UrlCleared;
-        console.log(`管理员手动清理所有缓存 - 目录缓存: ${dirCleared} 项, S3URL缓存: ${s3UrlCleared} 项, 总计: ${clearedCount} 项`);
       } catch (error) {
         console.warn("清理S3URL缓存失败:", error);
-        console.log(`管理员手动清理目录缓存 - 清理项: ${dirCleared}`);
       }
+
+      // 同时清理搜索缓存
+      let searchCleared = 0;
+      try {
+        searchCleared = clearSearchCache();
+        clearedCount += searchCleared;
+      } catch (error) {
+        console.warn("清理搜索缓存失败:", error);
+      }
+
+      console.log(`管理员手动清理所有缓存 - 目录缓存: ${dirCleared} 项, S3URL缓存: ${s3UrlCleared} 项, 搜索缓存: ${searchCleared} 项, 总计: ${clearedCount} 项`);
     }
 
     return c.json({
@@ -221,15 +230,26 @@ adminRoutes.post("/api/user/cache/clear", baseAuthMiddleware, requireMountPermis
       clearedCount += dirCleared;
 
       // 同时清理S3URL缓存
+      let s3UrlCleared = 0;
       try {
-        const { clearS3UrlCache } = await import("../utils/S3UrlCache.js");
-        const s3UrlCleared = await clearS3UrlCache();
+        s3UrlCleared = await clearS3UrlCache();
         clearedCount += s3UrlCleared;
-        console.log(`API密钥用户手动清理所有缓存 - 用户: ${apiKeyInfo.name}, 目录缓存: ${dirCleared} 项, S3URL缓存: ${s3UrlCleared} 项, 总计: ${clearedCount} 项`);
       } catch (error) {
         console.warn("清理S3URL缓存失败:", error);
-        console.log(`API密钥用户手动清理目录缓存 - 用户: ${apiKeyInfo.name}, 清理项: ${dirCleared}`);
       }
+
+      // 同时清理搜索缓存
+      let searchCleared = 0;
+      try {
+        searchCleared = await clearSearchCache();
+        clearedCount += searchCleared;
+      } catch (error) {
+        console.warn("清理搜索缓存失败:", error);
+      }
+
+      console.log(
+        `API密钥用户手动清理所有缓存 - 用户: ${apiKeyInfo.name}, 目录缓存: ${dirCleared} 项, S3URL缓存: ${s3UrlCleared} 项, 搜索缓存: ${searchCleared} 项, 总计: ${clearedCount} 项`
+      );
     }
 
     return c.json({

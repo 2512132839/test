@@ -87,11 +87,49 @@
         </div>
 
         <div class="flex justify-end space-x-2">
-          <button @click="cancelDelete" class="px-4 py-2 rounded-md transition-colors" :class="darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'">
+          <button
+            @click="cancelDelete"
+            :disabled="isDeleting"
+            class="px-4 py-2 rounded-md transition-colors"
+            :class="[darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100', isDeleting ? 'opacity-50 cursor-not-allowed' : '']"
+          >
             {{ itemsToDelete.length === 1 ? t("mount.delete.cancel") : t("mount.batchDelete.cancelButton") }}
           </button>
-          <button @click="confirmDelete" class="px-4 py-2 rounded-md text-white transition-colors bg-red-600 hover:bg-red-700">
-            {{ itemsToDelete.length === 1 ? t("mount.delete.confirm") : t("mount.batchDelete.confirmButton") }}
+          <button
+            @click="confirmDelete"
+            :disabled="isDeleting"
+            class="px-4 py-2 rounded-md text-white transition-colors flex items-center space-x-2"
+            :class="[isDeleting ? 'bg-red-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700']"
+          >
+            <!-- 删除中的loading图标 -->
+            <svg v-if="isDeleting" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <!-- 删除图标 -->
+            <svg v-else class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+            <span>
+              {{
+                isDeleting
+                  ? itemsToDelete.length === 1
+                    ? t("mount.delete.deleting")
+                    : t("mount.batchDelete.deleting")
+                  : itemsToDelete.length === 1
+                  ? t("mount.delete.confirm")
+                  : t("mount.batchDelete.confirmButton")
+              }}
+            </span>
           </button>
         </div>
       </div>
@@ -309,6 +347,7 @@ const {
 
 const showDeleteDialog = ref(false);
 const itemsToDelete = ref([]);
+const isDeleting = ref(false);
 
 // 计算属性
 
@@ -488,6 +527,9 @@ const batchDelete = () => {
  * 取消删除
  */
 const cancelDelete = () => {
+  // 删除过程中不允许取消
+  if (isDeleting.value) return;
+
   showDeleteDialog.value = false;
   itemsToDelete.value = [];
 };
@@ -496,27 +538,36 @@ const cancelDelete = () => {
  * 确认删除
  */
 const confirmDelete = async () => {
-  if (itemsToDelete.value.length === 0) return;
+  if (itemsToDelete.value.length === 0 || isDeleting.value) return;
 
-  // 使用fileOperations删除项目
-  const result = await fileOperations.batchDeleteItems(itemsToDelete.value);
+  isDeleting.value = true;
 
-  if (result.success) {
-    showMessage("success", result.message);
+  try {
+    // 使用fileOperations删除项目
+    const result = await fileOperations.batchDeleteItems(itemsToDelete.value);
 
-    // 如果是批量删除，清空选择状态
-    if (itemsToDelete.value.length > 1) {
-      toggleCheckboxMode(false);
+    if (result.success) {
+      showMessage("success", result.message);
+
+      // 如果是批量删除，清空选择状态
+      if (itemsToDelete.value.length > 1) {
+        toggleCheckboxMode(false);
+      }
+
+      // 关闭对话框
+      showDeleteDialog.value = false;
+      itemsToDelete.value = [];
+
+      // 重新加载当前目录内容
+      await refreshDirectory();
+    } else {
+      showMessage("error", result.message);
     }
-
-    // 关闭对话框
-    showDeleteDialog.value = false;
-    itemsToDelete.value = [];
-
-    // 重新加载当前目录内容
-    await refreshDirectory();
-  } else {
-    showMessage("error", result.message);
+  } catch (error) {
+    console.error("删除操作失败:", error);
+    showMessage("error", error.message || t("mount.messages.deleteFailed", { message: t("common.unknown") }));
+  } finally {
+    isDeleting.value = false;
   }
 };
 
@@ -569,7 +620,12 @@ const handleCopyComplete = (event) => {
   const message = event?.message || t("mount.messages.copySuccess", { message: t("mount.taskManager.copyStarted", { count: 0, path: "" }) });
   showMessage("success", message);
   toggleCheckboxMode(false);
-  closeCopyModal(); // 关闭复制模态框
+
+  // 只有在模态框未关闭时才关闭模态框
+  if (!event?.modalAlreadyClosed) {
+    closeCopyModal();
+  }
+
   refreshDirectory();
 };
 

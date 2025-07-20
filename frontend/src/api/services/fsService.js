@@ -4,6 +4,7 @@
 
 import { get, post, del } from "../client";
 import { API_BASE_URL } from "../config";
+import { S3MultipartUploader } from "./S3MultipartUploader.js";
 
 /******************************************************************************
  * 统一文件系统API函数
@@ -93,22 +94,17 @@ export async function uploadFile(path, file, useMultipart = true, onXhrCreated) 
 }
 
 /**
- * 删除文件或目录
- * @param {string} path 文件或目录路径
+ * 批量删除文件或目录（统一删除接口）
+ * 支持单个路径或路径数组，文件直接删除，目录递归删除
+ * @param {string|Array<string>} pathsOrPath 文件路径或路径数组
  * @returns {Promise<Object>} 删除结果响应对象
  */
-export async function deleteItem(path) {
-  const params = new URLSearchParams({ path });
-  return del(`/fs/remove?${params.toString()}`);
-}
+export async function batchDeleteItems(pathsOrPath) {
+  // 统一处理单个路径和路径数组
+  const paths = Array.isArray(pathsOrPath) ? pathsOrPath : [pathsOrPath];
 
-/**
- * 批量删除文件或目录
- * @param {Array<string>} paths 文件或目录路径数组
- * @returns {Promise<Object>} 批量删除结果响应对象
- */
-export async function batchDeleteItems(paths) {
-  return post(`/fs/batch-remove`, { paths });
+  // 统一使用批量删除接口，DELETE 方法带请求体
+  return del(`/fs/batch-remove`, { paths });
 }
 
 /**
@@ -157,77 +153,54 @@ export async function getFileLink(path, expiresIn = null, forceDownload = false)
  ******************************************************************************/
 
 /**
- * 初始化分片上传
+ * 初始化前端分片上传（生成预签名URL列表）
  * @param {string} path 目标路径
  * @param {string} fileName 文件名
  * @param {number} fileSize 文件大小
- * @param {string} contentType 文件类型
+ * @param {string} contentType 文件类型（可选，后端会推断）
+ * @param {number} partSize 分片大小（默认5MB）
  * @returns {Promise<Object>} 初始化结果响应对象
  */
-export async function initMultipartUpload(path, fileName, fileSize, contentType) {
+export async function initMultipartUpload(path, fileName, fileSize, contentType, partSize = 5 * 1024 * 1024) {
+  const partCount = Math.ceil(fileSize / partSize);
+
   return post(`/fs/multipart/init`, {
     path,
-    filename: fileName,
+    fileName,
     fileSize,
-    contentType,
+    partSize,
+    partCount,
   });
 }
 
 /**
- * 上传分片
- * @param {string} path 文件路径
- * @param {string} uploadId 上传ID
- * @param {number} partNumber 分片编号
- * @param {Blob|ArrayBuffer} partData 分片数据
- * @param {boolean} isLastPart 是否为最后一个分片
- * @param {string} key S3对象键值，确保与初始化阶段一致
- * @param {Object} options 选项对象
- * @param {Function} options.onXhrCreated 创建XHR对象后的回调，用于保存引用以便取消请求
- * @param {number} options.timeout 超时时间
- * @returns {Promise<Object>} 上传分片结果响应对象
- */
-export async function uploadPart(path, uploadId, partNumber, partData, isLastPart = false, key, { onXhrCreated, timeout }) {
-  const url = `/fs/multipart/part?path=${encodeURIComponent(path)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}&isLastPart=${isLastPart}${
-    key ? `&key=${encodeURIComponent(key)}` : ""
-  }`;
-  return post(url, partData, {
-    headers: { "Content-Type": "application/octet-stream" },
-    rawBody: true,
-    onXhrCreated,
-    timeout,
-  });
-}
-
-/**
- * 完成分片上传
+ * 完成前端分片上传
  * @param {string} path 文件路径
  * @param {string} uploadId 上传ID
  * @param {Array<{partNumber: number, etag: string}>} parts 所有已上传分片的信息
- * @param {string} key S3对象键值，确保与初始化阶段一致
- * @param {string} contentType 文件MIME类型
+ * @param {string} fileName 文件名
  * @param {number} fileSize 文件大小（字节）
  * @returns {Promise<Object>} 完成上传结果响应对象
  */
-export async function completeMultipartUpload(path, uploadId, parts, key, contentType, fileSize) {
+export async function completeMultipartUpload(path, uploadId, parts, fileName, fileSize) {
   return post(`/fs/multipart/complete`, {
     path,
     uploadId,
     parts,
-    key,
-    contentType,
+    fileName,
     fileSize,
   });
 }
 
 /**
- * 中止分片上传
+ * 中止前端分片上传
  * @param {string} path 文件路径
  * @param {string} uploadId 上传ID
- * @param {string} key S3对象键值，确保与初始化阶段一致
+ * @param {string} fileName 文件名
  * @returns {Promise<Object>} 中止上传结果响应对象
  */
-export async function abortMultipartUpload(path, uploadId, key) {
-  return post(`/fs/multipart/abort`, { path, uploadId, key });
+export async function abortMultipartUpload(path, uploadId, fileName) {
+  return post(`/fs/multipart/abort`, { path, uploadId, fileName });
 }
 
 /******************************************************************************
@@ -555,9 +528,64 @@ export async function performClientSideCopy(options) {
       throw new Error("没有找到跨存储复制项目");
     }
 
+    // 处理目录复制：如果有目录复制项目且包含 items 数组，需要展开处理
+    let allCopyItems = [];
+    let targetMountId = null;
+
+    for (const result of copyResult.crossStorageResults) {
+      if (result.isDirectory && result.items && result.items.length > 0) {
+        // 目录复制：将 items 数组中的文件添加到复制列表，并添加必要的元数据
+        const itemsWithMetadata = result.items.map((item) => {
+          // 正确构建目标路径，避免重复斜杠
+          let targetPath = result.target; 
+
+          // 确保 targetPath 以斜杠结尾
+          if (!targetPath.endsWith("/")) {
+            targetPath += "/";
+          }
+
+          // 添加相对目录路径（如果存在）
+          if (item.relativeDir) {
+            targetPath += item.relativeDir + "/";
+          }
+
+          // 添加文件名
+          targetPath += item.fileName;
+
+          return {
+            ...item,
+            targetMount: result.targetMount,
+            targetPath: targetPath,
+          };
+        });
+        allCopyItems.push(...itemsWithMetadata);
+
+        // 记录目标挂载点ID
+        if (!targetMountId) {
+          targetMountId = result.targetMount;
+        }
+      } else if (!result.isDirectory) {
+        // 文件复制
+        const fileItem = {
+          ...result,
+          targetPath: result.target,
+        };
+        allCopyItems.push(fileItem);
+
+        // 记录目标挂载点ID
+        if (!targetMountId) {
+          targetMountId = result.targetMount;
+        }
+      }
+    }
+
+    if (allCopyItems.length === 0) {
+      throw new Error("没有找到需要复制的文件");
+    }
+
     // 处理单文件复制
-    if (copyResult.crossStorageResults.length === 1) {
-      const singleFileCopy = copyResult.crossStorageResults[0];
+    if (allCopyItems.length === 1) {
+      const singleFileCopy = allCopyItems[0];
 
       // 下载源文件
       console.log(`下载源文件: ${singleFileCopy.sourceS3Path || singleFileCopy.sourceKey}`);
@@ -606,7 +634,7 @@ export async function performClientSideCopy(options) {
 
       // 提交复制完成信息
       const commitResult = await commitBatchCopy({
-        targetMountId: singleFileCopy.targetMount,
+        targetMountId: targetMountId,
         files: [
           {
             targetPath: singleFileCopy.targetPath,
@@ -626,11 +654,11 @@ export async function performClientSideCopy(options) {
     }
 
     // 处理批量文件复制
-    const totalItems = copyResult.crossStorageResults.length;
+    const totalItems = allCopyItems.length;
     let completedItems = 0;
     const completedFiles = [];
 
-    for (const item of copyResult.crossStorageResults) {
+    for (const item of allCopyItems) {
       // 检查是否被取消
       if (onCancel && onCancel()) {
         throw new Error("操作已取消");
@@ -701,7 +729,7 @@ export async function performClientSideCopy(options) {
 
     // 提交批量复制完成信息
     const commitResult = await commitBatchCopy({
-      targetMountId: copyResult.crossStorageResults[0].targetMount,
+      targetMountId: targetMountId,
       files: completedFiles,
     });
 
@@ -739,59 +767,60 @@ export async function performClientSideCopy(options) {
  */
 export async function performMultipartUpload(file, path, onProgress, onCancel, onXhrCreated) {
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
   let uploadId = null;
-  let key = null;
+  let multipartUploader = null;
 
   try {
-    // 1. 初始化分片上传
-    const initResponse = await initMultipartUpload(path, file.name, file.size, file.type);
+    // 1. 初始化前端分片上传（获取预签名URL列表）
+    const initResponse = await initMultipartUpload(path, file.name, file.size, file.type, CHUNK_SIZE);
     if (!initResponse.success) {
       throw new Error(initResponse.message || "初始化分片上传失败");
     }
 
     uploadId = initResponse.data.uploadId;
-    key = initResponse.data.key;
-    const parts = [];
+    const presignedUrls = initResponse.data.presignedUrls;
 
-    // 2. 上传各个分片
-    for (let i = 0; i < totalChunks; i++) {
-      if (onCancel && onCancel()) {
-        await abortMultipartUpload(path, uploadId, key);
-        throw new Error("上传已取消");
-      }
-
-      const start = i * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, file.size);
-      const chunk = file.slice(start, end);
-      const partNumber = i + 1;
-      const isLastPart = i === totalChunks - 1;
-
-      const partResponse = await uploadPart(path, uploadId, partNumber, chunk, isLastPart, key, {
-        onXhrCreated,
-        timeout: 300000, // 5分钟超时
-      });
-
-      if (!partResponse.success) {
-        await abortMultipartUpload(path, uploadId, key);
-        throw new Error(`分片 ${partNumber} 上传失败: ${partResponse.message}`);
-      }
-
-      parts.push({
-        partNumber,
-        etag: partResponse.data.etag,
-      });
-
-      // 更新进度
-      if (onProgress) {
-        const progress = Math.round(((i + 1) / totalChunks) * 100);
-        onProgress(progress, end, file.size);
-      }
+    // 检查是否已取消
+    if (onCancel && onCancel()) {
+      await abortMultipartUpload(path, uploadId, file.name);
+      throw new Error("上传已取消");
     }
 
-    // 3. 完成分片上传
-    const completeResponse = await completeMultipartUpload(path, uploadId, parts, key, file.type, file.size);
+    // 2. 创建分片上传器
+    multipartUploader = new S3MultipartUploader({
+      maxConcurrentUploads: 3,
+      onProgress: onProgress,
+      onError: (error) => {
+        console.error("分片上传错误:", error);
+      },
+    });
+
+    // 设置文件内容和上传信息
+    multipartUploader.setContent(file, CHUNK_SIZE);
+    multipartUploader.setUploadInfo(uploadId, presignedUrls, `fs_${path}`);
+
+    // 如果提供了XHR创建回调，需要适配到分片上传器
+    if (onXhrCreated) {
+      // 注意：S3MultipartUploader内部管理多个XHR，这里只能提供一个引用
+      // 实际的取消逻辑应该通过multipartUploader.abort()来处理
+      onXhrCreated({
+        abort: () => multipartUploader.abort(),
+        multipartUploader: multipartUploader,
+      });
+    }
+
+    // 3. 上传所有分片
+    const parts = await multipartUploader.uploadAllParts();
+
+    // 检查是否已取消
+    if (onCancel && onCancel()) {
+      await abortMultipartUpload(path, uploadId, file.name);
+      throw new Error("上传已取消");
+    }
+
+    // 4. 完成分片上传
+    const completeResponse = await completeMultipartUpload(path, uploadId, parts, file.name, file.size);
     if (!completeResponse.success) {
       throw new Error(completeResponse.message || "完成分片上传失败");
     }
@@ -799,16 +828,21 @@ export async function performMultipartUpload(file, path, onProgress, onCancel, o
     onProgress && onProgress(100);
     return completeResponse;
   } catch (error) {
-    // 如果有uploadId和key，尝试中止上传
-    if (uploadId && key) {
+    // 如果有uploadId，尝试中止上传
+    if (uploadId) {
       try {
-        await abortMultipartUpload(path, uploadId, key);
+        await abortMultipartUpload(path, uploadId, file.name);
       } catch (abortError) {
         console.error("中止分片上传失败:", abortError);
       }
     }
-    console.error("分片上传失败:", error);
+    console.error("前端分片上传失败:", error);
     throw error;
+  } finally {
+    // 清理分片上传器
+    if (multipartUploader) {
+      multipartUploader.reset();
+    }
   }
 }
 

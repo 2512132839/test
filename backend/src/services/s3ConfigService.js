@@ -258,6 +258,8 @@ export async function updateS3Config(db, id, updateData, adminId, encryptionSecr
         defaultStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB 默认值
       } else if (config.provider_type === S3ProviderTypes.B2) {
         defaultStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB 默认值
+      } else if (config.provider_type === S3ProviderTypes.ALIYUN_OSS) {
+        defaultStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB 默认值
       } else {
         defaultStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB 默认值
       }
@@ -1008,6 +1010,9 @@ async function executeFrontendSimulationTest(testResult, strategy) {
       if (strategy.config.provider_type === S3ProviderTypes.B2) {
         uploadHeaders["X-Bz-Content-Sha1"] = "do_not_verify";
         uploadHeaders["X-Requested-With"] = "XMLHttpRequest";
+      } else if (strategy.config.provider_type === S3ProviderTypes.ALIYUN_OSS) {
+        // 阿里云OSS通常不需要特殊头部，使用标准S3头部即可
+        // 如果需要特殊处理，可以在这里添加
       }
 
       // 执行模拟上传

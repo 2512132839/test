@@ -490,15 +490,28 @@ const deleteFile = async () => {
   isDeleting.value = true;
 
   try {
-    // 根据用户类型调用不同的API
+    let response;
+
+    // 根据用户类型调用不同的批量删除API
     if (isAdmin()) {
-      await api.file.deleteFile(fileIdToDelete.value);
+      response = await api.file.batchDeleteFiles([fileIdToDelete.value]);
     } else {
-      await api.file.deleteUserFile(fileIdToDelete.value);
+      response = await api.file.batchDeleteUserFiles([fileIdToDelete.value]);
     }
 
-    // 显示成功消息
-    showMessage("success", t("file.deletedSuccess"));
+    // 检查批量删除结果
+    if (response.success) {
+      if (response.data && response.data.failed && response.data.failed.length > 0) {
+        // 删除失败
+        const failedItem = response.data.failed[0];
+        throw new Error(failedItem.error || "删除失败");
+      }
+
+      // 显示成功消息
+      showMessage("success", t("file.deletedSuccess"));
+    } else {
+      throw new Error(response.message || "删除失败");
+    }
 
     // 关闭对话框
     showDeleteConfirm.value = false;

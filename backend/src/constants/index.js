@@ -38,5 +38,6 @@ export const S3ProviderTypes = {
   R2: "Cloudflare R2",
   B2: "Backblaze B2",
   AWS: "AWS S3",
+  ALIYUN_OSS: "Aliyun OSS",
   OTHER: "Other S3 Compatible",
 };

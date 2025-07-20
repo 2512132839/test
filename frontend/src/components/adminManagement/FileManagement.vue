@@ -152,7 +152,7 @@ const apiGetFile = (id) => (isAdmin() ? api.file.getFile(id) : api.file.getUserF
 
 const apiUpdateFile = (id, metadata) => (isAdmin() ? api.file.updateFile(id, metadata) : api.file.updateUserFile(id, metadata));
 
-const apiDeleteFile = (id) => (isAdmin() ? api.file.deleteFile(id) : api.file.deleteUserFile(id));
+const apiBatchDeleteFiles = (ids) => (isAdmin() ? api.file.batchDeleteFiles(ids) : api.file.batchDeleteUserFiles(ids));
 
 /**
  * 状态变量定义
@@ -302,17 +302,25 @@ const handleFileDelete = async (id) => {
     error.value = "";
     successMessage.value = "";
 
-    // 调用API删除文件
-    const response = await apiDeleteFile(id);
+    // 使用批量删除接口删除单个文件
+    const response = await apiBatchDeleteFiles([id]);
 
     if (response.success) {
-      // 重新加载数据
-      loadFiles();
-      // 显示成功消息
-      successMessage.value = "删除成功";
-      setTimeout(() => {
-        successMessage.value = "";
-      }, 4000);
+      // 检查批量删除结果
+      if (response.data && response.data.failed && response.data.failed.length > 0) {
+        // 删除失败
+        const failedItem = response.data.failed[0];
+        error.value = failedItem.error || "删除失败";
+      } else {
+        // 删除成功
+        successMessage.value = "删除成功";
+        setTimeout(() => {
+          successMessage.value = "";
+        }, 4000);
+
+        // 重新加载数据
+        loadFiles();
+      }
     } else {
       error.value = response.message || "删除失败";
     }
@@ -343,17 +351,35 @@ const deleteSelectedFiles = async () => {
     error.value = "";
     successMessage.value = "";
 
-    // 逐个删除选中的文件
-    const promises = selectedFiles.value.map((id) => apiDeleteFile(id));
-    await Promise.all(promises);
+    // 使用批量删除接口
+    const result = await apiBatchDeleteFiles(selectedFiles.value);
+
+    // 检查批量删除结果
+    if (result.success && result.data) {
+      const { success: successCount, failed } = result.data;
+
+      if (failed && failed.length > 0) {
+        // 部分失败
+        const failedCount = failed.length;
+        successMessage.value = `批量删除完成：成功 ${successCount} 个，失败 ${failedCount} 个`;
+
+        // 显示失败的详细信息
+        const failedDetails = failed.map((item) => `ID: ${item.id} - ${item.error}`).join("\n");
+        console.warn("部分文件删除失败:", failedDetails);
+      } else {
+        // 全部成功
+        successMessage.value = `成功删除 ${successCount} 个文件`;
+      }
+    } else {
+      successMessage.value = `成功删除 ${selectedCount} 个文件`;
+    }
 
     // 清空选中列表
     selectedFiles.value = [];
     // 重新加载数据
     loadFiles();
 
-    // 显示成功消息
-    successMessage.value = `成功删除${selectedCount}个文件`;
+    // 自动隐藏成功消息
     setTimeout(() => {
       successMessage.value = "";
     }, 4000);

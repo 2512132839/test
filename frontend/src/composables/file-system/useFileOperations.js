@@ -85,33 +85,6 @@ export function useFileOperations() {
   };
 
   /**
-   * 删除文件或文件夹
-   * @param {string} path - 路径
-   * @returns {Promise<Object>} 操作结果
-   */
-  const deleteItem = async (path) => {
-    try {
-      loading.value = true;
-      error.value = null;
-
-      const deleteItemApi = api.fs.deleteItem;
-      const response = await deleteItemApi(path);
-
-      if (response.success) {
-        return { success: true, message: t("mount.messages.deleteSuccess") };
-      } else {
-        throw new Error(response.message || t("mount.messages.deleteFailed"));
-      }
-    } catch (err) {
-      console.error("删除失败:", err);
-      error.value = err.message;
-      return { success: false, message: err.message };
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  /**
    * 重命名文件或文件夹
    * @param {string} oldPath - 原路径
    * @param {string} newPath - 新路径（完整路径）
@@ -171,11 +144,24 @@ export function useFileOperations() {
   };
 
   /**
-   * 批量删除项目
-   * @param {Array} items - 要删除的项目数组
+   * 批量删除项目（统一删除接口）
+   * 支持单个项目或项目数组，文件直接删除，目录递归删除
+   * @param {Object|Array|string} itemsOrItem - 要删除的项目、项目数组或路径字符串
    * @returns {Promise<Object>} 操作结果
    */
-  const batchDeleteItems = async (items) => {
+  const batchDeleteItems = async (itemsOrItem) => {
+    // 统一处理不同的输入格式
+    let items;
+    if (typeof itemsOrItem === "string") {
+      // 如果是字符串路径，转换为项目对象
+      items = [{ path: itemsOrItem }];
+    } else if (Array.isArray(itemsOrItem)) {
+      items = itemsOrItem;
+    } else {
+      // 如果是单个项目对象
+      items = [itemsOrItem];
+    }
+
     if (!items || items.length === 0) {
       return { success: false, message: t("mount.messages.noItemsToDelete") };
     }
@@ -184,11 +170,16 @@ export function useFileOperations() {
       loading.value = true;
       error.value = null;
 
-      const deleteItemApi = api.fs.deleteItem;
+      // 提取路径数组
+      const paths = items.map((item) => item.path);
 
-      // 逐个删除项目
-      const promises = items.map((item) => deleteItemApi(item.path));
-      await Promise.all(promises);
+      // 使用统一的批量删除接口
+      const result = await api.fs.batchDeleteItems(paths);
+
+      // 简化的结果处理
+      if (result.failed && result.failed.length > 0) {
+        throw new Error(result.failed[0].error);
+      }
 
       return {
         success: true,
@@ -280,7 +271,6 @@ export function useFileOperations() {
 
     // 方法
     downloadFile,
-    deleteItem,
     renameItem,
     createFolder,
     batchDeleteItems,

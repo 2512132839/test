@@ -497,16 +497,23 @@ const deleteFile = async () => {
   try {
     let response;
 
-    // 根据用户类型选择合适的 API 函数
+    // 根据用户类型选择合适的批量删除 API 函数
     if (isAdmin.value) {
-      response = await api.file.deleteFile(props.fileInfo.id);
+      response = await api.file.batchDeleteFiles([props.fileInfo.id]);
     } else if (hasApiKey.value && hasFilePermission.value && isCreator.value) {
-      response = await api.file.deleteUserFile(props.fileInfo.id);
+      response = await api.file.batchDeleteUserFiles([props.fileInfo.id]);
     } else {
       throw new Error(t("fileView.actions.noPermission"));
     }
 
     if (response.success) {
+      // 检查批量删除结果
+      if (response.data && response.data.failed && response.data.failed.length > 0) {
+        // 删除失败
+        const failedItem = response.data.failed[0];
+        throw new Error(failedItem.error || "删除失败");
+      }
+
       // 关闭确认对话框
       showDeleteConfirm.value = false;
       // 通知父组件文件已删除

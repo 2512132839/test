@@ -147,6 +147,7 @@ export default {
     urlUploadSuccess: "URL file uploaded successfully",
     multipleUploadsSuccessful: "Successfully uploaded {count} files",
     retrySuccessful: "Retry upload successful",
+    uploadCancelled: "Upload cancelled",
     allSlugConflicts: "All file link suffixes are already taken, please use different ones",
     allPermissionErrors: "No permission to use this storage configuration",
     allUploadsFailed: "All file uploads failed",

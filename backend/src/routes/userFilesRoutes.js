@@ -192,8 +192,8 @@ export function registerUserFilesRoutes(app) {
 
       // 获取用户文件列表
       const files = await db
-          .prepare(
-              `
+        .prepare(
+          `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -208,9 +208,9 @@ export function registerUserFilesRoutes(app) {
           ORDER BY f.created_at DESC
           LIMIT ? OFFSET ?
         `
-          )
-          .bind(`apikey:${apiKeyId}`, limit, offset)
-          .all();
+        )
+        .bind(`apikey:${apiKeyId}`, limit, offset)
+        .all();
 
       // 获取总数
       const countResult = await db.prepare(`SELECT COUNT(*) as total FROM ${DbTables.FILES} WHERE created_by = ?`).bind(`apikey:${apiKeyId}`).first();
@@ -219,23 +219,23 @@ export function registerUserFilesRoutes(app) {
 
       // 处理文件信息，包括密码
       let processedFiles = await Promise.all(
-          files.results.map(async (file) => {
-            const result = { ...file };
+        files.results.map(async (file) => {
+          const result = { ...file };
 
-            // 确保has_password是布尔类型
-            result.has_password = !!result.has_password;
+          // 确保has_password是布尔类型
+          result.has_password = !!result.has_password;
 
-            // 如果文件有密码保护，获取明文密码
-            if (result.has_password) {
-              const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(result.id).first();
+          // 如果文件有密码保护，获取明文密码
+          if (result.has_password) {
+            const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(result.id).first();
 
-              if (passwordEntry && passwordEntry.plain_password) {
-                result.plain_password = passwordEntry.plain_password;
-              }
+            if (passwordEntry && passwordEntry.plain_password) {
+              result.plain_password = passwordEntry.plain_password;
             }
+          }
 
-            return result;
-          })
+          return result;
+        })
       );
 
       // 为API密钥创建者添加密钥名称
@@ -302,8 +302,8 @@ export function registerUserFilesRoutes(app) {
     try {
       // 查询文件详情
       const file = await db
-          .prepare(
-              `
+        .prepare(
+          `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -316,9 +316,9 @@ export function registerUserFilesRoutes(app) {
           LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
           WHERE f.id = ? AND f.created_by = ?
         `
-          )
-          .bind(id, `apikey:${apiKeyId}`)
-          .first();
+        )
+        .bind(id, `apikey:${apiKeyId}`)
+        .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -368,65 +368,102 @@ export function registerUserFilesRoutes(app) {
     }
   });
 
-  // API密钥用户删除自己的文件
-  app.delete("/api/user/files/:id", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  // 批量删除文件（API密钥用户）
+  app.delete("/api/user/files/batch-delete", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
     const db = c.env.DB;
     const apiKeyId = PermissionUtils.getUserId(c);
-    const { id } = c.req.param();
+    const body = await c.req.json();
+    const ids = body.ids;
 
-    try {
-      // 获取文件信息
-      const file = await db
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的文件ID数组"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 结果统计
+    const result = {
+      success: 0,
+      failed: [],
+    };
+
+    const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+    const s3ConfigIds = new Set(); // 收集需要清理缓存的S3配置ID
+
+    for (const id of ids) {
+      try {
+        // 获取文件信息（只能删除自己的文件）
+        const file = await db
           .prepare(
-              `
-          SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
-          FROM ${DbTables.FILES} f
-          LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
-          WHERE f.id = ? AND f.created_by = ?
-        `
+            `
+            SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
+            FROM ${DbTables.FILES} f
+            LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
+            WHERE f.id = ? AND f.created_by = ?
+          `
           )
           .bind(id, `apikey:${apiKeyId}`)
           .first();
 
-      if (!file) {
-        return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权删除"), ApiStatus.NOT_FOUND);
-      }
-
-      // 尝试从S3中删除文件
-      try {
-        const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
-        if (file.storage_path && file.bucket_name) {
-          const s3Config = {
-            id: file.id,
-            endpoint_url: file.endpoint_url,
-            bucket_name: file.bucket_name,
-            region: file.region,
-            access_key_id: file.access_key_id,
-            secret_access_key: file.secret_access_key,
-            path_style: file.path_style,
-          };
-          await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
+        if (!file) {
+          result.failed.push({
+            id: id,
+            error: "文件不存在或无权删除",
+          });
+          continue;
         }
-      } catch (s3Error) {
-        console.error("从S3删除文件错误:", s3Error);
-        // 即使S3删除失败，也继续从数据库中删除记录
+
+        // 收集S3配置ID用于缓存清理
+        if (file.s3_config_id) {
+          s3ConfigIds.add(file.s3_config_id);
+        }
+
+        // 尝试从S3中删除文件
+        try {
+          if (file.storage_path && file.bucket_name) {
+            const s3Config = {
+              id: file.id,
+              endpoint_url: file.endpoint_url,
+              bucket_name: file.bucket_name,
+              region: file.region,
+              access_key_id: file.access_key_id,
+              secret_access_key: file.secret_access_key,
+              path_style: file.path_style,
+            };
+            await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
+          }
+        } catch (s3Error) {
+          console.error(`从S3删除文件错误 (ID: ${id}):`, s3Error);
+          // 即使S3删除失败，也继续从数据库中删除记录
+        }
+
+        // 从数据库中删除记录（用户文件没有密码记录）
+        await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(id).run();
+
+        result.success++;
+      } catch (error) {
+        console.error(`删除文件失败 (ID: ${id}):`, error);
+        result.failed.push({
+          id: id,
+          error: error.message || "删除失败",
+        });
       }
-
-      // 从数据库中删除记录
-      await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(id).run();
-
-      // 清除与文件相关的缓存 - 使用统一的clearCache函数
-      await clearCache({ db, s3ConfigId: file.s3_config_id });
-
-      return c.json({
-        code: ApiStatus.SUCCESS,
-        message: "文件删除成功",
-        success: true,
-      });
-    } catch (error) {
-      console.error("删除API密钥用户文件错误:", error);
-      return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "删除文件失败"), ApiStatus.INTERNAL_ERROR);
     }
+
+    // 清除与文件相关的缓存
+    try {
+      for (const s3ConfigId of s3ConfigIds) {
+        await clearCache({ db, s3ConfigId });
+      }
+      console.log(`批量删除操作完成后缓存已刷新：${s3ConfigIds.size} 个S3配置`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+    }
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `批量删除完成，成功: ${result.success}，失败: ${result.failed.length}`,
+      data: result,
+      success: true,
+    });
   });
 
   // API密钥用户更新自己文件的元数据
@@ -504,9 +541,9 @@ export function registerUserFilesRoutes(app) {
           } else {
             // 插入新的密码记录
             await db
-                .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-                .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
-                .run();
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+              .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
+              .run();
           }
         } else {
           // 明确提供了空密码，表示要清除密码
@@ -533,15 +570,15 @@ export function registerUserFilesRoutes(app) {
 
       // 执行更新
       await db
-          .prepare(
-              `
+        .prepare(
+          `
           UPDATE ${DbTables.FILES}
           SET ${updateFields.join(", ")}
           WHERE id = ? AND created_by = ?
         `
-          )
-          .bind(...bindParams)
-          .run();
+        )
+        .bind(...bindParams)
+        .run();
 
       return c.json({
         code: ApiStatus.SUCCESS,

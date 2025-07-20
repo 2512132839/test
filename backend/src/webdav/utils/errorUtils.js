@@ -8,7 +8,7 @@
  * @returns {string} 错误ID
  */
 export function generateErrorId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
 
 /**
@@ -17,8 +17,8 @@ export function generateErrorId() {
  * @returns {string} 转义后的文本
  */
 function escapeXmlChars(text) {
-    if (typeof text !== "string") return "";
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  if (typeof text !== "string") return "";
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
 /**
@@ -27,22 +27,22 @@ function escapeXmlChars(text) {
  * @returns {string} 状态描述文本
  */
 function getStatusText(statusCode) {
-    const statusTexts = {
-        400: "Bad Request",
-        401: "Unauthorized",
-        403: "Forbidden",
-        404: "Not Found",
-        405: "Method Not Allowed",
-        409: "Conflict",
-        412: "Precondition Failed",
-        415: "Unsupported Media Type",
-        423: "Locked",
-        500: "Internal Server Error",
-        501: "Not Implemented",
-        507: "Insufficient Storage",
-    };
+  const statusTexts = {
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    405: "Method Not Allowed",
+    409: "Conflict",
+    412: "Precondition Failed",
+    415: "Unsupported Media Type",
+    423: "Locked",
+    500: "Internal Server Error",
+    501: "Not Implemented",
+    507: "Insufficient Storage",
+  };
 
-    return statusTexts[statusCode] || "Unknown Status";
+  return statusTexts[statusCode] || "Unknown Status";
 }
 
 /**
@@ -52,21 +52,21 @@ function getStatusText(statusCode) {
  * @returns {Response} 符合WebDAV标准的XML错误响应
  */
 export function createStandardWebDAVErrorResponse(message, status) {
-    // 转义错误消息中的XML特殊字符
-    const escapedMessage = escapeXmlChars(message);
-    const statusText = getStatusText(status);
+  // 转义错误消息中的XML特殊字符
+  const escapedMessage = escapeXmlChars(message);
+  const statusText = getStatusText(status);
 
-    // 构建符合WebDAV标准的XML错误响应
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  // 构建符合WebDAV标准的XML错误响应
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <D:error xmlns:D="DAV:">
   <D:status>HTTP/1.1 ${status} ${statusText}</D:status>
   <D:message>${escapedMessage}</D:message>
 </D:error>`;
 
-    return new Response(xml, {
-        status: status,
-        headers: { "Content-Type": "application/xml; charset=utf-8" },
-    });
+  return new Response(xml, {
+    status: status,
+    headers: { "Content-Type": "application/xml; charset=utf-8" },
+  });
 }
 
 /**
@@ -78,31 +78,31 @@ export function createStandardWebDAVErrorResponse(message, status) {
  * @returns {Response} 格式化的错误响应
  */
 export function handleWebDAVError(operation, error, includeDetails = false, useXmlResponse = true) {
-    // 生成唯一错误ID
-    const errorId = generateErrorId();
+  // 生成唯一错误ID
+  const errorId = generateErrorId();
 
-    // 记录错误信息
-    console.error(`WebDAV ${operation} 操作错误 [${errorId}]:`, error);
+  // 记录错误信息
+  console.error(`WebDAV ${operation} 操作错误 [${errorId}]:`, error);
 
-    // 特殊处理S3的404错误
-    if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-        return useXmlResponse
-            ? createStandardWebDAVErrorResponse("文件或目录不存在", 404)
-            : new Response("文件或目录不存在", {
-                status: 404,
-                headers: { "Content-Type": "text/plain" },
-            });
-    }
-
-    // 创建安全的错误响应
-    const errorMessage = includeDetails ? `内部服务器错误: ${error.message} (错误ID: ${errorId})` : `内部服务器错误 (错误ID: ${errorId})`;
-
+  // 特殊处理S3的404错误
+  if (error.$metadata && error.$metadata.httpStatusCode === 404) {
     return useXmlResponse
-        ? createStandardWebDAVErrorResponse(errorMessage, 500)
-        : new Response(errorMessage, {
-            status: 500,
-            headers: { "Content-Type": "text/plain" },
+      ? createStandardWebDAVErrorResponse("文件或目录不存在", 404)
+      : new Response("文件或目录不存在", {
+          status: 404,
+          headers: { "Content-Type": "text/plain" },
         });
+  }
+
+  // 创建安全的错误响应
+  const errorMessage = includeDetails ? `内部服务器错误: ${error.message} (错误ID: ${errorId})` : `内部服务器错误 (错误ID: ${errorId})`;
+
+  return useXmlResponse
+    ? createStandardWebDAVErrorResponse(errorMessage, 500)
+    : new Response(errorMessage, {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      });
 }
 
 /**
@@ -113,10 +113,10 @@ export function handleWebDAVError(operation, error, includeDetails = false, useX
  * @returns {Response} 错误响应
  */
 export function createWebDAVErrorResponse(message, status, useXmlResponse = true) {
-    return useXmlResponse
-        ? createStandardWebDAVErrorResponse(message, status)
-        : new Response(message, {
-            status,
-            headers: { "Content-Type": "text/plain" },
-        });
+  return useXmlResponse
+    ? createStandardWebDAVErrorResponse(message, status)
+    : new Response(message, {
+        status,
+        headers: { "Content-Type": "text/plain" },
+      });
 }

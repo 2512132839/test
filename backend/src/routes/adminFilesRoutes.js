@@ -48,8 +48,8 @@ export function registerAdminFilesRoutes(app) {
 
       // 获取文件列表
       const files = await db
-          .prepare(
-              `
+        .prepare(
+          `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -64,16 +64,16 @@ export function registerAdminFilesRoutes(app) {
           ORDER BY f.created_at DESC
           LIMIT ? OFFSET ?
         `
-          )
-          .bind(...queryParams, limit, offset)
-          .all();
+        )
+        .bind(...queryParams, limit, offset)
+        .all();
 
       // 获取总数
       const countParams = [...queryParams];
       const countResult = await db
-          .prepare(`SELECT COUNT(*) as total FROM ${DbTables.FILES} ${whereClause}`)
-          .bind(...countParams)
-          .first();
+        .prepare(`SELECT COUNT(*) as total FROM ${DbTables.FILES} ${whereClause}`)
+        .bind(...countParams)
+        .first();
 
       const total = countResult ? countResult.total : 0;
 
@@ -153,8 +153,8 @@ export function registerAdminFilesRoutes(app) {
     try {
       // 查询文件详情
       const file = await db
-          .prepare(
-              `
+        .prepare(
+          `
           SELECT 
             f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
             f.mimetype, f.size, f.remark, f.created_at, f.updated_at,
@@ -168,9 +168,9 @@ export function registerAdminFilesRoutes(app) {
           LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
           WHERE f.id = ?
         `
-          )
-          .bind(id)
-          .first();
+        )
+        .bind(id)
+        .first();
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
@@ -215,67 +215,104 @@ export function registerAdminFilesRoutes(app) {
     }
   });
 
-  // 删除文件（管理员）
-  app.delete("/api/admin/files/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+  // 批量删除文件（管理员）
+  app.delete("/api/admin/files/batch-delete", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
     const db = c.env.DB;
-    const { id } = c.req.param();
+    const body = await c.req.json();
+    const ids = body.ids;
 
-    try {
-      // 获取文件信息
-      const file = await db
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的文件ID数组"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 结果统计
+    const result = {
+      success: 0,
+      failed: [],
+    };
+
+    const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+    const s3ConfigIds = new Set(); // 收集需要清理缓存的S3配置ID
+
+    for (const id of ids) {
+      try {
+        // 获取文件信息
+        const file = await db
           .prepare(
-              `
-          SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
-          FROM ${DbTables.FILES} f
-          LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
-          WHERE f.id = ?
-        `
+            `
+            SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
+            FROM ${DbTables.FILES} f
+            LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
+            WHERE f.id = ?
+          `
           )
           .bind(id)
           .first();
 
-      if (!file) {
-        return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
-      }
-
-      // 尝试从S3中删除文件
-      try {
-        const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
-        if (file.storage_path && file.bucket_name) {
-          const s3Config = {
-            id: file.id,
-            endpoint_url: file.endpoint_url,
-            bucket_name: file.bucket_name,
-            region: file.region,
-            access_key_id: file.access_key_id,
-            secret_access_key: file.secret_access_key,
-            path_style: file.path_style,
-          };
-          await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
+        if (!file) {
+          result.failed.push({
+            id: id,
+            error: "文件不存在",
+          });
+          continue;
         }
-      } catch (s3Error) {
-        console.error("从S3删除文件错误:", s3Error);
-        // 即使S3删除失败，也继续从数据库中删除记录
+
+        // 收集S3配置ID用于缓存清理
+        if (file.s3_config_id) {
+          s3ConfigIds.add(file.s3_config_id);
+        }
+
+        // 尝试从S3中删除文件
+        try {
+          if (file.storage_path && file.bucket_name) {
+            const s3Config = {
+              id: file.id,
+              endpoint_url: file.endpoint_url,
+              bucket_name: file.bucket_name,
+              region: file.region,
+              access_key_id: file.access_key_id,
+              secret_access_key: file.secret_access_key,
+              path_style: file.path_style,
+            };
+            await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
+          }
+        } catch (s3Error) {
+          console.error(`从S3删除文件错误 (ID: ${id}):`, s3Error);
+          // 即使S3删除失败，也继续从数据库中删除记录
+        }
+
+        // 从数据库中删除记录和关联的密码记录
+        // 首先删除密码记录
+        await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(id).run();
+        // 然后删除文件记录
+        await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(id).run();
+
+        result.success++;
+      } catch (error) {
+        console.error(`删除文件失败 (ID: ${id}):`, error);
+        result.failed.push({
+          id: id,
+          error: error.message || "删除失败",
+        });
       }
-
-      // 从数据库中删除记录和关联的密码记录
-      // 首先删除密码记录
-      await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(id).run();
-      // 然后删除文件记录
-      await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(id).run();
-
-      // 清除与文件相关的缓存 - 使用统一的clearCache函数
-      await clearCache({ db, s3ConfigId: file.s3_config_id });
-
-      return c.json({
-        code: ApiStatus.SUCCESS,
-        message: "文件删除成功",
-        success: true,
-      });
-    } catch (error) {
-      console.error("删除管理员文件错误:", error);
-      return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "删除文件失败"), ApiStatus.INTERNAL_ERROR);
     }
+
+    // 清除与文件相关的缓存
+    try {
+      for (const s3ConfigId of s3ConfigIds) {
+        await clearCache({ db, s3ConfigId });
+      }
+      console.log(`批量删除操作完成后缓存已刷新：${s3ConfigIds.size} 个S3配置`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+    }
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: `批量删除完成，成功: ${result.success}，失败: ${result.failed.length}`,
+      data: result,
+      success: true,
+    });
   });
 
   // 管理员更新文件元数据
@@ -352,9 +389,9 @@ export function registerAdminFilesRoutes(app) {
           } else {
             // 插入新的密码记录
             await db
-                .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-                .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
-                .run();
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+              .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
+              .run();
           }
         } else {
           // 明确提供了空密码，表示要清除密码
@@ -380,15 +417,15 @@ export function registerAdminFilesRoutes(app) {
 
       // 执行更新
       await db
-          .prepare(
-              `
+        .prepare(
+          `
           UPDATE ${DbTables.FILES}
           SET ${updateFields.join(", ")}
           WHERE id = ?
         `
-          )
-          .bind(...bindParams)
-          .run();
+        )
+        .bind(...bindParams)
+        .run();
 
       return c.json({
         code: ApiStatus.SUCCESS,

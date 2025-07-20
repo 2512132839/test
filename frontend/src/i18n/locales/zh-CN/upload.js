@@ -147,6 +147,7 @@ export default {
     urlUploadSuccess: "URL文件上传成功",
     multipleUploadsSuccessful: "成功上传 {count} 个文件",
     retrySuccessful: "重试上传成功",
+    uploadCancelled: "上传已取消",
     allSlugConflicts: "所有文件的链接后缀都已被占用，请更换其他后缀",
     allPermissionErrors: "没有权限使用此存储配置",
     allUploadsFailed: "所有文件上传失败",

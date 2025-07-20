@@ -133,9 +133,8 @@ export function useFilePreviewExtensions(
         throw new Error("文件过大，无法保存");
       }
 
-      // 选择API函数
-      const updateFileContent = authInfo.value.isAdmin ? api.fs.updateAdminFile : api.fs.updateUserFile;
-      const response = await updateFileContent(file.value.path, editContent.value);
+      // 使用统一的文件更新API
+      const response = await api.fs.updateFile(file.value.path, editContent.value);
 
       if (response.success) {
         // 更新文本内容

@@ -35,8 +35,8 @@ export async function getAllApiKeys(db) {
 
   // 查询所有密钥，并隐藏完整密钥
   const keys = await db
-      .prepare(
-          `
+    .prepare(
+      `
     SELECT 
       id, 
       name, 
@@ -52,8 +52,8 @@ export async function getAllApiKeys(db) {
     FROM ${DbTables.API_KEYS}
     ORDER BY created_at DESC
   `
-      )
-      .all();
+    )
+    .all();
 
   return keys.results;
 }
@@ -117,14 +117,14 @@ export async function createApiKey(db, keyData) {
 
   // 插入到数据库
   await db
-      .prepare(
-          `
+    .prepare(
+      `
     INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
-      )
-      .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, basicPath, expiresAt.toISOString(), createdAt)
-      .run();
+    )
+    .bind(id, keyData.name.trim(), key, textPermission, filePermission, mountPermission, basicPath, expiresAt.toISOString(), createdAt)
+    .run();
 
   // 准备响应数据
   return {
@@ -229,9 +229,9 @@ export async function updateApiKey(db, id, updateData) {
 
   // 执行更新
   await db
-      .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
-      .bind(...params)
-      .run();
+    .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...params)
+    .run();
 }
 
 /**
@@ -262,92 +262,15 @@ export async function getApiKeyByKey(db, key) {
   if (!key) return null;
 
   const result = await db
-      .prepare(
-          `SELECT id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, last_used
+    .prepare(
+      `SELECT id, name, key, text_permission, file_permission, mount_permission, basic_path, expires_at, last_used
        FROM ${DbTables.API_KEYS}
        WHERE key = ?`
-      )
-      .bind(key)
-      .first();
+    )
+    .bind(key)
+    .first();
 
   return result;
-}
-
-/**
- * 检查API密钥是否有访问指定路径的权限
- * @param {string} basicPath - API密钥的基本路径
- * @param {string} requestPath - 请求访问的路径
- * @returns {boolean} 是否有权限
- */
-export function checkPathPermission(basicPath, requestPath) {
-  if (!basicPath || !requestPath) {
-    return false;
-  }
-
-  // 标准化路径 - 确保以/开头，不以/结尾（除非是根路径）
-  const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
-  const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
-
-  // 如果基本路径是根路径，允许访问所有路径
-  if (normalizeBasicPath === "/") {
-    return true;
-  }
-
-  // 检查请求路径是否在基本路径范围内
-  return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
-}
-
-/**
- * 检查API密钥是否有访问指定路径的权限（支持导航）
- * 允许访问从根路径到基本路径的所有父级路径，以便用户能够导航
- * @param {string} basicPath - API密钥的基本路径
- * @param {string} requestPath - 请求访问的路径
- * @returns {boolean} 是否有权限
- */
-export function checkPathPermissionForNavigation(basicPath, requestPath) {
-  if (!basicPath || !requestPath) {
-    return false;
-  }
-
-  // 标准化路径 - 确保以/开头，不以/结尾（除非是根路径）
-  const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
-  const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
-
-  // 如果基本路径是根路径，允许访问所有路径
-  if (normalizeBasicPath === "/") {
-    return true;
-  }
-
-  // 检查请求路径是否在基本路径范围内（有完整权限）
-  if (normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/")) {
-    return true;
-  }
-
-  // 允许访问基本路径的父级路径（用于导航），但这些路径只有查看权限，没有操作权限
-  if (normalizeBasicPath.startsWith(normalizeRequestPath + "/") || normalizeRequestPath === "/") {
-    return true;
-  }
-
-  return false;
-}
-
-// 检查是否有操作权限（创建、删除、上传等）
-export function checkPathPermissionForOperation(basicPath, requestPath) {
-  if (!basicPath || !requestPath) {
-    return false;
-  }
-
-  // 标准化路径
-  const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
-  const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
-
-  // 如果基本路径是根路径，允许所有操作
-  if (normalizeBasicPath === "/") {
-    return true;
-  }
-
-  // 只有在基本路径范围内才允许操作
-  return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
 }
 
 /**
@@ -357,30 +280,38 @@ export function checkPathPermissionForOperation(basicPath, requestPath) {
  * @returns {Promise<Array>} 可访问的挂载点列表
  */
 export async function getAccessibleMountsByBasicPath(db, basicPath) {
-  // 获取所有活跃的挂载点
+  // 获取所有活跃的挂载点，并关联S3配置信息以检查公开性
   const allMounts = await db
-      .prepare(
-          `SELECT
-        id, name, storage_type, storage_config_id, mount_path,
-        remark, is_active, created_by, sort_order, cache_ttl,
-        created_at, updated_at, last_used
-       FROM ${DbTables.STORAGE_MOUNTS}
-       WHERE is_active = 1
-       ORDER BY sort_order ASC, name ASC`
-      )
-      .all();
+    .prepare(
+      `SELECT
+        sm.id, sm.name, sm.storage_type, sm.storage_config_id, sm.mount_path,
+        sm.remark, sm.is_active, sm.created_by, sm.sort_order, sm.cache_ttl,
+        sm.created_at, sm.updated_at, sm.last_used,
+        s3c.is_public
+       FROM ${DbTables.STORAGE_MOUNTS} sm
+       LEFT JOIN ${DbTables.S3_CONFIGS} s3c ON sm.storage_config_id = s3c.id
+       WHERE sm.is_active = 1
+       ORDER BY sm.sort_order ASC, sm.name ASC`
+    )
+    .all();
 
   if (!allMounts.results) return [];
 
-  // 根据基本路径筛选可访问的挂载点
-  // 需要检查两种情况：
-  // 1. 基本路径允许访问挂载点路径（基本路径是挂载点的父级或相同）
-  // 2. 挂载点路径是基本路径的父级（基本路径是挂载点的子目录）
+  // 根据基本路径和S3配置公开性筛选可访问的挂载点
+  const inaccessibleMounts = []; // 收集无法访问的挂载点信息
   const accessibleMounts = allMounts.results.filter((mount) => {
+    // 首先检查S3配置的公开性
+    // 对于S3类型的挂载点，必须使用公开的S3配置
+    if (mount.storage_type === "S3" && mount.is_public !== 1) {
+      inaccessibleMounts.push(mount.name);
+      return false;
+    }
+
+    // 然后检查路径权限
     const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
     const normalizedMountPath = mount.mount_path.replace(/\/+$/, "") || "/";
 
-    // 情况1：基本路径是根路径，允许访问所有挂载点
+    // 情况1：基本路径是根路径，允许访问所有公开配置的挂载点
     if (normalizedBasicPath === "/") {
       return true;
     }
@@ -397,6 +328,11 @@ export async function getAccessibleMountsByBasicPath(db, basicPath) {
 
     return false;
   });
+
+  // 如果有无法访问的挂载点，统一输出一条日志
+  if (inaccessibleMounts.length > 0) {
+    console.log(`API密钥用户无法访问 ${inaccessibleMounts.length} 个非公开S3配置的挂载点: ${inaccessibleMounts.join(", ")}`);
+  }
 
   return accessibleMounts;
 }

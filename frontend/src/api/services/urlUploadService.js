@@ -6,6 +6,7 @@
 
 import { get, post, del } from "../client";
 import { getFullApiUrl } from "../config";
+import { S3MultipartUploader } from "./S3MultipartUploader.js";
 
 /**
  * 验证URL并获取文件元信息
@@ -334,148 +335,132 @@ export function createParts(blob, partSize) {
   return parts;
 }
 
+/******************************************************************************
+ * 高级功能API函数
+ ******************************************************************************/
+
 /**
- * S3分片上传器类
+ * 执行URL分片上传的完整流程
+ * @param {string} url - 源URL
+ * @param {Blob} blob - 从URL下载的内容
+ * @param {Object} uploadConfig - 上传配置
+ * @param {string} uploadConfig.s3_config_id - S3配置ID
+ * @param {string} uploadConfig.filename - 文件名
+ * @param {string} [uploadConfig.slug] - 自定义链接
+ * @param {string} [uploadConfig.remark] - 备注
+ * @param {string} [uploadConfig.password] - 密码
+ * @param {number} [uploadConfig.expires_in] - 过期时间（小时）
+ * @param {number} [uploadConfig.max_views] - 最大查看次数
+ * @param {string} [uploadConfig.path] - 自定义存储路径
+ * @param {Object} callbacks - 回调函数
+ * @param {Function} callbacks.onProgress - 进度回调函数，参数为(progress, uploadedBytes, totalBytes, speed)
+ * @param {Function} [callbacks.onCancel] - 取消检查函数，返回true时中止上传
+ * @param {Function} [callbacks.onXhrCreated] - XHR创建后的回调，用于保存引用以便取消请求
+ * @param {Function} [callbacks.onError] - 错误回调函数
+ * @returns {Promise<Object>} 上传结果
  */
-export class S3MultipartUploader {
-  constructor(options = {}) {
-    this.maxConcurrentUploads = options.maxConcurrentUploads || 3;
-    this.onProgress = options.onProgress || (() => {});
-    this.onPartComplete = options.onPartComplete || (() => {});
-    this.onError = options.onError || (() => {});
+export async function performUrlMultipartUpload(url, blob, uploadConfig, callbacks = {}) {
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
+  const { onProgress, onCancel, onXhrCreated, onError } = callbacks;
 
-    this.content = null;
-    this.parts = [];
-    this.fileId = null;
-    this.uploadId = null;
-    this.presignedUrls = [];
-    this.uploadedParts = [];
-    this.totalUploaded = 0;
-    this.isCancelled = false;
-  }
+  let fileId = null;
+  let uploadId = null;
+  let multipartUploader = null;
 
-  setContent(blob, partSize) {
-    this.content = blob;
-    this.parts = createParts(blob, partSize);
-  }
+  try {
+    // 1. 初始化分片上传
+    const initOptions = {
+      url,
+      s3_config_id: uploadConfig.s3_config_id,
+      filename: uploadConfig.filename,
+      slug: uploadConfig.slug,
+      remark: uploadConfig.remark,
+      password: uploadConfig.password,
+      expires_in: uploadConfig.expires_in,
+      max_views: uploadConfig.max_views,
+      path: uploadConfig.path,
+      // 分片信息
+      part_size: CHUNK_SIZE,
+      total_size: blob.size,
+      part_count: Math.ceil(blob.size / CHUNK_SIZE),
+    };
 
-  setUploadInfo(fileId, uploadId, presignedUrls) {
-    this.fileId = fileId;
-    this.uploadId = uploadId;
-    this.presignedUrls = presignedUrls;
-  }
-
-  async uploadAllParts() {
-    if (!this.content || !this.parts.length || !this.presignedUrls.length) {
-      throw new Error("上传器未正确初始化");
+    const initResponse = await initializeMultipartUpload(initOptions);
+    if (!initResponse.success) {
+      throw new Error(initResponse.message || "初始化分片上传失败");
     }
 
-    this.uploadedParts = [];
-    this.totalUploaded = 0;
-    this.isCancelled = false;
+    fileId = initResponse.data.file_id;
+    uploadId = initResponse.data.upload_id;
+    const presignedUrls = initResponse.data.presigned_urls;
 
-    // 创建上传队列
-    const uploadQueue = [...this.parts];
-    const activeUploads = new Set();
-
-    return new Promise((resolve, reject) => {
-      const processNext = async () => {
-        if (this.isCancelled) {
-          reject(new Error("上传已取消"));
-          return;
-        }
-
-        if (uploadQueue.length === 0 && activeUploads.size === 0) {
-          // 所有分片上传完成
-          resolve(this.uploadedParts);
-          return;
-        }
-
-        if (uploadQueue.length > 0 && activeUploads.size < this.maxConcurrentUploads) {
-          const part = uploadQueue.shift();
-          const uploadPromise = this.uploadPart(part);
-
-          activeUploads.add(uploadPromise);
-
-          uploadPromise
-            .then(() => {
-              activeUploads.delete(uploadPromise);
-              processNext();
-            })
-            .catch((error) => {
-              activeUploads.delete(uploadPromise);
-              this.onError(error, part.partNumber);
-              reject(error);
-            });
-
-          // 继续处理下一个
-          processNext();
-        }
-      };
-
-      processNext();
-    });
-  }
-
-  async uploadPart(part) {
-    if (this.isCancelled) {
+    // 检查是否已取消
+    if (onCancel && onCancel()) {
+      await abortMultipartUpload(fileId, uploadId);
       throw new Error("上传已取消");
     }
 
-    const presignedUrl = this.presignedUrls.find((url) => url.partNumber === part.partNumber);
-    if (!presignedUrl) {
-      throw new Error(`找不到分片 ${part.partNumber} 的预签名URL`);
+    // 2. 创建分片上传器
+    multipartUploader = new S3MultipartUploader({
+      maxConcurrentUploads: 3,
+      onProgress: onProgress,
+      onError: (error, partNumber) => {
+        console.error(`分片 ${partNumber} 上传错误:`, error);
+        if (onError) onError(error, partNumber);
+      },
+    });
+
+    // 设置文件内容和上传信息
+    multipartUploader.setContent(blob, CHUNK_SIZE);
+    multipartUploader.setUploadInfo(uploadId, presignedUrls, `url_${fileId}`);
+
+    // 如果提供了XHR创建回调，需要适配到分片上传器
+    if (onXhrCreated) {
+      // 注意：S3MultipartUploader内部管理多个XHR，这里只能提供一个引用
+      // 实际的取消逻辑应该通过multipartUploader.abort()来处理
+      onXhrCreated({
+        abort: () => multipartUploader.abort(),
+        multipartUploader: multipartUploader,
+      });
     }
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
+    // 3. 上传所有分片
+    const parts = await multipartUploader.uploadAllParts();
 
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const partProgress = (event.loaded / event.total) * 100;
-          const totalProgress = ((this.totalUploaded + event.loaded) / this.content.size) * 100;
-          this.onProgress(totalProgress, this.totalUploaded + event.loaded, this.content.size);
-        }
-      });
+    // 检查是否已取消
+    if (onCancel && onCancel()) {
+      await abortMultipartUpload(fileId, uploadId);
+      throw new Error("上传已取消");
+    }
 
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const etag = xhr.getResponseHeader("ETag");
-          // 某些S3兼容服务（如又拍云）可能由于CORS限制无法返回ETag
-          // 在这种情况下，我们仍然认为上传成功，但使用null作为ETag
-          const cleanEtag = etag ? etag.replace(/"/g, "") : null;
-
-          this.uploadedParts.push({
-            partNumber: part.partNumber,
-            etag: cleanEtag,
-          });
-          this.totalUploaded += part.size;
-          this.onPartComplete(part.partNumber, cleanEtag);
-
-          if (!etag) {
-            console.warn(`分片 ${part.partNumber} 上传成功但未返回ETag，可能是CORS限制导致`);
-          }
-
-          resolve();
-        } else {
-          reject(new Error(`分片 ${part.partNumber} 上传失败：HTTP ${xhr.status}`));
-        }
-      });
-
-      xhr.addEventListener("error", () => {
-        reject(new Error(`分片 ${part.partNumber} 上传失败：网络错误`));
-      });
-
-      xhr.addEventListener("abort", () => {
-        reject(new Error(`分片 ${part.partNumber} 上传被取消`));
-      });
-
-      xhr.open("PUT", presignedUrl.url);
-      xhr.send(part.data);
+    // 4. 完成分片上传
+    const completeResponse = await completeMultipartUpload({
+      file_id: fileId,
+      upload_id: uploadId,
+      parts: parts,
     });
-  }
 
-  cancel() {
-    this.isCancelled = true;
+    if (!completeResponse.success) {
+      throw new Error(completeResponse.message || "完成分片上传失败");
+    }
+
+    onProgress && onProgress(100, blob.size, blob.size, 0);
+    return completeResponse;
+  } catch (error) {
+    // 如果有fileId和uploadId，尝试中止上传
+    if (fileId && uploadId) {
+      try {
+        await abortMultipartUpload(fileId, uploadId);
+      } catch (abortError) {
+        console.error("中止分片上传失败:", abortError);
+      }
+    }
+    console.error("URL分片上传失败:", error);
+    throw error;
+  } finally {
+    // 清理分片上传器
+    if (multipartUploader) {
+      multipartUploader.reset();
+    }
   }
 }

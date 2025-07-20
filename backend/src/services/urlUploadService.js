@@ -10,6 +10,11 @@ import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCom
 import { createS3Client } from "../utils/s3Utils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
 import { getEnhancedUrlMetadata as getEnhancedMimeMetadata } from "../utils/enhancedMimeUtils.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
+import { normalizeS3SubPath } from "../storage/drivers/s3/utils/S3PathUtils.js";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { hashPassword } from "../utils/crypto.js";
+import { updateParentDirectoriesModifiedTimeHelper } from "../storage/drivers/s3/utils/S3DirectoryUtils.js";
 
 // 分片上传配置
 const DEFAULT_PART_SIZE = 5 * 1024 * 1024; // 5MB默认分片大小
@@ -434,8 +439,7 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
   if (options.authType === "apikey" && options.apiKeyInfo && options.apiKeyInfo.basicPath && options.apiKeyInfo.basicPath !== "/") {
     // 对于API密钥用户，检查权限并使用挂载点匹配逻辑来正确提取子路径
     // 获取API密钥可访问的挂载点
-    const { getAccessibleMountsByBasicPath } = await import("../services/apiKeyService.js");
-    const mounts = await getAccessibleMountsByBasicPath(db, options.apiKeyInfo.basicPath);
+    const mounts = await PermissionUtils.getAccessibleMounts(db, options.apiKeyInfo, "apiKey");
 
     // 检查当前S3配置是否在API密钥的权限范围内
     const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
@@ -464,7 +468,6 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
         }
 
         // 使用normalizeS3SubPath来规范化子路径
-        const { normalizeS3SubPath } = await import("../webdav/utils/webdavUtils.js");
         actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
         break;
       }
@@ -567,7 +570,6 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
  * @returns {Function} 签名函数
  */
 async function getSignatureFunction(s3Config) {
-  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
   return getSignedUrl;
 }
 
@@ -627,8 +629,7 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
   if (options.authType === "apikey" && options.apiKeyInfo && options.apiKeyInfo.basicPath && options.apiKeyInfo.basicPath !== "/") {
     // 对于API密钥用户，检查权限并使用挂载点匹配逻辑来正确提取子路径
     // 获取API密钥可访问的挂载点
-    const { getAccessibleMountsByBasicPath } = await import("../services/apiKeyService.js");
-    const mounts = await getAccessibleMountsByBasicPath(db, options.apiKeyInfo.basicPath);
+    const mounts = await PermissionUtils.getAccessibleMounts(db, options.apiKeyInfo, "apiKey");
 
     // 检查当前S3配置是否在API密钥的权限范围内
     const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
@@ -657,7 +658,6 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
         }
 
         // 使用normalizeS3SubPath来规范化子路径
-        const { normalizeS3SubPath } = await import("../webdav/utils/webdavUtils.js");
         actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
         break;
       }
@@ -707,7 +707,6 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
   let passwordHash = null;
   if (options.password) {
     // 使用与s3UploadRoutes相同的哈希方法
-    const { hashPassword } = await import("../utils/crypto.js");
     passwordHash = await hashPassword(options.password);
   }
 
@@ -941,7 +940,6 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
       .run();
 
     // 更新父目录的修改时间
-    const { updateParentDirectoriesModifiedTimeHelper } = await import("./fsService.js");
     await updateParentDirectoriesModifiedTimeHelper(s3Config, file.storage_path, encryptionSecret);
 
     // 清除与文件相关的缓存 - 使用统一的clearCache函数

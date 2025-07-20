@@ -183,12 +183,9 @@
               </div>
 
               <!-- 复制操作统计信息 - 活动任务也可能有统计 -->
-              <div v-if="task.details.successCount !== undefined || task.details.skippedCount !== undefined || task.details.failedCount !== undefined" class="mt-1 space-x-2">
+              <div v-if="task.details.successCount !== undefined || task.details.failedCount !== undefined" class="mt-1 space-x-2">
                 <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">{{
                   t("mount.taskManager.success", { count: task.details.successCount })
-                }}</span>
-                <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">{{
-                  t("mount.taskManager.skipped", { count: task.details.skippedCount })
                 }}</span>
                 <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">{{ t("mount.taskManager.failed", { count: task.details.failedCount }) }}</span>
               </div>
@@ -248,22 +245,13 @@
               <!-- 任务详情 -->
               <div v-if="task.details && Object.keys(task.details).length > 0" class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 <div v-if="task.details.processed && task.details.total">
-                  {{ t("mount.taskManager.processedItems", { current: formatProgress(task.details.processed, task.details.total) }) }}
+                  {{ t("mount.taskManager.processedItems", { current: task.details.processed, total: task.details.total }) }}
                 </div>
 
                 <!-- 复制操作统计信息 -->
-                <div
-                  v-if="
-                    task.status === TaskStatus.COMPLETED &&
-                    (task.details.successCount !== undefined || task.details.skippedCount !== undefined || task.details.failedCount !== undefined)
-                  "
-                  class="mt-1 space-x-2"
-                >
+                <div v-if="task.status === TaskStatus.COMPLETED && (task.details.successCount !== undefined || task.details.failedCount !== undefined)" class="mt-1 space-x-2">
                   <span v-if="task.details.successCount > 0" class="text-green-500 dark:text-green-400">{{
                     t("mount.taskManager.success", { count: task.details.successCount })
-                  }}</span>
-                  <span v-if="task.details.skippedCount > 0" class="text-yellow-500 dark:text-yellow-400">{{
-                    t("mount.taskManager.skipped", { count: task.details.skippedCount })
                   }}</span>
                   <span v-if="task.details.failedCount > 0" class="text-red-500 dark:text-red-400">{{ t("mount.taskManager.failed", { count: task.details.failedCount }) }}</span>
                 </div>

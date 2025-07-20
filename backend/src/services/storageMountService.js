@@ -17,8 +17,8 @@ export async function getMountsByAdmin(db, adminId, includeInactive = false) {
   const whereClause = includeInactive ? "WHERE created_by = ?" : "WHERE created_by = ? AND is_active = 1";
 
   const mounts = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT
         id, name, storage_type, storage_config_id, mount_path,
         remark, is_active, created_by, sort_order, cache_ttl,
@@ -27,9 +27,9 @@ export async function getMountsByAdmin(db, adminId, includeInactive = false) {
       ${whereClause}
       ORDER BY sort_order ASC, name ASC
       `
-      )
-      .bind(adminId)
-      .all();
+    )
+    .bind(adminId)
+    .all();
 
   return mounts.results;
 }
@@ -45,8 +45,8 @@ export async function getAllMounts(db, includeInactive = true) {
   const whereClause = includeInactive ? "" : "WHERE is_active = 1";
 
   const mounts = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT
         id, name, storage_type, storage_config_id, mount_path,
         remark, is_active, created_by, sort_order, cache_ttl,
@@ -55,34 +55,8 @@ export async function getAllMounts(db, includeInactive = true) {
       ${whereClause}
       ORDER BY sort_order ASC, name ASC
       `
-      )
-      .all();
-
-  return mounts.results;
-}
-
-/**
- * 获取API密钥用户的挂载点列表
- * @param {D1Database} db - D1数据库实例
- * @param {string} apiKeyId - API密钥ID
- * @returns {Promise<Array>} 挂载点列表（仅包含激活状态的挂载点）
- * @throws {Error} 数据库操作错误
- */
-export async function getMountsByApiKey(db, apiKeyId) {
-  const mounts = await db
-      .prepare(
-          `
-      SELECT 
-        id, name, storage_type, storage_config_id, mount_path, 
-        remark, is_active, created_by, sort_order, cache_ttl,
-        created_at, updated_at, last_used
-      FROM ${DbTables.STORAGE_MOUNTS}
-      WHERE created_by = ? AND is_active = 1
-      ORDER BY sort_order ASC, name ASC
-      `
-      )
-      .bind(apiKeyId)
-      .all();
+    )
+    .all();
 
   return mounts.results;
 }
@@ -98,8 +72,8 @@ export async function getMountsByApiKey(db, apiKeyId) {
  */
 export async function getMountByIdForAdmin(db, id, adminId) {
   const mount = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, name, storage_type, storage_config_id, mount_path, 
         remark, is_active, created_by, sort_order, cache_ttl,
@@ -107,9 +81,9 @@ export async function getMountByIdForAdmin(db, id, adminId) {
       FROM ${DbTables.STORAGE_MOUNTS}
       WHERE id = ?
     `
-      )
-      .bind(id)
-      .first();
+    )
+    .bind(id)
+    .first();
 
   if (!mount) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在" });
@@ -129,8 +103,8 @@ export async function getMountByIdForAdmin(db, id, adminId) {
  */
 export async function getMountByIdForApiKey(db, id, apiKeyId) {
   const mount = await db
-      .prepare(
-          `
+    .prepare(
+      `
       SELECT 
         id, name, storage_type, storage_config_id, mount_path, 
         remark, is_active, created_by, sort_order, cache_ttl,
@@ -138,9 +112,9 @@ export async function getMountByIdForApiKey(db, id, apiKeyId) {
       FROM ${DbTables.STORAGE_MOUNTS}
       WHERE id = ? AND created_by = ? AND is_active = 1
     `
-      )
-      .bind(id, apiKeyId)
-      .first();
+    )
+    .bind(id, apiKeyId)
+    .first();
 
   if (!mount) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在" });
@@ -272,8 +246,8 @@ export async function createMount(db, mountData, creatorId) {
 
   // 添加到数据库
   await db
-      .prepare(
-          `
+    .prepare(
+      `
       INSERT INTO ${DbTables.STORAGE_MOUNTS} (
         id, name, storage_type, storage_config_id, mount_path,
         remark, is_active, created_by, sort_order, cache_ttl,
@@ -284,9 +258,9 @@ export async function createMount(db, mountData, creatorId) {
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     `
-      )
-      .bind(id, mountData.name, mountData.storage_type, mountData.storage_config_id || null, mountData.mount_path, mountData.remark || null, isActive, creatorId, sortOrder, cacheTtl)
-      .run();
+    )
+    .bind(id, mountData.name, mountData.storage_type, mountData.storage_config_id || null, mountData.mount_path, mountData.remark || null, isActive, creatorId, sortOrder, cacheTtl)
+    .run();
 
   // 返回创建的挂载点
   return {
@@ -332,9 +306,9 @@ export async function updateMount(db, id, updateData, creatorId, isAdmin = false
 
   const params = isAdmin ? [id] : [id, creatorId];
   const mount = await db
-      .prepare(query)
-      .bind(...params)
-      .first();
+    .prepare(query)
+    .bind(...params)
+    .first();
 
   if (!mount) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在或无权限修改" });
@@ -447,9 +421,9 @@ export async function updateMount(db, id, updateData, creatorId, isAdmin = false
 
   // 执行更新
   await db
-      .prepare(sql)
-      .bind(...updateParams, id)
-      .run();
+    .prepare(sql)
+    .bind(...updateParams, id)
+    .run();
 }
 
 /**
@@ -468,9 +442,9 @@ export async function deleteMount(db, id, creatorId, isAdmin = false) {
 
   const params = isAdmin ? [id] : [id, creatorId];
   const mount = await db
-      .prepare(query)
-      .bind(...params)
-      .first();
+    .prepare(query)
+    .bind(...params)
+    .first();
 
   if (!mount) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在或无权限删除" });

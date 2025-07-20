@@ -1,7 +1,6 @@
 /**
  * 统一文件系统API路由
- * 重构版本：统一 /api/fs/* 路由，内部处理管理员和API密钥用户认证
- * 消除原有的 /api/admin/fs/* 和 /api/user/fs/* 重复代码
+ * 统一 /api/fs/* 路由，内部处理管理员和API密钥用户认证
  */
 import { Hono } from "hono";
 import { baseAuthMiddleware } from "../middlewares/permissionMiddleware.js";
@@ -9,25 +8,14 @@ import { PermissionType } from "../utils/permissionUtils.js";
 import { createErrorResponse, generateFileId } from "../utils/common.js";
 import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
-import {
-  listDirectory,
-  getFileInfo,
-  downloadFile,
-  createDirectory,
-  uploadFile,
-  removeItem,
-  renameItem,
-  batchRemoveItems,
-  getFilePresignedUrl,
-  updateFile,
-  batchCopyItems,
-} from "../services/fsService.js";
+import { MountManager } from "../storage/managers/MountManager.js";
+import { FileSystem } from "../storage/fs/FileSystem.js";
 import { searchFiles } from "../services/searchService.js";
-import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
-import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
+import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
-import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
-import { checkPathPermissionForOperation } from "../services/apiKeyService.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
+import { getS3ConfigByIdForAdmin, getPublicS3ConfigById } from "../services/s3ConfigService.js";
+import { getVirtualDirectoryListing, isVirtualPath } from "../storage/fs/utils/VirtualDirectory.js";
 
 // 创建文件系统路由处理程序
 const fsRoutes = new Hono();
@@ -75,7 +63,7 @@ const unifiedFsAuthMiddleware = async (c, next) => {
     // API密钥用户
     c.set("userInfo", {
       type: "apiKey",
-      info: authResult.keyInfo, 
+      info: authResult.keyInfo,
       hasFullAccess: false,
     });
   } else {
@@ -96,8 +84,8 @@ const checkPathPermission = (userInfo, path) => {
     return true; // 管理员拥有所有权限
   }
 
-  // API密钥用户需要检查路径权限
-  return checkPathPermissionForOperation(userInfo.info.basicPath, path);
+  // API密钥用户需要检查路径权限 - 使用统一的权限检查
+  return PermissionUtils.checkPathPermissionForOperation(userInfo.info.basicPath, path);
 };
 
 /**
@@ -123,6 +111,23 @@ const getCreatedBy = (userInfo) => {
     return userInfo.id;
   } else {
     return `apikey:${userInfo.info.id}`;
+  }
+};
+
+/**
+ * 根据用户类型获取S3配置
+ * @param {D1Database} db - 数据库实例
+ * @param {string} configId - 配置ID
+ * @param {string|Object} userIdOrInfo - 用户ID或API密钥信息
+ * @param {string} userType - 用户类型
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Promise<Object>} S3配置对象
+ */
+const getS3ConfigByUserType = async (db, configId, userIdOrInfo, userType, encryptionSecret) => {
+  if (userType === "admin") {
+    return await getS3ConfigByIdForAdmin(db, configId, userIdOrInfo);
+  } else {
+    return await getPublicS3ConfigById(db, configId);
   }
 };
 
@@ -166,9 +171,42 @@ fsRoutes.get("/api/fs/list", async (c) => {
   const path = c.req.query("path") || "/";
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
 
   try {
-    const result = await listDirectory(db, path, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
+    // 对于API密钥用户，检查请求路径是否在基本路径权限范围内
+    if (userType === "apiKey") {
+      const apiKeyInfo = userIdOrInfo;
+      // 特殊处理：允许访问从根路径到基本路径的所有父级路径，以便用户能够导航
+      if (!PermissionUtils.checkPathPermissionForNavigation(apiKeyInfo.basicPath, path)) {
+        throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问此路径" });
+      }
+    }
+
+    // 获取用户可访问的挂载点列表 - 使用统一的挂载点获取方法
+    const mounts = await PermissionUtils.getAccessibleMounts(db, userIdOrInfo, userType);
+
+    // 检查是否为虚拟路径（根路径或中间虚拟目录）
+    if (isVirtualPath(path, mounts)) {
+      // 处理虚拟目录，返回挂载点列表
+      const basicPath = userType === "apiKey" ? userIdOrInfo.basicPath : null;
+      const result = await getVirtualDirectoryListing(mounts, path, basicPath);
+
+      return c.json({
+        code: ApiStatus.SUCCESS,
+        message: "获取目录列表成功",
+        data: result,
+        success: true,
+      });
+    }
+
+    // 处理实际挂载点路径，使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的listDirectory方法
+    const result = await fileSystem.listDirectory(path, userIdOrInfo, userType);
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "获取目录列表成功",
@@ -190,13 +228,25 @@ fsRoutes.get("/api/fs/get", async (c) => {
   const path = c.req.query("path");
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
 
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
   }
 
+  // 检查路径权限（仅对API密钥用户）
+  if (!checkPathPermission(userInfo, path)) {
+    return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限访问此路径"), ApiStatus.FORBIDDEN);
+  }
+
   try {
-    const result = await getFileInfo(db, path, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的getFileInfo方法
+    const result = await fileSystem.getFileInfo(path, userIdOrInfo, userType);
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "获取文件信息成功",
@@ -218,14 +268,26 @@ fsRoutes.get("/api/fs/download", async (c) => {
   const path = c.req.query("path");
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
 
   if (!path) {
     setCorsHeaders(c);
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
   }
 
+  // 检查路径权限（仅对API密钥用户）
+  if (!checkPathPermission(userInfo, path)) {
+    return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限访问此路径"), ApiStatus.FORBIDDEN);
+  }
+
   try {
-    const response = await downloadFile(db, path, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET, c.req.raw);
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的downloadFile方法
+    const response = await fileSystem.downloadFile(path, null, c.req.raw, userIdOrInfo, userType);
+
     setCorsHeaders(c);
     return response;
   } catch (error) {
@@ -243,6 +305,7 @@ fsRoutes.post("/api/fs/mkdir", async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
   const body = await c.req.json();
   const path = body.path;
 
@@ -256,7 +319,13 @@ fsRoutes.post("/api/fs/mkdir", async (c) => {
   }
 
   try {
-    await createDirectory(db, path, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的createDirectory方法
+    await fileSystem.createDirectory(path, userIdOrInfo, userType);
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "目录创建成功",
@@ -276,6 +345,7 @@ fsRoutes.post("/api/fs/upload", async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
 
   try {
     const formData = await c.req.formData();
@@ -292,7 +362,14 @@ fsRoutes.post("/api/fs/upload", async (c) => {
       return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限在此路径上传文件"), ApiStatus.FORBIDDEN);
     }
 
-    const result = await uploadFile(db, path, file, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET, useMultipart);
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的uploadFile方法
+    const result = await fileSystem.uploadFile(path, file, userIdOrInfo, userType, {
+      useMultipart,
+    });
 
     // 如果是分片上传，返回相关信息
     if (result.useMultipart) {
@@ -320,43 +397,12 @@ fsRoutes.post("/api/fs/upload", async (c) => {
   }
 });
 
-// 删除文件或目录
-fsRoutes.delete("/api/fs/remove", async (c) => {
-  const db = c.env.DB;
-  const userInfo = c.get("userInfo");
-  const { userIdOrInfo, userType } = getServiceParams(userInfo);
-  const path = c.req.query("path");
-
-  if (!path) {
-    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供路径"), ApiStatus.BAD_REQUEST);
-  }
-
-  // 检查路径权限（仅对API密钥用户）
-  if (!checkPathPermission(userInfo, path)) {
-    return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限删除此路径的文件"), ApiStatus.FORBIDDEN);
-  }
-
-  try {
-    await removeItem(db, path, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
-    return c.json({
-      code: ApiStatus.SUCCESS,
-      message: "删除成功",
-      success: true,
-    });
-  } catch (error) {
-    console.error("删除错误:", error);
-    if (error instanceof HTTPException) {
-      return c.json(createErrorResponse(error.status, error.message), error.status);
-    }
-    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "删除失败"), ApiStatus.INTERNAL_ERROR);
-  }
-});
-
 // 重命名文件或目录
 fsRoutes.post("/api/fs/rename", async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
   const body = await c.req.json();
   const oldPath = body.oldPath;
   const newPath = body.newPath;
@@ -371,7 +417,27 @@ fsRoutes.post("/api/fs/rename", async (c) => {
   }
 
   try {
-    await renameItem(db, oldPath, newPath, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的renameItem方法
+    await fileSystem.renameItem(oldPath, newPath, userIdOrInfo, userType);
+
+    // 清理缓存 - 需要获取mount信息
+    try {
+      const { mount } = await mountManager.getDriverByPath(oldPath, userIdOrInfo, userType);
+      const { mount: newMount } = await mountManager.getDriverByPath(newPath, userIdOrInfo, userType);
+
+      await clearCache({ mountId: mount.id });
+      if (newMount.id !== mount.id) {
+        await clearCache({ mountId: newMount.id });
+      }
+      console.log(`重命名操作完成后缓存已刷新：${oldPath} -> ${newPath}`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+    }
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "重命名成功",
@@ -387,10 +453,11 @@ fsRoutes.post("/api/fs/rename", async (c) => {
 });
 
 // 批量删除文件或目录
-fsRoutes.post("/api/fs/batch-remove", async (c) => {
+fsRoutes.delete("/api/fs/batch-remove", async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
   const body = await c.req.json();
   const paths = body.paths;
 
@@ -408,7 +475,34 @@ fsRoutes.post("/api/fs/batch-remove", async (c) => {
   }
 
   try {
-    const result = await batchRemoveItems(db, paths, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
+    // 使用FileSystem抽象层处理批量删除
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的batchRemoveItems方法
+    const result = await fileSystem.batchRemoveItems(paths, userIdOrInfo, userType);
+
+    // 收集所有挂载点ID用于缓存清理
+    const mountIds = new Set();
+    for (const path of paths) {
+      try {
+        const { mount } = await mountManager.getDriverByPath(path, userIdOrInfo, userType);
+        mountIds.add(mount.id);
+      } catch (error) {
+        console.warn(`获取路径挂载信息失败: ${path}`, error);
+      }
+    }
+
+    // 清理缓存
+    try {
+      for (const mountId of mountIds) {
+        await clearCache({ mountId });
+      }
+      console.log(`批量删除操作完成后缓存已刷新：${mountIds.size} 个挂载点`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+    }
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "批量删除完成",
@@ -424,124 +518,199 @@ fsRoutes.post("/api/fs/batch-remove", async (c) => {
   }
 });
 
-// ================ 分片上传相关路由 ================
+// 获取文件直链(预签名URL)
+fsRoutes.get("/api/fs/file-link", async (c) => {
+  const db = c.env.DB;
+  const path = c.req.query("path");
+  const userInfo = c.get("userInfo");
+  const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
+  // 如果前端传入null或空值，则使用S3配置的默认签名时间，否则使用传入的值
+  const expiresInParam = c.req.query("expires_in");
+  const expiresIn = expiresInParam && expiresInParam !== "null" ? parseInt(expiresInParam) : null;
+  const forceDownload = c.req.query("force_download") === "true";
 
-// 初始化分片上传
+  if (!path) {
+    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
+  }
+
+  try {
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的generatePresignedUrl方法
+    const result = await fileSystem.generatePresignedUrl(path, userIdOrInfo, userType, {
+      operation: "download",
+      userType,
+      userId: userType === "admin" ? userIdOrInfo : userIdOrInfo.id,
+      expiresIn,
+      forceDownload,
+    });
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "获取文件直链成功",
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("获取文件直链错误:", error);
+    if (error instanceof HTTPException) {
+      return c.json(createErrorResponse(error.status, error.message), error.status);
+    }
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件直链失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// ================ 前端分片上传相关路由 ================
+
+// ================ 前端分片上传相关路由 ================
+
+// 初始化前端分片上传（生成预签名URL列表）
 fsRoutes.post("/api/fs/multipart/init", async (c) => {
   try {
     setCorsHeaders(c);
-    return await handleInitMultipartUpload(c);
+
+    // 获取数据库和加密密钥
+    const db = c.env.DB;
+    const encryptionSecret = c.env.ENCRYPTION_SECRET;
+
+    // 从上下文获取用户信息
+    const userInfo = c.get("userInfo");
+    if (!userInfo) {
+      return c.json(createErrorResponse(ApiStatus.UNAUTHORIZED, "未授权访问"), ApiStatus.UNAUTHORIZED);
+    }
+
+    const userIdOrInfo = userInfo.type === "admin" ? userInfo.id : userInfo.info;
+    const userType = userInfo.type === "admin" ? "admin" : "apiKey";
+
+    // 获取请求参数
+    const body = await c.req.json();
+    const { path, fileName, fileSize, partSize = 5 * 1024 * 1024, partCount } = body;
+
+    if (!path || !fileName) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "缺少必要参数"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的initializeFrontendMultipartUpload方法
+    const result = await fileSystem.initializeFrontendMultipartUpload(path, fileName, fileSize, userIdOrInfo, userType, partSize, partCount);
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "前端分片上传初始化成功",
+      data: result,
+      success: true,
+    });
   } catch (error) {
+    console.error("初始化前端分片上传错误:", error);
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
-      return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
-      );
+      return c.json(createErrorResponse(error.status, error.message), error.status);
     }
-    return c.json(
-      {
-        success: false,
-        message: error.message || "初始化分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
-    );
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "初始化前端分片上传失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 
-// 上传分片
-fsRoutes.post("/api/fs/multipart/part", async (c) => {
-  try {
-    // 设置CORS头部
-    setCorsHeaders(c);
-
-    // 调用实际的处理函数
-    return await handleUploadPart(c);
-  } catch (error) {
-    // 确保即使发生错误，也添加CORS头部
-    setCorsHeaders(c);
-
-    // 返回适当的错误响应
-    if (error instanceof HTTPException) {
-      return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
-      );
-    }
-
-    return c.json(
-      {
-        success: false,
-        message: error.message || "上传分片失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
-    );
-  }
-});
-
-// 完成分片上传
+// 完成前端分片上传
 fsRoutes.post("/api/fs/multipart/complete", async (c) => {
   try {
     setCorsHeaders(c);
-    return await handleCompleteMultipartUpload(c);
+
+    // 获取数据库和加密密钥
+    const db = c.env.DB;
+    const encryptionSecret = c.env.ENCRYPTION_SECRET;
+
+    // 从上下文获取用户信息
+    const userInfo = c.get("userInfo");
+    if (!userInfo) {
+      return c.json(createErrorResponse(ApiStatus.UNAUTHORIZED, "未授权访问"), ApiStatus.UNAUTHORIZED);
+    }
+
+    const userIdOrInfo = userInfo.type === "admin" ? userInfo.id : userInfo.info;
+    const userType = userInfo.type === "admin" ? "admin" : "apiKey";
+
+    // 获取请求参数
+    const body = await c.req.json();
+    const { path, uploadId, parts, fileName, fileSize } = body;
+
+    if (!path || !uploadId || !Array.isArray(parts) || parts.length === 0) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "缺少必要参数"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的completeFrontendMultipartUpload方法
+    const result = await fileSystem.completeFrontendMultipartUpload(path, uploadId, parts, fileName, fileSize, userIdOrInfo, userType);
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "前端分片上传完成",
+      data: result,
+      success: true,
+    });
   } catch (error) {
+    console.error("完成前端分片上传错误:", error);
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
-      return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
-      );
+      return c.json(createErrorResponse(error.status, error.message), error.status);
     }
-    return c.json(
-      {
-        success: false,
-        message: error.message || "完成分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
-    );
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "完成前端分片上传失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 
-// 中止分片上传
+// 中止前端分片上传
 fsRoutes.post("/api/fs/multipart/abort", async (c) => {
   try {
     setCorsHeaders(c);
-    return await handleAbortMultipartUpload(c);
+
+    // 获取数据库和加密密钥
+    const db = c.env.DB;
+    const encryptionSecret = c.env.ENCRYPTION_SECRET;
+
+    // 从上下文获取用户信息
+    const userInfo = c.get("userInfo");
+    if (!userInfo) {
+      return c.json(createErrorResponse(ApiStatus.UNAUTHORIZED, "未授权访问"), ApiStatus.UNAUTHORIZED);
+    }
+
+    const userIdOrInfo = userInfo.type === "admin" ? userInfo.id : userInfo.info;
+    const userType = userInfo.type === "admin" ? "admin" : "apiKey";
+
+    // 获取请求参数
+    const body = await c.req.json();
+    const { path, uploadId, fileName } = body;
+
+    if (!path || !uploadId || !fileName) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "缺少必要参数"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的abortFrontendMultipartUpload方法
+    const result = await fileSystem.abortFrontendMultipartUpload(path, uploadId, fileName, userIdOrInfo, userType);
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "前端分片上传已中止",
+      data: result,
+      success: true,
+    });
   } catch (error) {
+    console.error("中止前端分片上传错误:", error);
     setCorsHeaders(c);
     if (error instanceof HTTPException) {
-      return c.json(
-        {
-          success: false,
-          message: error.message,
-          code: error.status,
-        },
-        error.status
-      );
+      return c.json(createErrorResponse(error.status, error.message), error.status);
     }
-    return c.json(
-      {
-        success: false,
-        message: error.message || "中止分片上传失败",
-        code: ApiStatus.INTERNAL_ERROR,
-      },
-      ApiStatus.INTERNAL_ERROR
-    );
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "中止前端分片上传失败"), ApiStatus.INTERNAL_ERROR);
   }
 });
 
@@ -573,64 +742,28 @@ fsRoutes.post("/api/fs/presign", async (c) => {
       return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限在此路径上传文件"), ApiStatus.FORBIDDEN);
     }
 
-    // 直接使用findMountPointByPath而不是getFileInfo来获取挂载点信息
-    const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
-
-    // 处理错误情况
-    if (mountResult.error) {
-      return c.json(createErrorResponse(mountResult.error.status, mountResult.error.message), mountResult.error.status);
-    }
-
-    const { mount, subPath } = mountResult;
+    // 使用 MountManager 获取存储驱动
+    const mountManager = new MountManager(db, encryptionSecret);
+    const { driver, mount, subPath } = await mountManager.getDriverByPath(path, userIdOrInfo, userType);
 
     if (!mount || mount.storage_type !== "S3") {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "当前路径不支持预签名URL上传"), ApiStatus.BAD_REQUEST);
     }
 
-    // 获取S3配置
-    const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
-    if (!s3Config) {
-      return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "存储配置不存在"), ApiStatus.NOT_FOUND);
-    }
+    // 权限检查已在 MountManager.getDriverByPath 中处理
 
     // 构建完整的目标路径
     const targetPath = path.endsWith("/") ? path + fileName : path + "/" + fileName;
 
-    // 计算文件相对于挂载点的路径
-    let relativePathInMount;
-    if (mount.mount_path === "/") {
-      relativePathInMount = targetPath.substring(1); // 移除开头的斜杠
-    } else {
-      relativePathInMount = targetPath.substring(mount.mount_path.length);
-      // 确保相对路径以斜杠开头
-      if (!relativePathInMount.startsWith("/")) {
-        relativePathInMount = "/" + relativePathInMount;
-      }
-      // 移除开头的斜杠以符合S3路径要求
-      relativePathInMount = relativePathInMount.substring(1);
-    }
+    console.log(`生成预签名URL，路径: ${targetPath}`);
 
-    // S3路径构建 - 与目录列表逻辑保持一致，只使用root_prefix
-    const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
-    let s3Path = rootPrefix + relativePathInMount;
-
-    // 确保s3Path不为空
-    if (!s3Path) {
-      s3Path = fileName;
-    }
-
-    console.log(`生成预签名URL，路径: ${s3Path}`);
-
-    // 统一从文件名推断MIME类型，确保预签名上传使用正确的Content-Type
-    const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
-    const finalContentType = getMimeTypeFromFilename(fileName);
-    console.log(`预签名上传：从文件名[${fileName}]推断MIME类型: ${finalContentType}`);
-
-    // 生成预签名URL，使用S3配置的默认时效
-    const presignedUrl = await generatePresignedPutUrl(s3Config, s3Path, finalContentType, encryptionSecret);
-
-    // 构建S3直接访问URL
-    const s3Url = buildS3Url(s3Config, s3Path);
+    // 使用FileSystem抽象层生成预签名上传URL
+    const fileSystem = new FileSystem(mountManager);
+    const result = await fileSystem.generatePresignedUrl(targetPath, userIdOrInfo, userType, {
+      operation: "upload",
+      fileName,
+      fileSize,
+    });
 
     // 生成文件ID，用于后续提交更新
     const fileId = generateFileId();
@@ -639,14 +772,14 @@ fsRoutes.post("/api/fs/presign", async (c) => {
       code: ApiStatus.SUCCESS,
       message: "获取预签名URL成功",
       data: {
-        presignedUrl,
+        presignedUrl: result.uploadUrl,
         fileId,
-        s3Path,
-        s3Url,
+        s3Path: result.s3Path,
+        s3Url: result.s3Url,
         mountId: mount.id,
-        s3ConfigId: s3Config.id,
+        s3ConfigId: mount.storage_config_id,
         targetPath,
-        contentType: finalContentType,
+        contentType: result.contentType,
       },
       success: true,
     });
@@ -685,7 +818,6 @@ fsRoutes.post("/api/fs/presign/commit", async (c) => {
     const fileName = targetPath.split("/").filter(Boolean).pop();
 
     // 统一从文件名推断MIME类型，确保数据库存储正确的MIME类型
-    const { getMimeTypeFromFilename } = await import("../utils/fileUtils.js");
     const contentType = getMimeTypeFromFilename(fileName);
     console.log(`预签名上传提交：从文件名[${fileName}]推断MIME类型: ${contentType}`);
 
@@ -737,43 +869,12 @@ fsRoutes.post("/api/fs/presign/commit", async (c) => {
   }
 });
 
-// 获取文件直链(预签名URL)
-fsRoutes.get("/api/fs/file-link", async (c) => {
-  const db = c.env.DB;
-  const path = c.req.query("path");
-  const userInfo = c.get("userInfo");
-  const { userIdOrInfo, userType } = getServiceParams(userInfo);
-  // 如果前端传入null或空值，则使用S3配置的默认签名时间，否则使用传入的值
-  const expiresInParam = c.req.query("expires_in");
-  const expiresIn = expiresInParam && expiresInParam !== "null" ? parseInt(expiresInParam) : null;
-  const forceDownload = c.req.query("force_download") === "true";
-
-  if (!path) {
-    return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
-  }
-
-  try {
-    const result = await getFilePresignedUrl(db, path, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET, expiresIn, forceDownload);
-    return c.json({
-      code: ApiStatus.SUCCESS,
-      message: "获取文件直链成功",
-      data: result,
-      success: true,
-    });
-  } catch (error) {
-    console.error("获取文件直链错误:", error);
-    if (error instanceof HTTPException) {
-      return c.json(createErrorResponse(error.status, error.message), error.status);
-    }
-    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件直链失败"), ApiStatus.INTERNAL_ERROR);
-  }
-});
-
 // 更新文件内容
 fsRoutes.post("/api/fs/update", async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
   const body = await c.req.json();
   const path = body.path;
   const content = body.content;
@@ -788,7 +889,22 @@ fsRoutes.post("/api/fs/update", async (c) => {
   }
 
   try {
-    const result = await updateFile(db, path, content, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
+    // 使用FileSystem抽象层
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 调用FileSystem的updateFile方法
+    const result = await fileSystem.updateFile(path, content, userIdOrInfo, userType);
+
+    // 清理缓存 - 需要获取mount信息
+    try {
+      const { mount } = await mountManager.getDriverByPath(path, userIdOrInfo, userType);
+      await clearCache({ mountId: mount.id });
+      console.log(`更新文件操作完成后缓存已刷新：挂载点=${mount.id}, 路径=${path}`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+    }
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "文件更新成功",
@@ -809,6 +925,7 @@ fsRoutes.post("/api/fs/batch-copy", async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
+  const encryptionSecret = c.env.ENCRYPTION_SECRET;
   const body = await c.req.json();
   const items = body.items;
   const skipExisting = body.skipExisting !== false; // 默认为true
@@ -830,10 +947,63 @@ fsRoutes.post("/api/fs/batch-copy", async (c) => {
   }
 
   try {
-    const result = await batchCopyItems(db, items, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET, skipExisting);
+    // 使用FileSystem抽象层处理批量复制
+    const mountManager = new MountManager(db, encryptionSecret);
+    const fileSystem = new FileSystem(mountManager);
+
+    // 准备复制项，添加skipExisting选项
+    const copyItems = items.map((item) => ({
+      ...item,
+      skipExisting,
+    }));
+
+    // 调用FileSystem的batchCopyItems方法
+    const result = await fileSystem.batchCopyItems(copyItems, userIdOrInfo, userType);
+
+    // 收集所有源路径和目标路径的挂载点ID用于缓存清理
+    const sourceMountIds = new Set();
+    const targetMountIds = new Set();
+    for (const item of items) {
+      try {
+        // 收集源路径挂载点
+        const { mount: sourceMount } = await mountManager.getDriverByPath(item.sourcePath, userIdOrInfo, userType);
+        sourceMountIds.add(sourceMount.id);
+
+        // 收集目标路径挂载点
+        const { mount: targetMount } = await mountManager.getDriverByPath(item.targetPath, userIdOrInfo, userType);
+        targetMountIds.add(targetMount.id);
+      } catch (error) {
+        console.warn(`获取路径挂载信息失败: ${item.sourcePath} -> ${item.targetPath}`, error);
+      }
+    }
+
+    // 合并所有需要清理缓存的挂载点
+    const allMountIds = new Set([...sourceMountIds, ...targetMountIds]);
+
+    // 清理所有相关路径的缓存
+    try {
+      for (const mountId of allMountIds) {
+        await clearCache({ mountId });
+      }
+      console.log(`批量复制操作完成后缓存已刷新：源挂载点=${sourceMountIds.size}个，目标挂载点=${targetMountIds.size}个，总计=${allMountIds.size}个`);
+    } catch (cacheError) {
+      console.warn(`执行缓存清理时出错: ${cacheError.message}`);
+    }
+
+    // 从FileSystem返回的结果中提取信息
+    const totalSuccess = result.success || 0;
+    const totalSkipped = result.skipped || 0;
+    const totalFailed = (result.failed && result.failed.length) || 0;
+    const allDetails = result.details || [];
+    const allFailedItems = result.failed || [];
+    const hasCrossStorageOperations = result.hasCrossStorageOperations || false;
+    const crossStorageResults = result.crossStorageResults || [];
 
     // 检查是否有跨存储复制操作
-    if (result.hasCrossStorageOperations) {
+    if (hasCrossStorageOperations) {
+      // 跨存储复制也需要清理缓存
+      console.log(`跨存储复制操作，仍需清理缓存：源挂载点=${sourceMountIds.size}个，目标挂载点=${targetMountIds.size}个`);
+
       return c.json({
         code: ApiStatus.SUCCESS,
         message: `批量复制请求处理完成，包含跨存储操作`,
@@ -841,28 +1011,28 @@ fsRoutes.post("/api/fs/batch-copy", async (c) => {
           crossStorage: true,
           requiresClientSideCopy: true,
           standardCopyResults: {
-            success: result.success,
-            skipped: result.skipped,
-            failed: result.failed.length,
+            success: totalSuccess,
+            skipped: totalSkipped,
+            failed: totalFailed,
           },
-          crossStorageResults: result.crossStorageResults,
-          failed: result.failed,
-          details: result.details,
+          crossStorageResults: crossStorageResults,
+          failed: allFailedItems,
+          details: allDetails,
         },
         success: true,
       });
     }
 
-    // 标准复制操作结果
+    // 返回标准复制结果
     return c.json({
       code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`,
+      message: `批量复制完成，成功: ${totalSuccess}，跳过: ${totalSkipped}，失败: ${totalFailed}`,
       data: {
         crossStorage: false,
-        success: result.success,
-        skipped: result.skipped,
-        failed: result.failed.length,
-        details: result.details,
+        success: totalSuccess,
+        skipped: totalSkipped,
+        failed: totalFailed,
+        details: allDetails,
       },
       success: true,
     });
@@ -879,6 +1049,7 @@ fsRoutes.post("/api/fs/batch-copy", async (c) => {
 fsRoutes.post("/api/fs/batch-copy-commit", async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
+  const { userIdOrInfo, userType } = getServiceParams(userInfo);
   const body = await c.req.json();
   const { targetMountId, files } = body;
 
@@ -894,7 +1065,7 @@ fsRoutes.post("/api/fs/batch-copy-commit", async (c) => {
     }
 
     // 获取S3配置
-    const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+    const s3Config = await getS3ConfigByUserType(db, mount.storage_config_id, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
     if (!s3Config) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "存储配置不存在"), ApiStatus.NOT_FOUND);
     }

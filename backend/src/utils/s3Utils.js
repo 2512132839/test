@@ -69,6 +69,16 @@ export async function createS3Client(config, encryptionSecret) {
       clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
       break;
 
+    case S3ProviderTypes.ALIYUN_OSS:
+      // 阿里云OSS配置
+      clientConfig.signatureVersion = "v4";
+      clientConfig.requestTimeout = 30000;
+      maxRetries = 3;
+      // 禁用校验和功能以保持兼容性
+      clientConfig.requestChecksumCalculation = "WHEN_REQUIRED";
+      clientConfig.responseChecksumValidation = "WHEN_REQUIRED";
+      break;
+
     case S3ProviderTypes.OTHER:
       clientConfig.signatureVersion = "v4";
       // 禁用可能不兼容的校验和功能
@@ -82,9 +92,9 @@ export async function createS3Client(config, encryptionSecret) {
 
   // 日志记录所选服务商和配置
   console.log(
-      `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
-          config.path_style ? "是" : "否"
-      }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
+    `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+      config.path_style ? "是" : "否"
+    }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
   );
 
   // 返回创建的S3客户端
@@ -164,6 +174,10 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
         // 例如Content-SHA1处理，但一般在前端上传时添加
         break;
 
+      case S3ProviderTypes.ALIYUN_OSS:
+        // 阿里云OSS特殊处理 - 预签名上传URL通常不需要特殊处理
+        break;
+
       case S3ProviderTypes.OTHER:
         break;
     }
@@ -222,7 +236,8 @@ async function generateOriginalPresignedUrl(s3Config, storagePath, encryptionSec
 
     // 统一从文件名推断MIME类型，不依赖传入的mimetype参数
     const effectiveMimetype = getMimeTypeFromFilename(fileName);
-    console.log(`S3文件下载：从文件名[${fileName}]推断MIME类型: ${effectiveMimetype}`);
+    const urlType = forceDownload ? "下载" : "预览";
+    console.log(`S3${urlType}URL：文件[${fileName}], MIME[${effectiveMimetype}]`);
 
     // 创建GetObjectCommand
     const commandParams = {
@@ -237,14 +252,23 @@ async function generateOriginalPresignedUrl(s3Config, storagePath, encryptionSec
       forceDownload: forceDownload,
     });
 
-    // 设置S3预签名URL的内容类型和处置方式
-    commandParams.ResponseContentType = contentType;
-    commandParams.ResponseContentDisposition = contentDisposition;
-
-    // 针对特定服务商添加额外参数
+    // 针对特定服务商设置响应头参数
     switch (s3Config.provider_type) {
+      case S3ProviderTypes.ALIYUN_OSS:
+        // 阿里云OSS不支持response-content-type参数，只设置content-disposition
+        // 参考：https://help.aliyun.com/zh/oss/support/0017-00000902
+        commandParams.ResponseContentDisposition = contentDisposition;
+        console.log(`阿里云OSS预签名URL：跳过ResponseContentType设置，仅设置ContentDisposition`);
+        break;
       case S3ProviderTypes.B2:
-        // B2可能需要特殊响应头
+        // B2支持标准S3响应头
+        commandParams.ResponseContentType = contentType;
+        commandParams.ResponseContentDisposition = contentDisposition;
+        break;
+      default:
+        // 标准S3兼容服务设置完整响应头
+        commandParams.ResponseContentType = contentType;
+        commandParams.ResponseContentDisposition = contentDisposition;
         break;
     }
 
@@ -448,8 +472,16 @@ export async function getDirectoryPresignedUrls(s3Client, sourceS3Config, target
   let continuationToken = undefined;
 
   do {
-    // 列出源目录内容
-    const listResponse = await listS3Directory(s3Client, sourceS3Config.bucket_name, sourcePrefix, "/", continuationToken);
+    // 列出源目录内容（递归遍历）
+    const listParams = {
+      Bucket: sourceS3Config.bucket_name,
+      Prefix: sourcePrefix,
+      MaxKeys: 1000,
+      ContinuationToken: continuationToken,
+    };
+
+    const command = new ListObjectsV2Command(listParams);
+    const listResponse = await s3Client.send(command);
 
     // 检查是否有内容
     if (listResponse.Contents && listResponse.Contents.length > 0) {

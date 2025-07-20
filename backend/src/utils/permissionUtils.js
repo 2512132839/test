@@ -54,11 +54,11 @@ export class PermissionUtils {
   static hasPathPermission(c, requestPath) {
     const authResult = this.getAuthResult(c);
     const authService = this.getAuthService(c);
-    
+
     if (!authResult || !authService) {
       return false;
     }
-    
+
     return authService.checkPathPermission(authResult, requestPath);
   }
 
@@ -102,16 +102,16 @@ export class PermissionUtils {
     if (hasPermission) {
       return { success: true };
     }
-    
+
     return {
       success: false,
       response: {
         code: ApiStatus.FORBIDDEN,
         message: message,
         data: null,
-        success: false
+        success: false,
       },
-      status: ApiStatus.FORBIDDEN
+      status: ApiStatus.FORBIDDEN,
     };
   }
 
@@ -122,16 +122,16 @@ export class PermissionUtils {
     if (isAuthenticated) {
       return { success: true };
     }
-    
+
     return {
       success: false,
       response: {
         code: ApiStatus.UNAUTHORIZED,
         message: message,
         data: null,
-        success: false
+        success: false,
       },
-      status: ApiStatus.UNAUTHORIZED
+      status: ApiStatus.UNAUTHORIZED,
     };
   }
 
@@ -140,15 +140,7 @@ export class PermissionUtils {
    * 用于在路由中进行复杂的权限检查
    */
   static checkPermissions(c, options = {}) {
-    const {
-      requireAuth = true,
-      permissions = [],
-      requireAll = false,
-      checkPath = false,
-      requestPath = null,
-      allowAdmin = true,
-      customCheck = null
-    } = options;
+    const { requireAuth = true, permissions = [], requireAll = false, checkPath = false, requestPath = null, allowAdmin = true, customCheck = null } = options;
 
     const authResult = this.getAuthResult(c);
     const authService = this.getAuthService(c);
@@ -166,17 +158,13 @@ export class PermissionUtils {
     // 检查权限
     if (permissions.length > 0) {
       let hasPermission = false;
-      
+
       if (requireAll) {
-        hasPermission = permissions.every(permission => 
-          authResult.hasPermission(permission)
-        );
+        hasPermission = permissions.every((permission) => authResult.hasPermission(permission));
       } else {
-        hasPermission = permissions.some(permission => 
-          authResult.hasPermission(permission)
-        );
+        hasPermission = permissions.some((permission) => authResult.hasPermission(permission));
       }
-      
+
       if (!hasPermission) {
         return this.createPermissionResponse(false, `需要以下权限: ${permissions.join(", ")}`);
       }
@@ -185,7 +173,7 @@ export class PermissionUtils {
     // 检查路径权限
     if (checkPath && authService) {
       const pathToCheck = requestPath || "/";
-      
+
       if (!authService.checkPathPermission(authResult, pathToCheck)) {
         return this.createPermissionResponse(false, "路径权限不足");
       }
@@ -209,7 +197,7 @@ export class PermissionUtils {
     return this.checkPermissions(c, {
       permissions: [PermissionType.TEXT],
       checkPath,
-      requestPath
+      requestPath,
     });
   }
 
@@ -220,7 +208,7 @@ export class PermissionUtils {
     return this.checkPermissions(c, {
       permissions: [PermissionType.FILE],
       checkPath,
-      requestPath
+      requestPath,
     });
   }
 
@@ -231,7 +219,7 @@ export class PermissionUtils {
     return this.checkPermissions(c, {
       permissions: [PermissionType.MOUNT],
       checkPath,
-      requestPath
+      requestPath,
     });
   }
 
@@ -241,7 +229,7 @@ export class PermissionUtils {
   static checkAdminPermission(c) {
     return this.checkPermissions(c, {
       permissions: [PermissionType.ADMIN],
-      allowAdmin: false // 强制检查管理员权限
+      allowAdmin: false, // 强制检查管理员权限
     });
   }
 
@@ -253,8 +241,134 @@ export class PermissionUtils {
       permissions: [PermissionType.FILE, PermissionType.MOUNT],
       requireAll: false,
       checkPath,
-      requestPath
+      requestPath,
     });
+  }
+
+  // ==================== 路径权限检查方法 ====================
+
+  /**
+   * 检查API密钥是否有访问指定路径的权限（严格权限）
+   * 只允许访问basicPath及其子路径
+   * @param {string} basicPath - API密钥的基本路径
+   * @param {string} requestPath - 请求访问的路径
+   * @returns {boolean} 是否有权限
+   */
+  static checkPathPermission(basicPath, requestPath) {
+    if (!basicPath || !requestPath) {
+      return false;
+    }
+
+    // 标准化路径 - 确保以/开头，不以/结尾（除非是根路径）
+    const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+    const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+    // 如果基本路径是根路径，允许访问所有路径
+    if (normalizeBasicPath === "/") {
+      return true;
+    }
+
+    // 检查请求路径是否在基本路径范围内
+    return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
+  }
+
+  /**
+   * 检查API密钥是否有访问指定路径的权限（导航权限）
+   * 允许访问从根路径到基本路径的所有父级路径，以便用户能够导航
+   * @param {string} basicPath - API密钥的基本路径
+   * @param {string} requestPath - 请求访问的路径
+   * @returns {boolean} 是否有权限
+   */
+  static checkPathPermissionForNavigation(basicPath, requestPath) {
+    if (!basicPath || !requestPath) {
+      return false;
+    }
+
+    // 标准化路径 - 确保以/开头，不以/结尾（除非是根路径）
+    const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+    const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+    // 如果基本路径是根路径，允许访问所有路径
+    if (normalizeBasicPath === "/") {
+      return true;
+    }
+
+    // 检查请求路径是否在基本路径范围内（有完整权限）
+    if (normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/")) {
+      return true;
+    }
+
+    // 允许访问基本路径的父级路径（用于导航），但这些路径只有查看权限，没有操作权限
+    if (normalizeBasicPath.startsWith(normalizeRequestPath + "/") || normalizeRequestPath === "/") {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * 检查是否有操作权限（创建、删除、上传等）
+   * 只有在基本路径范围内才允许操作
+   * @param {string} basicPath - API密钥的基本路径
+   * @param {string} requestPath - 请求访问的路径
+   * @returns {boolean} 是否有权限
+   */
+  static checkPathPermissionForOperation(basicPath, requestPath) {
+    if (!basicPath || !requestPath) {
+      return false;
+    }
+
+    // 标准化路径
+    const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+    const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+    // 如果基本路径是根路径，允许所有操作
+    if (normalizeBasicPath === "/") {
+      return true;
+    }
+
+    // 只有在基本路径范围内才允许操作
+    return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
+  }
+
+  // ==================== 挂载点权限检查方法 ====================
+
+  /**
+   * 根据用户类型和权限获取可访问的挂载点
+   * @param {D1Database} db - 数据库实例
+   * @param {string|Object} userIdOrInfo - 用户ID或API密钥信息
+   * @param {string} userType - 用户类型 (admin 或 apiKey)
+   * @returns {Promise<Array>} 可访问的挂载点列表
+   */
+  static async getAccessibleMounts(db, userIdOrInfo, userType) {
+    if (userType === "admin") {
+      const { getMountsByAdmin } = await import("../services/storageMountService.js");
+      return await getMountsByAdmin(db, userIdOrInfo);
+    } else if (userType === "apiKey") {
+      const apiKeyInfo = typeof userIdOrInfo === "object" ? userIdOrInfo : { basicPath: "/" };
+      const { getAccessibleMountsByBasicPath } = await import("../services/apiKeyService.js");
+      return await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
+    } else {
+      throw new Error(`不支持的用户类型: ${userType}`);
+    }
+  }
+
+  /**
+   * 检查用户是否有权限访问指定挂载点
+   * @param {D1Database} db - 数据库实例
+   * @param {string} mountId - 挂载点ID
+   * @param {string|Object} userIdOrInfo - 用户ID或API密钥信息
+   * @param {string} userType - 用户类型
+   * @returns {Promise<boolean>} 是否有权限
+   */
+  static async checkMountAccess(db, mountId, userIdOrInfo, userType) {
+    try {
+      const mounts = await this.getAccessibleMounts(db, userIdOrInfo, userType);
+      return mounts.some((mount) => mount.id === mountId);
+    } catch (error) {
+      console.error("检查挂载点权限失败:", error);
+      return false;
+    }
   }
 }
 
@@ -263,19 +377,19 @@ export class PermissionUtils {
  * 用于简化路由中的权限检查代码
  */
 export function withPermissionCheck(permissionOptions) {
-  return function(target, propertyKey, descriptor) {
+  return function (target, propertyKey, descriptor) {
     const originalMethod = descriptor.value;
-    
-    descriptor.value = async function(c) {
+
+    descriptor.value = async function (c) {
       const permissionResult = PermissionUtils.checkPermissions(c, permissionOptions);
-      
+
       if (!permissionResult.success) {
         return c.json(permissionResult.response, permissionResult.status);
       }
-      
+
       return await originalMethod.call(this, c);
     };
-    
+
     return descriptor;
   };
 }

@@ -59,9 +59,9 @@ export async function updateSystemSettings(db, settings) {
       const webdavUploadMode = settings.webdav_upload_mode;
 
       // 验证是否为有效的上传模式
-      const validModes = ["auto", "proxy", "multipart", "direct"];
+      const validModes = ["auto", "multipart", "direct"];
       if (!validModes.includes(webdavUploadMode)) {
-        throw new Error("WebDAV上传模式无效，有效值为: auto, proxy, multipart, direct");
+        throw new Error("WebDAV上传模式无效，有效值为: auto, multipart, direct");
       }
 
       // 更新数据库
@@ -69,7 +69,7 @@ export async function updateSystemSettings(db, settings) {
         .prepare(
           `
           INSERT OR REPLACE INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description, updated_at)
-          VALUES ('webdav_upload_mode', ?, 'WebDAV上传模式（auto, proxy, multipart, direct）', datetime('now'))
+          VALUES ('webdav_upload_mode', ?, 'WebDAV上传模式（auto, multipart, direct）', datetime('now'))
         `
         )
         .bind(webdavUploadMode)
@@ -243,7 +243,9 @@ async function getS3ConfigsWithUsage(db) {
         if (config.provider_type === "Cloudflare R2") {
           totalStorage = 10 * 1024 * 1024 * 1024; // 10GB
         } else if (config.provider_type === "Backblaze B2") {
-          totalStorage = 102 * 1024 * 1024 * 1024; // 10GB
+          totalStorage = 10 * 1024 * 1024 * 1024; // 10GB
+        } else if (config.provider_type === "Aliyun OSS") {
+          totalStorage = 5 * 1024 * 1024 * 1024; // 5GB
         } else {
           totalStorage = 5 * 1024 * 1024 * 1024; // 5GB
         }

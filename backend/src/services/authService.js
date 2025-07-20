@@ -247,7 +247,7 @@ export class AuthService {
               const keyInfo = {
                 id: keyRecord.id,
                 name: keyRecord.name,
-                key: keyRecord.key, 
+                key: keyRecord.key,
                 basicPath: keyRecord.basic_path || "/",
                 permissions: permissions,
               };
@@ -319,7 +319,7 @@ export class AuthService {
       const keyInfo = {
         id: keyRecord.id,
         name: keyRecord.name,
-        key: apiKey, 
+        key: apiKey,
         basicPath: keyRecord.basic_path || "/",
         permissions: permissions,
       };
@@ -392,16 +392,13 @@ export class AuthService {
       return true;
     }
 
-    // API密钥检查基础路径权限
+    // API密钥检查基础路径权限 - 使用统一的权限检查逻辑
     if (authResult.authType === AuthType.API_KEY) {
       const basicPath = authResult.basicPath || "/";
 
-      // 确保路径以 / 开头
-      const normalizedRequestPath = requestPath.startsWith("/") ? requestPath : "/" + requestPath;
-      const normalizedBasicPath = basicPath.startsWith("/") ? basicPath : "/" + basicPath;
-
-      // 检查请求路径是否在基础路径范围内
-      return normalizedRequestPath.startsWith(normalizedBasicPath);
+      // 直接导入PermissionUtils并使用其静态方法
+      const { PermissionUtils } = require("../utils/permissionUtils.js");
+      return PermissionUtils.checkPathPermission(basicPath, requestPath);
     }
 
     return false;

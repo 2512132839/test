@@ -641,6 +641,13 @@ const createProgressCallback = (taskManager, taskId, itemCount) => {
         // 优先使用文件计数而非字节计数
         taskDetails.processed = details.processedFiles;
         taskDetails.total = details.totalFiles;
+
+        // 动态更新任务的总数，确保进度显示一致
+        const currentTask = taskManager.getTasks().find((t) => t.id === taskId);
+        if (currentTask && currentTask.total !== details.totalFiles) {
+          // 更新任务的总数为实际文件数量
+          currentTask.total = details.totalFiles;
+        }
       }
 
       // 如果details中包含percentage字段，优先使用它作为进度值
@@ -669,17 +676,16 @@ const createCancelCallback = (taskManager, taskId) => {
 const handleCopyCompletion = (taskManager, taskId, response) => {
   // 检查响应数据
   const data = response.data || {};
-  const successCount = data.success || 0;
-  const skippedCount = data.skipped || 0;
-  const failedCount = (data.failed && data.failed.length) || 0;
-  const totalProcessed = successCount + skippedCount + failedCount;
+
+  const successCount = Array.isArray(data.success) ? data.success.length : data.success || 0;
+  const failedCount = Array.isArray(data.failed) ? data.failed.length : data.failed || 0;
+  const totalProcessed = successCount + failedCount;
 
   // 准备任务详情
   const taskDetails = {
-    total: props.selectedItems.length,
+    total: totalProcessed, // 使用实际处理的文件数量
     processed: totalProcessed,
     successCount,
-    skippedCount,
     failedCount,
     message: response.message === "FILE_COPY_SUCCESS" ? t("mount.taskManager.copyStarted", { count: successCount, path: currentPath.value }) : response.message,
   };
@@ -693,17 +699,30 @@ const handleCopyCompletion = (taskManager, taskId, response) => {
   if (response.success) {
     // 完全成功 - 没有失败项
     taskManager.completeTask(taskId, taskDetails);
-  } else if (successCount > 0 || skippedCount > 0) {
-    // 部分成功 - 有成功或跳过的项目，但也有失败的
+  } else if (successCount > 0) {
+    // 部分成功 - 有成功的项目，但也有失败的
     taskManager.completeTask(taskId, {
       ...taskDetails,
       partialSuccess: true,
       status: t("mount.taskManager.partialComplete"),
     });
   } else {
-    // 完全失败 - 没有成功或跳过的项目
+    // 完全失败 - 没有成功的项目
     taskManager.failTask(taskId, response.message, taskDetails);
   }
+
+  // 在复制完成后发出事件，触发父组件刷新目录
+  // 注意：模态框已经在任务创建时关闭，这里只需要触发目录刷新
+  emit("copy-complete", {
+    success: response.success,
+    message: response.success ? t("mount.taskManager.copyStarted", { count: successCount, path: currentPath.value }) : response.message,
+    targetPath: currentPath.value,
+    taskId: taskId,
+    showTaskManager: true,
+    successCount,
+    failedCount,
+    modalAlreadyClosed: true, // 标记模态框已经关闭
+  });
 };
 
 // 处理复制错误
@@ -721,6 +740,26 @@ const handleCopyError = (error) => {
     }
   } catch (e) {
     console.error("Update task status failed:", e);
+  }
+};
+
+// 异步执行复制任务
+const executeCopyTask = async (taskManager, taskId, copyItems) => {
+  try {
+    // 创建回调函数
+    const onProgress = createProgressCallback(taskManager, taskId, props.selectedItems.length);
+    const onCancel = createCancelCallback(taskManager, taskId);
+
+    // 调用批量复制API
+    const response = await fsApi.batchCopyItems(copyItems, false, {
+      onProgress,
+      onCancel,
+    });
+
+    // 处理复制完成
+    handleCopyCompletion(taskManager, taskId, response);
+  } catch (error) {
+    handleCopyError(error);
   }
 };
 
@@ -747,31 +786,17 @@ const confirmCopy = async () => {
     // 创建任务
     const { taskManager, taskId } = createCopyTask(props.selectedItems.length);
 
-    // 发出复制完成事件，父组件会处理模态框关闭
-    emit("copy-complete", {
-      success: true,
-      message: t("mount.taskManager.copyStarted", { count: props.selectedItems.length, path: currentPath.value }),
-      targetPath: currentPath.value,
-      taskId: taskId,
-      showTaskManager: true,
-    });
+    // 任务创建成功后立即关闭模态框，让任务在后台执行
+    emit("close");
 
-    // 创建回调函数
-    const onProgress = createProgressCallback(taskManager, taskId, props.selectedItems.length);
-    const onCancel = createCancelCallback(taskManager, taskId);
+    // 重置 copying 状态，因为模态框已关闭
+    copying.value = false;
 
-    // 调用批量复制API（默认跳过相同文件），并传入进度和取消回调
-    const skipExisting = true; // 默认跳过相同文件
-    const response = await fsApi.batchCopyItems(copyItems, skipExisting, {
-      onProgress,
-      onCancel,
-    });
-
-    // 处理复制完成
-    handleCopyCompletion(taskManager, taskId, response);
+    // 异步执行复制任务，不阻塞模态框关闭
+    executeCopyTask(taskManager, taskId, copyItems);
   } catch (error) {
+    // 如果任务创建失败，保持模态框打开并显示错误
     handleCopyError(error);
-  } finally {
     copying.value = false;
   }
 };

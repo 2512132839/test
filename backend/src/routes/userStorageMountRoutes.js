@@ -4,7 +4,6 @@
 import { Hono } from "hono";
 import { baseAuthMiddleware, requireMountPermissionMiddleware } from "../middlewares/permissionMiddleware.js";
 import { PermissionUtils } from "../utils/permissionUtils.js";
-import { getAccessibleMountsByBasicPath, checkPathPermission } from "../services/apiKeyService.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
 import { HTTPException } from "hono/http-exception";
@@ -38,7 +37,7 @@ userStorageMountRoutes.get("/api/user/mounts", baseAuthMiddleware, requireMountP
 
   try {
     // 根据API密钥的基本路径获取可访问的挂载点
-    const mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
+    const mounts = await PermissionUtils.getAccessibleMounts(db, apiKeyInfo, "apiKey");
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -60,23 +59,23 @@ userStorageMountRoutes.get("/api/user/mounts/:id", baseAuthMiddleware, requireMo
   try {
     // 首先获取挂载点信息
     const mount = await db
-        .prepare(
-            `SELECT
+      .prepare(
+        `SELECT
           id, name, storage_type, storage_config_id, mount_path,
           remark, is_active, created_by, sort_order, cache_ttl,
           created_at, updated_at, last_used
          FROM storage_mounts
          WHERE id = ? AND is_active = 1`
-        )
-        .bind(id)
-        .first();
+      )
+      .bind(id)
+      .first();
 
     if (!mount) {
       throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在" });
     }
 
     // 检查API密钥是否有权限访问此挂载点
-    if (!checkPathPermission(apiKeyInfo.basicPath, mount.mount_path)) {
+    if (!PermissionUtils.checkPathPermission(apiKeyInfo.basicPath, mount.mount_path)) {
       throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问此挂载点" });
     }
 
