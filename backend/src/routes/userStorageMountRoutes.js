@@ -7,6 +7,7 @@ import { PermissionUtils } from "../utils/permissionUtils.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
 import { HTTPException } from "hono/http-exception";
+import { RepositoryFactory } from "../repositories/index.js";
 
 const userStorageMountRoutes = new Hono();
 
@@ -57,20 +58,14 @@ userStorageMountRoutes.get("/api/user/mounts/:id", baseAuthMiddleware, requireMo
   const { id } = c.req.param();
 
   try {
-    // 首先获取挂载点信息
-    const mount = await db
-      .prepare(
-        `SELECT
-          id, name, storage_type, storage_config_id, mount_path,
-          remark, is_active, created_by, sort_order, cache_ttl,
-          created_at, updated_at, last_used
-         FROM storage_mounts
-         WHERE id = ? AND is_active = 1`
-      )
-      .bind(id)
-      .first();
+    // 使用 MountRepository
+    const repositoryFactory = new RepositoryFactory(db);
+    const mountRepository = repositoryFactory.getMountRepository();
 
-    if (!mount) {
+    // 首先获取挂载点信息
+    const mount = await mountRepository.findById(id);
+
+    if (!mount || !mount.is_active) {
       throw new HTTPException(ApiStatus.NOT_FOUND, { message: "挂载点不存在" });
     }
 

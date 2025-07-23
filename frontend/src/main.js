@@ -137,10 +137,10 @@ app.mount("#app");
 // 初始化认证Store（在应用挂载后）
 const authStore = useAuthStore();
 authStore
-    .initialize()
-    .then(() => {
-      console.log("认证Store初始化完成");
-    })
-    .catch((error) => {
-      console.error("认证Store初始化失败:", error);
-    });
+  .initialize()
+  .then(() => {
+    console.log("认证Store初始化完成");
+  })
+  .catch((error) => {
+    console.error("认证Store初始化失败:", error);
+  });

@@ -13,6 +13,7 @@ import {
   checkAndDeleteExpiredPaste,
 } from "../services/pasteService.js";
 import { ApiStatus, DbTables } from "../constants/index.js";
+import { RepositoryFactory } from "../repositories/index.js";
 import { HTTPException } from "hono/http-exception";
 import { createErrorResponse } from "../utils/common.js";
 
@@ -219,43 +220,37 @@ userPasteRoutes.get("/api/user/pastes/:id", baseAuthMiddleware, requireTextPermi
   const { id } = c.req.param();
 
   try {
-    // 获取用户自己创建的文本
-    const paste = await db
-        .prepare(
-            `
-        SELECT
-          id, slug, content, remark,
-          password IS NOT NULL as has_password,
-          expires_at, max_views, views, created_at, updated_at, created_by
-        FROM ${DbTables.PASTES}
-        WHERE id = ? AND created_by = ?
-      `
-        )
-        .bind(id, `apikey:${apiKeyId}`)
-        .first();
+    // 使用 PasteRepository 获取用户自己创建的文本
+    const repositoryFactory = new RepositoryFactory(db);
+    const pasteRepository = repositoryFactory.getPasteRepository();
+
+    const paste = await pasteRepository.findOne(DbTables.PASTES, {
+      id: id,
+      created_by: `apikey:${apiKeyId}`,
+    });
 
     if (!paste) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文本不存在或无权访问"), ApiStatus.NOT_FOUND);
     }
 
     // 确保has_password是布尔类型
-    paste.has_password = !!paste.has_password;
+    paste.has_password = !!paste.password;
 
     // 如果文本有密码，查询明文密码
     let plainPassword = null;
     if (paste.has_password) {
-      const passwordRecord = await db.prepare(`SELECT plain_password FROM ${DbTables.PASTE_PASSWORDS} WHERE paste_id = ?`).bind(paste.id).first();
-
-      if (passwordRecord) {
-        plainPassword = passwordRecord.plain_password;
-      }
+      plainPassword = await pasteRepository.findPasswordByPasteId(paste.id);
     }
 
     // 如果文本由API密钥创建，获取密钥名称
     let result = { ...paste, plain_password: plainPassword };
     if (paste.created_by && paste.created_by.startsWith("apikey:")) {
       const keyId = paste.created_by.substring(7);
-      const keyInfo = await db.prepare(`SELECT id, name FROM ${DbTables.API_KEYS} WHERE id = ?`).bind(keyId).first();
+
+      // 使用 ApiKeyRepository 获取密钥信息
+      const repositoryFactory = new RepositoryFactory(db);
+      const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+      const keyInfo = await apiKeyRepository.findById(keyId);
 
       if (keyInfo) {
         result.key_name = keyInfo.name;
@@ -282,14 +277,16 @@ userPasteRoutes.delete("/api/user/pastes/:id", baseAuthMiddleware, requireTextPe
 
   try {
     // 查询是否存在且属于该API密钥用户
-    const paste = await db.prepare(`SELECT id FROM ${DbTables.PASTES} WHERE id = ? AND created_by = ?`).bind(id, `apikey:${apiKeyId}`).first();
+    const repositoryFactory = new RepositoryFactory(db);
+    const pasteRepository = repositoryFactory.getPasteRepository();
+    const paste = await pasteRepository.findByIdAndCreator(id, `apikey:${apiKeyId}`);
 
     if (!paste) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文本不存在或无权删除"), ApiStatus.NOT_FOUND);
     }
 
     // 删除文本
-    await db.prepare(`DELETE FROM ${DbTables.PASTES} WHERE id = ?`).bind(id).run();
+    await pasteRepository.deleteById(id);
 
     return c.json({
       code: ApiStatus.SUCCESS,

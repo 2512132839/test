@@ -38,6 +38,8 @@ const formData = ref({
   is_active: true,
   sort_order: 0,
   cache_ttl: 300, // 默认缓存时间5分钟
+  web_proxy: false, // 默认不启用网页代理
+  webdav_policy: "302_redirect", // 默认WebDAV策略为302重定向
 });
 // 表单验证错误
 const errors = ref({});
@@ -328,7 +330,7 @@ const initializeFormData = () => {
   Object.keys(formData.value).forEach((key) => {
     if (props.mount[key] !== undefined) {
       // 特殊处理布尔值字段，确保它们正确转换
-      if (key === "is_active") {
+      if (key === "is_active" || key === "web_proxy") {
         formData.value[key] = !!props.mount[key]; // 确保是布尔类型
       } else {
         formData.value[key] = props.mount[key];
@@ -348,6 +350,8 @@ const resetFormData = () => {
     is_active: true, // 默认启用
     sort_order: 0,
     cache_ttl: 300, // 默认缓存时间5分钟
+    web_proxy: false, // 默认不启用网页代理
+    webdav_policy: "302_redirect", // 默认WebDAV策略为302重定向
   };
 };
 </script>
@@ -526,6 +530,42 @@ const resetFormData = () => {
             </div>
           </div>
 
+          <!-- 网页代理设置 -->
+          <div class="mt-1 sm:mt-2">
+            <div class="flex items-center">
+              <div class="flex items-center h-5">
+                <input
+                  id="web_proxy"
+                  type="checkbox"
+                  v-model="formData.web_proxy"
+                  class="h-4 w-4 sm:h-5 sm:w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                />
+              </div>
+              <div class="ml-2 sm:ml-3">
+                <label for="web_proxy" class="text-sm font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.webProxy") }}</label>
+                <p class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.webProxyHint") }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- WebDAV策略 -->
+          <div>
+            <label for="webdav_policy" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.webdavPolicy") }}</label>
+            <select
+              id="webdav_policy"
+              v-model="formData.webdav_policy"
+              class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200"
+              :class="[darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300 text-gray-900']"
+            >
+              <option value="302_redirect">{{ t("admin.mount.form.webdavPolicyOptions.302_redirect") }}</option>
+              <option value="native_proxy">{{ t("admin.mount.form.webdavPolicyOptions.native_proxy") }}</option>
+            </select>
+            <p class="mt-0.5 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+              {{ t("admin.mount.form.webdavPolicyDescription") }}
+            </p>
+          </div>
+
           <!-- 是否启用 - 优化移动端显示 -->
           <div class="mt-1 sm:mt-2">
             <div class="flex items-center">
@@ -572,7 +612,7 @@ const resetFormData = () => {
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          {{ submitting ? t("admin.mount.form.saving") : isEditMode.value ? t("admin.mount.form.save") : t("admin.mount.form.create") }}
+          {{ submitting ? t("admin.mount.form.saving") : isEditMode ? t("admin.mount.form.save") : t("admin.mount.form.create") }}
         </button>
       </div>
     </div>

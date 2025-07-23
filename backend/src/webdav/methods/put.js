@@ -403,7 +403,7 @@ export async function handlePut(c, path, userId, userType, db) {
     const fileSystem = new FileSystem(mountManager);
 
     // 获取系统设置中的WebDAV上传模式
-    let webdavUploadMode = "auto"; // 默认为自动模式
+    let webdavUploadMode = "direct"; // 默认为直接上传模式
     try {
       // 查询系统设置
       const uploadModeSetting = await db.prepare("SELECT value FROM system_settings WHERE key = ?").bind("webdav_upload_mode").first();
@@ -416,15 +416,11 @@ export async function handlePut(c, path, userId, userType, db) {
 
     console.log(`WebDAV PUT - 当前上传模式设置: ${webdavUploadMode}`);
 
-    // 根据系统设置和文件大小决定使用哪种上传模式
-    const DIRECT_THRESHOLD = 10 * 1024 * 1024; // 10MB 小文件阈值
-
+    // 根据系统设置决定使用哪种上传模式
     // 判断是否应该使用直接上传模式：
-    // 1. 如果设置为'direct'，则始终使用直接上传模式
-    // 2. 如果设置为'auto'，小于指定阈值的文件使用直接上传
-    // 注意：空文件已经有专门的处理逻辑，chunked传输(-1)不使用直接上传
-    const shouldUseDirect =
-      webdavUploadMode === "direct" || (webdavUploadMode === "auto" && !emptyBodyCheck && declaredContentLength > 0 && declaredContentLength <= DIRECT_THRESHOLD);
+    // 如果设置为'direct'，则使用直接上传模式，否则使用分片上传模式
+    // 注意：空文件已经有专门的处理逻辑
+    const shouldUseDirect = webdavUploadMode === "direct";
 
     // 处理空文件的情况
     if (emptyBodyCheck) {
@@ -456,9 +452,9 @@ export async function handlePut(c, path, userId, userType, db) {
       });
     }
 
-    // 直接上传模式（小文件）
+    // 直接上传模式
     if (shouldUseDirect) {
-      console.log(`WebDAV PUT - 使用直接上传模式${webdavUploadMode === "direct" ? "(强制直传模式)" : ""}`);
+      console.log(`WebDAV PUT - 使用直接上传模式`);
 
       try {
         // 读取请求体
@@ -521,19 +517,14 @@ export async function handlePut(c, path, userId, userType, db) {
           },
         });
       } catch (error) {
-        // 如果设置为强制直传模式，且出错，则不再回退到其他模式
-        if (webdavUploadMode === "direct") {
-          console.error(`WebDAV PUT - 直接上传失败且处于强制直传模式，无法回退:`, error);
-          throw error;
-        }
-        console.error(`WebDAV PUT - 直接上传失败，回退到分片上传:`, error);
-        // 如果直接上传失败，继续执行后面的代码，回退到分片上传
+        console.error(`WebDAV PUT - 直接上传失败:`, error);
+        throw error;
       }
     }
 
-    // 分片上传模式（大文件或回退模式）
-    if (webdavUploadMode === "multipart" || !shouldUseDirect || webdavUploadMode === "auto") {
-      console.log(`WebDAV PUT - 使用分片上传模式${webdavUploadMode === "multipart" ? "(强制分片模式)" : ""}`);
+    // 分片上传模式
+    if (!shouldUseDirect) {
+      console.log(`WebDAV PUT - 使用分片上传模式`);
 
       // 获取请求体流
       const bodyStream = c.req.body;

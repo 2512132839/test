@@ -1,8 +1,6 @@
 /**
- * S3存储驱动实现（重构版）
- * 基于alist风格的模块化设计，通过协调各个操作模块提供统一的存储接口
+ * S3存储驱动实现协调各个操作模块提供统一的存储接口
  * 实现所有能力接口，充分利用S3的强大功能
- * 复用现有的优秀 S3 实现，保持架构清晰和可维护性
  */
 
 import { BaseDriver } from "../../interfaces/capabilities/BaseDriver.js";
@@ -12,6 +10,7 @@ import { ApiStatus } from "../../../constants/index.js";
 import { createS3Client } from "../../../utils/s3Utils.js";
 import { normalizeS3SubPath } from "./utils/S3PathUtils.js";
 import { updateMountLastUsed, findMountPointByPath } from "../../fs/utils/MountResolver.js";
+import { buildFullProxyUrl } from "../../../constants/proxy.js";
 
 // 导入各个操作模块
 import { S3FileOperations } from "./operations/S3FileOperations.js";
@@ -19,7 +18,6 @@ import { S3DirectoryOperations } from "./operations/S3DirectoryOperations.js";
 import { S3BatchOperations } from "./operations/S3BatchOperations.js";
 import { S3UploadOperations } from "./operations/S3UploadOperations.js";
 import { S3BackendMultipartOperations } from "./operations/S3BackendMultipartOperations.js";
-
 export class S3StorageDriver extends BaseDriver {
   /**
    * 构造函数
@@ -39,6 +37,7 @@ export class S3StorageDriver extends BaseDriver {
       CAPABILITIES.PRESIGNED, // 预签名URL能力：generatePresignedUrl
       CAPABILITIES.MULTIPART, // 分片上传能力：multipart upload
       CAPABILITIES.ATOMIC, // 原子操作能力：rename, copy
+      CAPABILITIES.PROXY, // 代理能力：generateProxyUrl
     ];
 
     // 操作模块实例
@@ -59,7 +58,7 @@ export class S3StorageDriver extends BaseDriver {
       this.s3Client = await createS3Client(this.config, this.encryptionSecret);
 
       // 初始化各个操作模块
-      this.fileOps = new S3FileOperations(this.s3Client, this.config, this.encryptionSecret);
+      this.fileOps = new S3FileOperations(this.s3Client, this.config, this.encryptionSecret, this);
       this.directoryOps = new S3DirectoryOperations(this.s3Client, this.config, this.encryptionSecret);
       this.batchOps = new S3BatchOperations(this.s3Client, this.config, this.encryptionSecret);
       this.uploadOps = new S3UploadOperations(this.s3Client, this.config, this.encryptionSecret);
@@ -97,7 +96,7 @@ export class S3StorageDriver extends BaseDriver {
     // 委托给目录操作模块
     return await this.directoryOps.listDirectory(s3SubPath, {
       mount,
-      subPath,
+      subPath, // 使用正确的子路径用于缓存键生成
       path,
     });
   }
@@ -111,7 +110,7 @@ export class S3StorageDriver extends BaseDriver {
   async getFileInfo(path, options = {}) {
     this._ensureInitialized();
 
-    const { mount, subPath, db, userType, userId } = options;
+    const { mount, subPath, db, userType, userId, request } = options;
 
     // 规范化S3子路径
     const s3SubPath = normalizeS3SubPath(subPath, this.config, false);
@@ -128,6 +127,7 @@ export class S3StorageDriver extends BaseDriver {
         path,
         userType,
         userId,
+        request,
       });
     } catch (error) {
       if (error.status === ApiStatus.NOT_FOUND) {
@@ -636,7 +636,7 @@ export class S3StorageDriver extends BaseDriver {
   async completeBackendMultipartUpload(path, options = {}) {
     this._ensureInitialized();
 
-    const { mount, subPath, db, uploadId, parts, contentType, fileSize, saveToDatabase = true, userIdOrInfo, userType, s3Key } = options;
+    const { mount, subPath, db, uploadId, parts, contentType, fileSize, userIdOrInfo, userType, s3Key } = options;
 
     // 如果提供了s3Key，直接使用，否则重新计算
     const s3SubPath = s3Key || this._normalizeFilePath(subPath, path);
@@ -649,57 +649,15 @@ export class S3StorageDriver extends BaseDriver {
       fileSize,
     });
 
-    // 如果需要保存到数据库
-    let fileId;
-    if (saveToDatabase && db) {
-      // 提取文件名
-      let fileName = s3SubPath.split("/").filter(Boolean).pop();
-      // 如果s3Key中没有提取到有效文件名，则尝试从路径中提取
-      if (!fileName) {
-        fileName = path.split("/").filter(Boolean).pop();
-      }
-      // 如果两者都未提取到有效文件名，使用默认名称
-      if (!fileName) {
-        fileName = "unnamed_file";
-      }
-
-      // 生成文件ID
-      const { generateFileId } = await import("../../../utils/common.js");
-      fileId = generateFileId();
-
-      // 生成slug（使用文件ID的前5位作为slug）
-      const fileSlug = "M-" + fileId.substring(0, 5);
-
-      // 统一从文件名推断MIME类型，不依赖前端传来的contentType
-      const { getMimeTypeFromFilename } = await import("../../../utils/fileUtils.js");
-      const finalContentType = getMimeTypeFromFilename(fileName);
-      console.log(`后端分片上传完成：从文件名[${fileName}]推断MIME类型: ${finalContentType}`);
-
-      // 记录文件信息到数据库
-      await db
-        .prepare(
-          `
-        INSERT INTO files (
-          id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `
-        )
-        .bind(
-          fileId,
-          fileName,
-          s3SubPath,
-          result.s3Url,
-          finalContentType,
-          fileSize || 0,
-          this.config.id,
-          fileSlug,
-          result.etag,
-          `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`
-        )
-        .run();
-    } else {
-      console.log(`后端分片上传完成但跳过数据库记录 (路径: ${path})`);
+    // fs系统不再创建files表记录，只做纯粹的文件操作
+    let fileName = s3SubPath.split("/").filter(Boolean).pop();
+    if (!fileName) {
+      fileName = path.split("/").filter(Boolean).pop();
     }
+    if (!fileName) {
+      fileName = "unnamed_file";
+    }
+    console.log(`后端分片上传完成: ${fileName}, 大小: ${fileSize || 0}字节`);
 
     // 更新挂载点的最后使用时间
     if (db && mount) {
@@ -720,7 +678,6 @@ export class S3StorageDriver extends BaseDriver {
     return {
       ...result,
       path: path,
-      fileId: saveToDatabase ? fileId : undefined,
     };
   }
 
@@ -753,6 +710,54 @@ export class S3StorageDriver extends BaseDriver {
     }
 
     return result;
+  }
+
+  /**
+   * 生成代理URL（ProxyCapable接口实现）
+   * @param {string} path - 文件路径
+   * @param {Object} options - 选项参数
+   * @param {Object} options.mount - 挂载点信息
+   * @param {Request} options.request - 请求对象
+   * @param {boolean} options.download - 是否为下载模式
+   * @returns {Promise<Object>} 代理URL对象
+   */
+  async generateProxyUrl(path, options = {}) {
+    const { mount, request, download = false } = options;
+
+    // 检查挂载点是否启用代理
+    if (!this.supportsProxyMode(mount)) {
+      throw new HTTPException(ApiStatus.FORBIDDEN, { message: "此挂载点未启用代理访问" });
+    }
+
+    // 生成代理URL
+    const proxyUrl = buildFullProxyUrl(request, path, download);
+
+    return {
+      url: proxyUrl,
+      type: "proxy",
+      policy: mount?.webdav_policy || "302_redirect",
+    };
+  }
+
+  /**
+   * 检查是否支持代理模式（ProxyCapable接口实现）
+   * @param {Object} mount - 挂载点信息
+   * @returns {boolean} 是否支持代理模式
+   */
+  supportsProxyMode(mount) {
+    return mount && !!mount.web_proxy;
+  }
+
+  /**
+   * 获取代理配置（ProxyCapable接口实现）
+   * @param {Object} mount - 挂载点信息
+   * @returns {Object} 代理配置对象
+   */
+  getProxyConfig(mount) {
+    return {
+      enabled: this.supportsProxyMode(mount),
+      webdavPolicy: mount?.webdav_policy || "302_redirect",
+    };
   }
 
   /**

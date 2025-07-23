@@ -142,24 +142,45 @@ export async function handleGet(c, path, userId, userType, db) {
       });
     }
 
-    // 使用FileSystem下载文件（FileSystem会自动处理Range请求）
-    const fileResponse = await fileSystem.downloadFile(path, fileName, c.req, userId, userType);
+    // 根据挂载点的webdav_policy配置决定处理方式
+    const { mount } = await mountManager.getDriverByPath(path, userId, userType);
 
-    // 更新响应头以包含WebDAV特有的头信息
-    const updatedHeaders = new Headers(fileResponse.headers);
-    updatedHeaders.set("Content-Type", contentType);
-    updatedHeaders.set("Last-Modified", lastModifiedStr);
-    if (etag) {
-      updatedHeaders.set("ETag", etag);
+    if (mount.webdav_policy === "302_redirect") {
+      // 302重定向模式：生成预签名URL并重定向
+      console.log(`WebDAV GET - 使用302重定向模式: ${path}`);
+
+      const presignedResult = await fileSystem.generatePresignedUrl(path, userId, userType, {
+        operation: "download",
+        forceDownload: false, // WebDAV通常不强制下载
+      });
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: presignedResult.presignedUrl,
+          "Cache-Control": "no-cache",
+        },
+      });
+    } else {
+      // 代理模式（默认）：使用FileSystem下载文件
+      console.log(`WebDAV GET - 使用代理模式: ${path}`);
+      const fileResponse = await fileSystem.downloadFile(path, fileName, c.req, userId, userType);
+
+      // 更新响应头以包含WebDAV特有的头信息
+      const updatedHeaders = new Headers(fileResponse.headers);
+      updatedHeaders.set("Content-Type", contentType);
+      updatedHeaders.set("Last-Modified", lastModifiedStr);
+      if (etag) {
+        updatedHeaders.set("ETag", etag);
+      }
+      updatedHeaders.set("Accept-Ranges", "bytes");
+      updatedHeaders.set("Cache-Control", "max-age=3600");
+
+      return new Response(fileResponse.body, {
+        status: fileResponse.status,
+        headers: updatedHeaders,
+      });
     }
-    updatedHeaders.set("Accept-Ranges", "bytes");
-    updatedHeaders.set("Cache-Control", "max-age=3600");
-
-    // 返回FileSystem处理后的响应（可能是200或206状态码）
-    return new Response(fileResponse.body, {
-      status: fileResponse.status,
-      headers: updatedHeaders,
-    });
   } catch (error) {
     // 使用统一的错误处理
     return handleWebDAVError("GET", error);

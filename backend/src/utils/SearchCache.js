@@ -269,14 +269,14 @@ export function clearSearchCache(options = {}) {
     // 场景1: 清理指定挂载点的搜索缓存
     if (mountId) {
       const clearedCount = searchCacheManager.invalidateMount(mountId);
-      console.log(`已清理挂载点 ${mountId} 的搜索缓存，共 ${clearedCount} 项`);
+      console.log(`SearchCache: 已清理挂载点 ${mountId} 的搜索缓存，共 ${clearedCount} 项`);
       totalCleared += clearedCount;
     }
 
     // 场景2: 清理指定用户的搜索缓存
     if (userType && userIdOrInfo) {
       const clearedCount = searchCacheManager.invalidateUser(userType, userIdOrInfo);
-      console.log(`已清理用户 ${userType} 的搜索缓存，共 ${clearedCount} 项`);
+      console.log(`SearchCache:已清理用户 ${userType} 的搜索缓存，共 ${clearedCount} 项`);
       totalCleared += clearedCount;
     }
 
@@ -284,7 +284,7 @@ export function clearSearchCache(options = {}) {
     if (!mountId && !userType) {
       const clearedCount = searchCacheManager.invalidateAll();
       totalCleared += clearedCount;
-      console.log(`已清理所有搜索缓存，共 ${clearedCount} 项`);
+      console.log(`SearchCache:已清理所有搜索缓存，共 ${clearedCount} 项`);
     }
 
     return totalCleared;

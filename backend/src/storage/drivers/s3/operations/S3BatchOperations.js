@@ -8,7 +8,6 @@ import { ApiStatus } from "../../../../constants/index.js";
 import { S3Client, DeleteObjectCommand, CopyObjectCommand, ListObjectsV2Command, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { normalizeS3SubPath } from "../utils/S3PathUtils.js";
 import { updateMountLastUsed } from "../../../fs/utils/MountResolver.js";
-import { deleteFileRecordByStoragePath } from "../../../../services/fileService.js";
 import { clearCache } from "../../../../utils/DirectoryCache.js";
 import { generatePresignedUrl, generatePresignedPutUrl, createS3Client, getDirectoryPresignedUrls } from "../../../../utils/s3Utils.js";
 import { getMimeTypeFromFilename } from "../../../../utils/fileUtils.js";
@@ -35,11 +34,10 @@ export class S3BatchOperations {
    * @param {S3Client} s3Client - S3客户端实例
    * @param {string} bucketName - 存储桶名称
    * @param {string} prefix - 目录前缀
-   * @param {D1Database} db - 数据库实例
    * @param {string} storageConfigId - 存储配置ID
    * @returns {Promise<void>}
    */
-  async deleteDirectoryRecursive(s3Client, bucketName, prefix, db, storageConfigId) {
+  async deleteDirectoryRecursive(s3Client, bucketName, prefix, storageConfigId) {
     let continuationToken = undefined;
 
     try {
@@ -65,14 +63,7 @@ export class S3BatchOperations {
             const deleteCommand = new DeleteObjectCommand(deleteParams);
             await s3Client.send(deleteCommand);
 
-            // 删除文件记录
-            if (db && storageConfigId) {
-              try {
-                await deleteFileRecordByStoragePath(db, storageConfigId, item.Key);
-              } catch (error) {
-                console.warn(`删除文件记录失败: ${error.message}`);
-              }
-            }
+            // 文件删除完成，无需数据库操作
           });
 
           await Promise.all(deletePromises);
@@ -140,7 +131,7 @@ export class S3BatchOperations {
 
         if (isDirectory) {
           // 对于目录，需要递归删除所有内容
-          await this.deleteDirectoryRecursive(this.s3Client, s3Config.bucket_name, s3SubPath, db, itemMount.storage_config_id);
+          await this.deleteDirectoryRecursive(this.s3Client, s3Config.bucket_name, s3SubPath, itemMount.storage_config_id);
         } else {
           // 对于文件，直接删除
           const deleteParams = {
@@ -167,15 +158,7 @@ export class S3BatchOperations {
         const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
         await updateParentDirectoriesModifiedTime(this.s3Client, s3Config.bucket_name, s3SubPath, rootPrefix, true);
 
-        // 尝试删除文件记录表中的对应记录
-        try {
-          const fileDeleteResult = await deleteFileRecordByStoragePath(db, itemMount.storage_config_id, s3SubPath);
-          if (fileDeleteResult.deletedCount > 0) {
-            console.log(`从文件记录中删除了${fileDeleteResult.deletedCount}条数据：挂载点=${itemMount.id}, 路径=${s3SubPath}`);
-          }
-        } catch (fileDeleteError) {
-          console.error(`删除文件记录失败: ${fileDeleteError.message}`);
-        }
+        // 文件删除完成，无需数据库操作
 
         // 更新挂载点的最后使用时间
         await updateMountLastUsed(db, itemMount.id);
@@ -958,7 +941,7 @@ export class S3BatchOperations {
         if (oldIsDirectory) {
           // 重命名目录：复制所有内容到新位置，然后删除原目录
           await this.copyDirectoryRecursive(this.s3Client, s3Config.bucket_name, oldS3SubPath, newS3SubPath, false);
-          await this.deleteDirectoryRecursive(this.s3Client, s3Config.bucket_name, oldS3SubPath, db, mount.storage_config_id);
+          await this.deleteDirectoryRecursive(this.s3Client, s3Config.bucket_name, oldS3SubPath, mount.storage_config_id);
         } else {
           // 重命名文件：复制到新位置，然后删除原文件
           const copyParams = {
@@ -980,12 +963,7 @@ export class S3BatchOperations {
           const deleteCommand = new DeleteObjectCommand(deleteParams);
           await this.s3Client.send(deleteCommand);
 
-          // 更新文件记录
-          try {
-            await deleteFileRecordByStoragePath(db, mount.storage_config_id, oldS3SubPath);
-          } catch (error) {
-            console.warn(`更新文件记录失败: ${error.message}`);
-          }
+          // 文件移动完成，无需数据库操作
         }
 
         // 更新父目录的修改时间

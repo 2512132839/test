@@ -15,11 +15,10 @@ export default {
     },
     webdavSettings: {
       uploadModeLabel: "WebDAV Upload Mode",
-      uploadModeHint: "Select the upload handling method for WebDAV clients",
+      uploadModeHint: "Select the upload processing method for the WebDAV client. For worker deployment, it is recommended to use only the direct upload mode.",
       modes: {
-        auto: "Auto Mode (Recommended)",
-        multipart: "Multipart Upload",
         direct: "Direct Upload",
+        multipart: "Multipart Upload",
       },
     },
     adminSettings: {

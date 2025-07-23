@@ -1,162 +1,470 @@
-import { DbTables } from "../constants/index.js";
+/**
+ * 文件服务类
+ * 文件业务逻辑，通过Repository访问数据
+ */
+
 import { generatePresignedUrl } from "../utils/s3Utils.js";
+import { FileRepository, S3ConfigRepository } from "../repositories/index.js";
 
-/**
- * 根据slug获取文件
- * @param {D1Database} db - D1数据库实例
- * @param {string} slug - 文件的slug
- * @returns {Promise<Object>} 文件对象
- * @throws {Error} 如果文件不存在
- */
-export async function getFileBySlug(db, slug) {
-  if (!slug) {
-    throw new Error("缺少文件slug参数");
+export class FileService {
+  /**
+   * 构造函数
+   * @param {D1Database} db - 数据库实例
+   */
+  constructor(db) {
+    this.fileRepository = new FileRepository(db);
+    this.s3ConfigRepository = new S3ConfigRepository(db);
   }
 
-  const file = await db
-    .prepare(
-      `
-      SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
-      FROM ${DbTables.FILES} f
-      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
-      WHERE f.slug = ?
-    `
-    )
-    .bind(slug)
-    .first();
-
-  if (!file) {
-    throw new Error("文件不存在");
-  }
-
-  return file;
-}
-
-/**
- * 检查文件是否可访问
- * @param {D1Database} db - D1数据库实例
- * @param {Object} file - 文件对象
- * @param {string} encryptionSecret - 加密密钥
- * @returns {Promise<Object>} 包含accessible和reason的对象
- */
-export async function isFileAccessible(db, file, encryptionSecret) {
-  if (!file) {
-    return { accessible: false, reason: "not_found" };
-  }
-
-  // 检查文件是否已过期
-  if (file.expires_at) {
-    const expiryDate = new Date(file.expires_at);
-    const now = new Date();
-    if (now > expiryDate) {
-      return { accessible: false, reason: "expired" };
+  /**
+   * 验证文件访问权限 - 纯业务逻辑
+   * @param {Object} file - 文件对象
+   * @returns {Object} 包含accessible和reason的对象
+   */
+  validateFileAccess(file) {
+    if (!file) {
+      return { accessible: false, reason: "not_found" };
     }
-  }
 
-  // 检查文件访问次数是否超过限制
-  if (file.max_views !== null && file.max_views > 0) {
-    if (file.views > file.max_views) {
-      return { accessible: false, reason: "expired" };
-    }
-  }
-
-  return { accessible: true };
-}
-
-/**
- * 增加文件查看次数并检查是否超过限制
- * @param {D1Database} db - D1数据库实例
- * @param {Object} file - 文件对象
- * @param {string} encryptionSecret - 加密密钥
- * @returns {Promise<Object>} 包含isExpired和file的对象
- */
-export async function incrementAndCheckFileViews(db, file, encryptionSecret) {
-  // 增加views计数
-  await db.prepare(`UPDATE ${DbTables.FILES} SET views = views + 1 WHERE id = ?`).bind(file.id).run();
-
-  // 重新获取文件信息，包括更新后的views计数
-  const updatedFile = await db
-    .prepare(
-      `
-      SELECT f.*, s.endpoint_url, s.bucket_name, s.region, s.access_key_id, s.secret_access_key, s.path_style
-      FROM ${DbTables.FILES} f
-      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
-      WHERE f.id = ?
-    `
-    )
-    .bind(file.id)
-    .first();
-
-  // 检查是否达到最大查看次数限制
-  if (updatedFile.max_views !== null && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
-    return { isExpired: true, file: updatedFile };
-  }
-
-  return { isExpired: false, file: updatedFile };
-}
-
-/**
- * 生成文件下载URL
- * @param {D1Database} db - D1数据库实例
- * @param {Object} file - 文件对象
- * @param {string} encryptionSecret - 加密密钥
- * @param {Request} request - 原始请求对象，用于获取当前域名
- * @returns {Promise<Object>} 包含预览链接和下载链接的对象
- */
-export async function generateFileDownloadUrl(db, file, encryptionSecret, request = null) {
-  let previewUrl = file.s3_url; // 默认使用原始URL作为回退
-  let downloadUrl = file.s3_url; // 默认使用原始URL作为回退
-
-  // 获取当前域名作为基础URL
-  let baseUrl = "";
-  if (request) {
-    try {
-      const url = new URL(request.url);
-      baseUrl = url.origin; // 包含协议和域名，如 https://example.com
-    } catch (error) {
-      console.error("解析请求URL出错:", error);
-      // 如果解析失败，baseUrl保持为空字符串
-    }
-  }
-
-  // 构建代理URL，确保使用完整的绝对URL
-  let proxyPreviewUrl = baseUrl ? `${baseUrl}/api/file-view/${file.slug}` : `/api/file-view/${file.slug}`;
-  let proxyDownloadUrl = baseUrl ? `${baseUrl}/api/file-download/${file.slug}` : `/api/file-download/${file.slug}`;
-
-  if (file.s3_config_id && file.storage_path) {
-    const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
-    if (s3Config) {
-      try {
-        // 生成预览URL，使用S3配置的默认时效
-        // 注意：文件分享页面没有用户上下文，禁用缓存避免权限泄露
-        previewUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false, null, { enableCache: false });
-
-        // 生成下载URL，使用S3配置的默认时效，强制下载
-        downloadUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, true, null, { enableCache: false });
-      } catch (error) {
-        console.error("生成预签名URL错误:", error);
-        // 如果生成预签名URL失败，回退到使用原始S3 URL
+    // 检查文件是否已过期
+    if (file.expires_at) {
+      const expiryDate = new Date(file.expires_at);
+      const now = new Date();
+      if (now > expiryDate) {
+        return { accessible: false, reason: "expired" };
       }
     }
+
+    // 检查文件访问次数是否超过限制
+    if (file.max_views !== null && file.max_views > 0) {
+      if (file.views > file.max_views) {
+        return { accessible: false, reason: "expired" };
+      }
+    }
+
+    return { accessible: true };
   }
 
-  return {
-    previewUrl,
-    downloadUrl,
-    proxyPreviewUrl,
-    proxyDownloadUrl,
-    use_proxy: file.use_proxy || 0,
-  };
+  /**
+   * 根据slug获取文件完整信息
+   * @param {string} slug - 文件slug
+   * @returns {Promise<Object>} 文件对象
+   * @throws {Error} 如果文件不存在
+   */
+  async getFileBySlug(slug) {
+    if (!slug) {
+      throw new Error("缺少文件slug参数");
+    }
+
+    const file = await this.fileRepository.findBySlugWithS3Config(slug);
+
+    if (!file) {
+      throw new Error("文件不存在");
+    }
+
+    return file;
+  }
+
+  /**
+   * 检查文件是否可访问
+   * @param {Object} file - 文件对象
+   * @returns {Object} 包含accessible和reason的对象
+   */
+  isFileAccessible(file) {
+    return this.validateFileAccess(file);
+  }
+
+  /**
+   * 增加文件查看次数并检查是否超过限制
+   * @param {string} slug - 文件slug
+   * @returns {Promise<Object>} 包含isExpired和file的对象
+   */
+  async incrementAndCheckFileViews(slug) {
+    // 获取文件信息
+    const file = await this.getFileBySlug(slug);
+
+    // 增加views计数
+    await this.fileRepository.incrementViews(file.id);
+
+    // 重新获取文件信息，包括更新后的views计数
+    const updatedFile = await this.fileRepository.findBySlugWithS3Config(slug);
+
+    // 检查是否达到最大查看次数限制
+    const accessResult = this.validateFileAccess(updatedFile);
+
+    return {
+      isExpired: !accessResult.accessible,
+      file: updatedFile,
+    };
+  }
+
+  /**
+   * 生成文件下载URL
+   * @param {Object} file - 文件对象
+   * @param {string} encryptionSecret - 加密密钥
+   * @param {Request} request - 原始请求对象，用于获取当前域名
+   * @returns {Promise<Object>} 包含预览链接和下载链接的对象
+   */
+  async generateFileDownloadUrl(file, encryptionSecret, request = null) {
+    let previewUrl = file.s3_url; // 默认使用原始URL作为回退
+    let downloadUrl = file.s3_url; // 默认使用原始URL作为回退
+
+    // 获取当前域名作为基础URL
+    let baseUrl = "";
+    if (request) {
+      try {
+        const url = new URL(request.url);
+        baseUrl = url.origin; // 包含协议和域名，如 https://example.com
+      } catch (error) {
+        console.error("解析请求URL出错:", error);
+        // 如果解析失败，baseUrl保持为空字符串
+      }
+    }
+
+    // 构建代理URL，确保使用完整的绝对URL
+    let proxyPreviewUrl = baseUrl ? `${baseUrl}/api/file-view/${file.slug}` : `/api/file-view/${file.slug}`;
+    let proxyDownloadUrl = baseUrl ? `${baseUrl}/api/file-download/${file.slug}` : `/api/file-download/${file.slug}`;
+
+    if (file.s3_config_id && file.storage_path) {
+      const s3Config = await this.s3ConfigRepository.findById(file.s3_config_id);
+      if (s3Config) {
+        try {
+          // 生成预览URL，使用S3配置的默认时效
+          // 注意：文件分享页面没有用户上下文，禁用缓存避免权限泄露
+          previewUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, false, null, { enableCache: false });
+
+          // 生成下载URL，使用S3配置的默认时效，强制下载
+          downloadUrl = await generatePresignedUrl(s3Config, file.storage_path, encryptionSecret, null, true, null, { enableCache: false });
+        } catch (error) {
+          console.error("生成预签名URL错误:", error);
+          // 如果生成预签名URL失败，回退到使用原始S3 URL
+        }
+      }
+    }
+
+    return {
+      previewUrl,
+      downloadUrl,
+      proxyPreviewUrl,
+      proxyDownloadUrl,
+      use_proxy: file.use_proxy || 0,
+    };
+  }
+
+  /**
+   * 获取文件的公开信息
+   * @param {Object} file - 文件对象
+   * @param {boolean} requiresPassword - 是否需要密码
+   * @param {Object} urlsObj - URL对象
+   * @returns {Object} 公开文件信息
+   */
+  getPublicFileInfo(file, requiresPassword, urlsObj = null) {
+    // 确定使用哪种URL
+    const useProxy = urlsObj?.use_proxy !== undefined ? urlsObj.use_proxy : file.use_proxy || 0;
+
+    // 根据是否使用代理选择URL
+    const effectivePreviewUrl = useProxy === 1 ? urlsObj?.proxyPreviewUrl : urlsObj?.previewUrl || file.s3_url;
+    const effectiveDownloadUrl = useProxy === 1 ? urlsObj?.proxyDownloadUrl : urlsObj?.downloadUrl || file.s3_url;
+
+    return {
+      id: file.id,
+      slug: file.slug,
+      filename: file.filename,
+      mimetype: file.mimetype,
+      size: file.size,
+      remark: file.remark,
+      created_at: file.created_at,
+      requires_password: requiresPassword,
+      views: file.views,
+      max_views: file.max_views,
+      expires_at: file.expires_at,
+      previewUrl: effectivePreviewUrl,
+      downloadUrl: effectiveDownloadUrl,
+      s3_direct_preview_url: urlsObj?.previewUrl || file.s3_url,
+      s3_direct_download_url: urlsObj?.downloadUrl || file.s3_url,
+      proxy_preview_url: urlsObj?.proxyPreviewUrl,
+      proxy_download_url: urlsObj?.proxyDownloadUrl,
+      use_proxy: useProxy,
+      created_by: file.created_by || null,
+    };
+  }
+
+  /**
+   * 根据存储路径删除文件记录
+   * @param {string} s3ConfigId - S3配置ID
+   * @param {string} storagePath - 存储路径
+   * @returns {Promise<Object>} 删除结果，包含deletedCount字段
+   */
+  async deleteFileRecordByStoragePath(s3ConfigId, storagePath) {
+    return await this.fileRepository.deleteByStoragePath(s3ConfigId, storagePath);
+  }
+
+  /**
+   * 创建文件记录
+   * @param {Object} fileData - 文件数据
+   * @returns {Promise<Object>} 创建结果
+   */
+  async createFileRecord(fileData) {
+    return await this.fileRepository.createFile(fileData);
+  }
+
+  /**
+   * 更新文件记录
+   * @param {string} fileId - 文件ID
+   * @param {Object} updateData - 更新数据
+   * @returns {Promise<Object>} 更新结果
+   */
+  async updateFileRecord(fileId, updateData) {
+    return await this.fileRepository.updateFile(fileId, updateData);
+  }
+
+  /**
+   * 获取文件列表（管理员）
+   * @param {Object} options - 查询选项
+   * @param {number} options.limit - 每页条数
+   * @param {number} options.offset - 偏移量
+   * @param {string} options.createdBy - 创建者筛选
+   * @param {string} options.s3ConfigId - S3配置ID筛选
+   * @returns {Promise<Object>} 文件列表和分页信息
+   */
+  async getAdminFileList(options = {}) {
+    const { limit = 30, offset = 0, createdBy, s3ConfigId } = options;
+
+    // 构建查询条件
+    const conditions = {};
+    if (createdBy) conditions.created_by = createdBy;
+    if (s3ConfigId) conditions.s3_config_id = s3ConfigId;
+
+    // 获取文件列表
+    const files = await this.fileRepository.findManyWithS3Config(conditions, {
+      orderBy: "created_at DESC",
+      limit,
+      offset,
+    });
+
+    // 获取总数
+    const total = await this.fileRepository.count(conditions);
+
+    // 处理API密钥名称
+    const processedFiles = await this.processApiKeyNames(files);
+
+    return {
+      files: processedFiles,
+      pagination: {
+        total,
+        limit,
+        offset,
+      },
+    };
+  }
+
+  /**
+   * 获取文件详情（管理员）
+   * @param {string} fileId - 文件ID
+   * @param {string} encryptionSecret - 加密密钥
+   * @param {Object} request - 请求对象
+   * @returns {Promise<Object>} 文件详情
+   */
+  async getAdminFileDetail(fileId, encryptionSecret, request = null) {
+    // 获取文件详情
+    const file = await this.fileRepository.findByIdWithS3Config(fileId);
+    if (!file) {
+      throw new Error("文件不存在");
+    }
+
+    // 生成文件下载URL
+    const urlsObj = await this.generateFileDownloadUrl(file, encryptionSecret, request);
+
+    // 构建响应
+    const result = {
+      ...file,
+      has_password: file.password ? true : false,
+      urls: urlsObj,
+    };
+
+    // 如果文件有密码保护，获取明文密码
+    if (file.password) {
+      const passwordInfo = await this.fileRepository.getFilePassword(file.id);
+      if (passwordInfo && passwordInfo.plain_password) {
+        result.plain_password = passwordInfo.plain_password;
+      }
+    }
+
+    // 处理API密钥名称
+    if (result.created_by && result.created_by.startsWith("apikey:")) {
+      const keyId = result.created_by.substring(7);
+      const keyInfo = await this.getApiKeyInfo(keyId);
+      if (keyInfo) {
+        result.key_name = keyInfo.name;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 处理文件列表中的API密钥名称
+   * @param {Array} files - 文件列表
+   * @returns {Promise<Array>} 处理后的文件列表
+   */
+  async processApiKeyNames(files) {
+    // 收集所有API密钥ID
+    const apiKeyIds = files.filter((file) => file.created_by && file.created_by.startsWith("apikey:")).map((file) => file.created_by.substring(7));
+
+    if (apiKeyIds.length === 0) {
+      return files.map((file) => ({
+        ...file,
+        has_password: file.password ? true : false,
+      }));
+    }
+
+    // 获取API密钥名称映射
+    const keyNamesMap = new Map();
+    const uniqueKeyIds = [...new Set(apiKeyIds)];
+
+    for (const keyId of uniqueKeyIds) {
+      const keyInfo = await this.getApiKeyInfo(keyId);
+      if (keyInfo) {
+        keyNamesMap.set(keyId, keyInfo.name);
+      }
+    }
+
+    // 为每个文件添加key_name字段
+    return files.map((file) => {
+      const result = {
+        ...file,
+        has_password: file.password ? true : false,
+      };
+
+      if (file.created_by && file.created_by.startsWith("apikey:")) {
+        const keyId = file.created_by.substring(7);
+        const keyName = keyNamesMap.get(keyId);
+        if (keyName) {
+          result.key_name = keyName;
+        }
+      }
+
+      return result;
+    });
+  }
+
+  /**
+   * 获取API密钥信息
+   * @param {string} keyId - API密钥ID
+   * @returns {Promise<Object|null>} API密钥信息
+   */
+  async getApiKeyInfo(keyId) {
+    // 这里需要通过Repository获取API密钥信息
+    // 暂时使用直接查询，后续可以创建ApiKeyRepository
+    const result = await this.fileRepository.queryFirst("SELECT id, name FROM api_keys WHERE id = ?", [keyId]);
+    return result;
+  }
+
+  /**
+   * 获取用户文件列表（API密钥用户）
+   * @param {string} apiKeyId - API密钥ID
+   * @param {Object} options - 查询选项
+   * @param {number} options.limit - 每页条数
+   * @param {number} options.offset - 偏移量
+   * @returns {Promise<Object>} 文件列表和分页信息
+   */
+  async getUserFileList(apiKeyId, options = {}) {
+    const { limit = 30, offset = 0 } = options;
+
+    // 构建查询条件
+    const conditions = {
+      created_by: `apikey:${apiKeyId}`,
+    };
+
+    // 获取文件列表
+    const files = await this.fileRepository.findManyWithS3Config(conditions, {
+      orderBy: "created_at DESC",
+      limit,
+      offset,
+    });
+
+    // 获取总数
+    const total = await this.fileRepository.count(conditions);
+
+    // 处理文件列表，添加has_password字段和API密钥名称
+    const processedFiles = await this.processApiKeyNames(files);
+
+    return {
+      files: processedFiles,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    };
+  }
+
+  /**
+   * 获取用户文件详情（API密钥用户）
+   * @param {string} fileId - 文件ID
+   * @param {string} apiKeyId - API密钥ID
+   * @param {string} encryptionSecret - 加密密钥
+   * @param {Object} request - 请求对象
+   * @returns {Promise<Object>} 文件详情
+   */
+  async getUserFileDetail(fileId, apiKeyId, encryptionSecret, request = null) {
+    // 获取文件详情
+    const file = await this.fileRepository.findByIdWithS3Config(fileId);
+    if (!file) {
+      throw new Error("文件不存在");
+    }
+
+    // 检查权限：确保文件属于该API密钥用户
+    if (file.created_by !== `apikey:${apiKeyId}`) {
+      throw new Error("没有权限查看此文件");
+    }
+
+    // 生成文件下载URL
+    const urlsObj = await this.generateFileDownloadUrl(file, encryptionSecret, request);
+
+    // 构建响应
+    const result = {
+      ...file,
+      has_password: file.password ? true : false,
+      urls: urlsObj,
+    };
+
+    // 如果文件有密码保护，获取明文密码
+    if (file.password) {
+      const passwordInfo = await this.fileRepository.getFilePassword(file.id);
+      if (passwordInfo && passwordInfo.plain_password) {
+        result.plain_password = passwordInfo.plain_password;
+      }
+    }
+
+    return result;
+  }
 }
 
-/**
- * 获取文件的公开信息
- * @param {Object} file - 文件对象
- * @param {boolean} requiresPassword - 是否需要密码
- * @param {Object} urlsObj - URL对象
- * @returns {Object} 公开文件信息
- */
+// 为了保持向后兼容，导出一些静态方法
+export async function getFileBySlug(db, slug) {
+  const fileService = new FileService(db);
+  return await fileService.getFileBySlug(slug);
+}
+
+export async function isFileAccessible(db, file, encryptionSecret) {
+  const fileService = new FileService(db);
+  return fileService.isFileAccessible(file);
+}
+
+export async function incrementAndCheckFileViews(db, file, encryptionSecret) {
+  const fileService = new FileService(db);
+  return await fileService.incrementAndCheckFileViews(file.slug);
+}
+
+export async function generateFileDownloadUrl(db, file, encryptionSecret, request = null) {
+  const fileService = new FileService(db);
+  return await fileService.generateFileDownloadUrl(file, encryptionSecret, request);
+}
+
 export function getPublicFileInfo(file, requiresPassword, urlsObj = null) {
+  // 这个方法不需要数据库访问，可以直接调用静态逻辑
   // 确定使用哪种URL
   const useProxy = urlsObj?.use_proxy !== undefined ? urlsObj.use_proxy : file.use_proxy || 0;
 
@@ -172,37 +480,40 @@ export function getPublicFileInfo(file, requiresPassword, urlsObj = null) {
     size: file.size,
     remark: file.remark,
     created_at: file.created_at,
+    created_by: file.created_by,
     requires_password: requiresPassword,
     views: file.views,
     max_views: file.max_views,
     expires_at: file.expires_at,
     previewUrl: effectivePreviewUrl,
     downloadUrl: effectiveDownloadUrl,
-    s3_direct_preview_url: urlsObj?.previewUrl || file.s3_url,
-    s3_direct_download_url: urlsObj?.downloadUrl || file.s3_url,
-    proxy_preview_url: urlsObj?.proxyPreviewUrl,
-    proxy_download_url: urlsObj?.proxyDownloadUrl,
     use_proxy: useProxy,
-    created_by: file.created_by || null,
   };
 }
 
-/**
- * 根据存储路径删除文件记录
- * @param {D1Database} db - D1数据库实例
- * @param {string} s3ConfigId - S3配置ID
- * @param {string} storagePath - 存储路径
- * @returns {Promise<Object>} 删除结果，包含deletedCount字段
- */
 export async function deleteFileRecordByStoragePath(db, s3ConfigId, storagePath) {
-  if (!s3ConfigId || !storagePath) {
-    return { deletedCount: 0, message: "缺少必要参数" };
-  }
+  const fileService = new FileService(db);
+  return await fileService.deleteFileRecordByStoragePath(s3ConfigId, storagePath);
+}
 
-  const result = await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE s3_config_id = ? AND storage_path = ?`).bind(s3ConfigId, storagePath).run();
+// 新增的管理员文件管理导出函数
+export async function getAdminFileList(db, options = {}) {
+  const fileService = new FileService(db);
+  return await fileService.getAdminFileList(options);
+}
 
-  return {
-    deletedCount: result.meta?.changes || 0,
-    message: `已删除${result.meta?.changes || 0}条文件记录`,
-  };
+export async function getAdminFileDetail(db, fileId, encryptionSecret, request = null) {
+  const fileService = new FileService(db);
+  return await fileService.getAdminFileDetail(fileId, encryptionSecret, request);
+}
+
+// 新增的用户文件管理导出函数
+export async function getUserFileList(db, apiKeyId, options = {}) {
+  const fileService = new FileService(db);
+  return await fileService.getUserFileList(apiKeyId, options);
+}
+
+export async function getUserFileDetail(db, fileId, apiKeyId, encryptionSecret, request = null) {
+  const fileService = new FileService(db);
+  return await fileService.getUserFileDetail(fileId, apiKeyId, encryptionSecret, request);
 }

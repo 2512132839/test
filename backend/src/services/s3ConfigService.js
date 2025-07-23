@@ -1,445 +1,337 @@
 /**
  * S3存储配置服务
  */
-import { DbTables, ApiStatus, S3ProviderTypes } from "../constants/index.js";
+import { ApiStatus, S3ProviderTypes } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
 import { createErrorResponse, generateS3ConfigId, formatFileSize } from "../utils/common.js";
 import { encryptValue, decryptValue } from "../utils/crypto.js";
 import { createS3Client } from "../utils/s3Utils.js";
 import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { S3ConfigRepository, FileRepository, RepositoryFactory } from "../repositories/index.js";
 
 /**
- * 获取S3配置列表
- * @param {D1Database} db - D1数据库实例
- * @param {string} adminId - 管理员ID
- * @returns {Promise<Array>} S3配置列表
+ * S3配置服务类
  */
-export async function getS3ConfigsByAdmin(db, adminId) {
-  const configs = await db
-    .prepare(
-      `
-      SELECT
-        id, name, provider_type, endpoint_url, bucket_name,
-        region, path_style, default_folder, is_public, is_default,
-        created_at, updated_at, last_used, total_storage_bytes,
-        custom_host, signature_expires_in
-      FROM ${DbTables.S3_CONFIGS}
-      WHERE admin_id = ?
-      ORDER BY name ASC
-      `
-    )
-    .bind(adminId)
-    .all();
-
-  return configs.results;
-}
-
-/**
- * 获取公开的S3配置列表
- * @param {D1Database} db - D1数据库实例
- * @returns {Promise<Array>} 公开的S3配置列表
- */
-export async function getPublicS3Configs(db) {
-  const configs = await db
-    .prepare(
-      `
-      SELECT
-        id, name, provider_type, endpoint_url, bucket_name,
-        region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes,
-        custom_host, signature_expires_in
-      FROM ${DbTables.S3_CONFIGS}
-      WHERE is_public = 1
-      ORDER BY name ASC
-      `
-    )
-    .all();
-
-  return configs.results;
-}
-
-/**
- * 通过ID获取S3配置（管理员访问）
- * @param {D1Database} db - D1数据库实例
- * @param {string} id - 配置ID
- * @param {string} adminId - 管理员ID
- * @returns {Promise<Object>} S3配置对象
- */
-export async function getS3ConfigByIdForAdmin(db, id, adminId) {
-  const config = await db
-    .prepare(
-      `
-      SELECT
-        id, name, provider_type, endpoint_url, bucket_name,
-        region, path_style, default_folder, is_public, is_default,
-        created_at, updated_at, last_used, total_storage_bytes,
-        custom_host, signature_expires_in
-      FROM ${DbTables.S3_CONFIGS}
-      WHERE id = ? AND admin_id = ?
-    `
-    )
-    .bind(id, adminId)
-    .first();
-
-  if (!config) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
+class S3ConfigService {
+  /**
+   * 构造函数
+   * @param {D1Database} db - 数据库实例
+   */
+  constructor(db) {
+    this.s3ConfigRepository = new S3ConfigRepository(db);
+    this.fileRepository = new FileRepository(db);
+    this.db = db; // 保留db引用，用于复杂查询和测试功能
   }
 
-  return config;
-}
-
-/**
- * 通过ID获取公开的S3配置
- * @param {D1Database} db - D1数据库实例
- * @param {string} id - 配置ID
- * @returns {Promise<Object>} S3配置对象
- */
-export async function getPublicS3ConfigById(db, id) {
-  const config = await db
-    .prepare(
-      `
-      SELECT
-        id, name, provider_type, endpoint_url, bucket_name,
-        region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes,
-        custom_host, signature_expires_in
-      FROM ${DbTables.S3_CONFIGS}
-      WHERE id = ? AND is_public = 1
-    `
-    )
-    .bind(id)
-    .first();
-
-  if (!config) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
+  /**
+   * 获取管理员的S3配置列表
+   * @param {string} adminId - 管理员ID
+   * @returns {Promise<Array>} S3配置列表
+   */
+  async getS3ConfigsByAdmin(adminId) {
+    return await this.s3ConfigRepository.findByAdmin(adminId);
   }
 
-  return config;
-}
+  /**
+   * 获取公开的S3配置列表
+   * @returns {Promise<Array>} 公开的S3配置列表
+   */
+  async getPublicS3Configs() {
+    return await this.s3ConfigRepository.findPublic();
+  }
 
-/**
- * 创建S3配置
- * @param {D1Database} db - D1数据库实例
- * @param {Object} configData - 配置数据
- * @param {string} adminId - 管理员ID
- * @param {string} encryptionSecret - 加密密钥
- * @returns {Promise<Object>} 创建的S3配置
- */
-export async function createS3Config(db, configData, adminId, encryptionSecret) {
-  // 验证必填字段
-  const requiredFields = ["name", "provider_type", "endpoint_url", "bucket_name", "access_key_id", "secret_access_key"];
-  for (const field of requiredFields) {
-    if (!configData[field]) {
-      throw new HTTPException(ApiStatus.BAD_REQUEST, { message: `缺少必填字段: ${field}` });
+  /**
+   * 通过ID获取S3配置（管理员访问）
+   * @param {string} id - 配置ID
+   * @param {string} adminId - 管理员ID
+   * @returns {Promise<Object>} S3配置对象
+   * @throws {HTTPException} 404 - 如果配置不存在
+   */
+  async getS3ConfigByIdForAdmin(id, adminId) {
+    const config = await this.s3ConfigRepository.findByIdAndAdmin(id, adminId);
+    if (!config) {
+      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
     }
+    return config;
   }
 
-  // 生成唯一ID
-  const id = generateS3ConfigId();
-
-  // 加密敏感字段
-  const encryptedAccessKey = await encryptValue(configData.access_key_id, encryptionSecret);
-  const encryptedSecretKey = await encryptValue(configData.secret_access_key, encryptionSecret);
-
-  // 获取可选字段或设置默认值
-  const region = configData.region || "";
-  const pathStyle = configData.path_style === true ? 1 : 0;
-  const defaultFolder = configData.default_folder || "";
-  const isPublic = configData.is_public === true ? 1 : 0;
-
-  // 处理新增的自定义域名相关字段
-  const customHost = configData.custom_host || null;
-  const signatureExpiresIn = parseInt(configData.signature_expires_in) || 3600;
-
-  // 处理存储总容量
-  let totalStorageBytes = null;
-  if (configData.total_storage_bytes !== undefined) {
-    // 如果用户提供了总容量，则直接使用
-    const storageValue = parseInt(configData.total_storage_bytes);
-    if (!isNaN(storageValue) && storageValue > 0) {
-      totalStorageBytes = storageValue;
+  /**
+   * 通过ID获取公开的S3配置
+   * @param {string} id - 配置ID
+   * @returns {Promise<Object>} S3配置对象
+   * @throws {HTTPException} 404 - 如果配置不存在
+   */
+  async getPublicS3ConfigById(id) {
+    const config = await this.s3ConfigRepository.findPublicById(id);
+    if (!config) {
+      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
     }
+    return config;
   }
 
-  // 如果未提供存储容量，根据不同的存储提供商设置合理的默认值
-  if (totalStorageBytes === null) {
-    if (configData.provider_type === S3ProviderTypes.R2) {
-      totalStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB默认值
-    } else if (configData.provider_type === S3ProviderTypes.B2) {
-      totalStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB默认值
-    } else {
-      totalStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB默认值
-    }
-    console.log(`未提供存储容量限制，为${configData.provider_type}设置默认值: ${formatFileSize(totalStorageBytes)}`);
-  }
-
-  // 添加到数据库
-  await db
-    .prepare(
-      `
-    INSERT INTO ${DbTables.S3_CONFIGS} (
-      id, name, provider_type, endpoint_url, bucket_name,
-      region, access_key_id, secret_access_key, path_style,
-      default_folder, is_public, admin_id, total_storage_bytes,
-      custom_host, signature_expires_in,
-      created_at, updated_at
-    ) VALUES (
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?,
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `
-    )
-    .bind(
-      id,
-      configData.name,
-      configData.provider_type,
-      configData.endpoint_url,
-      configData.bucket_name,
-      region,
-      encryptedAccessKey,
-      encryptedSecretKey,
-      pathStyle,
-      defaultFolder,
-      isPublic,
-      adminId,
-      totalStorageBytes,
-      customHost,
-      signatureExpiresIn
-    )
-    .run();
-
-  // 返回创建成功响应（不包含敏感字段）
-  return {
-    id,
-    name: configData.name,
-    provider_type: configData.provider_type,
-    endpoint_url: configData.endpoint_url,
-    bucket_name: configData.bucket_name,
-    region,
-    path_style: pathStyle === 1,
-    default_folder: defaultFolder,
-    is_public: isPublic === 1,
-    total_storage_bytes: totalStorageBytes,
-    custom_host: customHost,
-    signature_expires_in: signatureExpiresIn,
-  };
-}
-
-/**
- * 更新S3配置
- * @param {D1Database} db - D1数据库实例
- * @param {string} id - 配置ID
- * @param {Object} updateData - 更新数据
- * @param {string} adminId - 管理员ID
- * @param {string} encryptionSecret - 加密密钥
- * @returns {Promise<void>}
- */
-export async function updateS3Config(db, id, updateData, adminId, encryptionSecret) {
-  // 查询配置是否存在
-  const config = await db.prepare(`SELECT id, provider_type FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?`).bind(id, adminId).first();
-
-  if (!config) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
-  }
-
-  // 准备更新字段
-  const updateFields = [];
-  const params = [];
-
-  // 处理存储容量字段
-  if (updateData.total_storage_bytes !== undefined) {
-    // 如果用户提供了总容量参数
-    if (updateData.total_storage_bytes === null) {
-      // 为null表示使用默认值，根据提供商类型设置
-      let defaultStorageBytes;
-      if (config.provider_type === S3ProviderTypes.R2) {
-        defaultStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB 默认值
-      } else if (config.provider_type === S3ProviderTypes.B2) {
-        defaultStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB 默认值
-      } else if (config.provider_type === S3ProviderTypes.ALIYUN_OSS) {
-        defaultStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB 默认值
-      } else {
-        defaultStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB 默认值
+  /**
+   * 创建S3配置
+   * @param {Object} configData - 配置数据
+   * @param {string} adminId - 管理员ID
+   * @param {string} encryptionSecret - 加密密钥
+   * @returns {Promise<Object>} 创建的S3配置
+   * @throws {HTTPException} 400 - 参数错误
+   */
+  async createS3Config(configData, adminId, encryptionSecret) {
+    // 验证必填字段
+    const requiredFields = ["name", "provider_type", "endpoint_url", "bucket_name", "access_key_id", "secret_access_key"];
+    for (const field of requiredFields) {
+      if (!configData[field]) {
+        throw new HTTPException(ApiStatus.BAD_REQUEST, { message: `缺少必填字段: ${field}` });
       }
+    }
 
-      updateFields.push("total_storage_bytes = ?");
-      params.push(defaultStorageBytes);
-      console.log(`重置存储容量限制，为${config.provider_type}设置默认值: ${formatFileSize(defaultStorageBytes)}`);
-    } else {
-      // 用户提供了具体数值
-      const storageValue = parseInt(updateData.total_storage_bytes);
+    // 生成唯一ID
+    const id = generateS3ConfigId();
+
+    // 加密敏感字段
+    const encryptedAccessKey = await encryptValue(configData.access_key_id, encryptionSecret);
+    const encryptedSecretKey = await encryptValue(configData.secret_access_key, encryptionSecret);
+
+    // 获取可选字段或设置默认值
+    const region = configData.region || "";
+    const pathStyle = configData.path_style === true ? 1 : 0;
+    const defaultFolder = configData.default_folder || "";
+    const isPublic = configData.is_public === true ? 1 : 0;
+
+    // 处理新增的自定义域名相关字段
+    const customHost = configData.custom_host || null;
+    const signatureExpiresIn = parseInt(configData.signature_expires_in) || 3600;
+
+    // 处理存储总容量
+    let totalStorageBytes = null;
+    if (configData.total_storage_bytes !== undefined) {
+      // 如果用户提供了总容量，则直接使用
+      const storageValue = parseInt(configData.total_storage_bytes);
       if (!isNaN(storageValue) && storageValue > 0) {
-        updateFields.push("total_storage_bytes = ?");
-        params.push(storageValue);
+        totalStorageBytes = storageValue;
       }
     }
+
+    // 如果未提供存储容量，根据不同的存储提供商设置合理的默认值
+    if (totalStorageBytes === null) {
+      if (configData.provider_type === S3ProviderTypes.R2) {
+        totalStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB默认值
+      } else if (configData.provider_type === S3ProviderTypes.B2) {
+        totalStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB默认值
+      } else {
+        totalStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB默认值
+      }
+      console.log(`未提供存储容量限制，为${configData.provider_type}设置默认值: ${formatFileSize(totalStorageBytes)}`);
+    }
+
+    // 准备创建数据
+    const createData = {
+      id,
+      name: configData.name,
+      provider_type: configData.provider_type,
+      endpoint_url: configData.endpoint_url,
+      bucket_name: configData.bucket_name,
+      region,
+      access_key_id: encryptedAccessKey,
+      secret_access_key: encryptedSecretKey,
+      path_style: pathStyle,
+      default_folder: defaultFolder,
+      is_public: isPublic,
+      admin_id: adminId,
+      total_storage_bytes: totalStorageBytes,
+      custom_host: customHost,
+      signature_expires_in: signatureExpiresIn,
+    };
+
+    // 创建S3配置
+    await this.s3ConfigRepository.createConfig(createData);
+
+    // 返回创建成功响应（不包含敏感字段）
+    return {
+      id,
+      name: configData.name,
+      provider_type: configData.provider_type,
+      endpoint_url: configData.endpoint_url,
+      bucket_name: configData.bucket_name,
+      region,
+      path_style: pathStyle === 1,
+      default_folder: defaultFolder,
+      is_public: isPublic === 1,
+      total_storage_bytes: totalStorageBytes,
+      custom_host: customHost,
+      signature_expires_in: signatureExpiresIn,
+    };
   }
 
-  // 更新名称
-  if (updateData.name !== undefined) {
-    updateFields.push("name = ?");
-    params.push(updateData.name);
+  /**
+   * 更新S3配置
+   * @param {string} id - 配置ID
+   * @param {Object} updateData - 更新数据
+   * @param {string} adminId - 管理员ID
+   * @param {string} encryptionSecret - 加密密钥
+   * @returns {Promise<void>}
+   * @throws {HTTPException} 404 - 配置不存在
+   */
+  async updateS3Config(id, updateData, adminId, encryptionSecret) {
+    // 查询配置是否存在
+    const config = await this.s3ConfigRepository.findByIdAndAdmin(id, adminId);
+    if (!config) {
+      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
+    }
+
+    // 准备更新数据
+    const repoUpdateData = {};
+
+    // 处理存储容量字段
+    if (updateData.total_storage_bytes !== undefined) {
+      // 如果用户提供了总容量参数
+      if (updateData.total_storage_bytes === null) {
+        // 为null表示使用默认值，根据提供商类型设置
+        let defaultStorageBytes;
+        if (config.provider_type === S3ProviderTypes.R2) {
+          defaultStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB 默认值
+        } else if (config.provider_type === S3ProviderTypes.B2) {
+          defaultStorageBytes = 10 * 1024 * 1024 * 1024; // 10GB 默认值
+        } else if (config.provider_type === S3ProviderTypes.ALIYUN_OSS) {
+          defaultStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB 默认值
+        } else {
+          defaultStorageBytes = 5 * 1024 * 1024 * 1024; // 5GB 默认值
+        }
+
+        repoUpdateData.total_storage_bytes = defaultStorageBytes;
+        console.log(`重置存储容量限制，为${config.provider_type}设置默认值: ${formatFileSize(defaultStorageBytes)}`);
+      } else {
+        // 用户提供了具体数值
+        const storageValue = parseInt(updateData.total_storage_bytes);
+        if (!isNaN(storageValue) && storageValue > 0) {
+          repoUpdateData.total_storage_bytes = storageValue;
+        }
+      }
+    }
+
+    // 更新名称
+    if (updateData.name !== undefined) {
+      repoUpdateData.name = updateData.name;
+    }
+
+    // 更新提供商类型
+    if (updateData.provider_type !== undefined) {
+      repoUpdateData.provider_type = updateData.provider_type;
+    }
+
+    // 更新端点URL
+    if (updateData.endpoint_url !== undefined) {
+      repoUpdateData.endpoint_url = updateData.endpoint_url;
+    }
+
+    // 更新桶名称
+    if (updateData.bucket_name !== undefined) {
+      repoUpdateData.bucket_name = updateData.bucket_name;
+    }
+
+    // 更新区域
+    if (updateData.region !== undefined) {
+      repoUpdateData.region = updateData.region;
+    }
+
+    // 更新访问密钥ID（需要加密）
+    if (updateData.access_key_id !== undefined) {
+      const encryptedAccessKey = await encryptValue(updateData.access_key_id, encryptionSecret);
+      repoUpdateData.access_key_id = encryptedAccessKey;
+    }
+
+    // 更新秘密访问密钥（需要加密）
+    if (updateData.secret_access_key !== undefined) {
+      const encryptedSecretKey = await encryptValue(updateData.secret_access_key, encryptionSecret);
+      repoUpdateData.secret_access_key = encryptedSecretKey;
+    }
+
+    // 更新路径样式
+    if (updateData.path_style !== undefined) {
+      repoUpdateData.path_style = updateData.path_style === true ? 1 : 0;
+    }
+
+    // 更新默认文件夹
+    if (updateData.default_folder !== undefined) {
+      repoUpdateData.default_folder = updateData.default_folder;
+    }
+
+    // 更新是否公开
+    if (updateData.is_public !== undefined) {
+      repoUpdateData.is_public = updateData.is_public === true ? 1 : 0;
+    }
+
+    // 更新自定义域名
+    if (updateData.custom_host !== undefined) {
+      repoUpdateData.custom_host = updateData.custom_host || null;
+    }
+
+    // 更新签名有效期
+    if (updateData.signature_expires_in !== undefined) {
+      const expiresIn = parseInt(updateData.signature_expires_in);
+      repoUpdateData.signature_expires_in = !isNaN(expiresIn) && expiresIn > 0 ? expiresIn : 3600;
+    }
+
+    // 如果没有更新字段，直接返回成功
+    if (Object.keys(repoUpdateData).length === 0) {
+      return;
+    }
+
+    // 执行更新
+    await this.s3ConfigRepository.updateConfig(id, repoUpdateData);
   }
 
-  // 更新提供商类型
-  if (updateData.provider_type !== undefined) {
-    updateFields.push("provider_type = ?");
-    params.push(updateData.provider_type);
+  /**
+   * 删除S3配置
+   * @param {string} id - 配置ID
+   * @param {string} adminId - 管理员ID
+   * @returns {Promise<void>}
+   * @throws {HTTPException} 404/409 - 配置不存在或有文件使用
+   */
+  async deleteS3Config(id, adminId) {
+    // 查询配置是否存在
+    const existingConfig = await this.s3ConfigRepository.findByIdAndAdmin(id, adminId);
+    if (!existingConfig) {
+      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
+    }
+
+    // 检查是否有文件使用此配置
+    const filesCount = await this.fileRepository.countByS3ConfigId(id);
+    if (filesCount > 0) {
+      throw new HTTPException(ApiStatus.CONFLICT, { message: `无法删除此配置，因为有${filesCount}个文件正在使用它` });
+    }
+
+    // 执行删除操作
+    await this.s3ConfigRepository.deleteConfig(id);
   }
 
-  // 更新端点URL
-  if (updateData.endpoint_url !== undefined) {
-    updateFields.push("endpoint_url = ?");
-    params.push(updateData.endpoint_url);
+  /**
+   * 设置默认S3配置
+   * @param {string} id - 配置ID
+   * @param {string} adminId - 管理员ID
+   * @returns {Promise<void>}
+   * @throws {HTTPException} 404 - 配置不存在
+   */
+  async setDefaultS3Config(id, adminId) {
+    // 查询配置是否存在
+    const config = await this.s3ConfigRepository.findByIdAndAdmin(id, adminId);
+    if (!config) {
+      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
+    }
+
+    // 设置默认配置（Repository会处理原子操作）
+    await this.s3ConfigRepository.setAsDefault(id, adminId);
   }
 
-  // 更新桶名称
-  if (updateData.bucket_name !== undefined) {
-    updateFields.push("bucket_name = ?");
-    params.push(updateData.bucket_name);
+  /**
+   * 获取带使用情况的S3配置列表
+   * @returns {Promise<Array>} S3配置列表
+   */
+  async getS3ConfigsWithUsage() {
+    return await this.s3ConfigRepository.findAllWithUsage();
   }
-
-  // 更新区域
-  if (updateData.region !== undefined) {
-    updateFields.push("region = ?");
-    params.push(updateData.region);
-  }
-
-  // 更新访问密钥ID（需要加密）
-  if (updateData.access_key_id !== undefined) {
-    updateFields.push("access_key_id = ?");
-    const encryptedAccessKey = await encryptValue(updateData.access_key_id, encryptionSecret);
-    params.push(encryptedAccessKey);
-  }
-
-  // 更新秘密访问密钥（需要加密）
-  if (updateData.secret_access_key !== undefined) {
-    updateFields.push("secret_access_key = ?");
-    const encryptedSecretKey = await encryptValue(updateData.secret_access_key, encryptionSecret);
-    params.push(encryptedSecretKey);
-  }
-
-  // 更新路径样式
-  if (updateData.path_style !== undefined) {
-    updateFields.push("path_style = ?");
-    params.push(updateData.path_style === true ? 1 : 0);
-  }
-
-  // 更新默认文件夹
-  if (updateData.default_folder !== undefined) {
-    updateFields.push("default_folder = ?");
-    params.push(updateData.default_folder);
-  }
-
-  // 更新是否公开
-  if (updateData.is_public !== undefined) {
-    updateFields.push("is_public = ?");
-    params.push(updateData.is_public === true ? 1 : 0);
-  }
-
-  // 更新自定义域名
-  if (updateData.custom_host !== undefined) {
-    updateFields.push("custom_host = ?");
-    params.push(updateData.custom_host || null);
-  }
-
-  // 更新签名有效期
-  if (updateData.signature_expires_in !== undefined) {
-    updateFields.push("signature_expires_in = ?");
-    const expiresIn = parseInt(updateData.signature_expires_in);
-    params.push(!isNaN(expiresIn) && expiresIn > 0 ? expiresIn : 3600);
-  }
-
-  // 更新时间戳
-  updateFields.push("updated_at = CURRENT_TIMESTAMP");
-
-  // 如果没有更新字段，直接返回成功
-  if (updateFields.length === 0) {
-    return;
-  }
-
-  // 添加ID作为条件参数
-  params.push(id);
-  params.push(adminId);
-
-  // 执行更新
-  await db
-    .prepare(`UPDATE ${DbTables.S3_CONFIGS} SET ${updateFields.join(", ")} WHERE id = ? AND admin_id = ?`)
-    .bind(...params)
-    .run();
-}
-
-/**
- * 删除S3配置
- * @param {D1Database} db - D1数据库实例
- * @param {string} id - 配置ID
- * @param {string} adminId - 管理员ID
- * @returns {Promise<void>}
- */
-export async function deleteS3Config(db, id, adminId) {
-  // 查询配置是否存在
-  const existingConfig = await db.prepare(`SELECT id FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?`).bind(id, adminId).first();
-
-  if (!existingConfig) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
-  }
-
-  // 检查是否有文件使用此配置
-  const filesCount = await db
-    .prepare(
-      `
-      SELECT COUNT(*) as count FROM ${DbTables.FILES}
-      WHERE s3_config_id = ?
-    `
-    )
-    .bind(id)
-    .first();
-
-  if (filesCount && filesCount.count > 0) {
-    throw new HTTPException(ApiStatus.CONFLICT, { message: `无法删除此配置，因为有${filesCount.count}个文件正在使用它` });
-  }
-
-  // 执行删除操作
-  await db.prepare(`DELETE FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(id).run();
-}
-
-/**
- * 设置默认S3配置
- * @param {D1Database} db - D1数据库实例
- * @param {string} id - 配置ID
- * @param {string} adminId - 管理员ID
- * @returns {Promise<void>}
- */
-export async function setDefaultS3Config(db, id, adminId) {
-  // 查询配置是否存在
-  const config = await db.prepare(`SELECT id FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?`).bind(id, adminId).first();
-
-  if (!config) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
-  }
-
-  // 使用D1的batch API来执行原子事务操作
-  await db.batch([
-    // 1. 首先将所有配置设置为非默认
-    db
-      .prepare(
-        `UPDATE ${DbTables.S3_CONFIGS}
-       SET is_default = 0, updated_at = CURRENT_TIMESTAMP
-       WHERE admin_id = ?`
-      )
-      .bind(adminId),
-
-    // 2. 然后将当前配置设置为默认
-    db
-      .prepare(
-        `UPDATE ${DbTables.S3_CONFIGS}
-       SET is_default = 1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-      )
-      .bind(id),
-  ]);
 }
 
 /**
@@ -602,16 +494,11 @@ class S3TestStrategyFactory {
  * @returns {Promise<Object>} 测试结果
  */
 export async function testS3Connection(db, id, adminId, encryptionSecret, requestOrigin) {
-  // 获取S3配置
-  const config = await db
-    .prepare(
-      `
-      SELECT * FROM ${DbTables.S3_CONFIGS}
-      WHERE id = ? AND admin_id = ?
-    `
-    )
-    .bind(id, adminId)
-    .first();
+  // 使用 S3ConfigRepository 获取配置（需要包含敏感字段用于测试）
+  const repositoryFactory = new RepositoryFactory(db);
+  const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+  const config = await s3ConfigRepository.findByIdAndAdminWithSecrets(id, adminId);
 
   if (!config) {
     throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
@@ -662,16 +549,11 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
  * 更新S3配置的最后使用时间
  */
 async function updateLastUsedTime(db, configId) {
-  await db
-    .prepare(
-      `
-      UPDATE ${DbTables.S3_CONFIGS}
-      SET last_used = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `
-    )
-    .bind(configId)
-    .run();
+  // 使用 S3ConfigRepository
+  const repositoryFactory = new RepositoryFactory(db);
+  const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+  await s3ConfigRepository.updateLastUsed(configId);
 }
 
 /**
@@ -885,55 +767,6 @@ async function executeCorsTest(testResult, strategy) {
 }
 
 /**
- * 获取带使用情况的S3配置列表
- * @param {D1Database} db - D1数据库实例
- * @returns {Promise<Array>} S3配置列表
- */
-export async function getS3ConfigsWithUsage(db) {
-  // 1. 获取所有S3配置
-  const configs = await db
-    .prepare(
-      `
-      SELECT
-        id, name, provider_type, endpoint_url, bucket_name,
-        region, path_style, default_folder, is_public, is_default,
-        created_at, updated_at, last_used, total_storage_bytes, admin_id,
-        custom_host, signature_expires_in
-      FROM ${DbTables.S3_CONFIGS}
-      ORDER BY name ASC
-      `
-    )
-    .all();
-
-  // 2. 对每个配置，查询使用情况
-  const result = [];
-  for (const config of configs.results) {
-    // 查询每个配置的文件数和总大小
-    const usage = await db
-      .prepare(
-        `
-        SELECT 
-          COUNT(*) as file_count, 
-          SUM(size) as total_size
-        FROM ${DbTables.FILES}
-        WHERE s3_config_id = ?`
-      )
-      .bind(config.id)
-      .first();
-
-    result.push({
-      ...config,
-      usage: {
-        file_count: usage?.file_count || 0,
-        total_size: usage?.total_size || 0,
-      },
-    });
-  }
-
-  return result;
-}
-
-/**
  * 执行前端上传流程模拟测试
  * 完整模拟前端预签名URL上传流程，包括获取预签名URL、上传文件、提交元数据
  */
@@ -1123,4 +956,111 @@ async function executeFrontendSimulationTest(testResult, strategy) {
 
     testResult.frontendSim.troubleshooting = strategy.getErrorTroubleshooting("upload");
   }
+}
+
+// ==================== 向后兼容的导出函数 ====================
+
+/**
+ * 获取S3配置列表（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} adminId - 管理员ID
+ * @returns {Promise<Array>} S3配置列表
+ */
+export async function getS3ConfigsByAdmin(db, adminId) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.getS3ConfigsByAdmin(adminId);
+}
+
+/**
+ * 获取公开的S3配置列表（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @returns {Promise<Array>} 公开的S3配置列表
+ */
+export async function getPublicS3Configs(db) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.getPublicS3Configs();
+}
+
+/**
+ * 通过ID获取S3配置（管理员访问，向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} id - 配置ID
+ * @param {string} adminId - 管理员ID
+ * @returns {Promise<Object>} S3配置对象
+ */
+export async function getS3ConfigByIdForAdmin(db, id, adminId) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.getS3ConfigByIdForAdmin(id, adminId);
+}
+
+/**
+ * 通过ID获取公开的S3配置（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} id - 配置ID
+ * @returns {Promise<Object>} S3配置对象
+ */
+export async function getPublicS3ConfigById(db, id) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.getPublicS3ConfigById(id);
+}
+
+/**
+ * 创建S3配置（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @param {Object} configData - 配置数据
+ * @param {string} adminId - 管理员ID
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Promise<Object>} 创建的S3配置
+ */
+export async function createS3Config(db, configData, adminId, encryptionSecret) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.createS3Config(configData, adminId, encryptionSecret);
+}
+
+/**
+ * 更新S3配置（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} id - 配置ID
+ * @param {Object} updateData - 更新数据
+ * @param {string} adminId - 管理员ID
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Promise<void>}
+ */
+export async function updateS3Config(db, id, updateData, adminId, encryptionSecret) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.updateS3Config(id, updateData, adminId, encryptionSecret);
+}
+
+/**
+ * 删除S3配置（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} id - 配置ID
+ * @param {string} adminId - 管理员ID
+ * @returns {Promise<void>}
+ */
+export async function deleteS3Config(db, id, adminId) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.deleteS3Config(id, adminId);
+}
+
+/**
+ * 设置默认S3配置（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} id - 配置ID
+ * @param {string} adminId - 管理员ID
+ * @returns {Promise<void>}
+ */
+export async function setDefaultS3Config(db, id, adminId) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.setDefaultS3Config(id, adminId);
+}
+
+/**
+ * 获取带使用情况的S3配置列表（向后兼容）
+ * @param {D1Database} db - D1数据库实例
+ * @returns {Promise<Array>} S3配置列表
+ */
+export async function getS3ConfigsWithUsage(db) {
+  const s3ConfigService = new S3ConfigService(db);
+  return await s3ConfigService.getS3ConfigsWithUsage();
 }

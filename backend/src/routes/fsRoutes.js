@@ -245,7 +245,7 @@ fsRoutes.get("/api/fs/get", async (c) => {
     const fileSystem = new FileSystem(mountManager);
 
     // 调用FileSystem的getFileInfo方法
-    const result = await fileSystem.getFileInfo(path, userIdOrInfo, userType);
+    const result = await fileSystem.getFileInfo(path, userIdOrInfo, userType, c.req.raw);
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -795,49 +795,21 @@ fsRoutes.post("/api/fs/presign", async (c) => {
 // 提交预签名URL上传完成
 fsRoutes.post("/api/fs/presign/commit", async (c) => {
   try {
-    // 获取必要的上下文
-    const db = c.env.DB;
-    const userInfo = c.get("userInfo");
-
     // 解析请求数据
     const body = await c.req.json();
-    const fileId = body.fileId;
-    const s3Path = body.s3Path;
-    const s3Url = body.s3Url;
     const targetPath = body.targetPath;
-    const s3ConfigId = body.s3ConfigId;
     const mountId = body.mountId;
-    const etag = body.etag;
     const fileSize = body.fileSize || 0;
 
-    if (!fileId || !s3Path || !s3ConfigId || !targetPath) {
+    if (!targetPath || !mountId) {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供完整的上传信息"), ApiStatus.BAD_REQUEST);
     }
 
     // 提取文件名
     const fileName = targetPath.split("/").filter(Boolean).pop();
 
-    // 统一从文件名推断MIME类型，确保数据库存储正确的MIME类型
-    const contentType = getMimeTypeFromFilename(fileName);
-    console.log(`预签名上传提交：从文件名[${fileName}]推断MIME类型: ${contentType}`);
-
-    // 生成slug（使用文件ID的前8位作为slug）
-    const fileSlug = "M-" + fileId.substring(0, 5);
-
-    // 获取创建者标识
-    const createdBy = getCreatedBy(userInfo);
-
-    // 记录文件上传成功
-    await db
-      .prepare(
-        `
-      INSERT INTO files (
-        id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `
-      )
-      .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, createdBy)
-      .run();
+    // fs系统不再创建files表记录，只做纯粹的文件操作
+    console.log(`预签名上传完成: ${fileName}, 大小: ${fileSize}字节`);
 
     // 执行缓存清理
     try {
@@ -850,13 +822,11 @@ fsRoutes.post("/api/fs/presign/commit", async (c) => {
 
     return c.json({
       code: ApiStatus.SUCCESS,
-      message: "文件上传记录成功",
+      message: "文件上传完成",
       data: {
-        fileId,
         fileName,
         targetPath,
         fileSize,
-        contentType,
       },
       success: true,
     });
@@ -1059,7 +1029,9 @@ fsRoutes.post("/api/fs/batch-copy-commit", async (c) => {
 
   try {
     // 获取挂载点信息
-    const mount = await db.prepare("SELECT * FROM storage_mounts WHERE id = ?").bind(targetMountId).first();
+    const repositoryFactory = new RepositoryFactory(db);
+    const mountRepository = repositoryFactory.getMountRepository();
+    const mount = await mountRepository.findById(targetMountId);
     if (!mount) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "目标挂载点不存在"), ApiStatus.NOT_FOUND);
     }

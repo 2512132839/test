@@ -1,6 +1,7 @@
-import { DbTables } from "../constants/index.js";
+import { RepositoryFactory } from "../repositories/index.js";
 import { verifyPassword } from "../utils/crypto.js";
 import { generatePresignedUrl, deleteFileFromS3 } from "../utils/s3Utils.js";
+import { DbTables } from "../constants/index.js";
 import {
   getMimeTypeGroup,
   MIME_GROUPS,
@@ -23,20 +24,19 @@ import {
  * @returns {Promise<Object|null>} 文件信息或null
  */
 async function getFileBySlug(db, slug, includePassword = true) {
-  const fields = includePassword
-    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
-    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
+  // 使用 FileRepository 获取文件信息
+  const repositoryFactory = new RepositoryFactory(db);
+  const fileRepository = repositoryFactory.getFileRepository();
 
-  return await db
-    .prepare(
-      `
-      SELECT ${fields}
-      FROM ${DbTables.FILES} f
-      WHERE f.slug = ?
-    `
-    )
-    .bind(slug)
-    .first();
+  const file = await fileRepository.findBySlug(slug);
+
+  // 如果不需要密码字段，移除密码字段
+  if (!includePassword && file) {
+    const { password, ...fileWithoutPassword } = file;
+    return fileWithoutPassword;
+  }
+
+  return file;
 }
 
 /**
@@ -99,7 +99,10 @@ async function checkAndDeleteExpiredFile(db, file, encryptionSecret) {
     if (isExpired) {
       // 如果有S3配置，尝试从S3删除
       if (file.s3_config_id && file.storage_path) {
-        const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+        const repositoryFactory = new RepositoryFactory(db);
+        const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+        const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(file.s3_config_id, null)) || (await s3ConfigRepository.findById(file.s3_config_id));
         if (s3Config) {
           try {
             await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
@@ -110,8 +113,10 @@ async function checkAndDeleteExpiredFile(db, file, encryptionSecret) {
         }
       }
 
-      // 从数据库删除文件记录
-      await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(file.id).run();
+      // 使用 FileRepository 从数据库删除文件记录
+      const repositoryFactory = new RepositoryFactory(db);
+      const fileRepository = repositoryFactory.getFileRepository();
+      await fileRepository.deleteFile(file.id);
 
       console.log(`文件(${file.id})已过期或超过最大查看次数，已删除`);
       return true;
@@ -132,23 +137,14 @@ async function checkAndDeleteExpiredFile(db, file, encryptionSecret) {
  * @returns {Promise<Object>} 包含更新后的文件信息和状态
  */
 async function incrementAndCheckFileViews(db, file, encryptionSecret) {
-  // 首先递增访问计数
-  await db.prepare(`UPDATE ${DbTables.FILES} SET views = views + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(file.id).run();
+  // 使用 FileRepository 递增访问计数
+  const repositoryFactory = new RepositoryFactory(db);
+  const fileRepository = repositoryFactory.getFileRepository();
 
-  // 重新获取更新后的文件信息
-  const updatedFile = await db
-    .prepare(
-      `
-      SELECT 
-        f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
-        f.remark, f.password, f.max_views, f.views, f.created_by,
-        f.expires_at, f.created_at, f.s3_config_id, f.use_proxy, f.slug
-      FROM ${DbTables.FILES} f
-      WHERE f.id = ?
-    `
-    )
-    .bind(file.id)
-    .first();
+  await fileRepository.incrementViews(file.id);
+
+  // 重新获取更新后的文件信息（包含S3配置）
+  const updatedFile = await fileRepository.findByIdWithS3Config(file.id);
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -223,8 +219,11 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       // 这里已经在incrementAndCheckFileViews函数中尝试删除了文件，但为确保删除成功，再次检查文件是否还存在
       console.log(`文件(${file.id})已达到最大查看次数，准备删除...`);
       try {
-        // 再次检查文件是否被成功删除，如果没有则再次尝试删除
-        const fileStillExists = await db.prepare(`SELECT id FROM ${DbTables.FILES} WHERE id = ?`).bind(file.id).first();
+        // 使用 FileRepository 再次检查文件是否被成功删除
+        const repositoryFactory = new RepositoryFactory(db);
+        const fileRepository = repositoryFactory.getFileRepository();
+
+        const fileStillExists = await fileRepository.findById(file.id);
         if (fileStillExists) {
           console.log(`文件(${file.id})仍然存在，再次尝试删除...`);
           await checkAndDeleteExpiredFile(db, result.file, encryptionSecret);
@@ -241,7 +240,9 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
     }
 
     // 获取S3配置
-    const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(result.file.s3_config_id).first();
+    const repositoryFactory = new RepositoryFactory(db);
+    const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+    const s3Config = await s3ConfigRepository.findById(result.file.s3_config_id);
     if (!s3Config) {
       return new Response("无法获取存储配置信息", { status: 500 });
     }
@@ -451,7 +452,9 @@ export function registerFileViewRoutes(app) {
       }
 
       // 获取S3配置
-      const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+      const s3Config = await s3ConfigRepository.findById(file.s3_config_id);
       if (!s3Config) {
         return c.json({ error: "无法获取存储配置信息" }, 500);
       }

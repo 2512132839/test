@@ -10,7 +10,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { updateMountLastUsed } from "../../../fs/utils/MountResolver.js";
 import { getMimeTypeFromFilename } from "../../../../utils/fileUtils.js";
-import { generateFileId } from "../../../../utils/common.js";
+
 import { clearCache } from "../../../../utils/DirectoryCache.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 import { updateParentDirectoriesModifiedTime } from "../utils/S3DirectoryUtils.js";
@@ -36,7 +36,7 @@ export class S3UploadOperations {
    * @returns {Promise<Object>} 上传结果
    */
   async uploadFile(s3SubPath, file, options = {}) {
-    const { mount, db, userIdOrInfo, userType } = options;
+    const { mount, db } = options;
 
     return handleFsError(
       async () => {
@@ -79,38 +79,9 @@ export class S3UploadOperations {
         const putCommand = new PutObjectCommand(putParams);
         const result = await this.s3Client.send(putCommand);
 
-        // 生成文件记录
-        const fileId = generateFileId();
-        const fileSlug = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-
         // 构建S3 URL
         const { buildS3Url } = await import("../../../../utils/s3Utils.js");
         const s3Url = buildS3Url(this.config, finalS3Path);
-
-        // 记录文件信息到数据库
-        if (db) {
-          await db
-            .prepare(
-              `
-            INSERT INTO files (
-              id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `
-            )
-            .bind(
-              fileId,
-              fileName,
-              finalS3Path,
-              s3Url,
-              contentType,
-              file.size,
-              this.config.id,
-              fileSlug,
-              result.ETag ? result.ETag.replace(/"/g, "") : null,
-              `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`
-            )
-            .run();
-        }
 
         // 更新父目录的修改时间
         const { updateParentDirectoriesModifiedTime } = await import("../utils/S3DirectoryUtils.js");
@@ -128,14 +99,12 @@ export class S3UploadOperations {
 
         return {
           success: true,
-          fileId: fileId,
           fileName: fileName,
           size: file.size,
           contentType: contentType,
           s3Path: finalS3Path,
           s3Url: s3Url,
           etag: result.ETag ? result.ETag.replace(/"/g, "") : null,
-          slug: fileSlug,
           message: "文件上传成功",
         };
       },
@@ -186,7 +155,7 @@ export class S3UploadOperations {
    * @returns {Promise<Object>} 处理结果
    */
   async handleUploadComplete(s3SubPath, options = {}) {
-    const { mount, db, fileName, fileSize, contentType, etag, userIdOrInfo, userType } = options;
+    const { mount, db, fileName, fileSize, contentType, etag } = options;
 
     try {
       // 更新父目录的修改时间
@@ -203,48 +172,18 @@ export class S3UploadOperations {
         await clearCache({ mountId: mount.id });
       }
 
-      // 如果需要，可以在这里记录文件信息到数据库
-      if (db && fileName) {
-        const fileId = generateFileId();
-        const fileSlug = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-
-        // 构建S3 URL
-        const s3Url = buildS3Url(this.config, s3SubPath);
-
-        await db
-          .prepare(
-            `
-            INSERT INTO files (
-              id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `
-          )
-          .bind(
-            fileId,
-            fileName,
-            s3SubPath,
-            s3Url,
-            contentType || getMimeTypeFromFilename(fileName),
-            fileSize || 0,
-            this.config.id,
-            fileSlug,
-            etag || null,
-            `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`
-          )
-          .run();
-
-        return {
-          success: true,
-          fileId: fileId,
-          slug: fileSlug,
-          s3Url: s3Url,
-          message: "上传完成处理成功",
-        };
-      }
+      // 构建S3 URL
+      const s3Url = buildS3Url(this.config, s3SubPath);
 
       return {
         success: true,
         message: "上传完成处理成功",
+        fileName: fileName,
+        size: fileSize,
+        contentType: contentType,
+        s3Path: s3SubPath,
+        s3Url: s3Url,
+        etag: etag ? etag.replace(/"/g, "") : null,
       };
     } catch (error) {
       console.error("处理上传完成失败:", error);
@@ -296,7 +235,7 @@ export class S3UploadOperations {
    * @returns {Promise<Object>} 初始化结果
    */
   async initializeFrontendMultipartUpload(s3SubPath, options = {}) {
-    const { fileName, fileSize, partSize = 5 * 1024 * 1024, partCount, mount, db, userIdOrInfo, userType } = options;
+    const { fileName, fileSize, partSize = 5 * 1024 * 1024, partCount, mount, db } = options;
 
     return handleFsError(
       async () => {
@@ -378,7 +317,7 @@ export class S3UploadOperations {
    * @returns {Promise<Object>} 完成结果
    */
   async completeFrontendMultipartUpload(s3SubPath, options = {}) {
-    const { uploadId, parts, fileName, fileSize, mount, db, userIdOrInfo, userType } = options;
+    const { uploadId, parts, fileName, fileSize, mount, db } = options;
 
     return handleFsError(
       async () => {
@@ -419,50 +358,22 @@ export class S3UploadOperations {
           await clearCache({ mountId: mount.id });
         }
 
-        // 记录文件信息到数据库
-        const fileId = generateFileId();
-        const fileSlug = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-
         // 推断MIME类型
         const contentType = getMimeTypeFromFilename(fileName);
 
         // 构建S3 URL
         const s3Url = buildS3Url(this.config, finalS3Path);
 
-        if (db) {
-          await db
-            .prepare(
-              `
-              INSERT INTO files (
-                id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `
-            )
-            .bind(
-              fileId,
-              fileName,
-              finalS3Path,
-              s3Url,
-              contentType,
-              fileSize,
-              this.config.id,
-              fileSlug,
-              completeResponse.ETag ? completeResponse.ETag.replace(/"/g, "") : null,
-              `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`
-            )
-            .run();
-        }
+        // 文件上传完成，无需数据库操作
 
         return {
           success: true,
-          fileId: fileId,
           fileName: fileName,
           size: fileSize,
           contentType: contentType,
           s3Path: finalS3Path,
           s3Url: s3Url,
           etag: completeResponse.ETag ? completeResponse.ETag.replace(/"/g, "") : null,
-          slug: fileSlug,
           location: completeResponse.Location,
           message: "前端分片上传完成",
         };
@@ -479,7 +390,7 @@ export class S3UploadOperations {
    * @returns {Promise<Object>} 中止结果
    */
   async abortFrontendMultipartUpload(s3SubPath, options = {}) {
-    const { uploadId, fileName, mount, db, userIdOrInfo, userType } = options;
+    const { uploadId, fileName, mount, db } = options;
 
     return handleFsError(
       async () => {

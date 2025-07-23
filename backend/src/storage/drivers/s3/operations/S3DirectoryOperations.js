@@ -8,7 +8,6 @@ import { ApiStatus } from "../../../../constants/index.js";
 import { S3Client, ListObjectsV2Command, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { checkDirectoryExists, updateParentDirectoriesModifiedTime } from "../utils/S3DirectoryUtils.js";
 import { directoryCacheManager, clearCache } from "../../../../utils/DirectoryCache.js";
-import { deleteFileRecordByStoragePath } from "../../../../services/fileService.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 
 export class S3DirectoryOperations {
@@ -251,6 +250,8 @@ export class S3DirectoryOperations {
           console.log(`目录内容已缓存: ${mount.id}/${subPath}, TTL: ${mount.cache_ttl}秒`);
         }
 
+        // 目录列表操作完成，无需额外的业务逻辑处理
+
         return result;
       },
       "列出目录",
@@ -313,6 +314,8 @@ export class S3DirectoryOperations {
               await clearCache({ mountId: mount.id });
             }
 
+            // 目录创建操作完成，无需额外的业务逻辑处理
+
             return {
               success: true,
               path: path,
@@ -334,11 +337,10 @@ export class S3DirectoryOperations {
    * @param {S3Client} s3Client - S3客户端实例
    * @param {string} bucketName - 存储桶名称
    * @param {string} prefix - 目录前缀
-   * @param {D1Database} db - 数据库实例
    * @param {string} storageConfigId - 存储配置ID
    * @returns {Promise<void>}
    */
-  async deleteDirectoryRecursive(s3Client, bucketName, prefix, db, storageConfigId) {
+  async deleteDirectoryRecursive(s3Client, bucketName, prefix, storageConfigId) {
     let continuationToken = undefined;
 
     try {
@@ -365,14 +367,7 @@ export class S3DirectoryOperations {
             const deleteCommand = new DeleteObjectCommand(deleteParams);
             await s3Client.send(deleteCommand);
 
-            // 删除文件记录
-            if (db && storageConfigId) {
-              try {
-                await deleteFileRecordByStoragePath(db, storageConfigId, item.Key);
-              } catch (error) {
-                console.warn(`删除文件记录失败: ${error.message}`);
-              }
-            }
+            // 文件删除完成，无需数据库操作
           });
 
           await Promise.all(deletePromises);

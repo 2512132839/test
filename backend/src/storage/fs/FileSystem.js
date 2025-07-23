@@ -1,6 +1,5 @@
 /**
  * 文件系统统一抽象层
- * 基于alist设计理念，提供统一的文件系统接口
  * 同时服务于网页端API和WebDAV协议
  * 内部根据存储能力选择最优实现
  */
@@ -49,9 +48,10 @@ export class FileSystem {
    * @param {string} path - 文件路径
    * @param {string|Object} userIdOrInfo - 用户ID或API密钥信息
    * @param {string} userType - 用户类型
+   * @param {Request} request - 请求对象（用于构建完整URL）
    * @returns {Promise<Object>} 文件信息
    */
-  async getFileInfo(path, userIdOrInfo, userType) {
+  async getFileInfo(path, userIdOrInfo, userType, request = null) {
     const { driver, mount, subPath } = await this.mountManager.getDriverByPath(path, userIdOrInfo, userType);
 
     if (!driver.hasCapability(CAPABILITIES.READER)) {
@@ -66,6 +66,7 @@ export class FileSystem {
       db: this.mountManager.db,
       userType,
       userId: userIdOrInfo,
+      request,
     });
   }
 
@@ -568,11 +569,10 @@ export class FileSystem {
    * @param {Array} parts - 分片信息
    * @param {string} contentType - 内容类型
    * @param {number} fileSize - 文件大小
-   * @param {boolean} saveToDatabase - 是否保存到数据库
    * @param {string} s3Key - S3键（可选）
    * @returns {Promise<Object>} 完成结果
    */
-  async completeBackendMultipartUpload(path, userIdOrInfo, userType, uploadId, parts, contentType, fileSize, saveToDatabase = true, s3Key = null) {
+  async completeBackendMultipartUpload(path, userIdOrInfo, userType, uploadId, parts, contentType, fileSize, s3Key = null) {
     const { driver, mount, subPath } = await this.mountManager.getDriverByPath(path, userIdOrInfo, userType);
 
     if (!driver.hasCapability(CAPABILITIES.MULTIPART)) {
@@ -589,7 +589,6 @@ export class FileSystem {
       parts,
       contentType,
       fileSize,
-      saveToDatabase,
       userIdOrInfo,
       userType,
       s3Key,

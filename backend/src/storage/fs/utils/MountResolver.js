@@ -5,6 +5,9 @@
  */
 
 import { PermissionUtils } from "../../../utils/permissionUtils.js";
+import { DbTables } from "../../../constants/index.js";
+import { PROXY_CONFIG } from "../../../constants/proxy.js";
+import { RepositoryFactory } from "../../../repositories/index.js";
 
 /**
  * 根据请求路径查找对应的挂载点和子路径
@@ -51,6 +54,12 @@ export async function findMountPointByPath(db, path, userIdOrInfo, userType, per
         },
       };
     }
+  }
+
+  // 对于代理访问，使用特殊的处理逻辑
+  if (userType === PROXY_CONFIG.USER_TYPE) {
+    // 代理访问直接使用findMountPointByPathForProxy
+    return await findMountPointByPathForProxy(db, path);
   }
 
   // 获取挂载点列表 - 使用统一的挂载点获取方法
@@ -170,9 +179,87 @@ export async function findMountPointByPathWithApiKey(db, path, apiKeyInfo) {
  */
 export async function updateMountLastUsed(db, mountId) {
   try {
-    await db.prepare("UPDATE storage_mounts SET last_used = CURRENT_TIMESTAMP WHERE id = ?").bind(mountId).run();
+    // 使用 MountRepository
+    const repositoryFactory = new RepositoryFactory(db);
+    const mountRepository = repositoryFactory.getMountRepository();
+
+    await mountRepository.updateLastUsed(mountId);
   } catch (error) {
     // 更新失败不中断主流程，但减少日志详细程度，避免冗余
     console.warn(`挂载点最后使用时间更新失败: ${mountId}`);
   }
+}
+
+/**
+ * 根据路径查找挂载点（用于代理访问，无需用户认证）
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} path - 请求路径
+ * @returns {Promise<Object>} 包含挂载点、子路径和错误信息的对象
+ */
+export async function findMountPointByPathForProxy(db, path) {
+  // 规范化路径
+  path = path.startsWith("/") ? path : "/" + path;
+
+  // 处理根路径
+  if (path === "/" || path === "//") {
+    return {
+      isRoot: true,
+      error: {
+        status: 403,
+        message: "无法操作根目录",
+      },
+    };
+  }
+
+  // 获取所有活跃的挂载点
+  let mounts;
+  try {
+    // 使用 MountRepository
+    const repositoryFactory = new RepositoryFactory(db);
+    const mountRepository = repositoryFactory.getMountRepository();
+
+    mounts = await mountRepository.findAll(false); // false = 只获取活跃的挂载点
+  } catch (error) {
+    return {
+      error: {
+        status: 500,
+        message: "获取挂载点失败",
+      },
+    };
+  }
+
+  // 按照路径长度降序排序，以便优先匹配最长的路径
+  mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
+
+  // 查找匹配的挂载点
+  for (const mount of mounts) {
+    const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
+
+    // 如果请求路径完全匹配挂载点或者是挂载点的子路径
+    if (path === mountPath || path === mountPath + "/" || path.startsWith(mountPath + "/")) {
+      // 验证挂载点是否启用了web_proxy
+      if (!mount.web_proxy) {
+        continue; // 跳过未启用代理的挂载点
+      }
+
+      let subPath = path.substring(mountPath.length);
+      if (!subPath.startsWith("/")) {
+        subPath = "/" + subPath;
+      }
+
+      return {
+        mount,
+        subPath,
+        mountPath,
+      };
+    }
+  }
+
+  // 未找到匹配的挂载点
+  return {
+    error: {
+      status: 404,
+      message: "挂载点不存在",
+    },
+  };
 }

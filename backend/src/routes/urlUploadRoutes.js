@@ -7,6 +7,7 @@ import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse, formatFileSize } from "../utils/common.js";
 import { baseAuthMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
 import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
+import { RepositoryFactory } from "../repositories/index.js";
 import {
   validateAndGetUrlMetadata,
   proxyUrlContent,
@@ -117,15 +118,15 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 验证S3配置ID
-      const s3Config = await db
-        .prepare(
-          `
-          SELECT id FROM ${DbTables.S3_CONFIGS}
-          WHERE id = ? AND ${isAdmin ? "admin_id = ?" : "is_public = 1"}
-        `
-        )
-        .bind(...(isAdmin ? [body.s3_config_id, userId] : [body.s3_config_id]))
-        .first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+      let s3Config;
+      if (isAdmin) {
+        s3Config = await s3ConfigRepository.findByIdAndAdmin(body.s3_config_id, userId);
+      } else {
+        s3Config = await s3ConfigRepository.findPublicById(body.s3_config_id);
+      }
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "指定的S3配置不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -214,16 +215,9 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 查询待提交的文件信息
-      const file = await db
-        .prepare(
-          `
-          SELECT id, filename, storage_path, s3_config_id, size, s3_url, slug, created_by
-          FROM ${DbTables.FILES}
-          WHERE id = ?
-        `
-        )
-        .bind(body.file_id)
-        .first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const fileRepository = repositoryFactory.getFileRepository();
+      const file = await fileRepository.findById(body.file_id);
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -239,13 +233,13 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 获取S3配置
-      const s3ConfigQuery = isAdmin ? `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?` : `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND is_public = 1`;
-
-      const s3ConfigParams = isAdmin ? [file.s3_config_id, userId] : [file.s3_config_id];
-      const s3Config = await db
-        .prepare(s3ConfigQuery)
-        .bind(...s3ConfigParams)
-        .first();
+      const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+      let s3Config;
+      if (isAdmin) {
+        s3Config = await s3ConfigRepository.findByIdAndAdmin(file.s3_config_id, userId);
+      } else {
+        s3Config = await s3ConfigRepository.findPublicById(file.s3_config_id);
+      }
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "无效的S3配置ID或无权访问该配置"), ApiStatus.BAD_REQUEST);
@@ -254,16 +248,7 @@ export function registerUrlUploadRoutes(app) {
       // 检查存储桶容量限制
       if (s3Config.total_storage_bytes !== null) {
         // 获取当前存储桶已使用的总容量（不包括当前待提交的文件）
-        const usageResult = await db
-          .prepare(
-            `
-            SELECT SUM(size) as total_used
-            FROM ${DbTables.FILES}
-            WHERE s3_config_id = ? AND id != ?
-          `
-          )
-          .bind(file.s3_config_id, file.id)
-          .first();
+        const usageResult = await fileRepository.getTotalSizeByS3ConfigExcludingFile(file.s3_config_id, file.id);
 
         const currentUsage = usageResult?.total_used || 0;
         const fileSize = parseInt(body.size || 0);
@@ -282,7 +267,7 @@ export function registerUrlUploadRoutes(app) {
           }
 
           // 删除文件记录
-          await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(file.id).run();
+          await fileRepository.deleteById(file.id);
 
           const remainingSpace = Math.max(0, s3Config.total_storage_bytes - currentUsage);
           const formattedRemaining = formatFileSize(remainingSpace);
@@ -331,7 +316,7 @@ export function registerUrlUploadRoutes(app) {
         }
 
         // 检查slug是否已被占用（排除当前文件）
-        const existingSlug = await db.prepare(`SELECT id FROM ${DbTables.FILES} WHERE slug = ? AND id != ?`).bind(body.slug, body.file_id).first();
+        const existingSlug = await fileRepository.findBySlugExcludingId(body.slug, body.file_id);
         if (existingSlug) {
           return c.json(createErrorResponse(ApiStatus.CONFLICT, "自定义链接已被其他文件占用"), ApiStatus.CONFLICT);
         }
@@ -355,73 +340,40 @@ export function registerUrlUploadRoutes(app) {
       // 更新ETag和创建者
       const creator = authType === "admin" ? userId : `apikey:${userId}`;
 
-      // 构建SQL更新语句
-      let updateSql = `
-        UPDATE ${DbTables.FILES}
-        SET
-          etag = ?,
-          created_by = ?,
-          remark = ?,
-          password = ?,
-          expires_at = ?,
-          max_views = ?,
-          updated_at = CURRENT_TIMESTAMP,
-          size = CASE WHEN ? IS NOT NULL THEN ? ELSE size END
-      `;
+      // 准备更新数据
+      const updateData = {
+        etag: body.etag || null,
+        created_by: creator,
+        remark: remark,
+        password: passwordHash,
+        expires_at: expiresAt,
+        max_views: maxViews,
+        updated_at: new Date().toISOString(),
+      };
 
-      // 如果提供了自定义slug，则添加到更新语句中
-      if (slugUpdateRequired) {
-        updateSql += `, slug = ?`;
+      // 如果提供了文件大小，更新文件大小
+      if (fileSize !== null) {
+        updateData.size = fileSize;
       }
 
-      updateSql += ` WHERE id = ?`;
-
-      // 准备绑定参数
-      const bindParams = [
-        body.etag || null, // 如果ETag为空，保存为null
-        creator,
-        remark,
-        passwordHash,
-        expiresAt,
-        maxViews,
-        fileSize !== null ? 1 : null, // 条件参数
-        fileSize, // 文件大小值
-      ];
-
-      // 如果需要更新slug，添加相应参数
+      // 如果需要更新slug，添加slug字段
       if (slugUpdateRequired) {
-        bindParams.push(newSlug);
+        updateData.slug = newSlug;
       }
-
-      // 添加file_id作为最后一个参数
-      bindParams.push(body.file_id);
 
       // 更新文件记录
-      await db
-        .prepare(updateSql)
-        .bind(...bindParams)
-        .run();
+      await fileRepository.updateFile(body.file_id, updateData);
 
       // 处理明文密码保存
       if (body.password) {
-        // 检查是否已存在密码记录
-        const passwordExists = await db.prepare(`SELECT file_id FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(body.file_id).first();
-
-        if (passwordExists) {
-          // 更新现有密码
-          await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = CURRENT_TIMESTAMP WHERE file_id = ?`).bind(body.password, body.file_id).run();
-        } else {
-          // 插入新密码
-          await db
-            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-            .bind(body.file_id, body.password)
-            .run();
-        }
+        // 使用已有的 fileRepository 处理密码记录
+        await fileRepository.upsertFilePasswordRecord(body.file_id, body.password);
       }
 
       // 更新父目录的修改时间
       try {
-        const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+        const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+        const s3Config = await s3ConfigRepository.findById(file.s3_config_id);
         if (s3Config) {
           const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
           const { updateParentDirectoriesModifiedTimeHelper } = await import("../storage/drivers/s3/utils/S3DirectoryUtils.js");
@@ -435,19 +387,7 @@ export function registerUrlUploadRoutes(app) {
       await clearCache({ db, s3ConfigId: file.s3_config_id });
 
       // 获取更新后的文件记录
-      const updatedFile = await db
-        .prepare(
-          `
-        SELECT 
-          id, slug, filename, storage_path, s3_url, 
-          mimetype, size, remark, 
-          created_at, updated_at
-        FROM ${DbTables.FILES}
-        WHERE id = ?
-      `
-        )
-        .bind(body.file_id)
-        .first();
+      const updatedFile = await fileRepository.findById(body.file_id);
 
       // 返回成功响应
       return c.json({
@@ -490,15 +430,15 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 验证S3配置ID
-      const s3Config = await db
-        .prepare(
-          `
-          SELECT id FROM ${DbTables.S3_CONFIGS}
-          WHERE id = ? AND ${isAdmin ? "admin_id = ?" : "is_public = 1"}
-        `
-        )
-        .bind(...(isAdmin ? [body.s3_config_id, userId] : [body.s3_config_id]))
-        .first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+      let s3Config;
+      if (isAdmin) {
+        s3Config = await s3ConfigRepository.findByIdAndAdmin(body.s3_config_id, userId);
+      } else {
+        s3Config = await s3ConfigRepository.findPublicById(body.s3_config_id);
+      }
 
       if (!s3Config) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "指定的S3配置不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -597,16 +537,9 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 查询文件记录
-      const file = await db
-        .prepare(
-          `
-          SELECT id, created_by, s3_config_id
-          FROM ${DbTables.FILES}
-          WHERE id = ?
-        `
-        )
-        .bind(body.file_id)
-        .first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const fileRepository = repositoryFactory.getFileRepository();
+      const file = await fileRepository.findById(body.file_id);
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -672,16 +605,9 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 查询文件记录
-      const file = await db
-        .prepare(
-          `
-          SELECT id, created_by, s3_config_id
-          FROM ${DbTables.FILES}
-          WHERE id = ?
-        `
-        )
-        .bind(body.file_id)
-        .first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const fileRepository = repositoryFactory.getFileRepository();
+      const file = await fileRepository.findById(body.file_id);
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -755,16 +681,9 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 查询文件记录
-      const file = await db
-        .prepare(
-          `
-          SELECT id, created_by, s3_config_id, storage_path
-          FROM ${DbTables.FILES}
-          WHERE id = ?
-        `
-        )
-        .bind(body.file_id)
-        .first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const fileRepository = repositoryFactory.getFileRepository();
+      const file = await fileRepository.findById(body.file_id);
 
       if (!file) {
         return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -780,7 +699,8 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 获取S3配置
-      const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+      const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+      const s3Config = await s3ConfigRepository.findById(file.s3_config_id);
 
       if (!s3Config) {
         // 如果S3配置不存在，仍然尝试删除文件记录
@@ -798,10 +718,10 @@ export function registerUrlUploadRoutes(app) {
       }
 
       // 删除文件密码记录（如果存在）
-      await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(file.id).run();
+      await fileRepository.deleteFilePasswordRecord(file.id);
 
       // 删除文件记录
-      await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(file.id).run();
+      await fileRepository.deleteById(file.id);
 
       // 清除与文件相关的缓存 - 使用统一的clearCache函数
       try {

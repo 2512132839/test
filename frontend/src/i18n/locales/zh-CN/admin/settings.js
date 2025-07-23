@@ -15,11 +15,10 @@ export default {
     },
     webdavSettings: {
       uploadModeLabel: "WebDAV上传模式",
-      uploadModeHint: "选择WebDAV客户端的上传处理方式",
+      uploadModeHint: "选择WebDAV客户端的上传处理方式，worker部署的建议只使用直接上传模式",
       modes: {
-        auto: "自动模式（推荐）",
-        multipart: "分片上传",
         direct: "直接上传",
+        multipart: "分片上传",
       },
     },
     adminSettings: {

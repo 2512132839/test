@@ -15,6 +15,7 @@ import { handleCopy } from "./methods/copy.js";
 import { handleLock } from "./methods/lock.js";
 import { handleUnlock } from "./methods/unlock.js";
 import { handleProppatch } from "./methods/proppatch.js";
+import { RepositoryFactory } from "../repositories/index.js";
 
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
@@ -108,7 +109,10 @@ function createUnauthorizedResponse(message = "Unauthorized", userAgent = "", op
  */
 async function verifyApiKeyMountPermission(db, apiKey) {
   try {
-    const result = await db.prepare("SELECT mount_permission FROM api_keys WHERE key = ?").bind(apiKey).first();
+    const repositoryFactory = new RepositoryFactory(db);
+    const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+
+    const result = await apiKeyRepository.findByKey(apiKey);
 
     if (!result) {
       console.log("WebDAV权限验证: API密钥无效");
@@ -356,7 +360,9 @@ async function tryAuthenticationCache(c, db, clientIp, userAgent) {
       }
 
       // 重新获取API密钥信息
-      const apiKey = await db.prepare("SELECT id, name, basic_path FROM api_keys WHERE id = ?").bind(cachedAuth.userId).first();
+      const repositoryFactory = new RepositoryFactory(db);
+      const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+      const apiKey = await apiKeyRepository.findById(cachedAuth.userId);
 
       if (apiKey) {
         const apiKeyInfo = {

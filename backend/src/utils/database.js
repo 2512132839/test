@@ -209,6 +209,8 @@ export async function initDatabase(db) {
         created_by TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
         cache_ttl INTEGER DEFAULT 300,
+        web_proxy BOOLEAN DEFAULT 0,
+        webdav_policy TEXT DEFAULT '302_redirect',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_used DATETIME
@@ -241,6 +243,28 @@ export async function initDatabase(db) {
         `
         INSERT INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description)
         VALUES ('max_upload_size', '100', '单次最大上传文件大小限制(MB)')
+      `
+      )
+      .run();
+  }
+
+  // 检查是否已存在WebDAV上传模式设置
+  const webdavUploadMode = await db
+    .prepare(
+      `
+      SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
+      WHERE key = 'webdav_upload_mode'
+    `
+    )
+    .first();
+
+  // 如果不存在，添加默认值
+  if (!webdavUploadMode) {
+    await db
+      .prepare(
+        `
+        INSERT INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description)
+        VALUES ('webdav_upload_mode', 'direct', 'WebDAV上传模式（multipart, direct）')
       `
       )
       .run();
@@ -435,6 +459,45 @@ async function migrateDatabase(db, currentVersion, targetVersion) {
           // 不抛出错误，允许迁移继续进行
         }
         break;
+
+      case 8:
+        // 版本8：为storage_mounts表添加web_proxy和webdav_policy字段
+        try {
+          console.log(`为${DbTables.STORAGE_MOUNTS}表添加web_proxy和webdav_policy字段...`);
+
+          // 检查web_proxy字段是否存在
+          const columnInfo = await db.prepare(`PRAGMA table_info(${DbTables.STORAGE_MOUNTS})`).all();
+          const webProxyExists = columnInfo.results.some((column) => column.name === "web_proxy");
+          const webdavPolicyExists = columnInfo.results.some((column) => column.name === "webdav_policy");
+
+          if (!webProxyExists) {
+            try {
+              await db.prepare(`ALTER TABLE ${DbTables.STORAGE_MOUNTS} ADD COLUMN web_proxy BOOLEAN DEFAULT 0`).run();
+              console.log(`成功添加web_proxy字段到${DbTables.STORAGE_MOUNTS}表`);
+            } catch (alterError) {
+              console.error(`无法添加web_proxy字段到${DbTables.STORAGE_MOUNTS}表:`, alterError);
+              console.log(`将继续执行迁移过程，但请手动检查${DbTables.STORAGE_MOUNTS}表结构`);
+            }
+          } else {
+            console.log(`${DbTables.STORAGE_MOUNTS}表已存在web_proxy字段，跳过添加`);
+          }
+
+          if (!webdavPolicyExists) {
+            try {
+              await db.prepare(`ALTER TABLE ${DbTables.STORAGE_MOUNTS} ADD COLUMN webdav_policy TEXT DEFAULT '302_redirect'`).run();
+              console.log(`成功添加webdav_policy字段到${DbTables.STORAGE_MOUNTS}表`);
+            } catch (alterError) {
+              console.error(`无法添加webdav_policy字段到${DbTables.STORAGE_MOUNTS}表:`, alterError);
+              console.log(`将继续执行迁移过程，但请手动检查${DbTables.STORAGE_MOUNTS}表结构`);
+            }
+          } else {
+            console.log(`${DbTables.STORAGE_MOUNTS}表已存在webdav_policy字段，跳过添加`);
+          }
+        } catch (error) {
+          console.error(`版本8迁移失败:`, error);
+          console.log("将继续执行迁移过程，但请手动检查storage_mounts表结构");
+        }
+        break;
     }
 
     // 记录迁移历史
@@ -553,7 +616,7 @@ export async function checkAndInitDatabase(db) {
     }
 
     // 如果要添加新表或修改现有表，请递增目标版本，修改后启动时自动更新数据库
-    const targetVersion = 7; // 目标schema版本,每次修改表结构时递增
+    const targetVersion = 8; // 目标schema版本,每次修改表结构时递增
 
     if (currentVersion < targetVersion) {
       console.log(`需要更新数据库结构，当前版本:${currentVersion}，目标版本:${targetVersion}`);

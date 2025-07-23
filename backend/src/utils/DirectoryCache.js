@@ -5,6 +5,7 @@
 import { BaseCache } from "./BaseCache.js";
 import { clearS3UrlCache } from "./S3UrlCache.js";
 import { clearSearchCache } from "./SearchCache.js";
+import { normalizePath } from "../storage/fs/utils/PathResolver.js";
 
 class DirectoryCacheManager extends BaseCache {
   /**
@@ -31,8 +32,12 @@ class DirectoryCacheManager extends BaseCache {
    * @returns {string} - 缓存键
    */
   generateKey(mountId, path) {
+    // 规范化路径：确保目录路径的一致性
+    // 对于目录缓存，统一将路径规范化为目录格式（以/结尾）
+    const normalizedPath = normalizePath(path, true);
+
     // 使用 Base64 编码路径，避免特殊字符问题
-    const encodedPath = Buffer.from(path).toString("base64");
+    const encodedPath = Buffer.from(normalizedPath).toString("base64");
     return `${mountId}:${encodedPath}`;
   }
 

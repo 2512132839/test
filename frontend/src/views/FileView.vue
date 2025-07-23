@@ -290,7 +290,7 @@ const openEditModal = async () => {
       let response;
 
       // 根据用户类型选择合适的API函数
-      if (isAdmin) {
+      if (isAdmin.value) {
         response = await api.file.getFile(fileInfo.value.id);
       } else {
         // 如果不是管理员，则尝试使用用户的API获取文件
@@ -334,7 +334,7 @@ const saveFileChanges = async (updatedFile) => {
     let response;
 
     // 根据用户类型选择合适的API函数
-    if (isAdmin) {
+    if (isAdmin.value) {
       response = await api.file.updateFile(updatedFile.id, updatedFile);
     } else {
       // 如果不是管理员，则尝试使用用户的API更新文件

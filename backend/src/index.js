@@ -19,6 +19,7 @@ import { registerUserFilesRoutes } from "./routes/userFilesRoutes.js";
 import { registerS3UploadRoutes } from "./routes/s3UploadRoutes.js";
 import { registerFileViewRoutes } from "./routes/fileViewRoutes.js";
 import { registerUrlUploadRoutes } from "./routes/urlUploadRoutes.js";
+import { fsProxyRoutes } from "./routes/fsProxyRoutes.js";
 import { baseAuthMiddleware, requireAdminMiddleware, requireFilePermissionMiddleware } from "./middlewares/permissionMiddleware.js";
 
 // 创建一个Hono应用实例
@@ -73,6 +74,7 @@ app.route("/", adminStorageMountRoutes);
 app.route("/", userStorageMountRoutes);
 app.route("/", webdavRoutes);
 app.route("/", fsRoutes);
+app.route("/", fsProxyRoutes);
 
 // 注册文件相关路由
 registerAdminFilesRoutes(app);

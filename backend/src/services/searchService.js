@@ -11,6 +11,7 @@ import { updateMountLastUsed } from "../storage/fs/utils/MountResolver.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
 import { searchCacheManager } from "../utils/SearchCache.js";
 import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
+import { RepositoryFactory } from "../repositories/index.js";
 
 /**
  * 通用错误处理包装函数 - 复用fsService的模式
@@ -176,8 +177,11 @@ export async function searchFiles(db, searchParams, userIdOrInfo, userType, encr
  */
 async function searchInMount(db, mount, query, scope, searchPath, encryptionSecret, userType, userIdOrInfo, maxResults = 1000) {
   try {
-    // 获取S3配置
-    const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+    // 使用 S3ConfigRepository 获取配置
+    const repositoryFactory = new RepositoryFactory(db);
+    const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+    const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(mount.storage_config_id, null)) || (await s3ConfigRepository.findById(mount.storage_config_id));
     if (!s3Config) {
       console.warn(`挂载点 ${mount.id} 的S3配置不存在`);
       return [];

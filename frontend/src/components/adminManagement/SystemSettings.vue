@@ -40,7 +40,7 @@ let countdownTimer = null;
 const systemSettings = ref({
   max_upload_size: 100, // 默认100MB
   max_upload_size_unit: "MB", // 默认单位MB
-  webdav_upload_mode: "auto", // 默认自动模式 - 可选值: auto, multipart, direct
+  webdav_upload_mode: "direct", // 默认直接上传模式 - 可选值: multipart, direct
 });
 
 // 可选的大小单位
@@ -48,9 +48,8 @@ const sizeUnits = ref(["KB", "MB", "GB"]);
 
 // WebDAV上传模式选项
 const webdavUploadModes = ref([
-  { value: "auto", label: "admin.settings.webdavSettings.modes.auto" },
-  { value: "multipart", label: "admin.settings.webdavSettings.modes.multipart" },
   { value: "direct", label: "admin.settings.webdavSettings.modes.direct" },
+  { value: "multipart", label: "admin.settings.webdavSettings.modes.multipart" },
 ]);
 
 // 系统设置更新状态

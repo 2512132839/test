@@ -12,6 +12,7 @@ export { WriterCapable, isWriterCapable, WRITER_CAPABILITY } from "./WriterCapab
 export { PresignedCapable, isPresignedCapable, PRESIGNED_CAPABILITY } from "./PresignedCapable.js";
 export { MultipartCapable, isMultipartCapable, MULTIPART_CAPABILITY } from "./MultipartCapable.js";
 export { AtomicCapable, isAtomicCapable, ATOMIC_CAPABILITY } from "./AtomicCapable.js";
+export { ProxyCapable, isProxyCapable, PROXY_CAPABILITY } from "./ProxyCapable.js";
 
 // 导入检查函数用于内部使用
 import { isReaderCapable } from "./ReaderCapable.js";
@@ -19,6 +20,7 @@ import { isWriterCapable } from "./WriterCapable.js";
 import { isPresignedCapable } from "./PresignedCapable.js";
 import { isMultipartCapable } from "./MultipartCapable.js";
 import { isAtomicCapable } from "./AtomicCapable.js";
+import { isProxyCapable } from "./ProxyCapable.js";
 
 /**
  * 所有可用的能力标识符
@@ -29,6 +31,7 @@ export const CAPABILITIES = {
   PRESIGNED: "PresignedCapable",
   MULTIPART: "MultipartCapable",
   ATOMIC: "AtomicCapable",
+  PROXY: "ProxyCapable",
 };
 
 /**
@@ -40,6 +43,7 @@ export const CAPABILITY_CHECKERS = {
   [CAPABILITIES.PRESIGNED]: isPresignedCapable,
   [CAPABILITIES.MULTIPART]: isMultipartCapable,
   [CAPABILITIES.ATOMIC]: isAtomicCapable,
+  [CAPABILITIES.PROXY]: isProxyCapable,
 };
 
 /**

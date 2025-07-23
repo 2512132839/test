@@ -3,18 +3,17 @@
  * 负责URL验证、元信息获取和处理逻辑
  */
 
-import { DbTables } from "../constants/index.js";
 import { generateFileId, generateShortId, getFileNameAndExt, getSafeFileName } from "../utils/common.js";
 import { buildS3Url, generatePresignedPutUrl } from "../utils/s3Utils.js";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { createS3Client } from "../utils/s3Utils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
 import { getEnhancedUrlMetadata as getEnhancedMimeMetadata } from "../utils/enhancedMimeUtils.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
-import { normalizeS3SubPath } from "../storage/drivers/s3/utils/S3PathUtils.js";
+
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { hashPassword } from "../utils/crypto.js";
 import { updateParentDirectoriesModifiedTimeHelper } from "../storage/drivers/s3/utils/S3DirectoryUtils.js";
+import { RepositoryFactory } from "../repositories/index.js";
 
 // 分片上传配置
 const DEFAULT_PART_SIZE = 5 * 1024 * 1024; // 5MB默认分片大小
@@ -404,8 +403,11 @@ export async function proxyUrlContent(url) {
  * @returns {Promise<Object>} 包含fileId、uploadUrl和其他上传信息
  */
 export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encryptionSecret, options = {}) {
-  // 获取S3配置
-  const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(s3ConfigId).first();
+  // 使用 S3ConfigRepository 获取配置
+  const repositoryFactory = new RepositoryFactory(db);
+  const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+  const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(s3ConfigId, null)) || (await s3ConfigRepository.findById(s3ConfigId));
 
   if (!s3Config) {
     throw new Error("指定的S3配置不存在");
@@ -437,47 +439,9 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
   // 组合最终路径
   let storagePath;
   if (options.authType === "apikey" && options.apiKeyInfo && options.apiKeyInfo.basicPath && options.apiKeyInfo.basicPath !== "/") {
-    // 对于API密钥用户，检查权限并使用挂载点匹配逻辑来正确提取子路径
-    // 获取API密钥可访问的挂载点
-    const mounts = await PermissionUtils.getAccessibleMounts(db, options.apiKeyInfo, "apiKey");
-
-    // 检查当前S3配置是否在API密钥的权限范围内
-    const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
-    if (!hasPermission) {
-      throw new Error("没有权限使用此存储配置");
-    }
-
-    // 按照路径长度降序排序，以便优先匹配最长的路径
-    mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
-
-    let actualStoragePath = "";
-
-    // 查找匹配的挂载点
-    for (const mount of mounts) {
-      // 只处理与当前S3配置匹配的挂载点
-      if (mount.storage_config_id !== s3Config.id) continue;
-
-      const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
-
-      // 如果basic_path匹配挂载点或者是挂载点的子路径
-      if (options.apiKeyInfo.basicPath === mountPath || options.apiKeyInfo.basicPath === mountPath + "/" || options.apiKeyInfo.basicPath.startsWith(mountPath + "/")) {
-        // 计算子路径
-        let subPath = options.apiKeyInfo.basicPath.substring(mountPath.length);
-        if (!subPath.startsWith("/")) {
-          subPath = "/" + subPath;
-        }
-
-        // 使用normalizeS3SubPath来规范化子路径
-        actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
-        break;
-      }
-    }
-
-    // 获取默认文件夹路径
+    // 对于存储操作，只检查S3配置的公开性，不检查挂载点权限
     const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
-
-    // 路径组合：实际存储路径 + 默认文件夹 + 用户自定义路径 + 文件名
-    storagePath = actualStoragePath + folderPath + customPath + shortId + "-" + safeFileName + fileExt;
+    storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
   } else {
     // 对于管理员用户或没有basic_path的API密钥用户，使用默认文件夹
     const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
@@ -494,7 +458,8 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
     }
 
     // 检查slug是否已被占用
-    const existingSlug = await db.prepare(`SELECT id FROM ${DbTables.FILES} WHERE slug = ?`).bind(options.slug).first();
+    const fileRepository = repositoryFactory.getFileRepository();
+    const existingSlug = await fileRepository.findBySlug(options.slug);
     if (existingSlug) {
       throw new Error("自定义链接已被占用，请选择其他链接标识");
     }
@@ -520,34 +485,24 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
   const uploadUrl = await generatePresignedPutUrl(s3Config, storagePath, metadata.contentType, encryptionSecret);
 
   // 创建文件记录
-  await db
-    .prepare(
-      `
-      INSERT INTO ${DbTables.FILES} (
-        id, slug, filename, storage_path, s3_url,
-        s3_config_id, mimetype, size, etag,
-        created_by, created_at, updated_at, remark
-      ) VALUES (
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
-      )
-    `
-    )
-    .bind(
-      fileId,
-      slug,
-      metadata.filename,
-      storagePath,
-      s3Url,
-      s3ConfigId,
-      metadata.contentType || "application/octet-stream",
-      metadata.size || 0, // 初始大小可能为0或来自元数据
-      null, // 初始ETag为null，在上传完成后更新
-      createdBy,
-      remark
-    )
-    .run();
+  const fileRepository = repositoryFactory.getFileRepository();
+  const fileData = {
+    id: fileId,
+    slug: slug,
+    filename: metadata.filename,
+    storage_path: storagePath,
+    s3_url: s3Url,
+    s3_config_id: s3ConfigId,
+    mimetype: metadata.contentType || "application/octet-stream",
+    size: metadata.size || 0, // 初始大小可能为0或来自元数据
+    etag: null, // 初始ETag为null，在上传完成后更新
+    created_by: createdBy,
+    remark: remark,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  await fileRepository.createFile(fileData);
 
   // 返回上传信息
   return {
@@ -594,8 +549,11 @@ async function getSignatureFunction(s3Config) {
  * @returns {Promise<Object>} 包含文件ID、uploadId和预签名URL列表的对象
  */
 export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, createdBy, encryptionSecret, options = {}) {
-  // 获取S3配置
-  const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(s3ConfigId).first();
+  // 使用 S3ConfigRepository 获取配置
+  const repositoryFactory = new RepositoryFactory(db);
+  const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+  const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(s3ConfigId, null)) || (await s3ConfigRepository.findById(s3ConfigId));
 
   if (!s3Config) {
     throw new Error("指定的S3配置不存在");
@@ -627,47 +585,9 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
   // 组合最终路径
   let storagePath;
   if (options.authType === "apikey" && options.apiKeyInfo && options.apiKeyInfo.basicPath && options.apiKeyInfo.basicPath !== "/") {
-    // 对于API密钥用户，检查权限并使用挂载点匹配逻辑来正确提取子路径
-    // 获取API密钥可访问的挂载点
-    const mounts = await PermissionUtils.getAccessibleMounts(db, options.apiKeyInfo, "apiKey");
-
-    // 检查当前S3配置是否在API密钥的权限范围内
-    const hasPermission = mounts.some((mount) => mount.storage_config_id === s3Config.id);
-    if (!hasPermission) {
-      throw new Error("没有权限使用此存储配置");
-    }
-
-    // 按照路径长度降序排序，以便优先匹配最长的路径
-    mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);
-
-    let actualStoragePath = "";
-
-    // 查找匹配的挂载点
-    for (const mount of mounts) {
-      // 只处理与当前S3配置匹配的挂载点
-      if (mount.storage_config_id !== s3Config.id) continue;
-
-      const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
-
-      // 如果basic_path匹配挂载点或者是挂载点的子路径
-      if (options.apiKeyInfo.basicPath === mountPath || options.apiKeyInfo.basicPath === mountPath + "/" || options.apiKeyInfo.basicPath.startsWith(mountPath + "/")) {
-        // 计算子路径
-        let subPath = options.apiKeyInfo.basicPath.substring(mountPath.length);
-        if (!subPath.startsWith("/")) {
-          subPath = "/" + subPath;
-        }
-
-        // 使用normalizeS3SubPath来规范化子路径
-        actualStoragePath = normalizeS3SubPath(subPath, s3Config, true);
-        break;
-      }
-    }
-
-    // 获取默认文件夹路径
+    // 对于存储操作，只检查S3配置的公开性，不检查挂载点权限
     const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
-
-    // 路径组合：实际存储路径 + 默认文件夹 + 用户自定义路径 + 文件名
-    storagePath = actualStoragePath + folderPath + customPath + shortId + "-" + safeFileName + fileExt;
+    storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
   } else {
     // 对于管理员用户或没有basic_path的API密钥用户，使用默认文件夹
     const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
@@ -684,7 +604,8 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
     }
 
     // 检查slug是否已被占用
-    const existingSlug = await db.prepare(`SELECT id FROM ${DbTables.FILES} WHERE slug = ?`).bind(options.slug).first();
+    const fileRepository = repositoryFactory.getFileRepository();
+    const existingSlug = await fileRepository.findBySlug(options.slug);
     if (existingSlug) {
       throw new Error("自定义链接已被占用，请选择其他链接标识");
     }
@@ -776,46 +697,31 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
     }
 
     // 创建文件记录
-    await db
-      .prepare(
-        `
-        INSERT INTO ${DbTables.FILES} (
-          id, slug, filename, storage_path, s3_url,
-          s3_config_id, mimetype, size, etag,
-          created_by, created_at, updated_at, remark,
-          password, expires_at, max_views
-        ) VALUES (
-          ?, ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?,
-          ?, ?, ?
-        )
-      `
-      )
-      .bind(
-        fileId,
-        slug,
-        metadata.filename,
-        storagePath,
-        s3Url,
-        s3ConfigId,
-        metadata.contentType || "application/octet-stream",
-        totalSize, // 初始大小
-        null, // 初始ETag为null，在上传完成后更新
-        createdBy,
-        remark,
-        passwordHash,
-        expiresAt,
-        maxViews
-      )
-      .run();
+    const fileRepository = repositoryFactory.getFileRepository();
+    const fileData = {
+      id: fileId,
+      slug: slug,
+      filename: metadata.filename,
+      storage_path: storagePath,
+      s3_url: s3Url,
+      s3_config_id: s3ConfigId,
+      mimetype: metadata.contentType || "application/octet-stream",
+      size: totalSize, // 初始大小
+      etag: null, // 初始ETag为null，在上传完成后更新
+      created_by: createdBy,
+      remark: remark,
+      password: passwordHash,
+      expires_at: expiresAt,
+      max_views: maxViews,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await fileRepository.createFile(fileData);
 
     // 如果设置了密码，保存明文密码记录（用于分享）
     if (options.password) {
-      await db
-        .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
-        .bind(fileId, options.password)
-        .run();
+      await fileRepository.createFilePasswordRecord(fileId, options.password);
     }
 
     // 返回分片上传信息
@@ -854,26 +760,19 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
  * @returns {Promise<Object>} 包含完成的文件信息
  */
 export async function completeMultipartUpload(db, fileId, uploadId, parts, encryptionSecret) {
-  // 查询文件信息
-  const file = await db
-    .prepare(
-      `
-      SELECT 
-        id, slug, filename, storage_path, s3_url, 
-        s3_config_id, mimetype, remark
-      FROM ${DbTables.FILES}
-      WHERE id = ?
-        `
-    )
-    .bind(fileId)
-    .first();
+  // 使用 Repository 查询文件信息
+  const repositoryFactory = new RepositoryFactory(db);
+  const fileRepository = repositoryFactory.getFileRepository();
+  const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+  const file = await fileRepository.findById(fileId);
 
   if (!file) {
     throw new Error("文件不存在或已被删除");
   }
 
   // 获取S3配置
-  const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+  const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(file.s3_config_id, null)) || (await s3ConfigRepository.findById(file.s3_config_id));
 
   if (!s3Config) {
     throw new Error("无法找到对应的S3配置");
@@ -920,24 +819,17 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
     }
 
     // 更新文件记录
-    await db
-      .prepare(
-        `
-        UPDATE ${DbTables.FILES}
-        SET
-          etag = ?,
-          size = CASE WHEN ? > 0 THEN ? ELSE size END,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `
-      )
-      .bind(
-        etag,
-        totalSize > 0 ? 1 : 0, // 条件
-        totalSize,
-        fileId
-      )
-      .run();
+    const updateData = {
+      etag: etag,
+      updated_at: new Date().toISOString(),
+    };
+
+    // 只有当 totalSize > 0 时才更新 size
+    if (totalSize > 0) {
+      updateData.size = totalSize;
+    }
+
+    await fileRepository.updateFile(fileId, updateData);
 
     // 更新父目录的修改时间
     await updateParentDirectoriesModifiedTimeHelper(s3Config, file.storage_path, encryptionSecret);
@@ -950,19 +842,7 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
     }
 
     // 获取更新后的文件信息
-    const updatedFile = await db
-      .prepare(
-        `
-        SELECT 
-          id, slug, filename, storage_path, s3_url, 
-          mimetype, size, etag, 
-          created_at, updated_at, remark
-        FROM ${DbTables.FILES}
-        WHERE id = ?
-      `
-      )
-      .bind(fileId)
-      .first();
+    const updatedFile = await fileRepository.findById(fileId);
 
     // 返回完成的文件信息
     return {
@@ -995,26 +875,19 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
  * @returns {Promise<Object>} 包含操作结果的对象
  */
 export async function abortMultipartUpload(db, fileId, uploadId, encryptionSecret) {
-  // 查询文件信息
-  const file = await db
-    .prepare(
-      `
-      SELECT 
-        id, slug, filename, storage_path, s3_url, 
-        s3_config_id, mimetype, remark
-      FROM ${DbTables.FILES}
-      WHERE id = ?
-    `
-    )
-    .bind(fileId)
-    .first();
+  // 使用 Repository 查询文件信息
+  const repositoryFactory = new RepositoryFactory(db);
+  const fileRepository = repositoryFactory.getFileRepository();
+  const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
+  const file = await fileRepository.findById(fileId);
 
   if (!file) {
     throw new Error("文件不存在或已被删除");
   }
 
   // 获取S3配置
-  const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(file.s3_config_id).first();
+  const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(file.s3_config_id, null)) || (await s3ConfigRepository.findById(file.s3_config_id));
 
   if (!s3Config) {
     throw new Error("无法找到对应的S3配置");
@@ -1040,10 +913,10 @@ export async function abortMultipartUpload(db, fileId, uploadId, encryptionSecre
 
     // 决定是删除文件记录还是仅清除uploadId
     // 对于URL上传，我们选择删除整个文件记录，因为中止通常意味着用户放弃了整个上传
-    await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(fileId).run();
+    await fileRepository.deleteFile(fileId);
 
     // 同时删除可能存在的密码记录
-    await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(fileId).run();
+    await fileRepository.deleteFilePasswordRecord(fileId);
 
     // 清除与文件相关的缓存 - 使用统一的clearCache函数
     try {
@@ -1064,9 +937,9 @@ export async function abortMultipartUpload(db, fileId, uploadId, encryptionSecre
     // 即使S3操作失败，我们也尝试清理数据库记录
     try {
       console.log("尝试清理数据库记录...");
-      await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(fileId).run();
+      await fileRepository.deleteFile(fileId);
 
-      await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(fileId).run();
+      await fileRepository.deleteFilePasswordRecord(fileId);
 
       // 尝试清除缓存 - 使用统一的clearCache函数
       try {

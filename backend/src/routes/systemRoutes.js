@@ -41,7 +41,7 @@ systemRoutes.put("/api/admin/system-settings", baseAuthMiddleware, requireAdminM
 
     // 验证webdav_upload_mode参数（如果存在）
     if (body.webdav_upload_mode !== undefined) {
-      const validModes = ["auto", "multipart", "direct"];
+      const validModes = ["multipart", "direct"];
       if (!validModes.includes(body.webdav_upload_mode)) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, `WebDAV上传模式无效，有效值为: ${validModes.join(", ")}`), ApiStatus.BAD_REQUEST);
       }

@@ -8,6 +8,8 @@ import { validateAdminToken } from "./adminService.js";
 import { checkAndDeleteExpiredApiKey } from "./apiKeyService.js";
 import { verifyPassword } from "../utils/crypto.js";
 import { HTTPException } from "hono/http-exception";
+import { RepositoryFactory } from "../repositories/index.js";
+import { PermissionUtils } from "../utils/permissionUtils.js";
 
 /**
  * 权限类型枚举
@@ -164,8 +166,10 @@ export class AuthService {
       // 情况1: 管理员登录
       try {
         console.log(`WebDAV认证: 开始验证管理员用户凭证，用户名: ${username}`);
-        // 查询是否存在具有匹配用户名的管理员
-        const admin = await this.db.prepare(`SELECT id, username, password FROM ${DbTables.ADMINS} WHERE username = ?`).bind(username).first();
+        // 使用 Repository 查询管理员
+        const repositoryFactory = new RepositoryFactory(this.db);
+        const adminRepository = repositoryFactory.getAdminRepository();
+        const admin = await adminRepository.findByUsername(username);
 
         if (admin) {
           console.log("WebDAV认证: 找到管理员账户，开始验证密码");
@@ -204,15 +208,10 @@ export class AuthService {
 
       // 情况2: API密钥用户登录 (密钥值为用户名和密码)
       try {
-        // 查询是否存在对应的API密钥，获取完整信息
-        const keyRecord = await this.db
-          .prepare(
-            `SELECT id, key, name, basic_path, text_permission, file_permission, mount_permission, expires_at
-             FROM ${DbTables.API_KEYS}
-             WHERE key = ?`
-          )
-          .bind(username)
-          .first();
+        // 使用 Repository 查询API密钥
+        const repositoryFactory = new RepositoryFactory(this.db);
+        const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+        const keyRecord = await apiKeyRepository.findByKey(username);
 
         if (keyRecord) {
           // 检查mount_permission
@@ -227,14 +226,7 @@ export class AuthService {
               }
 
               // 更新最后使用时间
-              await this.db
-                .prepare(
-                  `UPDATE ${DbTables.API_KEYS}
-                   SET last_used = CURRENT_TIMESTAMP
-                   WHERE id = ?`
-                )
-                .bind(keyRecord.id)
-                .run();
+              await apiKeyRepository.updateLastUsed(keyRecord.id);
 
               // 构建权限对象
               const permissions = {
@@ -279,15 +271,11 @@ export class AuthService {
    */
   async validateApiKeyAuth(apiKey) {
     try {
-      // 查询API密钥记录
-      const keyRecord = await this.db
-        .prepare(
-          `SELECT id, name, text_permission, file_permission, mount_permission, basic_path, expires_at
-           FROM ${DbTables.API_KEYS}
-           WHERE key = ?`
-        )
-        .bind(apiKey)
-        .first();
+      // 使用 Repository 查询API密钥记录
+      const repositoryFactory = new RepositoryFactory(this.db);
+      const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+
+      const keyRecord = await apiKeyRepository.findByKey(apiKey);
 
       if (!keyRecord) {
         return new AuthResult();
@@ -299,14 +287,7 @@ export class AuthService {
       }
 
       // 更新最后使用时间
-      await this.db
-        .prepare(
-          `UPDATE ${DbTables.API_KEYS}
-           SET last_used = CURRENT_TIMESTAMP
-           WHERE id = ?`
-        )
-        .bind(keyRecord.id)
-        .run();
+      await apiKeyRepository.updateLastUsed(keyRecord.id);
 
       // 构建权限对象
       const permissions = {
@@ -396,8 +377,7 @@ export class AuthService {
     if (authResult.authType === AuthType.API_KEY) {
       const basicPath = authResult.basicPath || "/";
 
-      // 直接导入PermissionUtils并使用其静态方法
-      const { PermissionUtils } = require("../utils/permissionUtils.js");
+      // 使用已导入的PermissionUtils
       return PermissionUtils.checkPathPermission(basicPath, requestPath);
     }
 
