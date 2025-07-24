@@ -1,6 +1,6 @@
 import { DbTables } from "../constants/index.js";
 import { ApiStatus } from "../constants/index.js";
-import { createErrorResponse, generateFileId, generateShortId, getSafeFileName, getFileNameAndExt, formatFileSize } from "../utils/common.js";
+import { createErrorResponse, generateFileId, generateShortId, getSafeFileName, getFileNameAndExt, formatFileSize, generateUniqueFileSlug } from "../utils/common.js";
 import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
 import { generatePresignedPutUrl, buildS3Url, deleteFileFromS3, generatePresignedUrl, createS3Client } from "../utils/s3Utils.js";
 import { baseAuthMiddleware, createFlexiblePermissionMiddleware, customAuthMiddleware } from "../middlewares/permissionMiddleware.js";
@@ -10,61 +10,12 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { S3ProviderTypes } from "../constants/index.js";
 import { ConfiguredRetryStrategy } from "@smithy/util-retry";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
-import { normalizeS3SubPath } from "../storage/drivers/s3/utils/S3PathUtils.js";
 import { updateParentDirectoriesModifiedTimeHelper } from "../storage/drivers/s3/utils/S3DirectoryUtils.js";
 import { RepositoryFactory } from "../repositories/index.js";
+import { FileShareService } from "../services/FileShareService.js";
 
 // 默认最大上传限制（MB）
 const DEFAULT_MAX_UPLOAD_SIZE_MB = 100;
-
-/**
- * 生成唯一的文件slug
- * @param {D1Database} db - D1数据库实例
- * @param {string} customSlug - 自定义slug
- * @param {boolean} override - 是否覆盖已存在的slug
- * @returns {Promise<string>} 生成的唯一slug
- */
-async function generateUniqueFileSlug(db, customSlug = null, override = false) {
-  // 如果提供了自定义slug，验证其格式并检查是否已存在
-  if (customSlug) {
-    // 验证slug格式：只允许字母、数字、横杠和下划线
-    const slugFormatRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!slugFormatRegex.test(customSlug)) {
-      throw new Error("链接后缀格式无效，只能使用字母、数字、下划线和横杠");
-    }
-
-    // 检查slug是否已存在
-    const repositoryFactory = new RepositoryFactory(db);
-    const fileRepository = repositoryFactory.getFileRepository();
-    const existingFile = await fileRepository.findBySlug(customSlug);
-
-    // 如果存在并且不覆盖，抛出错误；否则允许使用
-    if (existingFile && !override) {
-      throw new Error("链接后缀已被占用，请使用其他链接后缀");
-    } else if (existingFile && override) {
-      console.log(`允许覆盖已存在的链接后缀: ${customSlug}`);
-    }
-
-    return customSlug;
-  }
-
-  // 生成随机slug (6个字符)
-  let attempts = 0;
-  const maxAttempts = 10;
-  while (attempts < maxAttempts) {
-    const randomSlug = generateShortId();
-
-    // 检查是否已存在
-    const existingFile = await fileRepository.findBySlug(randomSlug);
-    if (!existingFile) {
-      return randomSlug;
-    }
-
-    attempts++;
-  }
-
-  throw new Error("无法生成唯一链接后缀，请稍后再试");
-}
 
 // 创建文件权限中间件（管理员或API密钥文件权限）
 const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
@@ -99,85 +50,22 @@ export function registerS3UploadRoutes(app) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "必须提供 filename"), ApiStatus.BAD_REQUEST);
       }
 
-      // 获取系统最大上传限制
-      const repositoryFactory = new RepositoryFactory(db);
-      const systemRepository = repositoryFactory.getSystemRepository();
-      const maxUploadSizeResult = await systemRepository.getSetting("max_upload_size");
-
-      const maxUploadSizeMB = maxUploadSizeResult ? parseInt(maxUploadSizeResult.value) : DEFAULT_MAX_UPLOAD_SIZE_MB;
-      const maxUploadSizeBytes = maxUploadSizeMB * 1024 * 1024;
-
-      // 如果请求中包含了文件大小，则检查大小是否超过限制
-      if (body.size && body.size > maxUploadSizeBytes) {
-        return c.json(
-          createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(body.size)}`),
-          ApiStatus.BAD_REQUEST
-        );
-      }
-
-      // 获取S3配置
-      const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
-      const fileRepository = repositoryFactory.getFileRepository();
-      const s3Config = await s3ConfigRepository.findById(body.s3_config_id);
-
-      if (!s3Config) {
-        return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "指定的S3配置不存在"), ApiStatus.NOT_FOUND);
-      }
-
-      // 检查存储空间是否足够（在预签名阶段进行检查）
-      if (body.size && s3Config.total_storage_bytes !== null) {
-        // 获取当前存储桶已使用的总容量
-        const usageResult = await fileRepository.getTotalSize({ s3_config_id: body.s3_config_id });
-
-        const currentUsage = usageResult || 0;
-        const fileSize = parseInt(body.size);
-
-        // 计算上传后的总使用量
-        const totalAfterUpload = currentUsage + fileSize;
-
-        // 如果上传后会超出总容量限制，则返回错误
-        if (totalAfterUpload > s3Config.total_storage_bytes) {
-          const remainingSpace = Math.max(0, s3Config.total_storage_bytes - currentUsage);
-          const formattedRemaining = formatFileSize(remainingSpace);
-          const formattedFileSize = formatFileSize(fileSize);
-          const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
-
-          return c.json(
-            createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
-            ApiStatus.BAD_REQUEST
-          );
-        }
-      }
-
-      // 如果是管理员授权，确认配置属于该管理员
-      if (isAdmin && s3Config.admin_id !== userId) {
-        return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "您无权使用此S3配置"), ApiStatus.FORBIDDEN);
-      }
-
-      // 生成文件ID
-      const fileId = generateFileId();
-
-      // 生成slug (不冲突的唯一短链接)
-      let slug;
-      try {
-        slug = await generateUniqueFileSlug(db, body.slug, body.override === "true");
-      } catch (error) {
-        // 如果是slug冲突，返回HTTP 409状态码
-        if (error.message.includes("链接后缀已被占用")) {
-          return c.json(createErrorResponse(ApiStatus.CONFLICT, error.message), ApiStatus.CONFLICT);
-        }
-        throw error; // 其他错误继续抛出
-      }
-
-      // 如果启用了覆盖并且找到了已存在的slug，删除旧文件
+      // 处理文件覆盖逻辑（从原s3UploadRoutes.js第127-166行提取）
       if (body.override === "true" && body.slug) {
+        const repositoryFactory = new RepositoryFactory(db);
+        const fileRepository = repositoryFactory.getFileRepository();
+        const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+
         const existingFile = await fileRepository.findBySlug(body.slug);
         if (existingFile) {
           console.log(`覆盖模式：删除已存在的文件记录 Slug: ${body.slug}`);
 
           try {
-            // 获取S3配置以便删除实际文件
-            const s3Config = await s3ConfigRepository.findById(existingFile.s3_config_id);
+            // 获取S3配置以便删除实际文件（仅对S3存储类型）
+            let s3Config = null;
+            if (existingFile.storage_type === "S3") {
+              s3Config = await s3ConfigRepository.findById(existingFile.storage_config_id);
+            }
 
             // 如果找到S3配置，先尝试删除S3存储中的实际文件
             if (s3Config) {
@@ -196,8 +84,10 @@ export function registerS3UploadRoutes(app) {
             // 删除关联的密码记录（如果有）
             await fileRepository.deleteFilePasswordRecord(existingFile.id);
 
-            // 清除与文件相关的缓存 - 使用统一的clearCache函数
-            await clearCache({ db, s3ConfigId: existingFile.s3_config_id });
+            // 清除与文件相关的缓存 - 使用统一的clearCache函数（仅对S3存储类型）
+            if (existingFile.storage_type === "S3") {
+              await clearCache({ db, s3ConfigId: existingFile.storage_config_id });
+            }
           } catch (deleteError) {
             console.error(`删除旧文件记录时出错: ${deleteError.message}`);
             // 继续流程，不中断上传
@@ -205,88 +95,26 @@ export function registerS3UploadRoutes(app) {
         }
       }
 
-      // 处理文件路径
-      let customPath = body.path || "";
+      // 使用FileShareService - 业务服务层处理所有业务逻辑
+      const shareService = new FileShareService(db, c.env.ENCRYPTION_SECRET || "default-encryption-key");
 
-      // 如果提供了自定义路径，确保它作为目录路径处理（以斜杠结尾）
-      if (customPath && customPath.trim() !== "") {
-        customPath = customPath.trim();
-        if (!customPath.endsWith("/")) {
-          customPath += "/";
-        }
-      }
-
-      // 处理文件名
-      const { name: fileName, ext: fileExt } = getFileNameAndExt(body.filename);
-      const safeFileName = getSafeFileName(fileName).substring(0, 50); // 限制长度
-
-      // 生成短ID
-      const shortId = generateShortId();
-
-      // 组合最终路径
-      let storagePath;
-      if (authType === "apikey") {
-        // 对于API密钥用户，需要检查权限并从basic_path中提取实际的存储路径
-        const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
-        if (apiKeyInfo && apiKeyInfo.basicPath && apiKeyInfo.basicPath !== "/") {
-          // 对于存储操作，只检查S3配置的公开性，不检查挂载点权限
-          const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
-          storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
-        } else {
-          // 如果没有basic_path，使用默认文件夹
-          const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
-          storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
-        }
-      } else {
-        // 对于管理员用户，使用默认文件夹
-        const folderPath = s3Config.default_folder ? (s3Config.default_folder.endsWith("/") ? s3Config.default_folder : s3Config.default_folder + "/") : "";
-        storagePath = folderPath + customPath + shortId + "-" + safeFileName + fileExt;
-      }
-
-      // 统一从文件名推断MIME类型，不依赖前端传来的mimetype
-      const mimetype = getMimeTypeFromFilename(body.filename);
-      console.log(`S3预签名上传：从文件名[${body.filename}]推断MIME类型: ${mimetype}`);
-
-      // 获取加密密钥
-      const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
-
-      // 生成预签名URL，使用S3配置的默认时效
-      const upload_url = await generatePresignedPutUrl(s3Config, storagePath, mimetype, encryptionSecret);
-
-      // 构建完整S3 URL
-      const s3_url = buildS3Url(s3Config, storagePath);
-
-      // 创建文件记录
-      const fileData = {
-        id: fileId,
-        slug: slug,
-        filename: body.filename,
-        storage_path: storagePath,
-        s3_url: s3_url,
-        s3_config_id: body.s3_config_id,
-        mimetype: mimetype,
-        size: 0, // 初始大小为0，在上传完成后更新
-        etag: null, // 初始ETag为null，在上传完成后更新
-        created_by: authType === "admin" ? userId : authType === "apikey" ? `apikey:${userId}` : null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      await fileRepository.createFile(fileData);
+      const result = await shareService.createPresignedUpload(body.s3_config_id, body.filename, userId, authType, {
+        fileSize: body.size,
+        slug: body.slug,
+        override: body.override,
+        customPath: body.path,
+        remark: body.remark,
+        password: body.password,
+        expires_in: body.expires_in,
+        max_views: body.max_views,
+        use_proxy: body.use_proxy,
+      });
 
       // 返回预签名URL和文件信息
       return c.json({
         code: ApiStatus.SUCCESS,
         message: "获取预签名URL成功",
-        data: {
-          file_id: fileId,
-          upload_url,
-          storage_path: storagePath,
-          s3_url,
-          slug,
-          provider_type: s3Config.provider_type, // 添加提供商类型，便于前端适配不同S3服务
-          contentType: mimetype, // 添加后端推断的MIME类型，供前端使用
-        },
+        data: result,
         success: true,
       });
     } catch (error) {
@@ -318,161 +146,39 @@ export function registerS3UploadRoutes(app) {
         console.warn(`文件提交时未提供ETag: ${body.file_id}，可能是由于CORS限制导致前端无法获取ETag响应头`);
       }
 
-      // 初始化Repository
-      const repositoryFactory = new RepositoryFactory(db);
-      const fileRepository = repositoryFactory.getFileRepository();
-      const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
+      // 使用FileShareService - 业务服务层处理所有业务逻辑
+      const shareService = new FileShareService(db, c.env.ENCRYPTION_SECRET || "default-encryption-key");
 
-      // 查询待提交的文件信息
-      const file = await fileRepository.findById(body.file_id);
+      const result = await shareService.commitUpload(
+        body.file_id,
+        {
+          size: body.size,
+          etag: body.etag,
+        },
+        userId,
+        authType
+      );
 
-      if (!file) {
-        return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
+      // 注意：业务参数（password, remark, expires_in等）应该在presign阶段处理
+      // commit阶段只负责更新上传结果（size, etag）
+      // 如果前端在commit阶段传递了这些参数，记录警告但不处理
+      if (body.password || body.expires_in || body.max_views || body.remark) {
+        console.warn(
+          `commit阶段收到业务参数，这些参数应该在presign阶段处理: ${JSON.stringify({
+            hasPassword: !!body.password,
+            hasExpiresIn: !!body.expires_in,
+            hasMaxViews: !!body.max_views,
+            hasRemark: !!body.remark,
+          })}`
+        );
       }
-
-      // 验证权限
-      if (isAdmin && file.created_by && file.created_by !== userId) {
-        return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "您无权更新此文件"), ApiStatus.FORBIDDEN);
-      }
-
-      if (authType === "apikey" && file.created_by && file.created_by !== `apikey:${userId}`) {
-        return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "此API密钥无权更新此文件"), ApiStatus.FORBIDDEN);
-      }
-
-      // 获取S3配置
-      let s3Config;
-      if (isAdmin) {
-        s3Config = await s3ConfigRepository.findByIdAndAdmin(file.s3_config_id, userId);
-      } else {
-        s3Config = await s3ConfigRepository.findPublicById(file.s3_config_id);
-      }
-
-      if (!s3Config) {
-        return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "无效的S3配置ID或无权访问该配置"), ApiStatus.BAD_REQUEST);
-      }
-
-      // 检查存储桶容量限制
-      if (s3Config.total_storage_bytes !== null) {
-        // 获取当前存储桶已使用的总容量（不包括当前待提交的文件）
-        const usageResult = await fileRepository.getTotalSizeByS3ConfigExcludingFile(file.s3_config_id, file.id);
-
-        const currentUsage = usageResult?.total_used || 0;
-        const fileSize = parseInt(body.size || 0);
-
-        // 计算提交后的总使用量
-        const totalAfterCommit = currentUsage + fileSize;
-
-        // 如果提交后会超出总容量限制，则返回错误并删除临时文件
-        if (totalAfterCommit > s3Config.total_storage_bytes) {
-          // 删除临时文件
-          try {
-            const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
-            await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
-          } catch (deleteError) {
-            console.error("删除超出容量限制的临时文件失败:", deleteError);
-          }
-
-          // 删除文件记录
-          await fileRepository.deleteById(file.id);
-
-          const remainingSpace = Math.max(0, s3Config.total_storage_bytes - currentUsage);
-          const formattedRemaining = formatFileSize(remainingSpace);
-          const formattedFileSize = formatFileSize(fileSize);
-          const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
-
-          return c.json(
-            createErrorResponse(
-              ApiStatus.BAD_REQUEST,
-              `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。文件已被删除。`
-            ),
-            ApiStatus.BAD_REQUEST
-          );
-        }
-      }
-
-      // 处理元数据字段
-      // 处理密码
-      let passwordHash = null;
-      if (body.password) {
-        passwordHash = await hashPassword(body.password);
-      }
-
-      // 处理过期时间
-      let expiresAt = null;
-      if (body.expires_in) {
-        const expiresInHours = parseInt(body.expires_in);
-        if (!isNaN(expiresInHours) && expiresInHours > 0) {
-          const expiresDate = new Date();
-          expiresDate.setHours(expiresDate.getHours() + expiresInHours);
-          expiresAt = expiresDate.toISOString();
-        }
-      }
-
-      // 处理备注字段
-      const remark = body.remark || null;
-
-      // 处理最大查看次数
-      const maxViews = body.max_views ? parseInt(body.max_views) : null;
-
-      // 处理文件大小
-      let fileSize = null;
-      if (body.size) {
-        fileSize = parseInt(body.size);
-        if (isNaN(fileSize) || fileSize < 0) {
-          fileSize = 0; // 防止无效值
-        }
-      }
-
-      // 更新ETag和创建者
-      const creator = authType === "admin" ? userId : `apikey:${userId}`;
-      // 移除 getLocalTimeString 使用，改用 CURRENT_TIMESTAMP
-
-      // 更新文件记录
-      const updateData = {
-        etag: body.etag || null,
-        created_by: creator,
-        remark: remark,
-        password: passwordHash,
-        expires_at: expiresAt,
-        max_views: maxViews,
-        updated_at: new Date().toISOString(),
-      };
-
-      // 如果提供了文件大小，更新文件大小
-      if (fileSize !== null) {
-        updateData.size = fileSize;
-      }
-
-      await fileRepository.updateFile(body.file_id, updateData);
-
-      // 处理明文密码保存
-      if (body.password) {
-        // 使用已有的 fileRepository 处理密码记录
-        await fileRepository.upsertFilePasswordRecord(body.file_id, body.password);
-      }
-
-      // 更新父目录的修改时间
-      const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
-      await updateParentDirectoriesModifiedTimeHelper(s3Config, file.storage_path, encryptionSecret);
-
-      // 清除与文件相关的缓存 - 使用统一的clearCache函数
-      await clearCache({ db, s3ConfigId: file.s3_config_id });
-
-      // 获取更新后的文件记录
-      const updatedFile = await fileRepository.findById(body.file_id);
 
       // 返回成功响应
       return c.json({
         code: ApiStatus.SUCCESS,
         message: "文件提交成功",
-        data: {
-          ...updatedFile,
-          hasPassword: !!passwordHash,
-          expiresAt: expiresAt,
-          maxViews: maxViews,
-          url: `/file/${updatedFile.slug}`,
-        },
-        success: true, // 添加兼容字段
+        data: result,
+        success: true,
       });
     } catch (error) {
       console.error("提交文件错误:", error);
@@ -603,7 +309,7 @@ export function registerS3UploadRoutes(app) {
       // 检查存储空间是否足够
       if (s3Config.total_storage_bytes !== null) {
         // 获取当前存储桶已使用的总容量
-        const usageResult = await db.prepare(`SELECT SUM(size) as total_used FROM ${DbTables.FILES} WHERE s3_config_id = ?`).bind(s3ConfigId).first();
+        const usageResult = await db.prepare(`SELECT SUM(size) as total_used FROM ${DbTables.FILES} WHERE storage_type = 'S3' AND storage_config_id = ?`).bind(s3ConfigId).first();
 
         const currentUsage = usageResult?.total_used || 0;
 
@@ -675,9 +381,12 @@ export function registerS3UploadRoutes(app) {
           console.log(`覆盖模式：删除已存在的文件记录  Slug: ${customSlug}`);
 
           try {
-            // 获取S3配置以便删除实际文件
+            // 获取S3配置以便删除实际文件（仅对S3存储类型）
             const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
-            const s3Config = await s3ConfigRepository.findById(existingFile.s3_config_id);
+            let s3Config = null;
+            if (existingFile.storage_type === "S3") {
+              s3Config = await s3ConfigRepository.findById(existingFile.storage_config_id);
+            }
 
             // 如果找到S3配置，先尝试删除S3存储中的实际文件
             if (s3Config) {
@@ -696,8 +405,10 @@ export function registerS3UploadRoutes(app) {
             // 删除关联的密码记录（如果有）
             await fileRepository.deleteFilePasswordRecord(existingFile.id);
 
-            // 清除与文件相关的缓存 - 使用统一的clearCache函数
-            await clearCache({ db, s3ConfigId: existingFile.s3_config_id });
+            // 清除与文件相关的缓存 - 使用统一的clearCache函数（仅对S3存储类型）
+            if (existingFile.storage_type === "S3") {
+              await clearCache({ db, s3ConfigId: existingFile.storage_config_id });
+            }
           } catch (deleteError) {
             console.error(`删除旧文件记录时出错: ${deleteError.message}`);
             // 继续流程，不中断上传
@@ -873,18 +584,27 @@ export function registerS3UploadRoutes(app) {
         id: fileId,
         slug: slug,
         filename: filename,
+
+        // 存储引用（支持多存储类型）
+        storage_config_id: s3ConfigId,
+        storage_type: "S3",
         storage_path: storagePath,
-        s3_url: s3Url,
-        s3_config_id: s3ConfigId,
+        file_path: null, // 上传页面创建的分享没有文件系统路径
+
+        // 文件元数据
         mimetype: contentType,
         size: fileSize,
         etag: etag,
-        created_by: isAdmin ? userId : `apikey:${userId}`,
+
+        // 分享控制
         remark: remark,
+        password: passwordHash,
         expires_at: expiresAt,
         max_views: maxViews > 0 ? maxViews : null,
         use_proxy: useProxy,
-        password: passwordHash,
+
+        // 元数据
+        created_by: isAdmin ? userId : `apikey:${userId}`,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };

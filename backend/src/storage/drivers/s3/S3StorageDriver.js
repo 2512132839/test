@@ -1,6 +1,6 @@
 /**
  * S3存储驱动实现协调各个操作模块提供统一的存储接口
- * 实现所有能力接口，充分利用S3的强大功能
+ * 实现所有能力接口
  */
 
 import { BaseDriver } from "../../interfaces/capabilities/BaseDriver.js";
@@ -18,6 +18,8 @@ import { S3DirectoryOperations } from "./operations/S3DirectoryOperations.js";
 import { S3BatchOperations } from "./operations/S3BatchOperations.js";
 import { S3UploadOperations } from "./operations/S3UploadOperations.js";
 import { S3BackendMultipartOperations } from "./operations/S3BackendMultipartOperations.js";
+import { S3SearchOperations } from "./operations/S3SearchOperations.js";
+
 export class S3StorageDriver extends BaseDriver {
   /**
    * 构造函数
@@ -46,6 +48,7 @@ export class S3StorageDriver extends BaseDriver {
     this.batchOps = null;
     this.uploadOps = null;
     this.backendMultipartOps = null;
+    this.searchOps = null;
   }
 
   /**
@@ -63,6 +66,7 @@ export class S3StorageDriver extends BaseDriver {
       this.batchOps = new S3BatchOperations(this.s3Client, this.config, this.encryptionSecret);
       this.uploadOps = new S3UploadOperations(this.s3Client, this.config, this.encryptionSecret);
       this.backendMultipartOps = new S3BackendMultipartOperations(this.s3Client, this.config, this.encryptionSecret);
+      this.searchOps = new S3SearchOperations(this.s3Client, this.config, this.encryptionSecret);
 
       this.initialized = true;
       console.log(`S3存储驱动初始化成功: ${this.config.name} (${this.config.provider_type})`);
@@ -408,6 +412,23 @@ export class S3StorageDriver extends BaseDriver {
 
     // 委托给文件操作模块检查存在性
     return await this.fileOps.exists(s3SubPath);
+  }
+
+  /**
+   * 搜索文件
+   * @param {string} query - 搜索查询
+   * @param {Object} options - 搜索选项
+   * @param {Object} options.mount - 挂载点对象
+   * @param {string} options.searchPath - 搜索路径范围
+   * @param {number} options.maxResults - 最大结果数量
+   * @param {D1Database} options.db - 数据库实例
+   * @returns {Promise<Array>} 搜索结果数组
+   */
+  async search(query, options = {}) {
+    this._ensureInitialized();
+
+    // 委托给搜索操作模块
+    return await this.searchOps.searchInMount(query, options);
   }
 
   /**

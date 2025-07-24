@@ -8,7 +8,7 @@
  */
 export const PROXY_CONFIG = {
   // 代理路由前缀
-  ROUTE_PREFIX: "/p",
+  ROUTE_PREFIX: "/api/p",
   
   // 代理用户类型标识
   USER_TYPE: "proxy",

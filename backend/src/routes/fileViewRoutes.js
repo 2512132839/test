@@ -97,12 +97,12 @@ async function checkAndDeleteExpiredFile(db, file, encryptionSecret) {
 
     // 如果已过期，尝试删除
     if (isExpired) {
-      // 如果有S3配置，尝试从S3删除
-      if (file.s3_config_id && file.storage_path) {
+      // 如果是S3存储类型，尝试从S3删除
+      if (file.storage_type === "S3" && file.storage_config_id && file.storage_path) {
         const repositoryFactory = new RepositoryFactory(db);
         const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
 
-        const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(file.s3_config_id, null)) || (await s3ConfigRepository.findById(file.s3_config_id));
+        const s3Config = (await s3ConfigRepository.findByIdAndAdminWithSecrets(file.storage_config_id, null)) || (await s3ConfigRepository.findById(file.storage_config_id));
         if (s3Config) {
           try {
             await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
@@ -143,8 +143,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   await fileRepository.incrementViews(file.id);
 
-  // 重新获取更新后的文件信息（包含S3配置）
-  const updatedFile = await fileRepository.findByIdWithS3Config(file.id);
+  // 重新获取更新后的文件信息（包含存储配置）
+  const updatedFile = await fileRepository.findByIdWithStorageConfig(file.id);
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -234,15 +234,20 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       return new Response("文件已达到最大查看次数", { status: 410 });
     }
 
-    // 如果没有S3配置或存储路径，则返回404
-    if (!result.file.s3_config_id || !result.file.storage_path) {
+    // 检查文件存储信息
+    if (!result.file.storage_config_id || !result.file.storage_path || !result.file.storage_type) {
       return new Response("文件存储信息不完整", { status: 404 });
+    }
+
+    // 根据存储类型获取配置
+    if (result.file.storage_type !== "S3") {
+      return new Response("暂不支持此存储类型的预览", { status: 501 });
     }
 
     // 获取S3配置
     const repositoryFactory = new RepositoryFactory(db);
     const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
-    const s3Config = await s3ConfigRepository.findById(result.file.s3_config_id);
+    const s3Config = await s3ConfigRepository.findById(result.file.storage_config_id);
     if (!s3Config) {
       return new Response("无法获取存储配置信息", { status: 500 });
     }
@@ -446,15 +451,20 @@ export function registerFileViewRoutes(app) {
         return c.json({ error: "不是Office文件类型" }, 400);
       }
 
-      // 如果没有S3配置或存储路径，则返回404
-      if (!file.s3_config_id || !file.storage_path) {
+      // 检查文件存储信息
+      if (!file.storage_config_id || !file.storage_path || !file.storage_type) {
         return c.json({ error: "文件存储信息不完整" }, 404);
+      }
+
+      // 检查存储类型
+      if (file.storage_type !== "S3") {
+        return c.json({ error: "暂不支持此存储类型的Office预览" }, 501);
       }
 
       // 获取S3配置
       const repositoryFactory = new RepositoryFactory(db);
       const s3ConfigRepository = repositoryFactory.getS3ConfigRepository();
-      const s3Config = await s3ConfigRepository.findById(file.s3_config_id);
+      const s3Config = await s3ConfigRepository.findById(file.storage_config_id);
       if (!s3Config) {
         return c.json({ error: "无法获取存储配置信息" }, 500);
       }

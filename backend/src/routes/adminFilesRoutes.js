@@ -29,6 +29,8 @@ export function registerAdminFilesRoutes(app) {
       const offset = parseInt(c.req.query("offset") || "0");
       const createdBy = c.req.query("created_by");
       const s3ConfigId = c.req.query("s3_config_id");
+      const storageConfigId = c.req.query("storage_config_id");
+      const storageType = c.req.query("storage_type");
 
       // 构建查询选项
       const options = {
@@ -101,8 +103,8 @@ export function registerAdminFilesRoutes(app) {
 
     for (const id of ids) {
       try {
-        // 使用 FileRepository 获取文件信息（包含 S3 配置）
-        const file = await fileRepository.findByIdWithS3Config(id);
+        // 使用 FileRepository 获取文件信息（包含存储配置）
+        const file = await fileRepository.findByIdWithStorageConfig(id);
 
         if (!file) {
           result.failed.push({
@@ -112,9 +114,9 @@ export function registerAdminFilesRoutes(app) {
           continue;
         }
 
-        // 收集S3配置ID用于缓存清理
-        if (file.s3_config_id) {
-          s3ConfigIds.add(file.s3_config_id);
+        // 收集S3配置ID用于缓存清理（仅对S3存储类型）
+        if (file.storage_type === "S3" && file.storage_config_id) {
+          s3ConfigIds.add(file.storage_config_id);
         }
 
         // 尝试从S3中删除文件

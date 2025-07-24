@@ -292,9 +292,9 @@ export function registerUserFilesRoutes(app) {
           continue;
         }
 
-        // 收集S3配置ID用于缓存清理
-        if (file.s3_config_id) {
-          s3ConfigIds.add(file.s3_config_id);
+        // 收集S3配置ID用于缓存清理（仅对S3存储类型）
+        if (file.storage_type === "S3" && file.storage_config_id) {
+          s3ConfigIds.add(file.storage_config_id);
         }
 
         // 尝试从S3中删除文件

@@ -78,12 +78,12 @@
               <dl class="grid grid-cols-3 gap-x-4 gap-y-2 text-sm">
                 <dt :class="darkMode ? 'text-gray-400' : 'text-gray-500'">存储配置</dt>
                 <dd class="col-span-2" :class="darkMode ? 'text-white' : 'text-gray-900'">
-                  {{ file.s3_config_name || "默认存储" }}
+                  {{ file.storage_config_name || "默认存储" }}
                 </dd>
 
                 <dt :class="darkMode ? 'text-gray-400' : 'text-gray-500'">提供商</dt>
                 <dd class="col-span-2" :class="darkMode ? 'text-white' : 'text-gray-900'">
-                  {{ file.s3_provider_type || "未知" }}
+                  {{ file.storage_provider_type || "未知" }}
                 </dd>
 
                 <dt :class="darkMode ? 'text-gray-400' : 'text-gray-500'">存储路径</dt>
@@ -116,9 +116,9 @@
             </div>
 
             <button
-              @click="$emit('close')"
-              class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+                @click="$emit('close')"
+                class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
             >
               关闭
             </button>

@@ -226,12 +226,12 @@ export class SystemRepository extends BaseRepository {
   async getStorageStats() {
     // 获取所有S3配置的使用情况
     const s3ConfigsQuery = `
-      SELECT 
+      SELECT
         s.id, s.name, s.provider_type, s.total_storage_bytes,
         COUNT(f.id) as file_count,
         COALESCE(SUM(f.size), 0) as total_size
       FROM ${DbTables.S3_CONFIGS} s
-      LEFT JOIN ${DbTables.FILES} f ON s.id = f.s3_config_id
+      LEFT JOIN ${DbTables.FILES} f ON s.id = f.storage_config_id AND f.storage_type = 'S3'
       GROUP BY s.id, s.name, s.provider_type, s.total_storage_bytes
       ORDER BY s.name ASC
     `;

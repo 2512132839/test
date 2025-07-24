@@ -245,9 +245,16 @@ export class S3UploadOperations {
 
         // 构建最终的S3路径
         let finalS3Path;
-        if (s3SubPath && !s3SubPath.endsWith("/")) {
+
+        // 检查s3SubPath是否已经包含完整的文件路径
+        if (s3SubPath && s3SubPath.endsWith(fileName)) {
+          // s3SubPath已经是完整的文件路径，直接使用
+          finalS3Path = s3SubPath;
+        } else if (s3SubPath && !s3SubPath.endsWith("/")) {
+          // s3SubPath是目录路径，需要拼接文件名
           finalS3Path = s3SubPath + "/" + fileName;
         } else {
+          // s3SubPath为空或以斜杠结尾，直接拼接文件名
           finalS3Path = s3SubPath + fileName;
         }
 
@@ -323,9 +330,16 @@ export class S3UploadOperations {
       async () => {
         // 构建最终的S3路径
         let finalS3Path;
-        if (s3SubPath && !s3SubPath.endsWith("/")) {
+
+        // 检查s3SubPath是否已经包含完整的文件路径
+        if (s3SubPath && s3SubPath.endsWith(fileName)) {
+          // s3SubPath已经是完整的文件路径，直接使用
+          finalS3Path = s3SubPath;
+        } else if (s3SubPath && !s3SubPath.endsWith("/")) {
+          // s3SubPath是目录路径，需要拼接文件名
           finalS3Path = s3SubPath + "/" + fileName;
         } else {
+          // s3SubPath为空或以斜杠结尾，直接拼接文件名
           finalS3Path = s3SubPath + fileName;
         }
 

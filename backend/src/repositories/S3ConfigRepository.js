@@ -313,7 +313,10 @@ export class S3ConfigRepository extends BaseRepository {
     // 为每个配置查询使用情况
     const result = [];
     for (const config of configs) {
-      const usage = await this.queryFirst(`SELECT COUNT(*) as file_count, SUM(size) as total_size FROM ${DbTables.FILES} WHERE s3_config_id = ?`, [config.id]);
+      const usage = await this.queryFirst(`SELECT COUNT(*) as file_count, SUM(size) as total_size FROM ${DbTables.FILES} WHERE storage_type = ? AND storage_config_id = ?`, [
+        "S3",
+        config.id,
+      ]);
 
       result.push({
         ...config,

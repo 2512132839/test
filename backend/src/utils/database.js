@@ -129,30 +129,38 @@ export async function initDatabase(db) {
     )
     .run();
 
-  // 创建files表 - 存储已上传文件的元数据
+  // 创建files表 - 存储已上传文件的元数据（支持多存储类型）
   await db
     .prepare(
       `
       CREATE TABLE IF NOT EXISTS ${DbTables.FILES} (
         id TEXT PRIMARY KEY,
+        slug TEXT UNIQUE NOT NULL,
         filename TEXT NOT NULL,
+
+        -- 存储引用（支持多存储类型）
+        storage_config_id TEXT NOT NULL,
+        storage_type TEXT NOT NULL,
         storage_path TEXT NOT NULL,
-        s3_url TEXT,
+        file_path TEXT,
+
+        -- 文件元数据
         mimetype TEXT NOT NULL,
         size INTEGER NOT NULL,
-        s3_config_id TEXT NOT NULL,
-        slug TEXT UNIQUE NOT NULL,
+        etag TEXT,
+
+        -- 分享控制（保持现有功能）
         remark TEXT,
         password TEXT,
         expires_at DATETIME,
         max_views INTEGER,
         views INTEGER DEFAULT 0,
         use_proxy BOOLEAN DEFAULT 1,
-        etag TEXT,
+
+        -- 元数据
         created_by TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (s3_config_id) REFERENCES ${DbTables.S3_CONFIGS}(id) ON DELETE CASCADE
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `
     )
@@ -160,7 +168,9 @@ export async function initDatabase(db) {
 
   // 创建files表索引
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_slug ON ${DbTables.FILES}(slug)`).run();
-  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_s3_config_id ON ${DbTables.FILES}(s3_config_id)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_storage_config_id ON ${DbTables.FILES}(storage_config_id)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_storage_type ON ${DbTables.FILES}(storage_type)`).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_file_path ON ${DbTables.FILES}(file_path)`).run();
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_created_at ON ${DbTables.FILES}(created_at)`).run();
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_expires_at ON ${DbTables.FILES}(expires_at)`).run();
 
@@ -498,6 +508,157 @@ async function migrateDatabase(db, currentVersion, targetVersion) {
           console.log("将继续执行迁移过程，但请手动检查storage_mounts表结构");
         }
         break;
+
+      case 9:
+        // 版本9：为files表添加多存储类型支持字段
+        try {
+          console.log(`为${DbTables.FILES}表添加多存储类型支持字段...`);
+
+          // 检查字段是否已存在
+          const columnInfo = await db.prepare(`PRAGMA table_info(${DbTables.FILES})`).all();
+          const existingColumns = new Set(columnInfo.results.map((col) => col.name));
+
+          // 需要添加的字段
+          const fieldsToAdd = [
+            { name: "storage_config_id", sql: "storage_config_id TEXT" },
+            { name: "storage_type", sql: "storage_type TEXT" },
+            { name: "file_path", sql: "file_path TEXT" },
+          ];
+
+          // 添加缺失的字段
+          for (const field of fieldsToAdd) {
+            if (!existingColumns.has(field.name)) {
+              try {
+                await db.prepare(`ALTER TABLE ${DbTables.FILES} ADD COLUMN ${field.sql}`).run();
+                console.log(`成功添加${field.name}字段到${DbTables.FILES}表`);
+              } catch (alterError) {
+                console.error(`无法添加${field.name}字段到${DbTables.FILES}表:`, alterError);
+                console.log(`将继续执行迁移过程，但请手动检查${DbTables.FILES}表结构`);
+              }
+            } else {
+              console.log(`${DbTables.FILES}表已存在${field.name}字段，跳过添加`);
+            }
+          }
+
+          // 迁移现有数据：将s3_config_id的数据迁移到新字段
+          try {
+            console.log("开始迁移现有files表数据...");
+
+            // 更新所有有s3_config_id但没有storage_config_id的记录
+            const updateResult = await db
+              .prepare(
+                `
+              UPDATE ${DbTables.FILES}
+              SET storage_config_id = s3_config_id, storage_type = 'S3'
+              WHERE s3_config_id IS NOT NULL
+                AND (storage_config_id IS NULL OR storage_type IS NULL)
+            `
+              )
+              .run();
+
+            console.log(`成功迁移 ${updateResult.changes || 0} 条files记录`);
+
+            // 验证迁移结果
+            const unmigratedCount = await db
+              .prepare(
+                `
+              SELECT COUNT(*) as count
+              FROM ${DbTables.FILES}
+              WHERE s3_config_id IS NOT NULL
+                AND (storage_config_id IS NULL OR storage_type IS NULL)
+            `
+              )
+              .first();
+
+            if (unmigratedCount?.count > 0) {
+              console.warn(`还有 ${unmigratedCount.count} 条记录未完成迁移`);
+              console.log("由于存在未迁移记录，暂不删除s3_config_id字段");
+            } else {
+              console.log("所有files记录迁移完成");
+
+              // 数据迁移完成后，删除旧的s3_config_id字段
+              try {
+                console.log("开始删除旧的s3_config_id字段...");
+
+                // 创建新表结构（不包含s3_config_id字段）
+                await db
+                  .prepare(
+                    `
+                  CREATE TABLE ${DbTables.FILES}_new (
+                    id TEXT PRIMARY KEY,
+                    slug TEXT UNIQUE NOT NULL,
+                    filename TEXT NOT NULL,
+
+                    -- 存储引用（支持多存储类型）
+                    storage_config_id TEXT NOT NULL,
+                    storage_type TEXT NOT NULL,
+                    storage_path TEXT NOT NULL,
+                    file_path TEXT,
+
+                    -- 文件元数据
+                    mimetype TEXT NOT NULL,
+                    size INTEGER NOT NULL,
+                    etag TEXT,
+
+                    -- 分享控制（保持现有功能）
+                    remark TEXT,
+                    password TEXT,
+                    expires_at DATETIME,
+                    max_views INTEGER,
+                    views INTEGER DEFAULT 0,
+                    use_proxy BOOLEAN DEFAULT 1,
+
+                    -- 元数据
+                    created_by TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                  )
+                `
+                  )
+                  .run();
+
+                // 复制数据到新表
+                await db
+                  .prepare(
+                    `
+                  INSERT INTO ${DbTables.FILES}_new
+                  SELECT id, slug, filename, storage_config_id, storage_type, storage_path, file_path,
+                         mimetype, size, etag, remark, password, expires_at, max_views, views, use_proxy,
+                         created_by, created_at, updated_at
+                  FROM ${DbTables.FILES}
+                `
+                  )
+                  .run();
+
+                // 删除旧表
+                await db.prepare(`DROP TABLE ${DbTables.FILES}`).run();
+
+                // 重命名新表
+                await db.prepare(`ALTER TABLE ${DbTables.FILES}_new RENAME TO ${DbTables.FILES}`).run();
+
+                // 重新创建索引
+                await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_slug ON ${DbTables.FILES}(slug)`).run();
+                await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_storage_config_id ON ${DbTables.FILES}(storage_config_id)`).run();
+                await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_storage_type ON ${DbTables.FILES}(storage_type)`).run();
+                await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_file_path ON ${DbTables.FILES}(file_path)`).run();
+                await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_created_at ON ${DbTables.FILES}(created_at)`).run();
+                await db.prepare(`CREATE INDEX IF NOT EXISTS idx_files_expires_at ON ${DbTables.FILES}(expires_at)`).run();
+
+                console.log("成功删除s3_config_id字段并重建表结构");
+              } catch (dropError) {
+                console.error("删除s3_config_id字段时出错:", dropError);
+                console.log("数据迁移已完成，但旧字段删除失败，系统仍可正常工作");
+              }
+            }
+          } catch (migrationError) {
+            console.error("迁移files表数据时出错:", migrationError);
+            console.log("数据迁移失败，但表结构已更新，请手动检查数据完整性");
+          }
+        } catch (error) {
+          console.error(`版本9迁移失败:`, error);
+          console.log("将继续执行迁移过程，但请手动检查files表结构");
+        }
+        break;
     }
 
     // 记录迁移历史
@@ -616,7 +777,7 @@ export async function checkAndInitDatabase(db) {
     }
 
     // 如果要添加新表或修改现有表，请递增目标版本，修改后启动时自动更新数据库
-    const targetVersion = 8; // 目标schema版本,每次修改表结构时递增
+    const targetVersion = 9; // 目标schema版本,每次修改表结构时递增
 
     if (currentVersion < targetVersion) {
       console.log(`需要更新数据库结构，当前版本:${currentVersion}，目标版本:${targetVersion}`);

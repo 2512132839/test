@@ -8,6 +8,7 @@ import { StorageFactory } from "../factory/StorageFactory.js";
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../../constants/index.js";
 import { findMountPointByPath } from "../fs/utils/MountResolver.js";
+import { StorageConfigUtils } from "../utils/StorageConfigUtils.js";
 
 export class MountManager {
   /**
@@ -118,35 +119,7 @@ export class MountManager {
    * @returns {Promise<Object>} 存储配置
    */
   async _getStorageConfig(mount) {
-    switch (mount.storage_type) {
-      case "S3":
-        return await this._getS3Config(mount.storage_config_id);
-
-      // 未来扩展其他存储类型
-      // case "WebDAV":
-      //   return await this._getWebDAVConfig(mount.storage_config_id);
-
-      default:
-        throw new HTTPException(ApiStatus.BAD_REQUEST, {
-          message: `不支持的存储类型: ${mount.storage_type}`,
-        });
-    }
-  }
-
-  /**
-   * 获取S3配置
-   * @private
-   * @param {string} configId - 配置ID
-   * @returns {Promise<Object>} S3配置
-   */
-  async _getS3Config(configId) {
-    const config = await this.db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(configId).first();
-
-    if (!config) {
-      throw new HTTPException(ApiStatus.NOT_FOUND, { message: "S3配置不存在" });
-    }
-
-    return config;
+    return await StorageConfigUtils.getStorageConfig(this.db, mount.storage_type, mount.storage_config_id);
   }
 
   /**

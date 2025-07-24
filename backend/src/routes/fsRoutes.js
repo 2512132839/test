@@ -10,7 +10,7 @@ import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
 import { MountManager } from "../storage/managers/MountManager.js";
 import { FileSystem } from "../storage/fs/FileSystem.js";
-import { searchFiles } from "../services/searchService.js";
+
 import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
 import { PermissionUtils } from "../utils/permissionUtils.js";
@@ -1154,7 +1154,12 @@ fsRoutes.get("/api/fs/search", async (c) => {
   }
 
   try {
-    const result = await searchFiles(db, searchParams, userIdOrInfo, userType, c.env.ENCRYPTION_SECRET);
+    // 使用FileSystem统一接口进行搜索
+    const mountManager = new MountManager(db);
+    const fileSystem = new FileSystem(mountManager);
+
+    const result = await fileSystem.searchFiles(searchParams.query, searchParams, userIdOrInfo, userType);
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "搜索完成",

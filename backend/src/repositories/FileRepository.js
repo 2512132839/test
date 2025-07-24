@@ -28,22 +28,51 @@ export class FileRepository extends BaseRepository {
   }
 
   /**
-   * 根据slug查找文件并关联S3配置
+   * 根据slug查找文件并关联存储配置
    * @param {string} slug - 文件slug
-   * @returns {Promise<Object|null>} 包含S3配置的文件对象或null
+   * @returns {Promise<Object|null>} 包含存储配置的文件对象或null
    */
-  async findBySlugWithS3Config(slug) {
+  async findBySlugWithStorageConfig(slug) {
     if (!slug) return null;
 
     return await this.queryFirst(
       `
-      SELECT 
+      SELECT
         f.*,
-        s.endpoint_url, s.bucket_name, s.region, 
-        s.access_key_id, s.secret_access_key, s.path_style,
-        s.provider_type, s.name as s3_config_name
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.endpoint_url
+          ELSE NULL
+        END as endpoint_url,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.bucket_name
+          ELSE NULL
+        END as bucket_name,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.region
+          ELSE NULL
+        END as region,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.access_key_id
+          ELSE NULL
+        END as access_key_id,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.secret_access_key
+          ELSE NULL
+        END as secret_access_key,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.path_style
+          ELSE NULL
+        END as path_style,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.provider_type
+          ELSE NULL
+        END as provider_type,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.name
+          ELSE NULL
+        END as storage_config_name
       FROM ${DbTables.FILES} f
-      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
+      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.storage_type = 'S3' AND f.storage_config_id = s.id
       WHERE f.slug = ?
       `,
       [slug]
@@ -51,22 +80,51 @@ export class FileRepository extends BaseRepository {
   }
 
   /**
-   * 根据ID查找文件并关联S3配置
+   * 根据ID查找文件并关联存储配置
    * @param {string} fileId - 文件ID
-   * @returns {Promise<Object|null>} 包含S3配置的文件对象或null
+   * @returns {Promise<Object|null>} 包含存储配置的文件对象或null
    */
-  async findByIdWithS3Config(fileId) {
+  async findByIdWithStorageConfig(fileId) {
     if (!fileId) return null;
 
     return await this.queryFirst(
       `
-      SELECT 
+      SELECT
         f.*,
-        s.endpoint_url, s.bucket_name, s.region, 
-        s.access_key_id, s.secret_access_key, s.path_style,
-        s.provider_type, s.name as s3_config_name
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.endpoint_url
+          ELSE NULL
+        END as endpoint_url,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.bucket_name
+          ELSE NULL
+        END as bucket_name,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.region
+          ELSE NULL
+        END as region,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.access_key_id
+          ELSE NULL
+        END as access_key_id,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.secret_access_key
+          ELSE NULL
+        END as secret_access_key,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.path_style
+          ELSE NULL
+        END as path_style,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.provider_type
+          ELSE NULL
+        END as provider_type,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.name
+          ELSE NULL
+        END as storage_config_name
       FROM ${DbTables.FILES} f
-      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
+      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.storage_type = 'S3' AND f.storage_config_id = s.id
       WHERE f.id = ?
       `,
       [fileId]
@@ -125,16 +183,21 @@ export class FileRepository extends BaseRepository {
 
   /**
    * 根据存储路径删除文件记录
-   * @param {string} s3ConfigId - S3配置ID
+   * @param {string} storageConfigId - 存储配置ID
    * @param {string} storagePath - 存储路径
+   * @param {string} storageType - 存储类型
    * @returns {Promise<Object>} 删除结果
    */
-  async deleteByStoragePath(s3ConfigId, storagePath) {
-    if (!s3ConfigId || !storagePath) {
+  async deleteByStorageConfigPath(storageConfigId, storagePath, storageType) {
+    if (!storageConfigId || !storagePath || !storageType) {
       return { deletedCount: 0, message: "缺少必要参数" };
     }
 
-    const result = await this.execute(`DELETE FROM ${DbTables.FILES} WHERE s3_config_id = ? AND storage_path = ?`, [s3ConfigId, storagePath]);
+    const result = await this.execute(`DELETE FROM ${DbTables.FILES} WHERE storage_config_id = ? AND storage_path = ? AND storage_type = ?`, [
+      storageConfigId,
+      storagePath,
+      storageType,
+    ]);
 
     return {
       deletedCount: result.meta?.changes || 0,
@@ -143,13 +206,24 @@ export class FileRepository extends BaseRepository {
   }
 
   /**
-   * 根据S3配置ID查找文件
-   * @param {string} s3ConfigId - S3配置ID
+   * 根据存储配置ID查找文件
+   * @param {string} storageConfigId - 存储配置ID
+   * @param {string} storageType - 存储类型
    * @param {Object} options - 查询选项
    * @returns {Promise<Array>} 文件列表
    */
-  async findByS3ConfigId(s3ConfigId, options = {}) {
-    return await this.findMany(DbTables.FILES, { s3_config_id: s3ConfigId }, options);
+  async findByStorageConfigId(storageConfigId, storageType, options = {}) {
+    if (!storageType) {
+      throw new Error("存储类型参数是必需的");
+    }
+    return await this.findMany(
+      DbTables.FILES,
+      {
+        storage_config_id: storageConfigId,
+        storage_type: storageType,
+      },
+      options
+    );
   }
 
   /**
@@ -163,27 +237,15 @@ export class FileRepository extends BaseRepository {
   }
 
   /**
-   * 根据ID和创建者查找文件（包含S3配置）
+   * 根据ID和创建者查找文件
    * @param {string} fileId - 文件ID
    * @param {string} createdBy - 创建者标识
-   * @returns {Promise<Object|null>} 包含S3配置的文件对象或null
+   * @returns {Promise<Object|null>} 文件对象或null
    */
   async findByIdAndCreator(fileId, createdBy) {
     if (!fileId || !createdBy) return null;
 
-    return await this.queryFirst(
-      `
-      SELECT
-        f.*,
-        s.endpoint_url, s.bucket_name, s.region,
-        s.access_key_id, s.secret_access_key, s.path_style,
-        s.provider_type, s.name as s3_config_name
-      FROM ${DbTables.FILES} f
-      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
-      WHERE f.id = ? AND f.created_by = ?
-      `,
-      [fileId, createdBy]
-    );
+    return await this.queryFirst(`SELECT * FROM ${DbTables.FILES} WHERE id = ? AND created_by = ?`, [fileId, createdBy]);
   }
 
   /**
@@ -207,13 +269,21 @@ export class FileRepository extends BaseRepository {
   }
 
   /**
-   * 获取指定S3配置的总使用量（排除指定文件）
-   * @param {string} s3ConfigId - S3配置ID
+   * 获取指定存储配置的总使用量（排除指定文件）
+   * @param {string} storageConfigId - 存储配置ID
    * @param {string} excludeFileId - 要排除的文件ID
+   * @param {string} storageType - 存储类型
    * @returns {Promise<Object>} 包含total_used字段的对象
    */
-  async getTotalSizeByS3ConfigExcludingFile(s3ConfigId, excludeFileId) {
-    const result = await this.queryFirst(`SELECT COALESCE(SUM(size), 0) as total_used FROM ${DbTables.FILES} WHERE s3_config_id = ? AND id != ?`, [s3ConfigId, excludeFileId]);
+  async getTotalSizeByStorageConfigExcludingFile(storageConfigId, excludeFileId, storageType) {
+    if (!storageType) {
+      throw new Error("存储类型参数是必需的");
+    }
+    const result = await this.queryFirst(`SELECT COALESCE(SUM(size), 0) as total_used FROM ${DbTables.FILES} WHERE storage_type = ? AND storage_config_id = ? AND id != ?`, [
+      storageType,
+      storageConfigId,
+      excludeFileId,
+    ]);
     return result;
   }
 
@@ -257,46 +327,63 @@ export class FileRepository extends BaseRepository {
 
   /**
    * 检查存储路径是否存在
-   * @param {string} s3ConfigId - S3配置ID
+   * @param {string} storageConfigId - 存储配置ID
    * @param {string} storagePath - 存储路径
+   * @param {string} storageType - 存储类型（必需参数）
    * @returns {Promise<boolean>} 是否存在
    */
-  async existsByStoragePath(s3ConfigId, storagePath) {
+  async existsByStoragePath(storageConfigId, storagePath, storageType) {
+    if (!storageType) {
+      throw new Error("存储类型参数是必需的");
+    }
     return await this.exists(DbTables.FILES, {
-      s3_config_id: s3ConfigId,
+      storage_config_id: storageConfigId,
       storage_path: storagePath,
+      storage_type: storageType,
     });
   }
 
   /**
    * 根据存储路径查找文件
-   * @param {string} s3ConfigId - S3配置ID
+   * @param {string} storageConfigId - 存储配置ID
    * @param {string} storagePath - 存储路径
+   * @param {string} storageType - 存储类型（必需参数）
    * @returns {Promise<Object|null>} 文件对象或null
    */
-  async findByStoragePath(s3ConfigId, storagePath) {
+  async findByStoragePath(storageConfigId, storagePath, storageType) {
+    if (!storageType) {
+      throw new Error("存储类型参数是必需的");
+    }
     return await this.findOne(DbTables.FILES, {
-      s3_config_id: s3ConfigId,
+      storage_config_id: storageConfigId,
       storage_path: storagePath,
+      storage_type: storageType,
     });
   }
 
   /**
-   * 统计使用指定S3配置的文件数量
-   * @param {string} s3ConfigId - S3配置ID
+   * 统计使用指定存储配置的文件数量
+   * @param {string} storageConfigId - 存储配置ID
+   * @param {string} storageType - 存储类型
    * @returns {Promise<number>} 文件数量
    */
-  async countByS3ConfigId(s3ConfigId) {
-    return await super.count(DbTables.FILES, { s3_config_id: s3ConfigId });
+  async countByStorageConfigId(storageConfigId, storageType) {
+    if (!storageType) {
+      throw new Error("存储类型参数是必需的");
+    }
+    return await super.count(DbTables.FILES, {
+      storage_config_id: storageConfigId,
+      storage_type: storageType,
+    });
   }
 
   /**
-   * 查找多个文件并关联S3配置
+   * 查找多个文件并关联存储配置
    * @param {Object} conditions - 查询条件
    * @param {Object} options - 查询选项
-   * @returns {Promise<Array>} 包含S3配置的文件列表
+   * @returns {Promise<Array>} 包含存储配置的文件列表
    */
-  async findManyWithS3Config(conditions = {}, options = {}) {
+  async findManyWithStorageConfig(conditions = {}, options = {}) {
     const { orderBy = "created_at DESC", limit, offset } = options;
 
     // 构建WHERE条件
@@ -305,15 +392,24 @@ export class FileRepository extends BaseRepository {
 
     let sql = `
       SELECT
-        f.id, f.filename, f.slug, f.storage_path, f.s3_url,
-        f.mimetype, f.size, f.remark, f.created_at, f.views,
-        f.max_views, f.expires_at, f.etag, f.password,
-        f.created_by, f.use_proxy,
-        s.name as s3_config_name,
-        s.provider_type as s3_provider_type,
-        s.id as s3_config_id
+        f.id, f.filename, f.slug, f.storage_path, f.storage_config_id,
+        f.storage_type, f.file_path, f.mimetype, f.size, f.remark,
+        f.created_at, f.views, f.max_views, f.expires_at, f.etag,
+        f.password, f.created_by, f.use_proxy,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.name
+          ELSE NULL
+        END as storage_config_name,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.provider_type
+          ELSE NULL
+        END as storage_provider_type,
+        CASE
+          WHEN f.storage_type = 'S3' THEN s.id
+          ELSE NULL
+        END as storage_config_detail_id
       FROM ${DbTables.FILES} f
-      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
+      LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.storage_type = 'S3' AND f.storage_config_id = s.id
     `;
 
     if (fields.length > 0) {
