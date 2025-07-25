@@ -449,3 +449,5 @@ export function registerPastesRoutes(app) {
     }
   });
 }
+
+export default registerPastesRoutes;

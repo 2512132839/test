@@ -143,13 +143,13 @@ export function registerS3UploadRoutes(app) {
       const shareService = new FileShareService(db, c.env.ENCRYPTION_SECRET || "default-encryption-key");
 
       const result = await shareService.commitUpload(
-        body.file_id,
-        {
-          size: body.size,
-          etag: body.etag,
-        },
-        userId,
-        authType
+          body.file_id,
+          {
+            size: body.size,
+            etag: body.etag,
+          },
+          userId,
+          authType
       );
 
       // 注意：业务参数（password, remark, expires_in等）应该在presign阶段处理
@@ -157,12 +157,12 @@ export function registerS3UploadRoutes(app) {
       // 如果前端在commit阶段传递了这些参数，记录警告但不处理
       if (body.password || body.expires_in || body.max_views || body.remark) {
         console.warn(
-          `commit阶段收到业务参数，这些参数应该在presign阶段处理: ${JSON.stringify({
-            hasPassword: !!body.password,
-            hasExpiresIn: !!body.expires_in,
-            hasMaxViews: !!body.max_views,
-            hasRemark: !!body.remark,
-          })}`
+            `commit阶段收到业务参数，这些参数应该在presign阶段处理: ${JSON.stringify({
+              hasPassword: !!body.password,
+              hasExpiresIn: !!body.expires_in,
+              hasMaxViews: !!body.max_views,
+              hasRemark: !!body.remark,
+            })}`
         );
       }
 
@@ -229,9 +229,9 @@ export function registerS3UploadRoutes(app) {
       }
 
       const defaultConfig = await db
-        .prepare(defaultConfigQuery)
-        .bind(...params)
-        .first();
+          .prepare(defaultConfigQuery)
+          .bind(...params)
+          .first();
 
       if (defaultConfig) {
         s3ConfigId = defaultConfig.id;
@@ -294,8 +294,8 @@ export function registerS3UploadRoutes(app) {
       // 检查文件大小是否超过限制
       if (fileSize > maxUploadSizeBytes) {
         return c.json(
-          createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(fileSize)}`),
-          ApiStatus.BAD_REQUEST
+            createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(fileSize)}`),
+            ApiStatus.BAD_REQUEST
         );
       }
 
@@ -317,8 +317,8 @@ export function registerS3UploadRoutes(app) {
           const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
 
           return c.json(
-            createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
-            ApiStatus.BAD_REQUEST
+              createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
+              ApiStatus.BAD_REQUEST
           );
         }
       }
@@ -668,3 +668,5 @@ export function registerS3UploadRoutes(app) {
     }
   });
 }
+
+export default registerS3UploadRoutes;

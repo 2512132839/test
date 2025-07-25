@@ -584,3 +584,5 @@ export function registerUrlUploadRoutes(app) {
     }
   });
 }
+
+export default registerUrlUploadRoutes;

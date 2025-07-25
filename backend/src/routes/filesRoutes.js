@@ -587,3 +587,5 @@ export function registerFilesRoutes(app) {
     }
   });
 }
+
+export default registerFilesRoutes;
