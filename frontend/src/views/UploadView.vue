@@ -203,8 +203,8 @@ const loadFiles = async () => {
 
   loadingFiles.value = true;
   try {
-    // 根据用户类型调用不同的API
-    const response = isAdmin.value ? await api.file.getFiles() : await api.file.getUserFiles();
+    // 使用统一的API
+    const response = await api.file.getFiles();
 
     if (response.success && response.data) {
       // 确保按时间倒序排序，最新的在前面

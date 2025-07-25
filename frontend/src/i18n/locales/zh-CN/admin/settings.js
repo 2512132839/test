@@ -35,6 +35,19 @@ export default {
       newPasswordHint: "留空则不修改密码",
       footerHint: "修改后将自动退出登录，需要重新登录",
     },
+    proxySignSettings: {
+      title: "代理签名设置",
+      description: "配置Web代理访问的签名策略和默认过期时间",
+      signAll: "签名所有",
+      signAllHint: {
+        enabled: "开启后：向所有文件的Web代理链接添加签名，无论存储是否启用签名",
+        disabled: "关闭后：只有启用签名的存储才会添加签名",
+      },
+      signExpires: "签名过期时间(秒)",
+      signExpiresHint: "挂载点的默认签名有效期：0表示永不过期",
+      updateProxySign: "更新代理签名设置",
+      updateSuccess: "代理签名设置更新成功",
+    },
     status: {
       success: "设置更新成功",
       processing: "处理中...",

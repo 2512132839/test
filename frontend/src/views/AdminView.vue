@@ -74,7 +74,7 @@ const handleLogout = async () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
+  <div class="h-screen flex flex-col">
     <!-- 根据登录状态显示登录页面或管理面板 -->
     <AdminLogin v-if="!isLoggedIn" :darkMode="darkMode" @login-success="handleLoginSuccess" class="flex-1" />
     <AdminPanel v-else :darkMode="darkMode" :loginType="loginType" :permissions="userPermissions" :activeModule="activeModule" @logout="handleLogout" class="flex-1" />

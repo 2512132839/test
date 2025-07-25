@@ -46,7 +46,7 @@ export function getRawPasteUrl(slug, password = null) {
 }
 
 /******************************************************************************
- * 管理员文本分享API
+ * 统一文本分享API
  ******************************************************************************/
 
 /**
@@ -66,27 +66,48 @@ export function createPaste(pasteData) {
 }
 
 /**
- * 获取所有文本分享列表（仅管理员）
- * @param {number} [page=1] - 页码
+ * 获取文本分享列表（统一接口，自动根据认证信息处理）
+ * @param {number} [page=1] - 页码（管理员使用）
  * @param {number} [limit=10] - 每页数量
- * @returns {Promise<Object>} 分页的文本分享列表
+ * @param {number} [offset=0] - 偏移量（API密钥用户使用）
+ * @param {Object} options - 额外查询选项（管理员可用）
+ * @returns {Promise<Object>} 文本分享列表
  */
-export function getAllPastes(page = 1, limit = 10) {
-  console.log("发起获取文本分享列表请求，页码:", page, "每页数量:", limit);
-  return get(`/admin/pastes?page=${page}&limit=${limit}`);
+export function getPastes(page = 1, limit = 10, offset = 0, options = {}) {
+  // 构建查询参数
+  const params = new URLSearchParams();
+
+  // 管理员使用page参数，API密钥用户使用limit和offset
+  if (page > 1) {
+    params.append("page", page.toString());
+  }
+  params.append("limit", limit.toString());
+  if (offset > 0) {
+    params.append("offset", offset.toString());
+  }
+
+  // 添加额外的查询选项（管理员可用）
+  Object.keys(options).forEach((key) => {
+    if (options[key] !== undefined && options[key] !== null) {
+      params.append(key, options[key].toString());
+    }
+  });
+
+  const queryString = params.toString();
+  return get(`/pastes${queryString ? "?" + queryString : ""}`);
 }
 
 /**
- * 获取文本详情（仅管理员）
+ * 获取单个文本分享详情（统一接口，自动根据认证信息处理）
  * @param {string} id - 文本分享ID
- * @returns {Promise<Object>} 文本详情
+ * @returns {Promise<Object>} 文本分享详情
  */
-export function getAdminPasteById(id) {
-  return get(`/admin/pastes/${id}`);
+export function getPasteById(id) {
+  return get(`/pastes/${id}`);
 }
 
 /**
- * 更新指定slug的文本分享（管理员）
+ * 更新文本分享（统一接口，自动根据认证信息处理）
  * @param {string} slug - 文本分享的唯一标识
  * @param {Object} data - 更新的数据
  * @param {string} [data.content] - 新的文本内容
@@ -98,26 +119,17 @@ export function getAdminPasteById(id) {
  * @param {string} [data.newSlug] - 新的链接后缀，为空则自动生成
  * @returns {Promise<ApiResponse>} - API响应
  */
-export function updateAdminPaste(slug, data) {
-  return put(`/admin/pastes/${slug}`, data);
+export function updatePaste(slug, data) {
+  return put(`/pastes/${slug}`, data);
 }
 
 /**
- * 删除文本分享（仅管理员）
- * @param {string} id - 文本分享ID
- * @returns {Promise<Object>} 删除结果
- */
-export function deleteAdminPaste(id) {
-  return del(`/admin/pastes/${id}`);
-}
-
-/**
- * 批量删除文本分享（仅管理员）
+ * 批量删除文本分享（统一接口，自动根据认证信息处理）
  * @param {string[]} ids - 文本分享ID数组
  * @returns {Promise<Object>} 删除结果
  */
-export function deleteAdminPastes(ids) {
-  return post("/admin/pastes/batch-delete", { ids });
+export function batchDeletePastes(ids) {
+  return del("/pastes/batch-delete", { ids });
 }
 
 /**
@@ -125,69 +137,5 @@ export function deleteAdminPastes(ids) {
  * @returns {Promise<Object>} 清理结果
  */
 export function clearExpiredPastes() {
-  return post("/admin/pastes/clear-expired", { clearExpired: true });
+  return post("/pastes/clear-expired", { clearExpired: true });
 }
-
-/******************************************************************************
- * API密钥用户文本分享API
- ******************************************************************************/
-
-/**
- * 获取API密钥用户的文本分享列表
- * @param {number} [limit=10] - 每页数量
- * @param {number} [offset=0] - 偏移量
- * @returns {Promise<Object>} 文本分享列表
- */
-export function getUserPastes(limit = 10, offset = 0) {
-  return get(`/user/pastes?limit=${limit}&offset=${offset}`);
-}
-
-/**
- * 获取API密钥用户的单个文本分享详情
- * @param {string} id - 文本分享ID
- * @returns {Promise<Object>} 文本分享详情
- */
-export function getUserPasteById(id) {
-  return get(`/user/pastes/${id}`);
-}
-
-/**
- * 更新用户文本分享
- * @param {string} slug - 文本分享的唯一标识
- * @param {Object} data - 更新的数据
- * @param {string} [data.content] - 新的文本内容
- * @param {string} [data.password] - 新的访问密码
- * @param {boolean} [data.clearPassword] - 是否清除密码
- * @param {string} [data.remark] - 新的备注
- * @param {string} [data.expiresAt] - 新的过期时间
- * @param {number} [data.maxViews] - 新的最大查看次数
- * @param {string} [data.newSlug] - 新的链接后缀，为空则自动生成
- * @returns {Promise<ApiResponse>} - API响应
- */
-export function updateUserPaste(slug, data) {
-  return put(`/user/pastes/${slug}`, data);
-}
-
-/**
- * 删除API密钥用户的单个文本分享
- * @param {string} id - 文本分享ID
- * @returns {Promise<Object>} 删除结果
- */
-export function deleteUserPaste(id) {
-  return del(`/user/pastes/${id}`);
-}
-
-/**
- * 批量删除API密钥用户的文本分享
- * @param {string[]} ids - 文本分享ID数组
- * @returns {Promise<Object>} 删除结果
- */
-export function deleteUserPastes(ids) {
-  return post(`/user/pastes/batch-delete`, { ids });
-}
-
-// 兼容性导出 - 保持向后兼容
-export const deletePaste = deleteAdminPaste;
-export const deletePastes = deleteAdminPastes;
-export const updatePaste = updateAdminPaste;
-export const getPasteById = getAdminPasteById;

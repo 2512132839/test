@@ -9,7 +9,7 @@ export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   // 🎯 统一版本管理
-  const APP_VERSION = "0.6.9";
+  const APP_VERSION = "0.7.3";
   const isDev = command === "serve";
 
   // 打印环境变量，帮助调试
@@ -86,12 +86,12 @@ export default defineConfig(({ command, mode }) => {
             // 🌍 第三方CDN资源 - CacheFirst（外部资源稳定）
             {
               urlPattern: ({ url }) =>
-                  url.origin !== self.location.origin &&
-                  (url.hostname.includes("cdn") ||
-                      url.hostname.includes("googleapis") ||
-                      url.hostname.includes("gstatic") ||
-                      url.hostname.includes("jsdelivr") ||
-                      url.hostname.includes("unpkg")),
+                url.origin !== self.location.origin &&
+                (url.hostname.includes("cdn") ||
+                  url.hostname.includes("googleapis") ||
+                  url.hostname.includes("gstatic") ||
+                  url.hostname.includes("jsdelivr") ||
+                  url.hostname.includes("unpkg")),
               handler: "CacheFirst",
               options: {
                 cacheName: "external-cdn-resources",
@@ -108,7 +108,7 @@ export default defineConfig(({ command, mode }) => {
             // 🖼️ 图廊图片 - NetworkFirst
             {
               urlPattern: ({ request, url }) =>
-                  request.destination === "image" && (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
+                request.destination === "image" && (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
               handler: "NetworkFirst",
               options: {
                 cacheName: "gallery-images",
@@ -126,8 +126,8 @@ export default defineConfig(({ command, mode }) => {
             // 🎵 用户媒体文件 - NetworkFirst（大文件适度缓存）
             {
               urlPattern: ({ request, url }) =>
-                  (request.destination === "video" || request.destination === "audio" || /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i.test(url.pathname)) &&
-                  (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
+                (request.destination === "video" || request.destination === "audio" || /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i.test(url.pathname)) &&
+                (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
               handler: "NetworkFirst",
               options: {
                 cacheName: "user-media",
@@ -146,8 +146,8 @@ export default defineConfig(({ command, mode }) => {
             // 📄 用户文档文件 - NetworkFirst（文档快速更新）
             {
               urlPattern: ({ url }) =>
-                  /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|md)$/i.test(url.pathname) &&
-                  (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
+                /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|md)$/i.test(url.pathname) &&
+                (url.pathname.includes("/api/") || url.searchParams.has("X-Amz-Algorithm") || url.hostname !== self.location.hostname),
               handler: "NetworkFirst",
               options: {
                 cacheName: "user-documents",
@@ -197,7 +197,7 @@ export default defineConfig(({ command, mode }) => {
 
             // 📁 文件系统API缓存 - NetworkFirst（图廊优化：增加容量和时间）
             {
-              urlPattern: /^.*\/api\/(admin\/fs|user\/fs)\/.*$/,
+              urlPattern: /^.*\/api\/fs\/.*$/,
               handler: "NetworkFirst",
               options: {
                 cacheName: "fs-api",
@@ -214,7 +214,7 @@ export default defineConfig(({ command, mode }) => {
 
             // 📝 文本分享API缓存 - NetworkFirst（内容短期缓存）
             {
-              urlPattern: /^.*\/api\/(admin\/pastes|user\/pastes|public\/pastes)\/.*$/,
+              urlPattern: /^.*\/api\/(pastes|paste|raw)\/.*$/,
               handler: "NetworkFirst",
               options: {
                 cacheName: "pastes-api",
@@ -231,7 +231,7 @@ export default defineConfig(({ command, mode }) => {
 
             // 🗂️ 配置管理API缓存 - NetworkFirst（配置信息适度缓存）
             {
-              urlPattern: /^.*\/api\/(admin\/mounts|admin\/s3-configs|admin\/api-keys|admin\/settings)\/.*$/,
+              urlPattern: /^.*\/api\/(admin\/mounts|admin\/api-keys|admin\/system-settings|files)\/.*$/,
               handler: "NetworkFirst",
               options: {
                 cacheName: "config-api",
@@ -248,7 +248,7 @@ export default defineConfig(({ command, mode }) => {
 
             // 🔍 搜索API缓存 - NetworkFirst
             {
-              urlPattern: /^.*\/api\/(admin\/search|user\/search)\/.*$/,
+              urlPattern: /^.*\/api\/fs\/search.*$/,
               handler: "NetworkFirst",
               options: {
                 cacheName: "search-api",
@@ -265,7 +265,7 @@ export default defineConfig(({ command, mode }) => {
 
             // 📤 上传API缓存 - NetworkFirst
             {
-              urlPattern: /^.*\/api\/(upload|admin\/fs\/presign|user\/fs\/presign)\/.*$/,
+              urlPattern: /^.*\/api\/(upload|fs\/upload|fs\/presign|fs\/multipart|url)\/.*$/,
               handler: "NetworkFirst",
               options: {
                 cacheName: "upload-api",

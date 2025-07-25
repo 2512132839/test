@@ -12,6 +12,8 @@ export default {
       inactive: "Inactive",
       enabled: "Enabled",
       disabled: "Disabled",
+      proxy: "Proxy",
+      signature: "Signature",
     },
     info: {
       name: "Mount Name",
@@ -49,6 +51,14 @@ export default {
       isActiveHint: "Whether to enable this mount point",
       webProxy: "Enable Web Proxy",
       webProxyHint: "When enabled, file preview and download will be proxied through server",
+      proxySign: {
+        title: "Proxy Signature Configuration",
+        enableSign: "Enable Proxy Signature",
+        enableSignHint: "When enabled, accessing files from this storage via proxy requires valid signature",
+        signExpires: "Signature Expiration Time (seconds)",
+        signExpiresPlaceholder: "Leave empty to use global settings",
+        signExpiresHint: "0 means never expire, leave empty to use global default settings",
+      },
       webdavPolicy: "WebDAV Policy",
       webdavPolicyHint: "Select WebDAV access policy",
       s3Config: "S3 Storage Configuration",

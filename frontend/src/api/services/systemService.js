@@ -27,6 +27,25 @@ export function updateSystemSettings(settings) {
   return put("/admin/system-settings", settings);
 }
 
+/**
+ * 获取代理签名设置
+ * @returns {Promise<Object>} 代理签名设置响应
+ */
+export function getProxySignSettings() {
+  return get("/admin/proxy-sign-settings");
+}
+
+/**
+ * 更新代理签名设置
+ * @param {Object} settings - 代理签名设置
+ * @param {boolean} settings.signAll - 是否签名所有
+ * @param {number} settings.expires - 签名过期时间（秒）
+ * @returns {Promise<Object>} 更新结果
+ */
+export function updateProxySignSettings(settings) {
+  return post("/admin/proxy-sign-settings", settings);
+}
+
 /******************************************************************************
  * 仪表盘统计API
  ******************************************************************************/

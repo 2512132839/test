@@ -288,6 +288,15 @@ export async function commitBatchCopy(data) {
 }
 
 /**
+ * 从文件系统创建分享链接
+ * @param {string} path 文件路径
+ * @returns {Promise<Object>} 创建结果响应对象
+ */
+export async function createShareFromFileSystem(path) {
+  return post(`/fs/create-share`, { path });
+}
+
+/**
  * 复制文件或目录
  * @param {string} sourcePath 源路径
  * @param {string} targetPath 目标路径
@@ -537,7 +546,7 @@ export async function performClientSideCopy(options) {
         // 目录复制：将 items 数组中的文件添加到复制列表，并添加必要的元数据
         const itemsWithMetadata = result.items.map((item) => {
           // 正确构建目标路径，避免重复斜杠
-          let targetPath = result.target; 
+          let targetPath = result.target;
 
           // 确保 targetPath 以斜杠结尾
           if (!targetPath.endsWith("/")) {

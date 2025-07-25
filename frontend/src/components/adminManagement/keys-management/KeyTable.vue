@@ -3,6 +3,79 @@ import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../../../api";
 import { copyToClipboard } from "../../../utils/clipboard";
+import { Permission, PermissionChecker } from "../../../constants/permissions.js";
+
+// 获取权限标签列表
+const getPermissionTags = (permissions) => {
+  const tags = [];
+
+  if (PermissionChecker.hasPermission(permissions, Permission.TEXT)) {
+    tags.push({ key: "text", label: "admin.keyManagement.permissions.text", color: "blue" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.FILE_SHARE)) {
+    tags.push({ key: "file_share", label: "admin.keyManagement.permissions.file_share", color: "green" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_VIEW)) {
+    tags.push({ key: "mount_view", label: "admin.keyManagement.permissions.mount_view", color: "purple" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_UPLOAD)) {
+    tags.push({ key: "mount_upload", label: "admin.keyManagement.permissions.mount_upload", color: "indigo" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_COPY)) {
+    tags.push({ key: "mount_copy", label: "admin.keyManagement.permissions.mount_copy", color: "pink" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_RENAME)) {
+    tags.push({ key: "mount_rename", label: "admin.keyManagement.permissions.mount_rename", color: "yellow" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_DELETE)) {
+    tags.push({ key: "mount_delete", label: "admin.keyManagement.permissions.mount_delete", color: "red" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.WEBDAV_READ)) {
+    tags.push({ key: "webdav_read", label: "admin.keyManagement.permissions.webdav_read", color: "cyan" });
+  }
+
+  if (PermissionChecker.hasPermission(permissions, Permission.WEBDAV_MANAGE)) {
+    tags.push({ key: "webdav_manage", label: "admin.keyManagement.permissions.webdav_manage", color: "orange" });
+  }
+
+  return tags;
+};
+
+// 获取标签颜色类
+const getTagColorClass = (color) => {
+  const colorMap = {
+    blue: "bg-blue-900/50 text-blue-300",
+    green: "bg-green-900/50 text-green-300",
+    purple: "bg-purple-900/50 text-purple-300",
+    indigo: "bg-indigo-900/50 text-indigo-300",
+    pink: "bg-pink-900/50 text-pink-300",
+    yellow: "bg-yellow-900/50 text-yellow-300",
+    red: "bg-red-900/50 text-red-300",
+    cyan: "bg-cyan-900/50 text-cyan-300",
+    orange: "bg-orange-900/50 text-orange-300",
+  };
+
+  const lightColorMap = {
+    blue: "bg-blue-100 text-blue-800",
+    green: "bg-green-100 text-green-800",
+    purple: "bg-purple-100 text-purple-800",
+    indigo: "bg-indigo-100 text-indigo-800",
+    pink: "bg-pink-100 text-pink-800",
+    yellow: "bg-yellow-100 text-yellow-800",
+    red: "bg-red-100 text-red-800",
+    cyan: "bg-cyan-100 text-cyan-800",
+    orange: "bg-orange-100 text-orange-800",
+  };
+
+  return props.darkMode ? colorMap[color] || colorMap.blue : lightColorMap[color] || lightColorMap.blue;
+};
 
 // i18n
 const { t } = useI18n();
@@ -267,22 +340,16 @@ defineExpose({
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="flex space-x-2">
-                  <span v-if="key.text_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800'">
-                    {{ $t("admin.keyManagement.textPermissionFull") }}
-                  </span>
-                  <span v-if="key.file_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800'">
-                    {{ $t("admin.keyManagement.filePermissionFull") }}
-                  </span>
-                  <span v-if="key.mount_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800'">
-                    {{ $t("admin.keyManagement.mountPermissionFull") }}
+                <div class="flex flex-wrap gap-1">
+                  <span v-for="tag in getPermissionTags(key.permissions || 0)" :key="tag.key" class="px-2 py-0.5 text-xs rounded" :class="getTagColorClass(tag.color)">
+                    {{ $t(tag.label) }}
                   </span>
                   <span
-                    v-if="!key.text_permission && !key.file_permission && !key.mount_permission"
+                    v-if="getPermissionTags(key.permissions || 0).length === 0"
                     class="px-2 py-0.5 text-xs rounded"
                     :class="darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'"
                   >
-                    {{ $t("admin.keyManagement.noPermission") }}
+                    {{ $t("admin.keyManagement.permissions.none") }}
                   </span>
                 </div>
               </td>
@@ -371,21 +438,15 @@ defineExpose({
 
               <!-- 权限标签 -->
               <div class="flex flex-wrap gap-2 mt-1 mb-2">
-                <span v-if="key.text_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800'">
-                  {{ $t("admin.keyManagement.textPermissionFull") }}
-                </span>
-                <span v-if="key.file_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800'">
-                  {{ $t("admin.keyManagement.filePermissionFull") }}
-                </span>
-                <span v-if="key.mount_permission" class="px-2 py-0.5 text-xs rounded" :class="darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800'">
-                  {{ $t("admin.keyManagement.mountPermissionFull") }}
+                <span v-for="tag in getPermissionTags(key.permissions || 0)" :key="tag.key" class="px-2 py-0.5 text-xs rounded" :class="getTagColorClass(tag.color)">
+                  {{ $t(tag.label) }}
                 </span>
                 <span
-                  v-if="!key.text_permission && !key.file_permission && !key.mount_permission"
+                  v-if="getPermissionTags(key.permissions || 0).length === 0"
                   class="px-2 py-0.5 text-xs rounded"
                   :class="darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'"
                 >
-                  {{ $t("admin.keyManagement.noPermission") }}
+                  {{ $t("admin.keyManagement.permissions.none") }}
                 </span>
               </div>
 

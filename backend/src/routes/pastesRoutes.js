@@ -36,7 +36,7 @@ export function registerPastesRoutes(app) {
       const authType = authGateway.utils.getAuthType(c);
 
       // 创建者信息
-      const createdBy = authType === "admin" ? userId : authType === "apikey  " ? `apikey:${userId}` : null;
+      const createdBy = authType === "admin" ? userId : authType === "apikey" ? `apikey:${userId}` : null;
 
       // 创建文本分享
       const paste = await createPaste(db, body, createdBy);
@@ -300,7 +300,7 @@ export function registerPastesRoutes(app) {
       }
 
       // API密钥用户需要返回密钥信息
-      if (userType === "apiKey") {
+      if (userType === "apikey") {
         response.key_info = apiKeyInfo;
       }
 

@@ -18,28 +18,17 @@ function getOfflineOperationType(endpoint, method) {
     return { type: "createPaste", description: "离线创建文本分享已加入队列" };
   }
 
-  // 📝 管理员文本分享操作
-  if (endpoint.includes("/admin/pastes/")) {
-    if (method === "PUT") return { type: "updateAdminPaste", description: "离线更新管理员文本分享已加入队列" };
-    if (method === "DELETE") return { type: "deleteAdminPaste", description: "离线删除管理员文本分享已加入队列" };
+  // 📝 统一文本分享操作
+  if (endpoint.includes("/pastes/")) {
+    if (method === "PUT") return { type: "updatePaste", description: "离线更新文本分享已加入队列" };
   }
 
-  if (endpoint.includes("/admin/pastes/batch-delete") && method === "POST") {
-    return { type: "batchDeleteAdminPastes", description: "离线批量删除管理员文本分享已加入队列" };
+  if (endpoint.includes("/pastes/batch-delete") && method === "DELETE") {
+    return { type: "batchDeletePastes", description: "离线批量删除文本分享已加入队列" };
   }
 
-  if (endpoint.includes("/admin/pastes/clear-expired") && method === "POST") {
+  if (endpoint.includes("/pastes/clear-expired") && method === "POST") {
     return { type: "clearExpiredPastes", description: "离线清理过期文本分享已加入队列" };
-  }
-
-  // 📝 用户文本分享操作
-  if (endpoint.includes("/user/pastes/")) {
-    if (method === "PUT") return { type: "updateUserPaste", description: "离线更新用户文本分享已加入队列" };
-    if (method === "DELETE") return { type: "deleteUserPaste", description: "离线删除用户文本分享已加入队列" };
-  }
-
-  if (endpoint.includes("/user/pastes/batch-delete") && method === "POST") {
-    return { type: "batchDeleteUserPastes", description: "离线批量删除用户文本分享已加入队列" };
   }
 
   // ⚙️ 系统管理操作

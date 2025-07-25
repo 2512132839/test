@@ -242,6 +242,47 @@ export function useFilePreviewExtensions(
     return filePath.substring(0, lastSlashIndex + 1);
   };
 
+  // ===== 分享功能 =====
+
+  const isCreatingShare = ref(false);
+
+  /**
+   * 处理创建分享链接
+   */
+  const handleCreateShare = async () => {
+    if (!file.value || !file.value.path) {
+      return;
+    }
+
+    isCreatingShare.value = true;
+
+    try {
+      const result = await api.fs.createShareFromFileSystem(file.value.path);
+
+      if (result.success) {
+        // 复制分享链接到剪贴板
+        const shareUrl = `${window.location.origin}${result.data.url}`;
+        await navigator.clipboard.writeText(shareUrl);
+
+        // 显示成功消息
+        emit("show-message", {
+          type: "success",
+          message: t("mount.messages.shareCreated", { url: shareUrl }),
+        });
+      } else {
+        throw new Error(result.message || "创建分享失败");
+      }
+    } catch (error) {
+      console.error("创建分享失败:", error);
+      emit("show-message", {
+        type: "error",
+        message: t("mount.messages.shareCreateFailed", { message: error.message }),
+      });
+    } finally {
+      isCreatingShare.value = false;
+    }
+  };
+
   // ===== 生命周期管理 =====
 
   /**
@@ -325,6 +366,10 @@ export function useFilePreviewExtensions(
     handleDownload,
     handleS3DirectPreview,
     getCurrentDirectoryPath,
+
+    // 分享功能
+    isCreatingShare,
+    handleCreateShare,
 
     // 生命周期
     initializeExtensions,

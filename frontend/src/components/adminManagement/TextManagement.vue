@@ -142,10 +142,10 @@ const loadPastes = async () => {
     let result;
 
     if (isAdmin.value) {
-      // 管理员使用管理员API
-      result = await api.admin.getAllPastes(pagination.page, pagination.limit);
+      // 管理员使用统一API
+      result = await api.paste.getPastes(pagination.page, pagination.limit);
 
-      // 根据API文档，管理员接口返回的是一个数据数组和分页信息
+      // 根据API文档，统一接口返回的是一个数据数组和分页信息
       if (Array.isArray(result.data)) {
         // 如果返回的是一个数组，直接使用
         pastes.value = result.data;
@@ -166,9 +166,9 @@ const loadPastes = async () => {
         pagination.totalPages = result.data.pagination.totalPages || Math.ceil(result.data.pagination.total / pagination.limit);
       }
     } else if (isApiKeyUser.value) {
-      // API密钥用户使用用户API
+      // API密钥用户使用统一API
       const offset = (pagination.page - 1) * pagination.limit;
-      result = await api.user.paste.getPastes(pagination.limit, offset);
+      result = await api.paste.getPastes(1, pagination.limit, offset);
 
       console.log("API密钥用户获取文本列表响应:", result);
 
@@ -276,11 +276,11 @@ const deletePaste = async (id) => {
     successMessage.value = "";
 
     if (isAdmin.value) {
-      // 管理员使用管理员API
-      await api.admin.deletePaste(id);
+      // 管理员使用批量删除API删除单个文本
+      await api.admin.batchDeletePastes([id]);
     } else if (isApiKeyUser.value) {
-      // API密钥用户使用用户API
-      await api.user.paste.deletePaste(id);
+      // API密钥用户使用批量删除API删除单个文本
+      await api.paste.batchDeletePastes([id]);
     } else {
       throw new Error("无权限执行此操作");
     }
@@ -321,11 +321,11 @@ const deleteSelectedPastes = async () => {
     successMessage.value = "";
 
     if (isAdmin.value) {
-      // 管理员使用管理员API
-      await api.admin.deletePastes(selectedPastes.value);
+      // 管理员使用批量删除API
+      await api.admin.batchDeletePastes(selectedPastes.value);
     } else if (isApiKeyUser.value) {
-      // API密钥用户使用用户API
-      await api.user.paste.deletePastes(selectedPastes.value);
+      // API密钥用户使用批量删除API
+      await api.paste.batchDeletePastes(selectedPastes.value);
     } else {
       throw new Error("无权限执行此操作");
     }
@@ -365,8 +365,8 @@ const clearExpiredPastes = async () => {
     error.value = "";
     successMessage.value = "";
 
-    // 使用管理员API清理过期文本
-    const result = await api.admin.clearExpiredPastes();
+    // 使用统一API清理过期文本
+    const result = await api.paste.clearExpiredPastes();
 
     // 显示成功消息
     successMessage.value = result.message || "清理完成";
@@ -578,17 +578,8 @@ const submitEdit = async (editedPaste) => {
       throw new Error("更新失败：缺少必要的文本标识信息");
     }
 
-    let result;
-    // 根据用户权限提交编辑
-    if (isAdmin.value) {
-      // 管理员更新分享
-      result = await api.admin.updatePaste(editedPaste.data.slug, editedPaste.data);
-    } else if (isApiKeyUser.value) {
-      // API密钥用户更新分享
-      result = await api.user.paste.updatePaste(editedPaste.data.slug, editedPaste.data);
-    } else {
-      throw new Error("无权限执行此操作");
-    }
+    // 使用统一API更新分享（自动根据认证信息处理权限）
+    const result = await api.paste.updatePaste(editedPaste.data.slug, editedPaste.data);
 
     // 关闭编辑弹窗
     showEdit.value = false;

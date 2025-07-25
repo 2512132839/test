@@ -676,6 +676,34 @@ onMounted(() => {
 
             <!-- 卡片底部信息区 -->
             <div>
+              <!-- 代理和签名状态 -->
+              <div v-if="mount.web_proxy" class="mb-2 flex flex-wrap gap-1">
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                  :class="darkMode ? 'bg-blue-900/50 text-blue-200 border border-blue-800/50' : 'bg-blue-100 text-blue-800 border border-blue-200'"
+                >
+                  <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"></path>
+                  </svg>
+                  {{ t("admin.mount.status.proxy") }}
+                </span>
+                <span
+                  v-if="mount.enable_sign"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                  :class="darkMode ? 'bg-green-900/50 text-green-200 border border-green-800/50' : 'bg-green-100 text-green-800 border border-green-200'"
+                >
+                  <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                    ></path>
+                  </svg>
+                  {{ t("admin.mount.status.signature") }}
+                </span>
+              </div>
+
               <!-- 创建时间 -->
               <div class="text-xs mb-3" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
                 <div class="flex items-center">

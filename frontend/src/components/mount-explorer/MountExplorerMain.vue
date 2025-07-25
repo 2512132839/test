@@ -268,6 +268,7 @@
             @download="handleDownload"
             @loaded="handlePreviewLoaded"
             @error="handlePreviewError"
+            @show-message="handleShowMessage"
           />
         </div>
       </div>
@@ -706,7 +707,7 @@ const handleDirectoryChange = async () => {
     await initializeFromRoute();
   } catch (error) {
     console.error("目录变化处理失败:", error);
-    showMessage("error", "页面加载失败");
+    showMessage("error", t("mount.messages.pageLoadFailed"));
   }
 };
 
@@ -718,7 +719,7 @@ const handlePreviewChange = async () => {
     await initPreviewFromRoute(currentPath.value, directoryItems.value);
   } catch (error) {
     console.error("预览变化处理失败:", error);
-    showMessage("error", "预览加载失败");
+    showMessage("error", t("mount.messages.previewLoadFailed"));
   }
 };
 
@@ -810,7 +811,7 @@ const createAsyncProcessor = () => {
       }
     } catch (error) {
       console.error("异步处理失败:", error);
-      showMessage("error", "页面加载失败，请刷新重试");
+      showMessage("error", t("mount.messages.pageLoadFailedRetry"));
     } finally {
       isProcessing = false;
     }

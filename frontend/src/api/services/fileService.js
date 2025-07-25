@@ -283,15 +283,10 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
         const { useAuthStore } = await import("../../stores/authStore.js");
         const authStore = useAuthStore();
 
-        // 根据用户身份选择合适的批量删除API
-        if (authStore.isAdmin) {
-          // 使用管理员批量删除API删除文件
-          await batchDeleteAdminFiles([fileId]);
-          console.log("已成功删除上传失败的文件记录（管理员API）");
-        } else if (authStore.authType === "apikey" && authStore.apiKey) {
-          // 使用用户批量删除API删除文件
-          await batchDeleteUserFiles([fileId]);
-          console.log("已成功删除上传失败的文件记录（用户API）");
+        // 使用统一的批量删除API删除文件
+        if (authStore.isAdmin || (authStore.authType === "apikey" && authStore.apiKey)) {
+          await batchDeleteFiles([fileId]);
+          console.log("已成功删除上传失败的文件记录（统一API）");
         } else {
           console.warn("未检测到有效的管理员令牌或API密钥，无法删除文件记录");
         }
@@ -306,87 +301,48 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
 }
 
 /******************************************************************************
- * 管理员文件管理API
+ * 统一文件管理API
  ******************************************************************************/
 
 /**
- * 获取管理员文件列表
+ * 获取文件列表（统一接口，自动根据认证信息处理）
  * @param {number} limit - 每页条数
  * @param {number} offset - 偏移量
+ * @param {Object} options - 额外查询选项（管理员可用）
  * @returns {Promise<Object>} 文件列表响应
  */
-export async function getAdminFiles(limit = 50, offset = 0) {
-  return await get("admin/files", { params: { limit, offset } });
+export async function getFiles(limit = 50, offset = 0, options = {}) {
+  const params = { limit, offset, ...options };
+  return await get("files", { params });
 }
 
 /**
- * 获取管理员单个文件详情
+ * 获取单个文件详情（统一接口，自动根据认证信息处理）
  * @param {string} id - 文件ID
  * @returns {Promise<Object>} 文件详情响应
  */
-export async function getAdminFile(id) {
-  return await get(`admin/files/${id}`);
+export async function getFile(id) {
+  return await get(`files/${id}`);
 }
 
 /**
- * 更新管理员文件元数据
+ * 更新文件元数据（统一接口，自动根据认证信息处理）
  * @param {string} id - 文件ID
  * @param {Object} metadata - 更新的文件元数据
  * @returns {Promise<Object>} 更新响应
  */
-export async function updateAdminFile(id, metadata) {
-  return await put(`admin/files/${id}`, metadata);
+export async function updateFile(id, metadata) {
+  return await put(`files/${id}`, metadata);
 }
 
 /**
- * 批量删除管理员文件
+ * 批量删除文件（统一接口，自动根据认证信息处理）
  * @param {Array<string>} ids - 文件ID数组
+ * @param {string} deleteMode - 删除模式：'record_only' 仅删除记录，'both' 同时删除文件（默认）
  * @returns {Promise<Object>} 批量删除响应
  */
-export async function batchDeleteAdminFiles(ids) {
-  return await del(`admin/files/batch-delete`, { ids });
-}
-
-/******************************************************************************
- * API密钥用户文件管理API
- ******************************************************************************/
-
-/**
- * 获取API密钥用户的文件列表
- * @param {number} limit - 每页条数
- * @param {number} offset - 偏移量
- * @returns {Promise<Object>} 文件列表响应
- */
-export async function getUserFiles(limit = 50, offset = 0) {
-  return await get("user/files", { params: { limit, offset } });
-}
-
-/**
- * 获取API密钥用户的单个文件详情
- * @param {string} id - 文件ID
- * @returns {Promise<Object>} 文件详情响应
- */
-export async function getUserFile(id) {
-  return await get(`user/files/${id}`);
-}
-
-/**
- * 更新API密钥用户的文件元数据
- * @param {string} id - 文件ID
- * @param {Object} metadata - 更新的文件元数据
- * @returns {Promise<Object>} 更新响应
- */
-export async function updateUserFile(id, metadata) {
-  return await put(`user/files/${id}`, metadata);
-}
-
-/**
- * 批量删除API密钥用户的文件
- * @param {Array<string>} ids - 文件ID数组
- * @returns {Promise<Object>} 批量删除响应
- */
-export async function batchDeleteUserFiles(ids) {
-  return await del(`user/files/batch-delete`, { ids });
+export async function batchDeleteFiles(ids, deleteMode = "both") {
+  return await del(`files/batch-delete`, { ids, delete_mode: deleteMode });
 }
 
 /******************************************************************************
@@ -411,8 +367,3 @@ export async function getPublicFile(slug) {
 export async function verifyFilePassword(slug, password) {
   return await post(`public/files/${slug}/verify`, { password });
 }
-
-// 兼容性导出 - 保持向后兼容
-export const getFiles = getAdminFiles;
-export const getFile = getAdminFile;
-export const updateFile = updateAdminFile;

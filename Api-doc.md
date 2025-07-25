@@ -35,9 +35,26 @@ Authorization: ApiKey <api_key>
 
 API 密钥由管理员在后台创建，支持以下权限类型：
 
-- **text_permission**: 文本分享权限 - 允许创建、查看、修改和删除文本分享
-- **file_permission**: 文件管理权限 - 允许上传、下载、管理文件和使用文件系统 API
-- **mount_permission**: 挂载点权限 - 允许访问挂载点和使用 WebDAV 功能
+**基础权限：**
+
+- **TEXT**: 文本分享权限 - 允许创建、查看、修改和删除文本分享
+- **FILE_SHARE**: 文件分享权限 - 允许创建和管理文件分享链接
+
+**挂载页权限：**
+
+- **MOUNT_VIEW**: 挂载页查看权限 - 允许浏览挂载页内容
+- **MOUNT_UPLOAD**: 上传权限 - 允许上传文件和创建目录
+- **MOUNT_COPY**: 复制权限 - 允许复制文件和目录
+- **MOUNT_RENAME**: 重命名权限 - 允许重命名文件和目录
+- **MOUNT_DELETE**: 删除权限 - 允许删除文件和目录
+
+**WebDAV 权限：**
+
+- **WEBDAV_READ**: WebDAV 读取权限 - 允许通过 WebDAV 读取文件（GET、PROPFIND 等）
+- **WEBDAV_MANAGE**: WebDAV 管理权限 - 允许通过 WebDAV 管理文件（PUT、DELETE、MKCOL 等）
+
+**路径限制：**
+
 - **basic_path**: 路径权限限制 - 限制 API 密钥用户只能访问指定路径及其子路径
 
 ### 3. WebDAV 认证
@@ -203,93 +220,54 @@ X-Custom-Auth-Key: <api_key>
     - `password` - 如果文本受密码保护，需提供密码
   - 响应：纯文本格式的内容，Content-Type 为 text/plain
 
-#### API 密钥用户文本管理
+#### 统一文本管理接口
 
-- `GET /api/user/pastes`
+- `GET /api/pastes`
 
-  - 描述：API 密钥用户获取自己的文本分享列表
-  - 授权：需要有文本权限的 API 密钥
+  - 描述：获取文本分享列表（统一接口，支持管理员和 API 密钥用户）
+  - 授权：需要管理员令牌或有文本权限的 API 密钥
   - 查询参数：
-    - `limit` - 每页数量，默认为 30
-    - `offset` - 偏移量，默认为 0
-  - 响应：文本分享列表和分页信息
+    - **管理员用户**：
+      - `page` - 页码，默认为 1
+      - `limit` - 每页数量，默认为 10
+      - `created_by` - 可选，按创建者筛选
+    - **API 密钥用户**：
+      - `limit` - 每页数量，默认为 30
+      - `offset` - 偏移量，默认为 0
+  - 响应：文本分享列表和分页信息，API 密钥用户只能看到自己创建的文本
 
-- `GET /api/user/pastes/:id`
+- `GET /api/pastes/:id`
 
-  - 描述：API 密钥用户获取单个文本详情
-  - 授权：需要有文本权限的 API 密钥
+  - 描述：获取单个文本详情（统一接口）
+  - 授权：需要管理员令牌或有文本权限的 API 密钥
   - 参数：id - 文本 ID
-  - 响应：文本分享详细信息，包含明文密码（如有）
+  - 响应：文本分享详细信息，API 密钥用户只能访问自己创建的文本
 
-- `DELETE /api/user/pastes/:id`
+- `DELETE /api/pastes/batch-delete`
 
-  - 描述：API 密钥用户删除单个文本
-  - 授权：需要有文本权限的 API 密钥
-  - 参数：id - 文本 ID
-  - 响应：删除结果
-
-- `POST /api/user/pastes/batch-delete`
-
-  - 描述：API 密钥用户批量删除文本
-  - 授权：需要有文本权限的 API 密钥
+  - 描述：批量删除文本（统一接口）
+  - 授权：需要管理员令牌或有文本权限的 API 密钥
   - 请求体：
     ```json
     {
       "ids": ["文本ID1", "文本ID2", "文本ID3"] // 必填，要删除的文本ID数组
     }
     ```
-  - 响应：批量删除结果
+  - 响应：批量删除结果，API 密钥用户只能删除自己创建的文本
 
-- `PUT /api/user/pastes/:slug`
-  - 描述：API 密钥用户更新文本信息
-  - 授权：需要有文本权限的 API 密钥
+- `PUT /api/pastes/:slug`
+  - 描述：更新文本信息（统一接口）
+  - 授权：需要管理员令牌或有文本权限的 API 密钥
   - 参数：slug - 文本短链接
   - 请求体：可包含 remark, expiresAt, maxViews, password 等字段
-  - 响应：更新后的文本信息
+  - 响应：更新后的文本信息，API 密钥用户只能更新自己创建的文本
 
-#### 管理员文本管理
+#### 管理员专用接口
 
-- `GET /api/admin/pastes`
+- `POST /api/pastes/clear-expired`
 
-  - 描述：管理员获取所有文本分享列表
+  - 描述：清理过期文本（管理员专用）
   - 授权：需要管理员令牌
-  - 查询参数：
-    - `page` - 页码，默认为 1
-    - `limit` - 每页数量，默认为 10
-    - `created_by` - 可选，按创建者筛选
-  - 响应：文本分享列表和分页信息
-
-- `GET /api/admin/pastes/:id`
-
-  - 描述：管理员获取单个文本详情
-  - 授权：需要管理员令牌
-  - 参数：id - 文本 ID
-  - 响应：文本分享详细信息
-
-- `DELETE /api/admin/pastes/:id`
-
-  - 描述：管理员删除单个文本
-  - 授权：需要管理员令牌
-  - 参数：id - 文本 ID
-  - 响应：删除结果
-
-- `POST /api/admin/pastes/batch-delete`
-
-  - 描述：管理员批量删除文本
-  - 授权：需要管理员令牌
-  - 请求体：
-    ```json
-    {
-      "ids": ["文本ID1", "文本ID2", "文本ID3"] // 必填，要删除的文本ID数组
-    }
-    ```
-  - 响应：批量删除结果
-
-- `POST /api/admin/pastes/clear-expired`
-
-  - 描述：清理过期文本分享
-  - 授权：需要管理员令牌
-  - 请求体：无
   - 响应：清理结果
     ```json
     {
@@ -298,13 +276,6 @@ X-Custom-Auth-Key: <api_key>
       "success": true
     }
     ```
-
-- `PUT /api/admin/pastes/:slug`
-  - 描述：管理员更新文本信息
-  - 授权：需要管理员令牌
-  - 参数：slug - 文本短链接
-  - 请求体：可包含 remark, expiresAt, maxViews, password 等字段
-  - 响应：更新后的文本信息
 
 ### 文件分享 API
 
@@ -388,40 +359,50 @@ X-Custom-Auth-Key: <api_key>
     ```
   - 响应：验证成功后返回带下载链接的文件信息
 
-#### API 密钥用户文件管理
+#### 统一文件管理接口
 
-- `GET /api/user/files`
+- `GET /api/files`
 
-  - 描述：API 密钥用户获取自己上传的文件列表
-  - 授权：需要有文件权限的 API 密钥
-  - 参数：limit(默认 30), offset(默认 0)
-  - 响应：文件列表和分页信息
+  - 描述：获取文件列表（统一接口，支持管理员和 API 密钥用户）
+  - 授权：需要管理员令牌或有文件权限的 API 密钥
+  - 查询参数：
+    - **管理员用户**：
+      - `limit` - 每页数量，默认为 30
+      - `offset` - 偏移量，默认为 0
+      - `created_by` - 可选，按创建者筛选
+    - **API 密钥用户**：
+      - `limit` - 每页数量，默认为 30
+      - `offset` - 偏移量，默认为 0
+  - 响应：文件列表和分页信息，API 密钥用户只能看到自己上传的文件
 
-- `GET /api/user/files/:id`
+- `GET /api/files/:id`
 
-  - 描述：API 密钥用户获取单个文件详情
-  - 授权：需要有文件权限的 API 密钥
+  - 描述：获取单个文件详情（统一接口）
+  - 授权：需要管理员令牌或有文件权限的 API 密钥
   - 参数：id - 文件 ID
-  - 响应：文件详细信息和下载链接
+  - 响应：文件详细信息和下载链接，API 密钥用户只能访问自己上传的文件
 
-- `PUT /api/user/files/:id`
+- `PUT /api/files/:id`
 
-  - 描述：API 密钥用户更新文件信息
-  - 授权：需要有文件权限的 API 密钥
+  - 描述：更新文件信息（统一接口）
+  - 授权：需要管理员令牌或有文件权限的 API 密钥
   - 参数：id - 文件 ID
-  - 请求体：可包含 remark, expiresAt, maxDownloads, password 等字段
-  - 响应：更新后的文件信息
+  - 请求体：可包含 remark, slug, expires_at, max_views, password, use_proxy 等字段
+  - 响应：更新后的文件信息，API 密钥用户只能更新自己上传的文件
 
-- `DELETE /api/user/files/batch-delete`
-  - 描述：API 密钥用户批量删除自己上传的文件
-  - 授权：需要有文件权限的 API 密钥
+- `DELETE /api/files/batch-delete`
+
+  - 描述：批量删除文件（统一接口）
+  - 授权：需要管理员令牌或有文件权限的 API 密钥
   - 请求体：
     ```json
     {
-      "ids": ["文件ID1", "文件ID2", "文件ID3"] // 必填，要删除的文件ID数组
+      "ids": ["文件ID1", "文件ID2", "文件ID3"], // 必填，要删除的文件ID数组
+      "delete_mode": "both" // 可选，删除模式：record_only（仅删除记录）或 both（删除记录和文件，默认）
     }
     ```
-  - 响应：批量删除结果，包含成功和失败的统计信息
+  - 响应：批量删除结果，包含成功和失败的统计信息，API 密钥用户只能删除自己上传的文件
+
     ```json
     {
       "code": 200,
@@ -432,61 +413,6 @@ X-Custom-Auth-Key: <api_key>
           {
             "id": "file-id-3",
             "error": "文件不存在或无权限删除"
-          }
-        ]
-      },
-      "success": true
-    }
-    ```
-
-#### 管理员文件管理
-
-- `GET /api/admin/files`
-
-  - 描述：管理员获取所有文件列表
-  - 授权：需要管理员令牌
-  - 查询参数：
-    - `limit` - 每页数量，默认为 30
-    - `offset` - 偏移量，默认为 0
-    - `created_by` - 可选，按创建者筛选
-    - `s3_config_id` - 可选，按 S3 配置 ID 筛选
-  - 响应：文件列表和分页信息，包含 API 密钥名称等详细信息
-
-- `GET /api/admin/files/:id`
-
-  - 描述：管理员获取单个文件详情
-  - 授权：需要管理员令牌
-  - 参数：id - 文件 ID
-  - 响应：文件详细信息和下载链接
-
-- `PUT /api/admin/files/:id`
-
-  - 描述：管理员更新文件信息
-  - 授权：需要管理员令牌
-  - 参数：id - 文件 ID
-  - 请求体：可包含 remark, expiresAt, maxDownloads, password 等字段
-  - 响应：更新后的文件信息
-
-- `DELETE /api/admin/files/batch-delete`
-  - 描述：管理员批量删除文件
-  - 授权：需要管理员令牌
-  - 请求体：
-    ```json
-    {
-      "ids": ["文件ID1", "文件ID2", "文件ID3"] // 必填，要删除的文件ID数组
-    }
-    ```
-  - 响应：批量删除结果，包含成功和失败的统计信息
-    ```json
-    {
-      "code": 200,
-      "message": "批量删除完成，成功: 2，失败: 1",
-      "data": {
-        "success": 2,
-        "failed": [
-          {
-            "id": "file-id-3",
-            "error": "文件不存在"
           }
         ]
       },
@@ -780,7 +706,7 @@ X-Custom-Auth-Key: <api_key>
         "max_upload_size": 100,
         "default_paste_expiry": 7,
         "default_file_expiry": 7,
-        "webdav_upload_mode": "auto"
+        "webdav_upload_mode": "direct"
       },
       "success": true
     }
@@ -795,7 +721,7 @@ X-Custom-Auth-Key: <api_key>
       "max_upload_size": 100, // 可选，最大上传大小（MB）
       "default_paste_expiry": 7, // 可选，默认文本过期天数
       "default_file_expiry": 7, // 可选，默认文件过期天数
-      "webdav_upload_mode": "auto" // 可选，WebDAV上传模式：auto/proxy/multipart/direct
+      "webdav_upload_mode": "direct" // 可选，WebDAV上传模式：multipart/direct
     }
     ```
   - 响应：更新后的系统设置

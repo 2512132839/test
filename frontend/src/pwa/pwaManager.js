@@ -615,23 +615,13 @@ class PWAManager {
       case "createPaste":
         return await post("/api/paste", data);
 
-      // 📝 管理员文本分享操作
-      case "updateAdminPaste":
-        return await put(endpoint, data); // /api/admin/pastes/:slug
-      case "deleteAdminPaste":
-        return await del(endpoint); // /api/admin/pastes/:id
-      case "batchDeleteAdminPastes":
-        return await post("/api/admin/pastes/batch-delete", data);
+      // 📝 统一文本分享操作
+      case "updatePaste":
+        return await put(endpoint, data); // /api/pastes/:slug
+      case "batchDeletePastes":
+        return await del("/api/pastes/batch-delete", data);
       case "clearExpiredPastes":
-        return await post("/api/admin/pastes/clear-expired", data);
-
-      // 📝 用户文本分享操作
-      case "updateUserPaste":
-        return await put(endpoint, data); // /api/user/pastes/:slug
-      case "deleteUserPaste":
-        return await del(endpoint); // /api/user/pastes/:id (注意：删除使用id参数)
-      case "batchDeleteUserPastes":
-        return await post("/api/user/pastes/batch-delete", data);
+        return await post("/api/pastes/clear-expired", data);
 
       // ⚙️ 系统管理操作
       case "updateSystemSettings":
@@ -825,15 +815,7 @@ class PWAManager {
 
       // 检查是否有文本分享相关的同步操作
       const hasTextOperations = syncedOperations.some(
-        (op) =>
-          op.type === "createPaste" ||
-          op.type === "updateUserPaste" ||
-          op.type === "updateAdminPaste" ||
-          op.type === "deleteUserPaste" ||
-          op.type === "deleteAdminPaste" ||
-          op.type === "batchDeleteUserPastes" ||
-          op.type === "batchDeleteAdminPastes" ||
-          op.type === "clearExpiredPastes"
+        (op) => op.type === "createPaste" || op.type === "updatePaste" || op.type === "batchDeletePastes" || op.type === "clearExpiredPastes"
       );
 
       // 如果当前在文本管理页面且有文本相关操作，则刷新页面

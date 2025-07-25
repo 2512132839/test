@@ -56,7 +56,7 @@ function createUnifiedAuthMiddleware() {
     try {
       await authGateway.requireFile()(c, async () => {
         // apiKey认证成功，设置用户信息
-        c.set("userType", "apiKey");
+        c.set("userType", "apikey");
         c.set("userId", authGateway.utils.getUserId(c));
         c.set("apiKeyInfo", authGateway.utils.getApiKeyInfo(c));
         isAuthenticated = true;
@@ -298,7 +298,7 @@ export function registerFilesRoutes(app) {
       };
 
       // API密钥用户需要返回密钥信息
-      if (userType === "apiKey") {
+      if (userType === "apikey") {
         response.key_info = apiKeyInfo;
       }
 
@@ -347,9 +347,14 @@ export function registerFilesRoutes(app) {
     const userId = c.get("userId");
     const body = await c.req.json();
     const ids = body.ids;
+    const deleteMode = body.delete_mode || "both"; // 默认为同时删除
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的文件ID数组"), ApiStatus.BAD_REQUEST);
+    }
+
+    if (!["record_only", "both"].includes(deleteMode)) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "删除模式必须是 'record_only' 或 'both'"), ApiStatus.BAD_REQUEST);
     }
 
     // 结果统计
@@ -396,9 +401,27 @@ export function registerFilesRoutes(app) {
           s3ConfigIds.add(file.storage_config_id);
         }
 
-        // 尝试从S3中删除文件
+        // 根据删除模式和文件来源进行不同的处理
         try {
-          if (file.storage_path && file.bucket_name) {
+          // 如果是来自文件系统的文件且选择同时删除
+          if (deleteMode === "both" && file.file_path) {
+            // 删除文件系统中的原文件
+            const { MountManager } = await import("../storage/managers/MountManager.js");
+            const { FileSystem } = await import("../storage/fs/FileSystem.js");
+
+            const mountManager = new MountManager(db, encryptionSecret);
+            const fileSystem = new FileSystem(mountManager);
+
+            try {
+              await fileSystem.batchRemoveItems([file.file_path], userType === "admin" ? userId : `apikey:${userId}`, userType);
+            } catch (fsError) {
+              console.error(`删除文件系统文件错误 (ID: ${id}):`, fsError);
+              // 文件系统删除失败，记录错误但继续处理
+            }
+          }
+
+          // 删除分享存储中的文件（如果存在且需要删除）
+          if (deleteMode === "both" && file.storage_path && file.bucket_name) {
             const s3Config = {
               id: file.id,
               endpoint_url: file.endpoint_url,
@@ -410,9 +433,9 @@ export function registerFilesRoutes(app) {
             };
             await deleteFileFromS3(s3Config, file.storage_path, encryptionSecret);
           }
-        } catch (s3Error) {
-          console.error(`从S3删除文件错误 (ID: ${id}):`, s3Error);
-          // 即使S3删除失败，也继续从数据库中删除记录
+        } catch (deleteError) {
+          console.error(`删除文件错误 (ID: ${id}):`, deleteError);
+          // 即使删除失败，也继续从数据库中删除记录
         }
 
         // 使用 FileRepository 删除记录和关联的密码记录
@@ -543,7 +566,7 @@ export function registerFilesRoutes(app) {
       }
 
       // 如果没有要更新的字段（API密钥用户需要检查）
-      if (userType === "apiKey" && Object.keys(updateData).length === 0) {
+      if (userType === "apikey" && Object.keys(updateData).length === 0) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "没有提供有效的更新字段"), ApiStatus.BAD_REQUEST);
       }
 

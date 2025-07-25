@@ -3,6 +3,7 @@ import { ref, computed, watch, shallowRef } from "vue";
 import { h } from "vue"; //递归组件
 import { useI18n } from "vue-i18n";
 import { api } from "../../../api";
+import { Permission, PermissionChecker } from "../../../constants/permissions.js";
 
 // 目录缓存对象，用于存储已加载的目录内容
 const directoryCache = shallowRef(new Map());
@@ -325,9 +326,24 @@ const customKey = ref("");
 const useCustomKey = ref(false);
 const expiration = ref("1d");
 const customExpiration = ref("");
-const textPermission = ref(false);
-const filePermission = ref(false);
-const mountPermission = ref(false);
+// 权限状态 - 支持所有 9 种权限
+const permissions = ref({
+  // 基础权限
+  text: false,
+  file_share: false,
+
+  // 挂载页权限
+  mount_view: false,
+  mount_upload: false,
+  mount_copy: false,
+  mount_rename: false,
+  mount_delete: false,
+
+  // WebDAV权限
+  webdav_read: false,
+  webdav_manage: false,
+});
+
 const basicPath = ref("/");
 
 // 路径选择器相关状态
@@ -375,6 +391,15 @@ const validateCustomKey = (key) => {
   return keyFormatRegex.test(key);
 };
 
+// 权限转换辅助函数 - 使用统一的PermissionChecker
+const convertPermissionsFromBitFlag = (bitFlag) => {
+  return PermissionChecker.convertFromBitFlag(bitFlag);
+};
+
+const convertPermissionsToBitFlag = (perms) => {
+  return PermissionChecker.convertToBitFlag(perms);
+};
+
 // 重置表单 - 将此函数移到watch之前
 const resetForm = () => {
   keyName.value = "";
@@ -382,9 +407,18 @@ const resetForm = () => {
   useCustomKey.value = false;
   expiration.value = "1d";
   customExpiration.value = "";
-  textPermission.value = false;
-  filePermission.value = false;
-  mountPermission.value = false;
+  // 重置所有权限
+  permissions.value = {
+    text: false,
+    file_share: false,
+    mount_view: false,
+    mount_upload: false,
+    mount_copy: false,
+    mount_rename: false,
+    mount_delete: false,
+    webdav_read: false,
+    webdav_manage: false,
+  };
   basicPath.value = "/";
   selectedPath.value = "/";
   error.value = null;
@@ -402,9 +436,7 @@ watch(
       keyName.value = newVal.name;
       useCustomKey.value = false; // 编辑模式不能修改密钥本身
       customKey.value = "";
-      textPermission.value = newVal.text_permission === 1 || newVal.text_permission === true;
-      filePermission.value = newVal.file_permission === 1 || newVal.file_permission === true;
-      mountPermission.value = newVal.mount_permission === 1 || newVal.mount_permission === true;
+      permissions.value = convertPermissionsFromBitFlag(newVal.permissions);
       basicPath.value = newVal.basic_path || "/";
       selectedPath.value = newVal.basic_path || "/";
 
@@ -598,12 +630,10 @@ const handleSubmit = async () => {
 
   try {
     if (props.isEditMode) {
-      // 更新密钥
+      // 更新密钥 - 使用新的位标志权限系统
       const updateData = {
         name: keyName.value,
-        text_permission: textPermission.value,
-        file_permission: filePermission.value,
-        mount_permission: mountPermission.value,
+        permissions: convertPermissionsToBitFlag(permissions.value),
         basic_path: basicPath.value,
       };
 
@@ -625,9 +655,10 @@ const handleSubmit = async () => {
         error.value = result.message || t("admin.keyManagement.editModal.errors.updateFailed", "更新密钥失败");
       }
     } else {
-      // 创建密钥
+      // 创建密钥 - 使用新的位标志权限系统
       const customKeyValue = useCustomKey.value ? customKey.value : null;
-      const result = await api.admin.createApiKey(keyName.value, expiresAt, textPermission.value, filePermission.value, mountPermission.value, customKeyValue, basicPath.value);
+      const permissionsBitFlag = convertPermissionsToBitFlag(permissions.value);
+      const result = await api.admin.createApiKey(keyName.value, expiresAt, permissionsBitFlag, "GENERAL", customKeyValue, basicPath.value, false);
 
       if (result.success && result.data) {
         emit(
@@ -637,10 +668,10 @@ const handleSubmit = async () => {
             name: result.data.name,
             key: result.data.key,
             key_masked: result.data.key.substring(0, 6) + "...",
-            text_permission: textPermission.value,
-            file_permission: filePermission.value,
-            mount_permission: mountPermission.value,
+            permissions: result.data.permissions,
+            role: result.data.role,
             basic_path: basicPath.value,
+            is_guest: result.data.is_guest,
             created_at: result.data.created_at,
             expires_at: expiresAt,
             last_used: null,
@@ -679,9 +710,8 @@ defineExpose({
 
 <template>
   <div
-    class="relative rounded-lg shadow-xl w-full max-h-[95vh] sm:max-h-[85vh] overflow-hidden max-w-xs sm:max-w-md"
+    class="relative rounded-lg shadow-xl w-full max-h-[85vh] sm:max-h-[85vh] overflow-hidden max-w-sm sm:max-w-xl flex flex-col"
     :class="darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'"
-    style="min-width: 300px"
   >
     <!-- 弹窗头部带关闭按钮 -->
     <div class="px-4 py-3 sm:py-4 border-b flex justify-between items-center sticky top-0 z-10" :class="[darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white']">
@@ -723,7 +753,7 @@ defineExpose({
           {{ $t(isEditMode ? "admin.keyManagement.editModal.tabs.basic" : "admin.keyManagement.createModal.tabs.basic", "基本信息") }}
         </button>
         <button
-          v-if="mountPermission"
+          v-if="permissions.mount_view"
           @click="switchToPathTab"
           class="px-4 py-2 text-sm font-medium"
           :class="[
@@ -742,7 +772,7 @@ defineExpose({
     </div>
 
     <!-- 弹窗内容区 - 增加滚动条 -->
-    <div class="px-3 sm:px-4 py-3 sm:py-4 overflow-y-auto" style="max-height: calc(95vh - 140px)">
+    <div class="px-3 sm:px-4 py-3 sm:py-4 overflow-y-auto flex-1">
       <!-- 基本信息标签页 -->
       <div v-if="activeTab === 'basic'" class="space-y-4">
         <!-- 密钥名称 -->
@@ -828,52 +858,160 @@ defineExpose({
         </div>
 
         <!-- 权限设置 -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <!-- 文本权限 -->
-          <div class="flex items-center space-x-2">
-            <input
-              :id="isEditMode ? 'edit-text-permission' : 'text-permission'"
-              v-model="textPermission"
-              type="checkbox"
-              class="h-5 w-5 rounded"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
-            />
-            <label :for="isEditMode ? 'edit-text-permission' : 'text-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-              {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.text" : "admin.keyManagement.createModal.permissions.text") }}
-            </label>
+        <div class="space-y-4">
+          <!-- 基础权限 -->
+          <div>
+            <h4 class="text-sm font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+              {{ $t("admin.keyManagement.permissions.basic", "基础权限") }}
+            </h4>
+            <div class="grid grid-cols-1 gap-3">
+              <!-- 文本权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-text-permission' : 'text-permission'"
+                  v-model="permissions.text"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-text-permission' : 'text-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.text", "文本分享") }}
+                </label>
+              </div>
+
+              <!-- 文件权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-file-permission' : 'file-permission'"
+                  v-model="permissions.file_share"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-file-permission' : 'file-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.file_share", "文件分享") }}
+                </label>
+              </div>
+            </div>
           </div>
 
-          <!-- 文件权限 -->
-          <div class="flex items-center space-x-2">
-            <input
-              :id="isEditMode ? 'edit-file-permission' : 'file-permission'"
-              v-model="filePermission"
-              type="checkbox"
-              class="h-5 w-5 rounded"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
-            />
-            <label :for="isEditMode ? 'edit-file-permission' : 'file-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-              {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.file" : "admin.keyManagement.createModal.permissions.file") }}
-            </label>
+          <!-- 挂载页权限 -->
+          <div>
+            <h4 class="text-sm font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+              {{ $t("admin.keyManagement.permissions.mount", "挂载页权限") }}
+            </h4>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <!-- 查看权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-mount-view' : 'mount-view'"
+                  v-model="permissions.mount_view"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-mount-view' : 'mount-view'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.mount_view", "查看") }}
+                </label>
+              </div>
+
+              <!-- 上传权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-mount-upload' : 'mount-upload'"
+                  v-model="permissions.mount_upload"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-mount-upload' : 'mount-upload'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.mount_upload", "上传") }}
+                </label>
+              </div>
+
+              <!-- 复制权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-mount-copy' : 'mount-copy'"
+                  v-model="permissions.mount_copy"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-mount-copy' : 'mount-copy'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.mount_copy", "复制") }}
+                </label>
+              </div>
+
+              <!-- 重命名权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-mount-rename' : 'mount-rename'"
+                  v-model="permissions.mount_rename"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-mount-rename' : 'mount-rename'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.mount_rename", "重命名") }}
+                </label>
+              </div>
+
+              <!-- 删除权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-mount-delete' : 'mount-delete'"
+                  v-model="permissions.mount_delete"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-mount-delete' : 'mount-delete'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.mount_delete", "删除") }}
+                </label>
+              </div>
+            </div>
           </div>
 
-          <!-- 挂载点权限 -->
-          <div class="flex items-center space-x-2">
-            <input
-              :id="isEditMode ? 'edit-mount-permission' : 'mount-permission'"
-              v-model="mountPermission"
-              type="checkbox"
-              class="h-5 w-5 rounded"
-              :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
-            />
-            <label :for="isEditMode ? 'edit-mount-permission' : 'mount-permission'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
-              {{ $t(isEditMode ? "admin.keyManagement.editModal.permissions.mount" : "admin.keyManagement.createModal.permissions.mount") }}
-            </label>
+          <!-- WebDAV权限 -->
+          <div>
+            <h4 class="text-sm font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+              {{ $t("admin.keyManagement.permissions.webdav", "WebDAV权限") }}
+            </h4>
+            <div class="grid grid-cols-1 gap-3">
+              <!-- WebDAV读取权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-webdav-read' : 'webdav-read'"
+                  v-model="permissions.webdav_read"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-webdav-read' : 'webdav-read'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.webdav_read", "WebDAV读取") }}
+                </label>
+              </div>
+
+              <!-- WebDAV管理权限 -->
+              <div class="flex items-center space-x-2">
+                <input
+                  :id="isEditMode ? 'edit-webdav-manage' : 'webdav-manage'"
+                  v-model="permissions.webdav_manage"
+                  type="checkbox"
+                  class="h-4 w-4 rounded"
+                  :class="darkMode ? 'bg-gray-700 border-gray-600 text-primary-600' : 'bg-white border-gray-300 text-primary-500'"
+                />
+                <label :for="isEditMode ? 'edit-webdav-manage' : 'webdav-manage'" class="text-sm font-medium" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
+                  {{ $t("admin.keyManagement.permissions.webdav_manage", "WebDAV管理") }}
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- 基本路径 -->
-        <div v-if="mountPermission" class="mt-2">
+        <div v-if="permissions.mount_view" class="mt-2">
           <label :for="isEditMode ? 'edit-basic-path' : 'basic-path'" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">
             {{ $t(isEditMode ? "admin.keyManagement.editModal.basicPath" : "admin.keyManagement.createModal.basicPath", "基本路径") }}
           </label>
@@ -1002,27 +1140,31 @@ defineExpose({
       >
         {{ error }}
       </div>
+    </div>
 
-      <!-- 按钮区域 - 只在基本信息标签页显示 -->
-      <div v-if="activeTab === 'basic'" class="flex justify-end space-x-3 pt-4 mt-2">
-        <button
-          @click="handleCancel"
-          class="px-3 py-1.5 text-sm rounded-md"
-          :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
-          :disabled="isLoading"
-        >
-          {{ $t(isEditMode ? "admin.keyManagement.editModal.cancel" : "admin.keyManagement.createModal.cancel") }}
-        </button>
-        <button
-          @click="handleSubmit"
-          class="px-3 py-1.5 text-sm rounded-md text-white"
-          :class="[isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-600', darkMode ? 'bg-primary-600' : 'bg-primary-500']"
-          :disabled="isLoading"
-        >
-          <span v-if="isLoading">{{ processingButtonText }}</span>
-          <span v-else>{{ saveButtonText }}</span>
-        </button>
-      </div>
+    <!-- 固定按钮区域 -->
+    <div
+      class="px-3 sm:px-4 py-2 sm:py-3 border-t transition-colors duration-200 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0"
+      :class="darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'"
+    >
+      <button
+        @click="handleCancel"
+        class="w-full sm:w-auto px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+        :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+        :disabled="isLoading"
+      >
+        {{ $t(isEditMode ? "admin.keyManagement.editModal.cancel" : "admin.keyManagement.createModal.cancel") }}
+      </button>
+      <button
+        @click="handleSubmit"
+        type="button"
+        class="w-full sm:w-auto flex justify-center items-center px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 text-white"
+        :class="[isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary-600', darkMode ? 'bg-primary-600' : 'bg-primary-500']"
+        :disabled="isLoading"
+      >
+        <span v-if="isLoading">{{ processingButtonText }}</span>
+        <span v-else>{{ saveButtonText }}</span>
+      </button>
     </div>
   </div>
 </template>

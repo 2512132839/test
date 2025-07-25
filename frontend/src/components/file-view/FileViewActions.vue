@@ -497,11 +497,9 @@ const deleteFile = async () => {
   try {
     let response;
 
-    // 根据用户类型选择合适的批量删除 API 函数
-    if (isAdmin.value) {
+    // 使用统一的批量删除 API
+    if (isAdmin.value || (hasApiKey.value && hasFilePermission.value && isCreator.value)) {
       response = await api.file.batchDeleteFiles([props.fileInfo.id]);
-    } else if (hasApiKey.value && hasFilePermission.value && isCreator.value) {
-      response = await api.file.batchDeleteUserFiles([props.fileInfo.id]);
     } else {
       throw new Error(t("fileView.actions.noPermission"));
     }

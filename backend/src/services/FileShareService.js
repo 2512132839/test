@@ -268,7 +268,7 @@ export class FileShareService {
       password: passwordHash,
       expires_at: expiresAt,
       max_views: maxViews > 0 ? maxViews : null,
-      use_proxy: use_proxy || false,
+      use_proxy: use_proxy !== undefined ? use_proxy : true,
       created_by: userType === "admin" ? userIdOrInfo : `apikey:${userIdOrInfo}`,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -802,5 +802,89 @@ export class FileShareService {
       message: abortResult.message || "分片上传已中止",
       fileId: fileId,
     };
+  }
+
+  /**
+   * 从文件系统创建分享记录
+   * @param {string} fsPath - 文件系统路径
+   * @param {string|Object} userIdOrInfo - 用户ID或API密钥信息
+   * @param {string} userType - 用户类型
+   * @param {Object} options - 选项参数
+   * @returns {Promise<Object>} 创建结果
+   */
+  async createShareFromFileSystem(fsPath, userIdOrInfo, userType, options = {}) {
+    const { MountManager } = await import("../storage/managers/MountManager.js");
+    const { FileSystem } = await import("../storage/fs/FileSystem.js");
+
+    try {
+      // 1. 通过FileSystem获取文件信息和权限验证
+      const mountManager = new MountManager(this.db, this.encryptionSecret);
+      const fileSystem = new FileSystem(mountManager);
+
+      const fileInfo = await fileSystem.getFileInfo(fsPath, userIdOrInfo, userType);
+
+      if (!fileInfo || fileInfo.isDirectory) {
+        throw new HTTPException(ApiStatus.BAD_REQUEST, {
+          message: "只能为文件创建分享，不支持目录分享",
+        });
+      }
+
+      // 2. 获取文件所在的挂载点信息
+      const { mount } = await mountManager.getDriverByPath(fsPath, userIdOrInfo, userType);
+
+      // 3. 创建文件记录（复用现有逻辑的核心部分）
+      const fileId = generateFileId();
+      const uniqueSlug = await generateUniqueFileSlug(this.db, null, false);
+
+      // 计算文件在存储中的实际路径
+      const subPath = fsPath.replace(mount.mount_path, "").replace(/^\/+/, "");
+      const storagePath = mount.storage_config_id ? subPath : fsPath;
+
+      // 创建文件记录（与_createFileRecord保持一致的结构）
+      const fileRepository = this.repositoryFactory.getFileRepository();
+      const fileData = {
+        id: fileId,
+        slug: uniqueSlug,
+        filename: fileInfo.name,
+        storage_config_id: mount.storage_config_id,
+        storage_type: mount.storage_type || "S3",
+        storage_path: storagePath,
+        file_path: fsPath, // 关键：存储原始文件系统路径，这是与普通分享的区别
+        mimetype: fileInfo.mimeType || getMimeTypeFromFilename(fileInfo.name),
+        size: fileInfo.size || 0,
+        etag: fileInfo.etag || null,
+        remark: options.remark || `来自文件系统: ${fsPath}`,
+        password: null, // 文件系统分享暂不支持密码
+        expires_at: null, // 文件系统分享暂不支持过期时间
+        max_views: null, // 文件系统分享暂不支持查看次数限制
+        use_proxy: true,
+        created_by: userType === "admin" ? userIdOrInfo : `apikey:${userIdOrInfo.id}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      await fileRepository.createFile(fileData);
+
+      return {
+        success: true,
+        fileId: fileId,
+        slug: uniqueSlug,
+        filename: fileInfo.name,
+        size: fileInfo.size,
+        url: `/file/${uniqueSlug}`,
+        message: "分享创建成功",
+      };
+    } catch (error) {
+      console.error("从文件系统创建分享失败:", error);
+
+      // 统一错误处理
+      if (error instanceof HTTPException) {
+        throw error;
+      }
+
+      throw new HTTPException(ApiStatus.INTERNAL_ERROR, {
+        message: error.message || "创建分享失败",
+      });
+    }
   }
 }

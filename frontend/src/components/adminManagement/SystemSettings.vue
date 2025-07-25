@@ -59,6 +59,22 @@ const systemSettingsStatus = ref({
   error: "",
 });
 
+// 代理签名设置
+const proxySignSettings = ref({
+  signAll: false,
+  expires: 0,
+});
+
+// 代理签名设置更新状态
+const proxySignStatus = ref({
+  loading: false,
+  success: false,
+  error: "",
+});
+
+// 提示框显示状态
+const showSignAllTooltip = ref(false);
+
 // 获取系统设置
 onMounted(async () => {
   try {
@@ -80,6 +96,16 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error("获取系统设置失败:", error);
+  }
+
+  // 获取代理签名设置
+  try {
+    const response = await api.system.getProxySignSettings();
+    if (response && response.success) {
+      proxySignSettings.value = response.data;
+    }
+  } catch (error) {
+    console.error("获取代理签名设置失败:", error);
   }
 });
 
@@ -133,6 +159,44 @@ const handleUpdateSystemSettings = async (event) => {
     systemSettingsStatus.value.error = error.message || t("admin.settings.status.errors.updateSettingsError");
   } finally {
     systemSettingsStatus.value.loading = false;
+  }
+};
+
+// 更新代理签名设置
+const handleUpdateProxySignSettings = async (event) => {
+  event.preventDefault();
+
+  // 验证表单
+  if (typeof proxySignSettings.value.signAll !== "boolean") {
+    proxySignStatus.value.error = "签名所有设置必须是布尔值";
+    return;
+  }
+
+  if (typeof proxySignSettings.value.expires !== "number" || proxySignSettings.value.expires < 0) {
+    proxySignStatus.value.error = "过期时间必须是非负数";
+    return;
+  }
+
+  proxySignStatus.value = {
+    loading: true,
+    success: false,
+    error: "",
+  };
+
+  try {
+    await api.system.updateProxySignSettings(proxySignSettings.value);
+
+    // 更新成功
+    proxySignStatus.value.success = true;
+
+    // 3秒后清除成功消息
+    setTimeout(() => {
+      proxySignStatus.value.success = false;
+    }, 3000);
+  } catch (error) {
+    proxySignStatus.value.error = error.message || "更新代理签名设置失败";
+  } finally {
+    proxySignStatus.value.loading = false;
   }
 };
 
@@ -242,7 +306,7 @@ const getIconPath = (iconName) => {
     </div>
 
     <!-- 设置卡片容器 - 更紧凑的网格布局 -->
-    <div class="settings-grid grid md:grid-cols-2 gap-5 mb-8">
+    <div class="settings-grid grid lg:grid-cols-2 gap-5 mb-8">
       <!-- 上传限制设置面板 - 更小更紧凑的卡片 -->
       <div
         class="setting-card flex flex-col rounded-md overflow-hidden transition-all duration-200 shadow-sm border"
@@ -647,6 +711,186 @@ const getIconPath = (iconName) => {
               />
             </svg>
             <p>{{ $t("admin.settings.adminSettings.footerHint") }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 代理签名设置面板 - 更小更紧凑的卡片 -->
+      <div
+        class="setting-card flex flex-col rounded-md overflow-hidden transition-all duration-200 shadow-sm border"
+        :class="darkMode ? 'bg-gray-800 border-gray-700 hover:shadow-sm' : 'bg-white border-gray-200 hover:shadow-sm'"
+      >
+        <!-- 卡片标题栏 - 更紧凑 -->
+        <div class="card-header px-4 py-3 border-b transition-colors duration-200" :class="darkMode ? 'border-gray-700 bg-gray-800/70' : 'border-gray-100 bg-gray-50/50'">
+          <div class="flex items-center">
+            <div class="icon-wrapper p-1.5 rounded-md mr-3" :class="darkMode ? 'bg-green-500/10 text-green-400' : 'bg-green-500/10 text-green-600'">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-base font-medium" :class="darkMode ? 'text-gray-100' : 'text-gray-800'">{{ t("admin.settings.proxySignSettings.title") }}</h3>
+              <p class="text-xs mt-0.5" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.settings.proxySignSettings.description") }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 卡片内容区 - 更紧凑 -->
+        <div class="card-body p-4 flex-grow">
+          <!-- 成功消息 - 更扁平 -->
+          <transition name="fade">
+            <div
+              v-if="proxySignStatus.success"
+              class="mb-3 rounded-md p-2 border transition-colors duration-200"
+              :class="darkMode ? 'bg-green-900/20 border-green-800/40 text-green-200' : 'bg-green-50 border-green-200 text-green-800'"
+            >
+              <div class="flex items-center">
+                <svg class="h-4 w-4 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+                <p class="text-sm font-medium">{{ t("admin.settings.proxySignSettings.updateSuccess") }}</p>
+              </div>
+            </div>
+          </transition>
+
+          <!-- 错误消息 - 更扁平 -->
+          <transition name="fade">
+            <div
+              v-if="proxySignStatus.error"
+              class="mb-3 rounded-md p-2 border transition-colors duration-200"
+              :class="darkMode ? 'bg-red-900/20 border-red-800/40 text-red-200' : 'bg-red-50 border-red-200 text-red-800'"
+            >
+              <div class="flex items-center">
+                <svg class="h-4 w-4 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+                <p class="text-sm font-medium">{{ proxySignStatus.error }}</p>
+              </div>
+            </div>
+          </transition>
+
+          <!-- 代理签名表单 - 更扁平的输入框 -->
+          <form @submit="handleUpdateProxySignSettings">
+            <!-- 签名所有开关 -->
+            <div class="mb-4">
+              <div class="flex items-center">
+                <div class="flex items-center h-5">
+                  <input
+                    id="signAll"
+                    type="checkbox"
+                    v-model="proxySignSettings.signAll"
+                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                  />
+                </div>
+                <div class="ml-3 flex items-center">
+                  <label for="signAll" class="text-sm font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.settings.proxySignSettings.signAll") }}</label>
+                  <div class="relative ml-2">
+                    <svg
+                      class="w-4 h-4 cursor-help"
+                      :class="darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-600'"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      @mouseenter="showSignAllTooltip = true"
+                      @mouseleave="showSignAllTooltip = false"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <!-- 悬停提示 -->
+                    <div
+                      v-show="showSignAllTooltip"
+                      class="absolute z-50 w-80 p-3 text-sm rounded-lg shadow-lg border left-6 top-6"
+                      :class="darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-200 text-gray-700'"
+                    >
+                      <div class="space-y-2">
+                        <p>
+                          <strong>{{ t("admin.settings.proxySignSettings.signAllHint.enabled").split("：")[0] }}：</strong
+                          >{{ t("admin.settings.proxySignSettings.signAllHint.enabled").split("：")[1] }}
+                        </p>
+                        <p>
+                          <strong>{{ t("admin.settings.proxySignSettings.signAllHint.disabled").split("：")[0] }}：</strong
+                          >{{ t("admin.settings.proxySignSettings.signAllHint.disabled").split("：")[1] }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 签名过期时间 -->
+            <div class="mb-4">
+              <label for="expires" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{
+                t("admin.settings.proxySignSettings.signExpires")
+              }}</label>
+              <input
+                id="expires"
+                type="number"
+                v-model.number="proxySignSettings.expires"
+                min="0"
+                class="block w-full px-3 py-2 border rounded-md shadow-sm text-sm transition-colors duration-200 focus:ring-1 focus:ring-offset-0 focus:border-transparent"
+                :class="
+                  darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-primary-500/70'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-primary-500/60'
+                "
+              />
+              <p class="mt-1 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.settings.proxySignSettings.signExpiresHint") }}</p>
+            </div>
+
+            <!-- 提交按钮 -->
+            <div class="flex justify-end">
+              <button
+                type="submit"
+                :disabled="proxySignStatus.loading"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+              >
+                <span v-if="proxySignStatus.loading" class="flex items-center">
+                  <svg class="animate-spin -ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  处理中...
+                </span>
+                <span v-else class="flex items-center">
+                  <svg class="mr-1.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  {{ t("admin.settings.proxySignSettings.updateProxySign") }}
+                </span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 卡片底部提示信息 - 更简洁 -->
+        <div
+          class="card-footer px-4 py-2 bg-opacity-50 border-t text-xs transition-colors duration-200"
+          :class="darkMode ? 'bg-gray-700/50 border-gray-700 text-gray-400' : 'bg-gray-50/50 border-gray-100 text-gray-500'"
+        >
+          <div class="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p>代理签名提供两层控制：全局签名所有 + 存储级独立配置</p>
           </div>
         </div>
       </div>

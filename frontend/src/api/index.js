@@ -29,9 +29,11 @@ export const api = {
   // 文件管理相关
   file: {
     ...fileService,
-    // 添加批量删除的便捷方法
-    batchDeleteFiles: fileService.batchDeleteAdminFiles,
-    batchDeleteUserFiles: fileService.batchDeleteUserFiles,
+    // 统一接口
+    getFiles: fileService.getFiles,
+    getFile: fileService.getFile,
+    updateFile: fileService.updateFile,
+    batchDeleteFiles: fileService.batchDeleteFiles,
   },
 
   // 文件预览相关
@@ -44,7 +46,12 @@ export const api = {
   mount: mountService,
 
   // 系统管理相关
-  system: systemService,
+  system: {
+    ...systemService,
+    // 代理签名设置
+    getProxySignSettings: systemService.getProxySignSettings,
+    updateProxySignSettings: systemService.updateProxySignSettings,
+  },
 
   // URL上传相关
   urlUpload: urlUploadService,
@@ -68,13 +75,12 @@ export const api = {
     deleteApiKey: authService.deleteApiKey,
     updateApiKey: authService.updateApiKey,
 
-    // 文本分享管理
-    getAllPastes: pasteService.getAllPastes,
-    getPasteById: pasteService.getAdminPasteById,
-    updatePaste: pasteService.updateAdminPaste,
-    deletePaste: pasteService.deleteAdminPaste,
-    deletePastes: pasteService.deleteAdminPastes,
-    clearExpiredPastes: systemService.clearExpiredPastes,
+    // 文本分享管理（统一接口）
+    getPastes: pasteService.getPastes,
+    getPasteById: pasteService.getPasteById,
+    updatePaste: pasteService.updatePaste,
+    batchDeletePastes: pasteService.batchDeletePastes,
+    clearExpiredPastes: pasteService.clearExpiredPastes,
 
     // S3配置管理（已迁移到storage）
     getAllS3Configs: storageService.getAllS3Configs,
@@ -115,17 +121,11 @@ export const api = {
     completeFileUpload: fileService.completeFileUpload,
     getMaxUploadSize: systemService.getMaxUploadSize,
 
-    // 管理员文件管理
-    getFiles: fileService.getAdminFiles,
-    getFile: fileService.getAdminFile,
-    updateFile: fileService.updateAdminFile,
-    batchDeleteFiles: fileService.batchDeleteAdminFiles,
-
-    // API密钥用户文件管理
-    getUserFiles: fileService.getUserFiles,
-    getUserFile: fileService.getUserFile,
-    updateUserFile: fileService.updateUserFile,
-    batchDeleteUserFiles: fileService.batchDeleteUserFiles,
+    // 统一文件管理
+    getFiles: fileService.getFiles,
+    getFile: fileService.getFile,
+    updateFile: fileService.updateFile,
+    batchDeleteFiles: fileService.batchDeleteFiles,
 
     // 公共文件访问
     getPublicFile: fileService.getPublicFile,
@@ -157,13 +157,12 @@ export const api = {
   },
 
   user: {
-    // API密钥用户的文本服务
+    // API密钥用户的文本服务（统一接口）
     paste: {
-      getPastes: pasteService.getUserPastes,
-      getPasteById: pasteService.getUserPasteById,
-      updatePaste: pasteService.updateUserPaste,
-      deletePaste: pasteService.deleteUserPaste,
-      deletePastes: pasteService.deleteUserPastes,
+      getPastes: pasteService.getPastes,
+      getPasteById: pasteService.getPasteById,
+      updatePaste: pasteService.updatePaste,
+      batchDeletePastes: pasteService.batchDeletePastes,
     },
 
     // API密钥用户的挂载服务（只读）
@@ -186,6 +185,8 @@ export const api = {
       // 复制相关
       batchCopyItems: fsService.batchCopyItems,
       commitBatchCopy: fsService.commitBatchCopy,
+      // 分享相关
+      createShareFromFileSystem: fsService.createShareFromFileSystem,
     },
 
     // API密钥用户的URL上传服务

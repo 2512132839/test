@@ -40,6 +40,8 @@ const formData = ref({
   cache_ttl: 300, // 默认缓存时间5分钟
   web_proxy: false, // 默认不启用网页代理
   webdav_policy: "302_redirect", // 默认WebDAV策略为302重定向
+  enable_sign: false, // 默认不启用签名
+  sign_expires: null, // 默认使用全局设置
 });
 // 表单验证错误
 const errors = ref({});
@@ -233,6 +235,13 @@ const submitForm = async () => {
     formPayload.sort_order = Number(formPayload.sort_order);
     formPayload.cache_ttl = Number(formPayload.cache_ttl);
 
+    // 处理签名过期时间字段
+    if (formPayload.sign_expires !== null && formPayload.sign_expires !== undefined && formPayload.sign_expires !== "") {
+      formPayload.sign_expires = Number(formPayload.sign_expires);
+    } else {
+      formPayload.sign_expires = null; // 使用全局设置
+    }
+
     // 只有管理员可以创建和更新挂载点
     if (isApiKeyUser.value) {
       globalError.value = t("admin.mount.error.apiKeyCannotManage");
@@ -330,7 +339,7 @@ const initializeFormData = () => {
   Object.keys(formData.value).forEach((key) => {
     if (props.mount[key] !== undefined) {
       // 特殊处理布尔值字段，确保它们正确转换
-      if (key === "is_active" || key === "web_proxy") {
+      if (key === "is_active" || key === "web_proxy" || key === "enable_sign") {
         formData.value[key] = !!props.mount[key]; // 确保是布尔类型
       } else {
         formData.value[key] = props.mount[key];
@@ -352,6 +361,8 @@ const resetFormData = () => {
     cache_ttl: 300, // 默认缓存时间5分钟
     web_proxy: false, // 默认不启用网页代理
     webdav_policy: "302_redirect", // 默认WebDAV策略为302重定向
+    enable_sign: false, // 默认不启用签名
+    sign_expires: null, // 默认使用全局设置
   };
 };
 </script>
@@ -546,6 +557,49 @@ const resetFormData = () => {
                 <label for="web_proxy" class="text-sm font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.webProxy") }}</label>
                 <p class="text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.webProxyHint") }}</p>
               </div>
+            </div>
+          </div>
+
+          <!-- 代理签名配置 -->
+          <div v-show="formData.web_proxy" class="mt-3 sm:mt-4 p-3 rounded-md border" :class="darkMode ? 'bg-gray-800/50 border-gray-600' : 'bg-gray-50 border-gray-200'">
+            <h4 class="text-sm font-medium mb-3" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{ t("admin.mount.form.proxySign.title") }}</h4>
+
+            <!-- 启用签名开关 -->
+            <div class="mb-3">
+              <div class="flex items-center">
+                <div class="flex items-center h-5">
+                  <input
+                    id="enable_sign"
+                    type="checkbox"
+                    v-model="formData.enable_sign"
+                    class="h-4 w-4 sm:h-5 sm:w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :class="darkMode ? 'bg-gray-700 border-gray-600' : ''"
+                  />
+                </div>
+                <div class="ml-2 sm:ml-3">
+                  <label for="enable_sign" class="text-sm font-medium" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{
+                    t("admin.mount.form.proxySign.enableSign")
+                  }}</label>
+                  <p class="text-xs mt-0.5" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.proxySign.enableSignHint") }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 签名过期时间设置 -->
+            <div v-show="formData.enable_sign" class="transition-all duration-200">
+              <label for="sign_expires" class="block text-sm font-medium mb-1" :class="darkMode ? 'text-gray-200' : 'text-gray-700'">{{
+                t("admin.mount.form.proxySign.signExpires")
+              }}</label>
+              <input
+                id="sign_expires"
+                type="number"
+                v-model.number="formData.sign_expires"
+                min="0"
+                :placeholder="t('admin.mount.form.proxySign.signExpiresPlaceholder')"
+                class="block w-full px-3 py-1.5 sm:py-2 rounded-md text-sm transition-colors duration-200 border"
+                :class="darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'"
+              />
+              <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("admin.mount.form.proxySign.signExpiresHint") }}</p>
             </div>
           </div>
 

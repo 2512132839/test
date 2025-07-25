@@ -221,6 +221,8 @@ export async function initDatabase(db) {
         cache_ttl INTEGER DEFAULT 300,
         web_proxy BOOLEAN DEFAULT 0,
         webdav_policy TEXT DEFAULT '302_redirect',
+        enable_sign BOOLEAN DEFAULT 0,
+        sign_expires INTEGER DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_used DATETIME
@@ -275,6 +277,50 @@ export async function initDatabase(db) {
         `
         INSERT INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description)
         VALUES ('webdav_upload_mode', 'direct', 'WebDAV上传模式（multipart, direct）')
+      `
+      )
+      .run();
+  }
+
+  // 检查是否已存在代理签名全局设置
+  const proxySignAll = await db
+    .prepare(
+      `
+      SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
+      WHERE key = 'proxy_sign_all'
+    `
+    )
+    .first();
+
+  // 如果不存在，添加默认值
+  if (!proxySignAll) {
+    await db
+      .prepare(
+        `
+        INSERT INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description)
+        VALUES ('proxy_sign_all', 'true', '签名所有：开启后所有代理访问都需要签名')
+      `
+      )
+      .run();
+  }
+
+  // 检查是否已存在代理签名过期时间设置
+  const proxySignExpires = await db
+    .prepare(
+      `
+      SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
+      WHERE key = 'proxy_sign_expires'
+    `
+    )
+    .first();
+
+  // 如果不存在，添加默认值
+  if (!proxySignExpires) {
+    await db
+      .prepare(
+        `
+        INSERT INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description)
+        VALUES ('proxy_sign_expires', '0', '全局签名过期时间（秒），0表示永不过期')
       `
       )
       .run();

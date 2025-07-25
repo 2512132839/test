@@ -289,13 +289,8 @@ const openEditModal = async () => {
     if (fileInfo.value.id) {
       let response;
 
-      // 根据用户类型选择合适的API函数
-      if (isAdmin.value) {
-        response = await api.file.getFile(fileInfo.value.id);
-      } else {
-        // 如果不是管理员，则尝试使用用户的API获取文件
-        response = await api.file.getUserFile(fileInfo.value.id);
-      }
+      // 使用统一的API函数
+      response = await api.file.getFile(fileInfo.value.id);
 
       if (response.success) {
         // 更新文件信息
@@ -333,13 +328,8 @@ const saveFileChanges = async (updatedFile) => {
   try {
     let response;
 
-    // 根据用户类型选择合适的API函数
-    if (isAdmin.value) {
-      response = await api.file.updateFile(updatedFile.id, updatedFile);
-    } else {
-      // 如果不是管理员，则尝试使用用户的API更新文件
-      response = await api.file.updateUserFile(updatedFile.id, updatedFile);
-    }
+    // 使用统一的API函数（自动根据认证信息处理权限）
+    response = await api.file.updateFile(updatedFile.id, updatedFile);
 
     if (response.success) {
       // 更新成功，重新加载文件信息

@@ -35,6 +35,19 @@ export default {
       newPasswordHint: "Leave blank to keep current password",
       footerHint: "You will be automatically logged out after modification and need to log in again",
     },
+    proxySignSettings: {
+      title: "Proxy Signature Settings",
+      description: "Configure signature policy and default expiration time for web proxy access",
+      signAll: "Sign All",
+      signAllHint: {
+        enabled: "When enabled: Add signature to all file web proxy links, regardless of storage signature settings",
+        disabled: "When disabled: Only storages with signature enabled will add signatures",
+      },
+      signExpires: "Signature Expiration Time (seconds)",
+      signExpiresHint: "Default signature validity period for mount points: 0 means never expire",
+      updateProxySign: "Update Proxy Signature Settings",
+      updateSuccess: "Proxy signature settings updated successfully",
+    },
     status: {
       success: "Settings updated successfully",
       processing: "Processing...",

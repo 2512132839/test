@@ -353,14 +353,8 @@ const saveEdit = async (updateData) => {
     // 检查是否修改了密码
     const passwordChanged = updateData.password || updateData.clearPassword;
 
-    // 根据用户类型调用不同的API更新内容
-    if (isAdmin.value) {
-      // 管理员使用admin API
-      await api.admin.updatePaste(slug, updateData);
-    } else if (hasApiKey.value && hasTextPermission.value && isCreator.value) {
-      // API密钥用户使用user API
-      await api.user.paste.updatePaste(slug, updateData);
-    }
+    // 使用统一API更新内容（自动根据认证信息处理权限）
+    await api.paste.updatePaste(slug, updateData);
 
     // 更新本地内容状态
     paste.value.content = updateData.content;

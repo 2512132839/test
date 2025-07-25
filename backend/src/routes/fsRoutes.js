@@ -832,6 +832,44 @@ fsRoutes.post("/api/fs/presign", authGateway.requireMountUpload(), unifiedFsAuth
   }
 });
 
+// 从文件系统创建分享链接 - 需要挂载页查看权限
+fsRoutes.post("/api/fs/create-share", authGateway.requireMount(), unifiedFsAuthMiddleware, async (c) => {
+  try {
+    const db = c.env.DB;
+    const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+    const userInfo = c.get("userInfo");
+    const { userIdOrInfo, userType } = getServiceParams(userInfo);
+
+    // 解析请求数据
+    const body = await c.req.json();
+    const { path } = body;
+
+    if (!path) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "文件路径不能为空"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 创建FileShareService实例
+    const { FileShareService } = await import("../services/fileShareService.js");
+    const { RepositoryFactory } = await import("../repositories/index.js");
+
+    const repositoryFactory = new RepositoryFactory(db);
+    const fileShareService = new FileShareService(db, repositoryFactory, encryptionSecret);
+
+    // 从文件系统创建分享
+    const result = await fileShareService.createShareFromFileSystem(path, userIdOrInfo, userType);
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "分享创建成功",
+      data: result,
+      success: true,
+    });
+  } catch (error) {
+    console.error("创建分享失败:", error);
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "创建分享失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
 // 提交预签名URL上传完成 - 需要挂载页上传权限
 fsRoutes.post("/api/fs/presign/commit", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   try {

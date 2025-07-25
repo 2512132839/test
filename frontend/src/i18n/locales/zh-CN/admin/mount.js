@@ -12,6 +12,8 @@ export default {
       inactive: "禁用",
       enabled: "已启用",
       disabled: "已禁用",
+      proxy: "代理",
+      signature: "签名",
     },
     info: {
       name: "挂载点名称",
@@ -49,6 +51,14 @@ export default {
       isActiveHint: "是否启用此挂载点",
       webProxy: "启用Web代理",
       webProxyHint: "启用后，文件预览和下载将通过服务器代理",
+      proxySign: {
+        title: "代理签名配置",
+        enableSign: "启用代理签名",
+        enableSignHint: "启用后，通过代理访问此存储的文件需要有效签名",
+        signExpires: "签名过期时间(秒)",
+        signExpiresPlaceholder: "留空使用全局设置",
+        signExpiresHint: "0表示永不过期，留空使用全局默认设置",
+      },
       webdavPolicy: "WebDAV策略",
       webdavPolicyHint: "选择WebDAV访问策略",
       s3Config: "S3存储配置",
