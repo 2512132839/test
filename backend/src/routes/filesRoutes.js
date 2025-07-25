@@ -77,8 +77,6 @@ function createUnifiedAuthMiddleware() {
   };
 }
 
-const unifiedAuth = createUnifiedAuthMiddleware();
-
 // ==================== 公共文件接口（无需认证） ====================
 
 // 获取公开文件（无需认证）
@@ -256,6 +254,8 @@ app.post("/api/public/files/:slug/verify", async (c) => {
 });
 
 // ==================== 统一认证文件接口 ====================
+
+const unifiedAuth = createUnifiedAuthMiddleware();
 
 // 获取文件列表（统一接口）
 app.get("/api/files", unifiedAuth, async (c) => {

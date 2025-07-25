@@ -1,7 +1,5 @@
 import { Hono } from "hono";
 import { authGateway } from "../middlewares/authGatewayMiddleware.js";
-
-const app = new Hono();
 import {
   getAllPastes,
   getUserPastes,
@@ -19,6 +17,8 @@ import { HTTPException } from "hono/http-exception";
 import { ApiStatus, DbTables } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
 import { RepositoryFactory } from "../repositories/index.js";
+
+const app = new Hono();
 
 // ==================== 公共访问接口（无需认证） ====================
 
