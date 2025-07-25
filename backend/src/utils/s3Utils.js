@@ -492,6 +492,7 @@ export async function getDirectoryPresignedUrls(s3Client, sourceS3Config, target
         // 跳过目录标记（与前缀完全匹配的对象）
         if (sourceKey === sourcePrefix) {
           continue;
+          99;
         }
 
         // 计算相对路径和目标路径

@@ -3,19 +3,17 @@
  * 统一 /api/fs/* 路由，内部处理管理员和API密钥用户认证
  */
 import { Hono } from "hono";
-import { baseAuthMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionType } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import { createErrorResponse, generateFileId } from "../utils/common.js";
 import { ApiStatus } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
 import { MountManager } from "../storage/managers/MountManager.js";
 import { FileSystem } from "../storage/fs/FileSystem.js";
-
 import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
 import { getS3ConfigByIdForAdmin, getPublicS3ConfigById } from "../services/s3ConfigService.js";
 import { getVirtualDirectoryListing, isVirtualPath } from "../storage/fs/utils/VirtualDirectory.js";
+import { RepositoryFactory } from "../repositories/index.js";
 
 // 创建文件系统路由处理程序
 const fsRoutes = new Hono();
@@ -42,11 +40,32 @@ function setCorsHeaders(c) {
 }
 
 /**
+ * 基本路径权限检查
+ */
+function checkBasicPathPermission(basicPath, requestPath) {
+  if (!basicPath || !requestPath) {
+    return false;
+  }
+
+  // 标准化路径
+  const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+  const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+  // 如果基本路径是根路径，允许所有访问
+  if (normalizeBasicPath === "/") {
+    return true;
+  }
+
+  // 检查请求路径是否在基本路径范围内
+  return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
+}
+
+/**
  * 统一的文件系统认证中间件
- * 处理管理员和API密钥用户的认证，并设置统一的用户信息到上下文
+ * 处理管理员和API密钥用户的认证，并进行路径权限检查
  */
 const unifiedFsAuthMiddleware = async (c, next) => {
-  const authResult = c.get("authResult");
+  const authResult = authGateway.utils.getAuthResult(c);
 
   if (!authResult || !authResult.isAuthenticated) {
     throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "需要认证访问" });
@@ -59,33 +78,58 @@ const unifiedFsAuthMiddleware = async (c, next) => {
       id: authResult.getUserId(),
       hasFullAccess: true,
     });
-  } else if (authResult.hasPermission(PermissionType.FILE)) {
-    // API密钥用户
+  } else {
+    // API密钥用户 - 进行路径权限检查
+    const apiKeyInfo = authResult.keyInfo;
+
+    // 对于需要路径的操作，进行权限检查
+    // 注意：这里我们需要延迟到路由处理器中进行路径检查，因为路径可能在请求体中
     c.set("userInfo", {
       type: "apiKey",
-      info: authResult.keyInfo,
+      info: apiKeyInfo,
       hasFullAccess: false,
     });
-  } else {
-    throw new HTTPException(ApiStatus.FORBIDDEN, { message: "需要文件权限" });
   }
 
   await next();
 };
 
 /**
- * 检查路径权限
+ * 统一的路径权限检查函数
  * @param {Object} userInfo - 用户信息对象
- * @param {string} path - 要检查的路径
+ * @param {string|Array<string>} paths - 要检查的路径（单个路径或路径数组）
+ * @param {string} permissionType - 权限类型 ('operation' 或 'navigation')
+ * @param {Object} c - Hono上下文（用于获取认证服务）
  * @returns {boolean} 是否有权限
  */
-const checkPathPermission = (userInfo, path) => {
+const checkPathPermission = (userInfo, paths, permissionType = "operation", c = null) => {
   if (userInfo.hasFullAccess) {
     return true; // 管理员拥有所有权限
   }
 
-  // API密钥用户需要检查路径权限 - 使用统一的权限检查
-  return PermissionUtils.checkPathPermissionForOperation(userInfo.info.basicPath, path);
+  // 支持单个路径或路径数组
+  const pathsToCheck = Array.isArray(paths) ? paths : [paths];
+
+  for (const path of pathsToCheck) {
+    let hasPermission = false;
+
+    if (permissionType === "navigation") {
+      // 导航权限检查
+      hasPermission = authGateway.utils.checkPathPermissionForNavigation(userInfo.info.basicPath, path);
+    } else if (c) {
+      // 操作权限检查（有上下文）
+      hasPermission = authGateway.utils.checkPathPermissionForOperation(c, userInfo.info.basicPath, path);
+    } else {
+      // 基本权限检查（无上下文）
+      hasPermission = checkBasicPathPermission(userInfo.info.basicPath, path);
+    }
+
+    if (!hasPermission) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
 /**
@@ -131,9 +175,6 @@ const getS3ConfigByUserType = async (db, configId, userIdOrInfo, userType, encry
   }
 };
 
-// 应用基础认证和统一文件系统认证中间件到所有 /api/fs/* 路由
-fsRoutes.use("/api/fs/*", baseAuthMiddleware, unifiedFsAuthMiddleware);
-
 // ================ OPTIONS 请求处理 ================
 
 // 处理预览和下载接口的OPTIONS请求
@@ -165,8 +206,8 @@ fsRoutes.options("/api/fs/multipart/part", (c) => {
 
 // ================ 基础文件系统操作 ================
 
-// 列出目录内容
-fsRoutes.get("/api/fs/list", async (c) => {
+// 列出目录内容 - 需要挂载页查看权限
+fsRoutes.get("/api/fs/list", authGateway.requireMount(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path") || "/";
   const userInfo = c.get("userInfo");
@@ -176,15 +217,14 @@ fsRoutes.get("/api/fs/list", async (c) => {
   try {
     // 对于API密钥用户，检查请求路径是否在基本路径权限范围内
     if (userType === "apiKey") {
-      const apiKeyInfo = userIdOrInfo;
       // 特殊处理：允许访问从根路径到基本路径的所有父级路径，以便用户能够导航
-      if (!PermissionUtils.checkPathPermissionForNavigation(apiKeyInfo.basicPath, path)) {
+      if (!checkPathPermission(userInfo, path, "navigation")) {
         throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问此路径" });
       }
     }
 
     // 获取用户可访问的挂载点列表 - 使用统一的挂载点获取方法
-    const mounts = await PermissionUtils.getAccessibleMounts(db, userIdOrInfo, userType);
+    const mounts = await authGateway.utils.getAccessibleMounts(db, userIdOrInfo, userType);
 
     // 检查是否为虚拟路径（根路径或中间虚拟目录）
     if (isVirtualPath(path, mounts)) {
@@ -222,8 +262,8 @@ fsRoutes.get("/api/fs/list", async (c) => {
   }
 });
 
-// 获取文件信息
-fsRoutes.get("/api/fs/get", async (c) => {
+// 获取文件信息 - 需要挂载页查看权限
+fsRoutes.get("/api/fs/get", authGateway.requireMount(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
   const userInfo = c.get("userInfo");
@@ -262,8 +302,8 @@ fsRoutes.get("/api/fs/get", async (c) => {
   }
 });
 
-// 下载文件
-fsRoutes.get("/api/fs/download", async (c) => {
+// 下载文件 - 需要挂载页查看权限
+fsRoutes.get("/api/fs/download", authGateway.requireMount(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
   const userInfo = c.get("userInfo");
@@ -300,8 +340,8 @@ fsRoutes.get("/api/fs/download", async (c) => {
   }
 });
 
-// 创建目录
-fsRoutes.post("/api/fs/mkdir", async (c) => {
+// 创建目录 - 需要挂载页上传权限
+fsRoutes.post("/api/fs/mkdir", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
@@ -340,8 +380,8 @@ fsRoutes.post("/api/fs/mkdir", async (c) => {
   }
 });
 
-// 上传文件
-fsRoutes.post("/api/fs/upload", async (c) => {
+// 上传文件 - 需要挂载页上传权限
+fsRoutes.post("/api/fs/upload", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
@@ -397,8 +437,8 @@ fsRoutes.post("/api/fs/upload", async (c) => {
   }
 });
 
-// 重命名文件或目录
-fsRoutes.post("/api/fs/rename", async (c) => {
+// 重命名文件或目录 - 需要挂载页重命名权限
+fsRoutes.post("/api/fs/rename", authGateway.requireMountRename(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
@@ -452,8 +492,8 @@ fsRoutes.post("/api/fs/rename", async (c) => {
   }
 });
 
-// 批量删除文件或目录
-fsRoutes.delete("/api/fs/batch-remove", async (c) => {
+// 批量删除文件或目录 - 需要挂载页删除权限
+fsRoutes.delete("/api/fs/batch-remove", authGateway.requireMountDelete(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
@@ -518,8 +558,8 @@ fsRoutes.delete("/api/fs/batch-remove", async (c) => {
   }
 });
 
-// 获取文件直链(预签名URL)
-fsRoutes.get("/api/fs/file-link", async (c) => {
+// 获取文件直链(预签名URL) - 需要挂载页查看权限
+fsRoutes.get("/api/fs/file-link", authGateway.requireMount(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
   const userInfo = c.get("userInfo");
@@ -567,8 +607,8 @@ fsRoutes.get("/api/fs/file-link", async (c) => {
 
 // ================ 前端分片上传相关路由 ================
 
-// 初始化前端分片上传（生成预签名URL列表）
-fsRoutes.post("/api/fs/multipart/init", async (c) => {
+// 初始化前端分片上传（生成预签名URL列表） - 需要挂载页上传权限
+fsRoutes.post("/api/fs/multipart/init", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   try {
     setCorsHeaders(c);
 
@@ -616,8 +656,8 @@ fsRoutes.post("/api/fs/multipart/init", async (c) => {
   }
 });
 
-// 完成前端分片上传
-fsRoutes.post("/api/fs/multipart/complete", async (c) => {
+// 完成前端分片上传 - 需要挂载页上传权限
+fsRoutes.post("/api/fs/multipart/complete", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   try {
     setCorsHeaders(c);
 
@@ -665,8 +705,8 @@ fsRoutes.post("/api/fs/multipart/complete", async (c) => {
   }
 });
 
-// 中止前端分片上传
-fsRoutes.post("/api/fs/multipart/abort", async (c) => {
+// 中止前端分片上传 - 需要挂载页上传权限
+fsRoutes.post("/api/fs/multipart/abort", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   try {
     setCorsHeaders(c);
 
@@ -716,8 +756,8 @@ fsRoutes.post("/api/fs/multipart/abort", async (c) => {
 
 // ================ 预签名URL相关路由 ================
 
-// 获取预签名上传URL
-fsRoutes.post("/api/fs/presign", async (c) => {
+// 获取预签名上传URL - 需要挂载页上传权限
+fsRoutes.post("/api/fs/presign", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   try {
     // 获取必要的上下文
     const db = c.env.DB;
@@ -792,8 +832,8 @@ fsRoutes.post("/api/fs/presign", async (c) => {
   }
 });
 
-// 提交预签名URL上传完成
-fsRoutes.post("/api/fs/presign/commit", async (c) => {
+// 提交预签名URL上传完成 - 需要挂载页上传权限
+fsRoutes.post("/api/fs/presign/commit", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   try {
     // 解析请求数据
     const body = await c.req.json();
@@ -839,8 +879,8 @@ fsRoutes.post("/api/fs/presign/commit", async (c) => {
   }
 });
 
-// 更新文件内容
-fsRoutes.post("/api/fs/update", async (c) => {
+// 更新文件内容 - 需要挂载页上传权限（更新相当于重新上传）
+fsRoutes.post("/api/fs/update", authGateway.requireMountUpload(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
@@ -890,8 +930,8 @@ fsRoutes.post("/api/fs/update", async (c) => {
   }
 });
 
-// 批量复制文件或目录
-fsRoutes.post("/api/fs/batch-copy", async (c) => {
+// 批量复制文件或目录 - 需要挂载页复制权限
+fsRoutes.post("/api/fs/batch-copy", authGateway.requireMountCopy(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
@@ -1015,8 +1055,8 @@ fsRoutes.post("/api/fs/batch-copy", async (c) => {
   }
 });
 
-// 提交批量跨存储复制完成
-fsRoutes.post("/api/fs/batch-copy-commit", async (c) => {
+// 提交批量跨存储复制完成 - 需要挂载页复制权限
+fsRoutes.post("/api/fs/batch-copy-commit", authGateway.requireMountCopy(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const userInfo = c.get("userInfo");
   const { userIdOrInfo, userType } = getServiceParams(userInfo);
@@ -1141,8 +1181,8 @@ function extractSearchParams(queryParams) {
   };
 }
 
-// 搜索文件
-fsRoutes.get("/api/fs/search", async (c) => {
+// 搜索文件 - 需要挂载页查看权限
+fsRoutes.get("/api/fs/search", authGateway.requireMount(), unifiedFsAuthMiddleware, async (c) => {
   const db = c.env.DB;
   const searchParams = extractSearchParams(c.req.query());
   const userInfo = c.get("userInfo");

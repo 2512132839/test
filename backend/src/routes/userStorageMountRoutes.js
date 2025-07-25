@@ -2,8 +2,7 @@
  * 用户存储挂载路由
  */
 import { Hono } from "hono";
-import { baseAuthMiddleware, requireMountPermissionMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
 import { HTTPException } from "hono/http-exception";
@@ -32,13 +31,13 @@ const handleApiError = (c, error, defaultMessage) => {
 };
 
 // 通过API密钥获取可访问的挂载点列表（基于basic_path权限）
-userStorageMountRoutes.get("/api/user/mounts", baseAuthMiddleware, requireMountPermissionMiddleware, async (c) => {
+userStorageMountRoutes.get("/api/user/mounts", authGateway.requireMount(), async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
+  const apiKeyInfo = authGateway.utils.getApiKeyInfo(c);
 
   try {
     // 根据API密钥的基本路径获取可访问的挂载点
-    const mounts = await PermissionUtils.getAccessibleMounts(db, apiKeyInfo, "apiKey");
+    const mounts = await authGateway.utils.getAccessibleMounts(db, apiKeyInfo, "apiKey");
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -52,9 +51,9 @@ userStorageMountRoutes.get("/api/user/mounts", baseAuthMiddleware, requireMountP
 });
 
 // 通过API密钥获取单个挂载点详情（基于basic_path权限）
-userStorageMountRoutes.get("/api/user/mounts/:id", baseAuthMiddleware, requireMountPermissionMiddleware, async (c) => {
+userStorageMountRoutes.get("/api/user/mounts/:id", authGateway.requireMount(), async (c) => {
   const db = c.env.DB;
-  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
+  const apiKeyInfo = authGateway.utils.getApiKeyInfo(c);
   const { id } = c.req.param();
 
   try {
@@ -70,7 +69,7 @@ userStorageMountRoutes.get("/api/user/mounts/:id", baseAuthMiddleware, requireMo
     }
 
     // 检查API密钥是否有权限访问此挂载点
-    if (!PermissionUtils.checkPathPermission(apiKeyInfo.basicPath, mount.mount_path)) {
+    if (!authGateway.utils.checkPathPermissionForOperation(c, apiKeyInfo.basicPath, mount.mount_path)) {
       throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问此挂载点" });
     }
 

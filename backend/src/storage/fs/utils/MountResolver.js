@@ -4,7 +4,6 @@
  * 从webdavUtils.js迁移而来
  */
 
-import { PermissionUtils } from "../../../utils/permissionUtils.js";
 import { DbTables } from "../../../constants/index.js";
 import { PROXY_CONFIG } from "../../../constants/proxy.js";
 import { RepositoryFactory } from "../../../repositories/index.js";
@@ -15,10 +14,9 @@ import { RepositoryFactory } from "../../../repositories/index.js";
  * @param {string} path - 请求路径
  * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
- * @param {string} permissionType - 权限检查类型 (navigation, read, operation)
  * @returns {Promise<Object>} 包含挂载点、子路径和错误信息的对象
  */
-export async function findMountPointByPath(db, path, userIdOrInfo, userType, permissionType = "read") {
+export async function findMountPointByPath(db, path, userIdOrInfo, userType) {
   // 规范化路径
   path = path.startsWith("/") ? path : "/" + path;
 
@@ -33,44 +31,23 @@ export async function findMountPointByPath(db, path, userIdOrInfo, userType, per
     };
   }
 
-  // 对于API密钥用户，检查路径权限
-  if (userType === "apiKey" && typeof userIdOrInfo === "object" && userIdOrInfo.basicPath) {
-    // 根据权限类型选择合适的权限检查函数
-    let hasPermission = false;
-    if (permissionType === "navigation") {
-      hasPermission = PermissionUtils.checkPathPermissionForNavigation(userIdOrInfo.basicPath, path);
-    } else if (permissionType === "operation") {
-      hasPermission = PermissionUtils.checkPathPermissionForOperation(userIdOrInfo.basicPath, path);
-    } else {
-      // 默认使用严格的读取权限检查
-      hasPermission = PermissionUtils.checkPathPermission(userIdOrInfo.basicPath, path);
-    }
-
-    if (!hasPermission) {
-      return {
-        error: {
-          status: 403,
-          message: "没有权限访问此路径",
-        },
-      };
-    }
-  }
-
   // 对于代理访问，使用特殊的处理逻辑
   if (userType === PROXY_CONFIG.USER_TYPE) {
     // 代理访问直接使用findMountPointByPathForProxy
     return await findMountPointByPathForProxy(db, path);
   }
 
-  // 获取挂载点列表 - 使用统一的挂载点获取方法
+  // 获取挂载点列表 - 不进行权限过滤，权限检查在路由层完成
   let mounts;
   try {
-    mounts = await PermissionUtils.getAccessibleMounts(db, userIdOrInfo, userType);
+    const repositoryFactory = new RepositoryFactory(db);
+    const mountRepository = repositoryFactory.getMountRepository();
+    mounts = await mountRepository.findAll(false); // false = 只获取活跃的挂载点
   } catch (error) {
     return {
       error: {
-        status: 401,
-        message: "未授权访问",
+        status: 500,
+        message: "获取挂载点失败",
       },
     };
   }
@@ -107,7 +84,8 @@ export async function findMountPointByPath(db, path, userIdOrInfo, userType, per
 }
 
 /**
- * 根据API密钥信息查找对应的挂载点和子路径（基于基本路径权限）
+ * 根据API密钥信息查找对应的挂载点和子路径
+ * 注意：此函数不进行权限检查，权限检查应在路由层完成
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 请求路径
  * @param {Object} apiKeyInfo - API密钥信息对象
@@ -128,18 +106,10 @@ export async function findMountPointByPathWithApiKey(db, path, apiKeyInfo) {
     };
   }
 
-  // 检查API密钥是否有权限访问此路径
-  if (!PermissionUtils.checkPathPermission(apiKeyInfo.basicPath, path)) {
-    return {
-      error: {
-        status: 403,
-        message: "没有权限访问此路径",
-      },
-    };
-  }
-
-  // 获取API密钥可访问的挂载点
-  const mounts = await PermissionUtils.getAccessibleMounts(db, apiKeyInfo, "apiKey");
+  // 获取所有活跃的挂载点 - 不进行权限过滤
+  const repositoryFactory = new RepositoryFactory(db);
+  const mountRepository = repositoryFactory.getMountRepository();
+  const mounts = await mountRepository.findAll(false); // false = 只获取活跃的挂载点
 
   // 按照路径长度降序排序，以便优先匹配最长的路径
   mounts.sort((a, b) => b.mount_path.length - a.mount_path.length);

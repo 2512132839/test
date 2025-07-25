@@ -569,7 +569,7 @@ export class PasteRepository extends BaseRepository {
    * @returns {Promise<Object>} 更新结果
    */
   async updatePasteComplex(pasteId, updateData, options = {}) {
-    const { newSlug = null, passwordHash = null, clearPassword = false, resetViews = false } = options;
+    const { newSlug = null, passwordHash = null, clearPassword = false, resetViews = false, newViewsValue = 0 } = options;
 
     // 构建动态 SQL
     const updateFields = [];
@@ -611,7 +611,8 @@ export class PasteRepository extends BaseRepository {
     }
 
     if (resetViews) {
-      updateFields.push("views = 0");
+      updateFields.push("views = ?");
+      params.push(newViewsValue);
     }
 
     // 总是更新修改时间

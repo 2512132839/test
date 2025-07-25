@@ -12,6 +12,7 @@ import { MountManager } from "../storage/managers/MountManager.js";
 import { FileSystem } from "../storage/fs/FileSystem.js";
 import { findMountPointByPathForProxy } from "../storage/fs/utils/MountResolver.js";
 import { PROXY_CONFIG, safeDecodeProxyPath } from "../constants/proxy.js";
+import { ProxySignatureService } from "../services/ProxySignatureService.js";
 
 const fsProxyRoutes = new Hono();
 
@@ -43,6 +44,33 @@ fsProxyRoutes.get(`${PROXY_CONFIG.ROUTE_PREFIX}/*`, async (c) => {
     }
 
     // 挂载点验证成功，mountResult包含mount和subPath信息
+
+    // 检查是否需要签名验证
+    const signatureService = new ProxySignatureService(db, encryptionSecret);
+    const signatureNeed = await signatureService.needsSignature(mountResult.mount);
+
+    if (signatureNeed.required) {
+      const signature = c.req.query(PROXY_CONFIG.SIGN_PARAM);
+
+      if (!signature) {
+        console.warn(`代理访问失败 - 缺少签名: ${path} (${signatureNeed.reason})`);
+        throw new HTTPException(ApiStatus.UNAUTHORIZED, {
+          message: `此文件需要签名访问 (${signatureNeed.description})`,
+        });
+      }
+
+      const verifyResult = signatureService.verifyStorageSignature(path, signature);
+      if (!verifyResult.valid) {
+        console.warn(`代理访问失败 - 签名验证失败: ${path} (${verifyResult.reason})`);
+        throw new HTTPException(ApiStatus.UNAUTHORIZED, {
+          message: `签名验证失败: ${verifyResult.reason}`,
+        });
+      }
+
+      console.log(`签名验证成功: ${path} (${signatureNeed.level}级别控制)`);
+    } else {
+      console.log(`无需签名验证: ${path} (${signatureNeed.reason})`);
+    }
 
     // 创建FileSystem实例进行文件访问
     const mountManager = new MountManager(db, encryptionSecret);

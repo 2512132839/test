@@ -1,6 +1,7 @@
 import { generateRandomString, createErrorResponse } from "../utils/common.js";
 import { ApiStatus, DbTables } from "../constants/index.js";
 import { RepositoryFactory } from "../repositories/index.js";
+import { Permission, PermissionChecker } from "../constants/permissions.js";
 
 /**
  * 检查并删除过期的API密钥
@@ -44,14 +45,18 @@ export async function getAllApiKeys(db) {
   // 获取所有密钥列表
   const keys = await apiKeyRepository.findAll({ orderBy: "created_at DESC" });
 
-  // 为每个密钥添加掩码字段
-  return keys.map((key) => ({
-    ...key,
-    key_masked: key.key.substring(0, 6) + "...",
-    text_permission: key.text_permission === 1,
-    file_permission: key.file_permission === 1,
-    mount_permission: key.mount_permission === 1,
-  }));
+  // 为每个密钥添加掩码字段和权限信息
+  return keys.map((key) => {
+    const permissions = key.permissions || 0;
+
+    return {
+      ...key,
+      key_masked: key.key.substring(0, 6) + "...",
+      permissions, // 位标志权限
+      // 权限描述（用于前端显示）
+      permission_names: PermissionChecker.getPermissionDescriptions(permissions),
+    };
+  });
 }
 
 /**
@@ -116,15 +121,23 @@ export async function createApiKey(db, keyData) {
     throw new Error("无效的过期时间");
   }
 
+  // 直接使用传入的位标志权限
+  const permissions = keyData.permissions || 0;
+
+  // 验证权限值的有效性
+  if (typeof permissions !== "number" || permissions < 0) {
+    throw new Error("权限值必须是非负整数");
+  }
+
   // 准备API密钥数据
   const apiKeyData = {
     id,
     name: keyData.name.trim(),
     key,
-    text_permission: keyData.text_permission === true ? 1 : 0,
-    file_permission: keyData.file_permission === true ? 1 : 0,
-    mount_permission: keyData.mount_permission === true ? 1 : 0,
+    permissions, // 位标志权限
+    role: keyData.role || "GENERAL",
     basic_path: keyData.basic_path || "/",
+    is_guest: keyData.is_guest || 0,
     expires_at: expiresAt.toISOString(),
   };
 
@@ -136,11 +149,12 @@ export async function createApiKey(db, keyData) {
     id,
     name: apiKeyData.name,
     key,
-    key_masked: key.substring(0, 6) + "...", // 前端期望的密钥掩码
-    text_permission: apiKeyData.text_permission === 1,
-    file_permission: apiKeyData.file_permission === 1,
-    mount_permission: apiKeyData.mount_permission === 1,
+    key_masked: key.substring(0, 6) + "...",
+    permissions: apiKeyData.permissions, // 位标志权限
+    role: apiKeyData.role,
     basic_path: apiKeyData.basic_path,
+    is_guest: apiKeyData.is_guest,
+    permission_names: PermissionChecker.getPermissionDescriptions(apiKeyData.permissions),
     created_at: apiKeyData.created_at,
     expires_at: apiKeyData.expires_at,
   };
@@ -192,15 +206,12 @@ export async function updateApiKey(db, id, updateData) {
     processedUpdateData.expires_at = expiresAt.toISOString();
   }
 
-  // 转换权限字段为数字格式
-  if (updateData.text_permission !== undefined) {
-    processedUpdateData.text_permission = updateData.text_permission ? 1 : 0;
-  }
-  if (updateData.file_permission !== undefined) {
-    processedUpdateData.file_permission = updateData.file_permission ? 1 : 0;
-  }
-  if (updateData.mount_permission !== undefined) {
-    processedUpdateData.mount_permission = updateData.mount_permission ? 1 : 0;
+  // 验证权限值（如果提供）
+  if (updateData.permissions !== undefined) {
+    if (typeof updateData.permissions !== "number" || updateData.permissions < 0) {
+      throw new Error("权限值必须是非负整数");
+    }
+    processedUpdateData.permissions = updateData.permissions;
   }
 
   // 清理名称
@@ -209,7 +220,7 @@ export async function updateApiKey(db, id, updateData) {
   }
 
   // 检查是否有有效的更新字段
-  const validFields = ["name", "text_permission", "file_permission", "mount_permission", "basic_path", "expires_at"];
+  const validFields = ["name", "permissions", "role", "basic_path", "is_guest", "expires_at"];
   const hasValidUpdates = validFields.some((field) => processedUpdateData[field] !== undefined);
 
   if (!hasValidUpdates) {

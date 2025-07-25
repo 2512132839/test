@@ -6,4 +6,3 @@ export * from "./common.js";
 export * from "./crypto.js";
 export * from "./fileUtils.js";
 export * from "./s3Utils.js";
-export * from "./permissionUtils.js";

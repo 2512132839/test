@@ -79,7 +79,7 @@ export async function initDatabase(db) {
     )
     .run();
 
-  // 创建api_keys表 - 存储API密钥
+  // 创建api_keys表 - 存储API密钥（位标志权限系统）
   await db
     .prepare(
       `
@@ -87,10 +87,10 @@ export async function initDatabase(db) {
         id TEXT PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
         key TEXT UNIQUE NOT NULL,
-        text_permission BOOLEAN DEFAULT 0,
-        file_permission BOOLEAN DEFAULT 0,
-        mount_permission BOOLEAN DEFAULT 0,
+        permissions INTEGER DEFAULT 0,
+        role TEXT DEFAULT 'GENERAL',
         basic_path TEXT DEFAULT '/',
+        is_guest BOOLEAN DEFAULT 0,
         last_used DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME NOT NULL
@@ -659,6 +659,227 @@ async function migrateDatabase(db, currentVersion, targetVersion) {
           console.log("将继续执行迁移过程，但请手动检查files表结构");
         }
         break;
+
+      case 10:
+        // 版本10：位标志权限系统迁移
+        try {
+          console.log("开始位标志权限系统迁移...");
+
+          // 首先备份现有的api_keys表数据
+          console.log("备份现有api_keys表数据...");
+          const existingKeys = await db.prepare(`SELECT * FROM ${DbTables.API_KEYS}`).all();
+          console.log(`找到 ${existingKeys.results?.length || 0} 条现有API密钥记录`);
+
+          // 检查新字段是否已存在
+          const columnInfo = await db.prepare(`PRAGMA table_info(${DbTables.API_KEYS})`).all();
+          const existingColumns = new Set(columnInfo.results.map((col) => col.name));
+
+          let needsFullMigration = false;
+
+          // 检查是否需要完整迁移
+          if (!existingColumns.has("permissions") || !existingColumns.has("role") || !existingColumns.has("is_guest")) {
+            needsFullMigration = true;
+            console.log("检测到需要完整的表结构迁移");
+
+            // 创建新的api_keys表结构
+            await db
+              .prepare(
+                `
+                CREATE TABLE ${DbTables.API_KEYS}_new (
+                  id TEXT PRIMARY KEY,
+                  name TEXT UNIQUE NOT NULL,
+                  key TEXT UNIQUE NOT NULL,
+                  permissions INTEGER DEFAULT 0,
+                  role TEXT DEFAULT 'GENERAL',
+                  basic_path TEXT DEFAULT '/',
+                  is_guest BOOLEAN DEFAULT 0,
+                  last_used DATETIME,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  expires_at DATETIME NOT NULL
+                )
+              `
+              )
+              .run();
+
+            console.log("新api_keys表结构创建成功");
+
+            // 迁移数据：将布尔权限转换为位标志权限
+            if (existingKeys.results && existingKeys.results.length > 0) {
+              console.log("开始迁移权限数据...");
+
+              for (const keyRecord of existingKeys.results) {
+                let permissions = 0;
+
+                // 转换布尔权限为位标志权限
+                if (keyRecord.text_permission === 1) {
+                  permissions |= 1; // Permission.TEXT = 1 << 0
+                }
+                if (keyRecord.file_permission === 1) {
+                  permissions |= 2; // Permission.FILE_SHARE = 1 << 1
+                }
+                if (keyRecord.mount_permission === 1) {
+                  // 旧的mount权限映射为完整的挂载页权限
+                  permissions |= 256 | 512 | 1024 | 2048 | 4096; // MOUNT_VIEW | MOUNT_UPLOAD | MOUNT_COPY | MOUNT_RENAME | MOUNT_DELETE
+                }
+
+                // 确定角色
+                let role = "GENERAL";
+                if (permissions === 256) {
+                  // 只有MOUNT_VIEW权限
+                  role = "GUEST";
+                } else if (permissions > 0) {
+                  role = "GENERAL";
+                }
+
+                // 插入转换后的数据
+                await db
+                  .prepare(
+                    `
+                    INSERT INTO ${DbTables.API_KEYS}_new
+                    (id, name, key, permissions, role, basic_path, is_guest, last_used, created_at, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `
+                  )
+                  .bind(
+                    keyRecord.id,
+                    keyRecord.name,
+                    keyRecord.key,
+                    permissions,
+                    role,
+                    keyRecord.basic_path || "/",
+                    role === "GUEST" ? 1 : 0,
+                    keyRecord.last_used,
+                    keyRecord.created_at,
+                    keyRecord.expires_at
+                  )
+                  .run();
+              }
+
+              console.log(`成功迁移 ${existingKeys.results.length} 条API密钥记录`);
+            }
+
+            // 删除旧表并重命名新表
+            await db.prepare(`DROP TABLE ${DbTables.API_KEYS}`).run();
+            await db.prepare(`ALTER TABLE ${DbTables.API_KEYS}_new RENAME TO ${DbTables.API_KEYS}`).run();
+
+            // 重新创建索引
+            await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_keys_key ON ${DbTables.API_KEYS}(key)`).run();
+            await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_keys_role ON ${DbTables.API_KEYS}(role)`).run();
+            await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_keys_permissions ON ${DbTables.API_KEYS}(permissions)`).run();
+            await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_keys_expires_at ON ${DbTables.API_KEYS}(expires_at)`).run();
+
+            console.log("api_keys表结构迁移完成");
+          } else {
+            console.log("api_keys表已包含新字段，跳过结构迁移");
+          }
+
+          // 验证迁移结果
+          const migratedKeys = await db.prepare(`SELECT COUNT(*) as count FROM ${DbTables.API_KEYS}`).first();
+          console.log(`迁移后api_keys表包含 ${migratedKeys?.count || 0} 条记录`);
+
+          // 显示权限迁移统计
+          const permissionStats = await db
+            .prepare(
+              `
+              SELECT
+                role,
+                COUNT(*) as count,
+                AVG(permissions) as avg_permissions
+              FROM ${DbTables.API_KEYS}
+              GROUP BY role
+            `
+            )
+            .all();
+
+          console.log("权限迁移统计:");
+          for (const stat of permissionStats.results || []) {
+            console.log(`  ${stat.role}: ${stat.count} 个用户, 平均权限值: ${Math.round(stat.avg_permissions)}`);
+          }
+
+          console.log("位标志权限系统迁移完成");
+        } catch (error) {
+          console.error(`版本10迁移失败:`, error);
+          console.log("位标志权限系统迁移失败，请手动检查api_keys表结构");
+        }
+        break;
+
+      case 11:
+        // 版本11：为storage_mounts表添加代理签名相关字段
+        try {
+          console.log(`为${DbTables.STORAGE_MOUNTS}表添加代理签名字段...`);
+
+          // 检查字段是否已存在
+          const columnInfo = await db.prepare(`PRAGMA table_info(${DbTables.STORAGE_MOUNTS})`).all();
+          const existingColumns = new Set(columnInfo.results.map((col) => col.name));
+
+          // 添加enable_sign字段
+          if (!existingColumns.has("enable_sign")) {
+            try {
+              await db.prepare(`ALTER TABLE ${DbTables.STORAGE_MOUNTS} ADD COLUMN enable_sign BOOLEAN DEFAULT 0`).run();
+              console.log(`成功添加enable_sign字段到${DbTables.STORAGE_MOUNTS}表`);
+            } catch (alterError) {
+              console.error(`无法添加enable_sign字段到${DbTables.STORAGE_MOUNTS}表:`, alterError);
+              console.log(`将继续执行迁移过程，但请手动检查${DbTables.STORAGE_MOUNTS}表结构`);
+            }
+          } else {
+            console.log(`${DbTables.STORAGE_MOUNTS}表已存在enable_sign字段，跳过添加`);
+          }
+
+          // 添加sign_expires字段
+          if (!existingColumns.has("sign_expires")) {
+            try {
+              await db.prepare(`ALTER TABLE ${DbTables.STORAGE_MOUNTS} ADD COLUMN sign_expires INTEGER DEFAULT NULL`).run();
+              console.log(`成功添加sign_expires字段到${DbTables.STORAGE_MOUNTS}表`);
+            } catch (alterError) {
+              console.error(`无法添加sign_expires字段到${DbTables.STORAGE_MOUNTS}表:`, alterError);
+              console.log(`将继续执行迁移过程，但请手动检查${DbTables.STORAGE_MOUNTS}表结构`);
+            }
+          } else {
+            console.log(`${DbTables.STORAGE_MOUNTS}表已存在sign_expires字段，跳过添加`);
+          }
+
+          // 添加全局代理签名设置
+          const globalSettings = [
+            {
+              key: "proxy_sign_all",
+              value: "true",
+              description: "签名所有：开启后所有代理访问都需要签名",
+            },
+            {
+              key: "proxy_sign_expires",
+              value: "0",
+              description: "全局签名过期时间（秒），0表示永不过期",
+            },
+          ];
+
+          for (const setting of globalSettings) {
+            try {
+              // 检查设置是否已存在
+              const existingSetting = await db.prepare(`SELECT key FROM ${DbTables.SYSTEM_SETTINGS} WHERE key = ?`).bind(setting.key).first();
+
+              if (!existingSetting) {
+                await db
+                  .prepare(
+                    `INSERT INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description, updated_at)
+                     VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+                  )
+                  .bind(setting.key, setting.value, setting.description)
+                  .run();
+                console.log(`成功添加系统设置: ${setting.key}`);
+              } else {
+                console.log(`系统设置 ${setting.key} 已存在，跳过添加`);
+              }
+            } catch (settingError) {
+              console.error(`添加系统设置 ${setting.key} 失败:`, settingError);
+            }
+          }
+
+          console.log("代理签名字段和设置添加完成");
+        } catch (error) {
+          console.error(`版本11迁移失败:`, error);
+          console.log("代理签名功能迁移失败，请手动检查storage_mounts表结构和系统设置");
+        }
+        break;
     }
 
     // 记录迁移历史
@@ -777,7 +998,7 @@ export async function checkAndInitDatabase(db) {
     }
 
     // 如果要添加新表或修改现有表，请递增目标版本，修改后启动时自动更新数据库
-    const targetVersion = 9; // 目标schema版本,每次修改表结构时递增
+    const targetVersion = 11; // 目标schema版本,每次修改表结构时递增
 
     if (currentVersion < targetVersion) {
       console.log(`需要更新数据库结构，当前版本:${currentVersion}，目标版本:${targetVersion}`);

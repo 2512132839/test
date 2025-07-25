@@ -274,7 +274,7 @@ export class SystemRepository extends BaseRepository {
 
     // 清理过期的文本分享
     const expiredPastes = await this.execute(
-      `DELETE FROM ${DbTables.PASTES} 
+      `DELETE FROM ${DbTables.PASTES}
        WHERE expires_at IS NOT NULL AND expires_at < ?`,
       [now]
     );
@@ -283,7 +283,7 @@ export class SystemRepository extends BaseRepository {
 
     // 清理过期的API密钥
     const expiredApiKeys = await this.execute(
-      `DELETE FROM ${DbTables.API_KEYS} 
+      `DELETE FROM ${DbTables.API_KEYS}
        WHERE expires_at IS NOT NULL AND expires_at < ?`,
       [now]
     );
@@ -292,7 +292,7 @@ export class SystemRepository extends BaseRepository {
 
     // 清理超过最大查看次数的文本分享
     const overLimitPastes = await this.execute(
-      `DELETE FROM ${DbTables.PASTES} 
+      `DELETE FROM ${DbTables.PASTES}
        WHERE max_views IS NOT NULL AND max_views > 0 AND views >= max_views`
     );
     const overLimitCount = overLimitPastes.meta?.changes || 0;
@@ -307,5 +307,58 @@ export class SystemRepository extends BaseRepository {
       },
       message: `清理完成，共清理${totalCleaned}条过期数据`,
     };
+  }
+
+  /**
+   * 获取代理签名全局配置
+   * @returns {Promise<Object>} 全局配置
+   */
+  async getProxySignConfig() {
+    const signAllSetting = await this.findByKey("proxy_sign_all");
+    const expiresSetting = await this.findByKey("proxy_sign_expires");
+
+    return {
+      signAll: signAllSetting?.value === "true",
+      expires: parseInt(expiresSetting?.value) || 0,
+    };
+  }
+
+  /**
+   * 更新代理签名全局配置
+   * @param {Object} config - 配置对象
+   * @param {boolean} config.signAll - 是否签名所有
+   * @param {number} config.expires - 过期时间（秒）
+   * @returns {Promise<Object>} 操作结果
+   */
+  async updateProxySignConfig(config) {
+    const { signAll, expires } = config;
+
+    // 验证参数
+    if (typeof signAll !== "boolean") {
+      throw new Error("signAll 必须是布尔值");
+    }
+
+    if (typeof expires !== "number" || expires < 0) {
+      throw new Error("expires 必须是非负数");
+    }
+
+    // 批量更新设置
+    const settings = {
+      proxy_sign_all: signAll.toString(),
+      proxy_sign_expires: expires.toString(),
+    };
+
+    return await this.batchUpsertSettings(settings);
+  }
+
+  /**
+   * 获取系统设置值（带默认值）
+   * @param {string} key - 设置键名
+   * @param {string} defaultValue - 默认值
+   * @returns {Promise<string>} 设置值
+   */
+  async getSettingValue(key, defaultValue = "") {
+    const setting = await this.findByKey(key);
+    return setting?.value || defaultValue;
   }
 }

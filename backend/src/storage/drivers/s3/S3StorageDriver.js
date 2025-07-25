@@ -10,7 +10,8 @@ import { ApiStatus } from "../../../constants/index.js";
 import { createS3Client } from "../../../utils/s3Utils.js";
 import { normalizeS3SubPath } from "./utils/S3PathUtils.js";
 import { updateMountLastUsed, findMountPointByPath } from "../../fs/utils/MountResolver.js";
-import { buildFullProxyUrl } from "../../../constants/proxy.js";
+import { buildFullProxyUrl, buildSignedProxyUrl } from "../../../constants/proxy.js";
+import { ProxySignatureService } from "../../../services/ProxySignatureService.js";
 
 // 导入各个操作模块
 import { S3FileOperations } from "./operations/S3FileOperations.js";
@@ -93,7 +94,7 @@ export class S3StorageDriver extends BaseDriver {
     const s3SubPath = normalizeS3SubPath(subPath, this.config, true);
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -120,7 +121,7 @@ export class S3StorageDriver extends BaseDriver {
     const s3SubPath = normalizeS3SubPath(subPath, this.config, false);
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -132,6 +133,7 @@ export class S3StorageDriver extends BaseDriver {
         userType,
         userId,
         request,
+        db,
       });
     } catch (error) {
       if (error.status === ApiStatus.NOT_FOUND) {
@@ -165,7 +167,7 @@ export class S3StorageDriver extends BaseDriver {
     const s3SubPath = normalizeS3SubPath(subPath, this.config, false);
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -227,7 +229,7 @@ export class S3StorageDriver extends BaseDriver {
     const s3SubPath = normalizeS3SubPath(subPath, this.config, true);
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -321,7 +323,7 @@ export class S3StorageDriver extends BaseDriver {
     const s3SubPath = normalizeS3SubPath(subPath, this.config, false);
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -375,7 +377,7 @@ export class S3StorageDriver extends BaseDriver {
     }
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -606,7 +608,7 @@ export class S3StorageDriver extends BaseDriver {
     });
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -641,7 +643,7 @@ export class S3StorageDriver extends BaseDriver {
     });
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -681,7 +683,7 @@ export class S3StorageDriver extends BaseDriver {
     console.log(`后端分片上传完成: ${fileName}, 大小: ${fileSize || 0}字节`);
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
     }
 
@@ -722,7 +724,7 @@ export class S3StorageDriver extends BaseDriver {
     });
 
     // 更新挂载点的最后使用时间
-    if (db && mount) {
+    if (db && mount.id) {
       try {
         await updateMountLastUsed(db, mount.id);
       } catch (updateError) {
@@ -740,22 +742,47 @@ export class S3StorageDriver extends BaseDriver {
    * @param {Object} options.mount - 挂载点信息
    * @param {Request} options.request - 请求对象
    * @param {boolean} options.download - 是否为下载模式
+   * @param {Object} options.db - 数据库连接对象
    * @returns {Promise<Object>} 代理URL对象
    */
   async generateProxyUrl(path, options = {}) {
-    const { mount, request, download = false } = options;
+    const { mount, request, download = false, db } = options;
 
     // 检查挂载点是否启用代理
     if (!this.supportsProxyMode(mount)) {
       throw new HTTPException(ApiStatus.FORBIDDEN, { message: "此挂载点未启用代理访问" });
     }
 
-    // 生成代理URL
-    const proxyUrl = buildFullProxyUrl(request, path, download);
+    // 检查是否需要签名
+    const signatureService = new ProxySignatureService(db, this.encryptionSecret);
+    const signatureNeed = await signatureService.needsSignature(mount);
+
+    let proxyUrl;
+    let signInfo = null;
+
+    if (signatureNeed.required) {
+      // 生成签名
+      signInfo = await signatureService.generateStorageSignature(path, mount);
+
+      // 生成带签名的代理URL
+      proxyUrl = buildSignedProxyUrl(request, path, {
+        download,
+        signature: signInfo.signature,
+        requestTimestamp: signInfo.requestTimestamp,
+        needsSignature: true,
+      });
+    } else {
+      // 生成普通代理URL
+      proxyUrl = buildFullProxyUrl(request, path, download);
+    }
 
     return {
       url: proxyUrl,
       type: "proxy",
+      signed: signatureNeed.required,
+      signatureLevel: signatureNeed.level,
+      expiresAt: signInfo?.expiresAt,
+      isTemporary: signInfo?.isTemporary,
       policy: mount?.webdav_policy || "302_redirect",
     };
   }

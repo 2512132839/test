@@ -5,6 +5,7 @@
 
 import { BaseRepository } from "./BaseRepository.js";
 import { DbTables } from "../constants/index.js";
+import { Permission, PermissionChecker } from "../constants/permissions.js";
 
 export class ApiKeyRepository extends BaseRepository {
   /**
@@ -14,7 +15,7 @@ export class ApiKeyRepository extends BaseRepository {
    */
   async findByKey(key) {
     if (!key) return null;
-    
+
     return await this.findOne(DbTables.API_KEYS, { key });
   }
 
@@ -34,12 +35,8 @@ export class ApiKeyRepository extends BaseRepository {
    */
   async findAll(options = {}) {
     const { orderBy = "created_at DESC", limit, offset } = options;
-    
-    return await this.findMany(
-      DbTables.API_KEYS,
-      {},
-      { orderBy, limit, offset }
-    );
+
+    return await this.findMany(DbTables.API_KEYS, {}, { orderBy, limit, offset });
   }
 
   /**
@@ -73,10 +70,7 @@ export class ApiKeyRepository extends BaseRepository {
    * @returns {Promise<Object>} 更新结果
    */
   async updateLastUsed(keyId) {
-    return await this.execute(
-      `UPDATE ${DbTables.API_KEYS} SET last_used = CURRENT_TIMESTAMP WHERE id = ?`,
-      [keyId]
-    );
+    return await this.execute(`UPDATE ${DbTables.API_KEYS} SET last_used = CURRENT_TIMESTAMP WHERE id = ?`, [keyId]);
   }
 
   /**
@@ -96,10 +90,7 @@ export class ApiKeyRepository extends BaseRepository {
    */
   async existsByKey(key, excludeId = null) {
     if (excludeId) {
-      const result = await this.queryFirst(
-        `SELECT id FROM ${DbTables.API_KEYS} WHERE key = ? AND id != ?`,
-        [key, excludeId]
-      );
+      const result = await this.queryFirst(`SELECT id FROM ${DbTables.API_KEYS} WHERE key = ? AND id != ?`, [key, excludeId]);
       return !!result;
     } else {
       return await this.exists(DbTables.API_KEYS, { key });
@@ -114,10 +105,7 @@ export class ApiKeyRepository extends BaseRepository {
    */
   async existsByName(name, excludeId = null) {
     if (excludeId) {
-      const result = await this.queryFirst(
-        `SELECT id FROM ${DbTables.API_KEYS} WHERE name = ? AND id != ?`,
-        [name, excludeId]
-      );
+      const result = await this.queryFirst(`SELECT id FROM ${DbTables.API_KEYS} WHERE name = ? AND id != ?`, [name, excludeId]);
       return !!result;
     } else {
       return await this.exists(DbTables.API_KEYS, { name });
@@ -163,7 +151,7 @@ export class ApiKeyRepository extends BaseRepository {
    */
   async getStatistics() {
     const total = await this.count(DbTables.API_KEYS);
-    
+
     // 获取有效密钥数量（未过期）
     const now = new Date().toISOString();
     const valid = await this.queryFirst(
@@ -172,24 +160,68 @@ export class ApiKeyRepository extends BaseRepository {
       [now]
     );
 
-    // 按权限类型统计
-    const permissionStats = await this.query(
-      `SELECT 
-         SUM(text_permission) as text_count,
-         SUM(file_permission) as file_count,
-         SUM(mount_permission) as mount_count
-       FROM ${DbTables.API_KEYS}`
-    );
+    // 获取所有密钥数据，在应用层统计权限
+    const allKeys = await this.findAll();
+    const permissionStats = {
+      // 基础权限
+      text: 0,
+      file_share: 0,
+
+      // 挂载页权限
+      mount_view: 0,
+      mount_upload: 0,
+      mount_copy: 0,
+      mount_rename: 0,
+      mount_delete: 0,
+
+      // WebDAV权限
+      webdav_read: 0,
+      webdav_manage: 0,
+    };
+
+    // 使用位标志权限系统进行统计
+    allKeys.forEach((key) => {
+      const permissions = key.permissions || 0;
+
+      // 基础权限统计
+      if (PermissionChecker.hasPermission(permissions, Permission.TEXT)) {
+        permissionStats.text++;
+      }
+      if (PermissionChecker.hasPermission(permissions, Permission.FILE_SHARE)) {
+        permissionStats.file_share++;
+      }
+
+      // 挂载页权限统计
+      if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_VIEW)) {
+        permissionStats.mount_view++;
+      }
+      if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_UPLOAD)) {
+        permissionStats.mount_upload++;
+      }
+      if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_COPY)) {
+        permissionStats.mount_copy++;
+      }
+      if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_RENAME)) {
+        permissionStats.mount_rename++;
+      }
+      if (PermissionChecker.hasPermission(permissions, Permission.MOUNT_DELETE)) {
+        permissionStats.mount_delete++;
+      }
+
+      // WebDAV权限统计
+      if (PermissionChecker.hasPermission(permissions, Permission.WEBDAV_READ)) {
+        permissionStats.webdav_read++;
+      }
+      if (PermissionChecker.hasPermission(permissions, Permission.WEBDAV_MANAGE)) {
+        permissionStats.webdav_manage++;
+      }
+    });
 
     return {
       total,
       valid: valid?.count || 0,
       expired: total - (valid?.count || 0),
-      permissions: {
-        text: permissionStats.results?.[0]?.text_count || 0,
-        file: permissionStats.results?.[0]?.file_count || 0,
-        mount: permissionStats.results?.[0]?.mount_count || 0,
-      },
+      permissions: permissionStats,
     };
   }
 }

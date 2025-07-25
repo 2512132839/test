@@ -2,8 +2,7 @@
  * 管理员存储挂载路由
  */
 import { Hono } from "hono";
-import { baseAuthMiddleware, requireAdminMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import { getMountsByAdmin, getMountByIdForAdmin, createMount, updateMount, deleteMount, getAllMounts } from "../services/storageMountService.js";
 import { DbTables, ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
@@ -32,7 +31,7 @@ const handleApiError = (c, error, defaultMessage) => {
 };
 
 // 获取挂载点列表（管理员权限）
-adminStorageMountRoutes.get("/api/admin/mounts", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+adminStorageMountRoutes.get("/api/admin/mounts", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
 
   try {
@@ -51,9 +50,9 @@ adminStorageMountRoutes.get("/api/admin/mounts", baseAuthMiddleware, requireAdmi
 });
 
 // 获取单个挂载点详情（管理员权限）
-adminStorageMountRoutes.get("/api/admin/mounts/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+adminStorageMountRoutes.get("/api/admin/mounts/:id", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const { id } = c.req.param();
 
   try {
@@ -72,9 +71,9 @@ adminStorageMountRoutes.get("/api/admin/mounts/:id", baseAuthMiddleware, require
 });
 
 // 创建挂载点（管理员权限）
-adminStorageMountRoutes.post("/api/admin/mounts", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+adminStorageMountRoutes.post("/api/admin/mounts", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
 
   try {
     const body = await c.req.json();
@@ -93,9 +92,9 @@ adminStorageMountRoutes.post("/api/admin/mounts", baseAuthMiddleware, requireAdm
 });
 
 // 更新挂载点（管理员权限）
-adminStorageMountRoutes.put("/api/admin/mounts/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+adminStorageMountRoutes.put("/api/admin/mounts/:id", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const { id } = c.req.param();
 
   try {
@@ -113,9 +112,9 @@ adminStorageMountRoutes.put("/api/admin/mounts/:id", baseAuthMiddleware, require
 });
 
 // 删除挂载点（管理员权限）
-adminStorageMountRoutes.delete("/api/admin/mounts/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+adminStorageMountRoutes.delete("/api/admin/mounts/:id", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const { id } = c.req.param();
 
   try {

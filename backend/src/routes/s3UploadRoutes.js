@@ -3,8 +3,7 @@ import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse, generateFileId, generateShortId, getSafeFileName, getFileNameAndExt, formatFileSize, generateUniqueFileSlug } from "../utils/common.js";
 import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
 import { generatePresignedPutUrl, buildS3Url, deleteFileFromS3, generatePresignedUrl, createS3Client } from "../utils/s3Utils.js";
-import { baseAuthMiddleware, createFlexiblePermissionMiddleware, customAuthMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import { hashPassword } from "../utils/crypto.js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { S3ProviderTypes } from "../constants/index.js";
@@ -12,16 +11,10 @@ import { ConfiguredRetryStrategy } from "@smithy/util-retry";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
 import { updateParentDirectoriesModifiedTimeHelper } from "../storage/drivers/s3/utils/S3DirectoryUtils.js";
 import { RepositoryFactory } from "../repositories/index.js";
-import { FileShareService } from "../services/FileShareService.js";
+import { FileShareService } from "../services/fileShareService.js";
 
 // 默认最大上传限制（MB）
 const DEFAULT_MAX_UPLOAD_SIZE_MB = 100;
-
-// 创建文件权限中间件（管理员或API密钥文件权限）
-const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
-  permissions: [PermissionType.FILE],
-  allowAdmin: true,
-});
 
 /**
  * 注册S3文件上传相关API路由
@@ -29,14 +22,14 @@ const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
  */
 export function registerS3UploadRoutes(app) {
   // 获取预签名上传URL
-  app.post("/api/s3/presign", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/s3/presign", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     try {
       // 获取认证信息
-      const isAdmin = PermissionUtils.isAdmin(c);
-      const userId = PermissionUtils.getUserId(c);
-      const authType = PermissionUtils.getAuthType(c);
+      const isAdmin = authGateway.utils.isAdmin(c);
+      const userId = authGateway.utils.getUserId(c);
+      const authType = authGateway.utils.getAuthType(c);
 
       // 解析请求数据
       const body = await c.req.json();
@@ -124,14 +117,14 @@ export function registerS3UploadRoutes(app) {
   });
 
   // 文件上传完成后的提交确认
-  app.post("/api/s3/commit", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/s3/commit", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     try {
       // 获取认证信息
-      const isAdmin = PermissionUtils.isAdmin(c);
-      const userId = PermissionUtils.getUserId(c);
-      const authType = PermissionUtils.getAuthType(c);
+      const isAdmin = authGateway.utils.isAdmin(c);
+      const userId = authGateway.utils.getUserId(c);
+      const authType = authGateway.utils.getAuthType(c);
 
       const body = await c.req.json();
 
@@ -187,14 +180,14 @@ export function registerS3UploadRoutes(app) {
   });
 
   // 一步完成文件上传的API
-  app.put("/api/upload-direct/:filename", customAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.put("/api/upload-direct/:filename", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
     const filename = c.req.param("filename");
 
     // 获取认证信息
-    const isAdmin = PermissionUtils.isAdmin(c);
-    const userId = PermissionUtils.getUserId(c);
-    const authType = PermissionUtils.getAuthType(c);
+    const isAdmin = authGateway.utils.isAdmin(c);
+    const userId = authGateway.utils.getUserId(c);
+    const authType = authGateway.utils.getAuthType(c);
 
     // 从查询参数中获取S3配置ID
     let s3ConfigId = c.req.query("s3_config_id");

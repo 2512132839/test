@@ -1,14 +1,14 @@
 import { Hono } from "hono";
-import { baseAuthMiddleware, requireAdminMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import { getAllSystemSettings, updateSystemSettings, getMaxUploadSize, getDashboardStats } from "../services/systemService.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
+import { ProxySignatureService } from "../services/ProxySignatureService.js";
 
 const systemRoutes = new Hono();
 
 // 获取系统设置
-systemRoutes.get("/api/admin/system-settings", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+systemRoutes.get("/api/admin/system-settings", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
 
   try {
@@ -28,7 +28,7 @@ systemRoutes.get("/api/admin/system-settings", baseAuthMiddleware, requireAdminM
 });
 
 // 更新系统设置
-systemRoutes.put("/api/admin/system-settings", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+systemRoutes.put("/api/admin/system-settings", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
 
   try {
@@ -94,10 +94,10 @@ systemRoutes.get("/api/system/max-upload-size", async (c) => {
 });
 
 // 仪表盘统计数据API
-systemRoutes.get("/api/admin/dashboard/stats", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+systemRoutes.get("/api/admin/dashboard/stats", authGateway.requireAdmin(), async (c) => {
   try {
     const db = c.env.DB;
-    const adminId = PermissionUtils.getUserId(c);
+    const adminId = authGateway.utils.getUserId(c);
 
     const stats = await getDashboardStats(db, adminId);
 
@@ -163,6 +163,57 @@ systemRoutes.get("/api/version", async (c) => {
     data: versionInfo,
     success: true,
   });
+});
+
+// 获取代理签名设置
+systemRoutes.get("/api/admin/proxy-sign-settings", authGateway.requireAdmin(), async (c) => {
+  try {
+    const db = c.env.DB;
+    const encryptionSecret = c.env.ENCRYPTION_SECRET;
+
+    const signatureService = new ProxySignatureService(db, encryptionSecret);
+    const globalConfig = await signatureService.getGlobalSignConfig();
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "获取代理签名设置成功",
+      data: globalConfig,
+      success: true,
+    });
+  } catch (error) {
+    console.error("获取代理签名设置错误:", error);
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, "获取设置失败"), ApiStatus.INTERNAL_ERROR);
+  }
+});
+
+// 更新代理签名设置
+systemRoutes.post("/api/admin/proxy-sign-settings", authGateway.requireAdmin(), async (c) => {
+  try {
+    const db = c.env.DB;
+    const encryptionSecret = c.env.ENCRYPTION_SECRET;
+    const { signAll, expires } = await c.req.json();
+
+    // 验证参数
+    if (typeof signAll !== "boolean") {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "signAll 必须是布尔值"), ApiStatus.BAD_REQUEST);
+    }
+
+    if (typeof expires !== "number" || expires < 0) {
+      return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "expires 必须是非负数"), ApiStatus.BAD_REQUEST);
+    }
+
+    const signatureService = new ProxySignatureService(db, encryptionSecret);
+    await signatureService.updateGlobalSignConfig({ signAll, expires });
+
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "代理签名设置更新成功",
+      success: true,
+    });
+  } catch (error) {
+    console.error("更新代理签名设置错误:", error);
+    return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, "更新设置失败"), ApiStatus.INTERNAL_ERROR);
+  }
 });
 
 export default systemRoutes;

@@ -152,6 +152,8 @@ class MountService {
     const cacheTtl = mountData.cache_ttl || 300;
     const webProxy = mountData.web_proxy || false;
     const webdavPolicy = mountData.webdav_policy || "302_redirect";
+    const enableSign = mountData.enable_sign || false;
+    const signExpires = mountData.sign_expires !== undefined ? mountData.sign_expires : null;
 
     // 准备数据
     const createData = {
@@ -167,6 +169,8 @@ class MountService {
       cache_ttl: cacheTtl,
       web_proxy: webProxy,
       webdav_policy: webdavPolicy,
+      enable_sign: enableSign,
+      sign_expires: signExpires,
     };
 
     // 创建挂载点
@@ -330,6 +334,8 @@ export async function getMountByIdForApiKey(db, id, apiKeyId) {
  * @param {number} [mountData.cache_ttl=300] - 缓存时间（秒）
  * @param {boolean} [mountData.web_proxy=false] - 是否启用网页代理
  * @param {string} [mountData.webdav_policy='302_redirect'] - WebDAV策略
+ * @param {boolean} [mountData.enable_sign=false] - 是否启用代理签名
+ * @param {number|null} [mountData.sign_expires=null] - 签名过期时间（秒），null表示使用全局设置
  * @param {string} creatorId - 创建者ID
  * @returns {Promise<Object>} 创建的挂载点完整信息
  * @throws {HTTPException} 400 - 参数错误，包括缺少必填字段、路径格式错误等
@@ -356,6 +362,8 @@ export async function createMount(db, mountData, creatorId) {
  * @param {number} [updateData.cache_ttl] - 缓存时间（秒）
  * @param {boolean} [updateData.web_proxy] - 是否启用网页代理
  * @param {string} [updateData.webdav_policy] - WebDAV策略
+ * @param {boolean} [updateData.enable_sign] - 是否启用代理签名
+ * @param {number|null} [updateData.sign_expires] - 签名过期时间（秒），null表示使用全局设置
  * @param {string} creatorId - 创建者ID或管理员ID
  * @param {boolean} isAdmin - 是否为管理员操作，为true时不检查创建者
  * @returns {Promise<void>}

@@ -269,30 +269,14 @@ export class FileService {
    * @param {number} options.limit - 每页条数
    * @param {number} options.offset - 偏移量
    * @param {string} options.createdBy - 创建者筛选
-   * @param {string} options.s3ConfigId - S3配置ID筛选
    * @returns {Promise<Object>} 文件列表和分页信息
    */
   async getAdminFileList(options = {}) {
-    const { limit = 30, offset = 0, createdBy, s3ConfigId, storageConfigId, storageType } = options;
+    const { limit = 30, offset = 0, createdBy } = options;
 
     // 构建查询条件
     const conditions = {};
     if (createdBy) conditions.created_by = createdBy;
-
-    // 支持新旧字段查询
-    if (s3ConfigId) {
-      conditions.storage_config_id = s3ConfigId;
-      conditions.storage_type = "S3";
-    }
-    if (storageConfigId) {
-      conditions.storage_config_id = storageConfigId;
-      if (storageType) {
-        conditions.storage_type = storageType;
-      } else {
-        // 如果没有指定存储类型，默认查询所有类型
-        // 这样可以支持未来的存储类型扩展
-      }
-    }
 
     // 获取文件列表
     const files = await this.fileRepository.findManyWithStorageConfig(conditions, {
@@ -555,7 +539,7 @@ export async function deleteFileRecordByStoragePath(db, storageConfigId, storage
   return await fileService.deleteFileRecordByStoragePath(storageConfigId, storagePath, storageType);
 }
 
-// 新增的管理员文件管理导出函数
+// 管理员文件管理导出函数
 export async function getAdminFileList(db, options = {}) {
   const fileService = new FileService(db);
   return await fileService.getAdminFileList(options);
@@ -566,7 +550,7 @@ export async function getAdminFileDetail(db, fileId, encryptionSecret, request =
   return await fileService.getAdminFileDetail(fileId, encryptionSecret, request);
 }
 
-// 新增的用户文件管理导出函数
+// 用户文件管理导出函数
 export async function getUserFileList(db, apiKeyId, options = {}) {
   const fileService = new FileService(db);
   return await fileService.getUserFileList(apiKeyId, options);

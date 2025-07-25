@@ -2,8 +2,7 @@
  * S3存储配置路由
  */
 import { Hono } from "hono";
-import { baseAuthMiddleware, requireAdminMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import {
   getS3ConfigsByAdmin,
   getPublicS3Configs,
@@ -27,20 +26,14 @@ import { createS3Client } from "../utils/s3Utils.js";
 
 const s3ConfigRoutes = new Hono();
 
-// 创建文件权限中间件（管理员或API密钥文件权限）
-const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
-  permissions: [PermissionType.FILE],
-  allowAdmin: true,
-});
-
 // 获取S3配置列表（管理员权限或API密钥文件权限）
-s3ConfigRoutes.get("/api/s3-configs", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+s3ConfigRoutes.get("/api/s3-configs", authGateway.requireFile(), async (c) => {
   const db = c.env.DB;
 
   try {
     let configs;
-    const isAdmin = PermissionUtils.isAdmin(c);
-    const adminId = PermissionUtils.getUserId(c);
+    const isAdmin = authGateway.utils.isAdmin(c);
+    const adminId = authGateway.utils.getUserId(c);
 
     if (isAdmin) {
       // 管理员可以看到所有自己的配置
@@ -63,14 +56,14 @@ s3ConfigRoutes.get("/api/s3-configs", baseAuthMiddleware, requireFilePermissionM
 });
 
 // 获取单个S3配置详情
-s3ConfigRoutes.get("/api/s3-configs/:id", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+s3ConfigRoutes.get("/api/s3-configs/:id", authGateway.requireFile(), async (c) => {
   const db = c.env.DB;
   const { id } = c.req.param();
 
   try {
     let config;
-    const isAdmin = PermissionUtils.isAdmin(c);
-    const adminId = PermissionUtils.getUserId(c);
+    const isAdmin = authGateway.utils.isAdmin(c);
+    const adminId = authGateway.utils.getUserId(c);
 
     if (isAdmin) {
       // 管理员查询
@@ -93,9 +86,9 @@ s3ConfigRoutes.get("/api/s3-configs/:id", baseAuthMiddleware, requireFilePermiss
 });
 
 // 创建S3配置（管理员权限）
-s3ConfigRoutes.post("/api/s3-configs", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+s3ConfigRoutes.post("/api/s3-configs", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
   try {
@@ -116,9 +109,9 @@ s3ConfigRoutes.post("/api/s3-configs", baseAuthMiddleware, requireAdminMiddlewar
 });
 
 // 更新S3配置（管理员权限）
-s3ConfigRoutes.put("/api/s3-configs/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+s3ConfigRoutes.put("/api/s3-configs/:id", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const { id } = c.req.param();
   const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
@@ -138,9 +131,9 @@ s3ConfigRoutes.put("/api/s3-configs/:id", baseAuthMiddleware, requireAdminMiddle
 });
 
 // 删除S3配置（管理员权限）
-s3ConfigRoutes.delete("/api/s3-configs/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+s3ConfigRoutes.delete("/api/s3-configs/:id", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const { id } = c.req.param();
 
   try {
@@ -158,9 +151,9 @@ s3ConfigRoutes.delete("/api/s3-configs/:id", baseAuthMiddleware, requireAdminMid
 });
 
 // 设置默认S3配置（管理员权限）
-s3ConfigRoutes.put("/api/s3-configs/:id/set-default", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+s3ConfigRoutes.put("/api/s3-configs/:id/set-default", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const { id } = c.req.param();
 
   try {
@@ -178,9 +171,9 @@ s3ConfigRoutes.put("/api/s3-configs/:id/set-default", baseAuthMiddleware, requir
 });
 
 // 测试S3配置连接（管理员权限）
-s3ConfigRoutes.post("/api/s3-configs/:id/test", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+s3ConfigRoutes.post("/api/s3-configs/:id/test", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
-  const adminId = PermissionUtils.getUserId(c);
+  const adminId = authGateway.utils.getUserId(c);
   const { id } = c.req.param();
   const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
   const requestOrigin = c.req.header("origin");
@@ -200,19 +193,19 @@ s3ConfigRoutes.post("/api/s3-configs/:id/test", baseAuthMiddleware, requireAdmin
   } catch (error) {
     console.error("测试S3配置错误:", error);
     return c.json(
-        {
-          code: ApiStatus.INTERNAL_ERROR,
-          message: error.message || "测试S3配置失败",
-          data: {
-            success: false,
-            result: {
-              error: error.message,
-              stack: process.env.NODE_ENV === "development" ? error.stack : null,
-            },
-          },
+      {
+        code: ApiStatus.INTERNAL_ERROR,
+        message: error.message || "测试S3配置失败",
+        data: {
           success: false,
+          result: {
+            error: error.message,
+            stack: process.env.NODE_ENV === "development" ? error.stack : null,
+          },
         },
-        ApiStatus.INTERNAL_ERROR
+        success: false,
+      },
+      ApiStatus.INTERNAL_ERROR
     );
   }
 });

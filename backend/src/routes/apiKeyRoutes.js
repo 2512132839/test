@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { baseAuthMiddleware, requireAdminMiddleware, requireAuthMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
+import { Permission, PermissionChecker } from "../constants/permissions.js";
 import { getAllApiKeys, createApiKey, updateApiKey, deleteApiKey } from "../services/apiKeyService.js";
 import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
@@ -8,34 +8,73 @@ import { createErrorResponse } from "../utils/common.js";
 const apiKeyRoutes = new Hono();
 
 // 测试API密钥验证路由
-apiKeyRoutes.get("/api/test/api-key", baseAuthMiddleware, requireAuthMiddleware, async (c) => {
-  // 获取密钥信息
-  const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
-  const apiKeyId = PermissionUtils.getUserId(c);
+apiKeyRoutes.get("/api/test/api-key", authGateway.requireAuth(), async (c) => {
+  // 获取认证信息
+  const apiKeyInfo = authGateway.utils.getApiKeyInfo(c);
+  const apiKeyId = authGateway.utils.getUserId(c);
+  const isAdmin = authGateway.utils.isAdmin(c);
 
+  // 如果是管理员，返回管理员信息
+  if (isAdmin) {
+    return c.json({
+      code: ApiStatus.SUCCESS,
+      message: "管理员令牌验证成功",
+      data: {
+        name: "管理员",
+        basic_path: "/",
+        permissions: {
+          text: true,
+          file: true,
+          mount_view: true,
+          mount_upload: true,
+          mount_copy: true,
+          mount_rename: true,
+          mount_delete: true,
+          webdav_read: true,
+          webdav_manage: true,
+        },
+        key_info: {
+          id: apiKeyId,
+          name: "管理员",
+          basic_path: "/",
+        },
+        is_admin: true,
+      },
+      success: true,
+    });
+  }
+
+  // API密钥用户，返回具体的权限信息
+  const permissions = apiKeyInfo?.permissions || 0;
   return c.json({
     code: ApiStatus.SUCCESS,
     message: "API密钥验证成功",
     data: {
-      name: apiKeyInfo.name,
-      basic_path: apiKeyInfo.basicPath,
+      name: apiKeyInfo?.name || "未知",
+      basic_path: apiKeyInfo?.basicPath || "/",
       permissions: {
-        text: apiKeyInfo.permissions.text,
-        file: apiKeyInfo.permissions.file,
-        mount: apiKeyInfo.permissions.mount,
+        text: PermissionChecker.hasPermission(permissions, Permission.TEXT),
+        file: PermissionChecker.hasPermission(permissions, Permission.FILE_SHARE),
+        mount_view: PermissionChecker.hasPermission(permissions, Permission.MOUNT_VIEW),
+        mount_upload: PermissionChecker.hasPermission(permissions, Permission.MOUNT_UPLOAD),
+        mount_copy: PermissionChecker.hasPermission(permissions, Permission.MOUNT_COPY),
+        mount_rename: PermissionChecker.hasPermission(permissions, Permission.MOUNT_RENAME),
+        mount_delete: PermissionChecker.hasPermission(permissions, Permission.MOUNT_DELETE),
+        webdav_read: PermissionChecker.hasPermission(permissions, Permission.WEBDAV_READ),
+        webdav_manage: PermissionChecker.hasPermission(permissions, Permission.WEBDAV_MANAGE),
       },
       key_info: {
-        id: apiKeyId || apiKeyInfo.id,
-        name: apiKeyInfo.name,
-        basic_path: apiKeyInfo.basicPath,
+        id: apiKeyId || apiKeyInfo?.id,
+        name: apiKeyInfo?.name || "未知",
+        basic_path: apiKeyInfo?.basicPath || "/",
       },
     },
-    success: true, // 添加兼容字段
+    success: true,
   });
 });
 
 // 获取所有API密钥列表
-apiKeyRoutes.get("/api/admin/api-keys", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+apiKeyRoutes.get("/api/admin/api-keys", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
 
   try {
@@ -55,7 +94,7 @@ apiKeyRoutes.get("/api/admin/api-keys", baseAuthMiddleware, requireAdminMiddlewa
 });
 
 // 创建新的API密钥
-apiKeyRoutes.post("/api/admin/api-keys", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+apiKeyRoutes.post("/api/admin/api-keys", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
 
   try {
@@ -92,7 +131,7 @@ apiKeyRoutes.post("/api/admin/api-keys", baseAuthMiddleware, requireAdminMiddlew
 });
 
 // 修改API密钥
-apiKeyRoutes.put("/api/admin/api-keys/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+apiKeyRoutes.put("/api/admin/api-keys/:id", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
   const id = c.req.param("id");
 
@@ -124,7 +163,7 @@ apiKeyRoutes.put("/api/admin/api-keys/:id", baseAuthMiddleware, requireAdminMidd
 });
 
 // 删除API密钥
-apiKeyRoutes.delete("/api/admin/api-keys/:id", baseAuthMiddleware, requireAdminMiddleware, async (c) => {
+apiKeyRoutes.delete("/api/admin/api-keys/:id", authGateway.requireAdmin(), async (c) => {
   const db = c.env.DB;
   const id = c.req.param("id");
 

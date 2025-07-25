@@ -7,16 +7,9 @@ import { ApiStatus } from "../constants/index.js";
 import { createErrorResponse } from "../utils/common.js";
 import { deleteFileFromS3 } from "../utils/s3Utils.js";
 import { clearCache } from "../utils/DirectoryCache.js";
-import { baseAuthMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import { RepositoryFactory } from "../repositories/index.js";
-import { FileShareService } from "../services/FileShareService.js";
-
-// 创建文件权限中间件（管理员或API密钥文件权限）
-const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
-  permissions: [PermissionType.FILE],
-  allowAdmin: true,
-});
+import { FileShareService } from "../services/fileShareService.js";
 
 /**
  * 注册URL上传相关API路由
@@ -103,13 +96,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：为URL上传准备预签名URL和文件记录
-  app.post("/api/url/presign", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/url/presign", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     try {
       // 获取认证信息
-      const userId = PermissionUtils.getUserId(c);
-      const authType = PermissionUtils.getAuthType(c);
+      const userId = authGateway.utils.getUserId(c);
+      const authType = authGateway.utils.getAuthType(c);
 
       const body = await c.req.json();
 
@@ -181,13 +174,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：URL上传完成后的提交确认
-  app.post("/api/url/commit", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/url/commit", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     try {
       // 获取认证信息
-      const userId = PermissionUtils.getUserId(c);
-      const authType = PermissionUtils.getAuthType(c);
+      const userId = authGateway.utils.getUserId(c);
+      const authType = authGateway.utils.getAuthType(c);
 
       const body = await c.req.json();
 
@@ -237,13 +230,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：初始化分片上传流程
-  app.post("/api/url/multipart/init", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/url/multipart/init", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     // 获取认证信息
-    const isAdmin = PermissionUtils.isAdmin(c);
-    const userId = PermissionUtils.getUserId(c);
-    const authType = PermissionUtils.getAuthType(c);
+    const isAdmin = authGateway.utils.isAdmin(c);
+    const userId = authGateway.utils.getUserId(c);
+    const authType = authGateway.utils.getAuthType(c);
 
     try {
       const body = await c.req.json();
@@ -340,13 +333,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：完成分片上传流程
-  app.post("/api/url/multipart/complete", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/url/multipart/complete", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     // 获取认证信息
-    const isAdmin = PermissionUtils.isAdmin(c);
-    const userId = PermissionUtils.getUserId(c);
-    const authType = PermissionUtils.getAuthType(c);
+    const isAdmin = authGateway.utils.isAdmin(c);
+    const userId = authGateway.utils.getUserId(c);
+    const authType = authGateway.utils.getAuthType(c);
 
     try {
       const body = await c.req.json();
@@ -415,13 +408,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：终止分片上传流程
-  app.post("/api/url/multipart/abort", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/url/multipart/abort", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     // 获取认证信息
-    const isAdmin = PermissionUtils.isAdmin(c);
-    const userId = PermissionUtils.getUserId(c);
-    const authType = PermissionUtils.getAuthType(c);
+    const isAdmin = authGateway.utils.isAdmin(c);
+    const userId = authGateway.utils.getUserId(c);
+    const authType = authGateway.utils.getAuthType(c);
 
     try {
       const body = await c.req.json();
@@ -484,13 +477,13 @@ export function registerUrlUploadRoutes(app) {
   });
 
   // API路由：取消URL上传并删除文件记录
-  app.post("/api/url/cancel", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  app.post("/api/url/cancel", authGateway.requireFile(), async (c) => {
     const db = c.env.DB;
 
     // 使用新的权限工具获取用户信息
-    const isAdmin = PermissionUtils.isAdmin(c);
-    const userId = PermissionUtils.getUserId(c);
-    const authType = PermissionUtils.getAuthType(c);
+    const isAdmin = authGateway.utils.isAdmin(c);
+    const userId = authGateway.utils.getUserId(c);
+    const authType = authGateway.utils.getAuthType(c);
 
     let authorizedBy = "";
     let adminId = null;

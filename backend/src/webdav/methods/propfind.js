@@ -4,10 +4,10 @@
  * 在单个文件内修复所有标准违反问题
  */
 
-import { PermissionUtils } from "../../utils/permissionUtils.js";
 import { handleWebDAVError } from "../utils/errorUtils.js";
 import { MountManager } from "../../storage/managers/MountManager.js";
 import { FileSystem } from "../../storage/fs/FileSystem.js";
+import { authGateway } from "../../middlewares/authGatewayMiddleware.js";
 import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
 import { getLockManager } from "../utils/LockManager.js";
 import { buildLockDiscoveryXML } from "../utils/lockUtils.js";
@@ -598,13 +598,13 @@ async function processPropfindRequest(path, requestInfo, userIdOrInfo, actualUse
   try {
     // 检查API密钥用户的路径权限
     if (actualUserType === "apiKey") {
-      if (!PermissionUtils.checkPathPermissionForNavigation(userIdOrInfo.basicPath, path)) {
+      if (!authGateway.utils.checkPathPermissionForNavigation(userIdOrInfo.basicPath, path)) {
         return createErrorResponse("/dav" + path, 403, "没有权限访问此路径");
       }
     }
 
     // 获取用户可访问的挂载点列表
-    const mounts = await PermissionUtils.getAccessibleMounts(db, userIdOrInfo, actualUserType);
+    const mounts = await authGateway.utils.getAccessibleMounts(db, userIdOrInfo, actualUserType);
 
     // 检查是否为虚拟路径
     if (isVirtualPath(path, mounts)) {

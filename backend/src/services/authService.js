@@ -1,87 +1,83 @@
 /**
- * 统一权限认证服务
- * 提供所有权限认证相关的核心功能
+ * 统一认证服务
+ * 职责：具体的认证逻辑、身份识别、权限检查
  */
 
-import { DbTables, ApiStatus } from "../constants/index.js";
+import { Permission, PermissionChecker } from "../constants/permissions.js";
 import { validateAdminToken } from "./adminService.js";
 import { checkAndDeleteExpiredApiKey } from "./apiKeyService.js";
 import { verifyPassword } from "../utils/crypto.js";
-import { HTTPException } from "hono/http-exception";
 import { RepositoryFactory } from "../repositories/index.js";
-import { PermissionUtils } from "../utils/permissionUtils.js";
 
 /**
- * 权限类型枚举
- */
-export const PermissionType = {
-  TEXT: "text",
-  FILE: "file",
-  MOUNT: "mount",
-  ADMIN: "admin",
-};
-
-/**
- * 认证类型枚举
- */
-export const AuthType = {
-  ADMIN: "admin",
-  API_KEY: "apikey",
-  NONE: "none",
-};
-
-/**
- * 权限级别枚举
- */
-export const PermissionLevel = {
-  READ: "read",
-  WRITE: "write",
-  ADMIN: "admin",
-};
-
-/**
- * 认证结果接口
+ * 认证结果类
+ * 简洁设计，只包含网关需要的核心属性和方法
  */
 export class AuthResult {
-  constructor({ isAuthenticated = false, authType = AuthType.NONE, userId = null, permissions = {}, basicPath = "/", keyInfo = null, adminId = null, isAdmin = false } = {}) {
+  constructor({ isAuthenticated = false, userId = null, permissions = 0, basicPath = "/", isAdmin = false, keyInfo = null } = {}) {
     this.isAuthenticated = isAuthenticated;
-    this.authType = authType;
     this.userId = userId;
     this.permissions = permissions;
     this.basicPath = basicPath;
+    this._isAdmin = isAdmin;
     this.keyInfo = keyInfo;
-    this.adminId = adminId;
-    this._isAdmin = isAdmin; //避免命名冲突
   }
 
   /**
    * 检查是否有指定权限
+   * 网关需要的核心方法
    */
-  hasPermission(permissionType) {
-    // 管理员拥有所有权限（包括Bearer认证和Basic认证的管理员）
-    if (this.authType === AuthType.ADMIN || this._isAdmin === true) {
+  hasPermission(permissionFlag) {
+    // 管理员拥有所有权限
+    if (this._isAdmin) {
       return true;
     }
-    return this.permissions[permissionType] === true;
+    return PermissionChecker.hasPermission(this.permissions, permissionFlag);
   }
 
   /**
    * 检查是否为管理员
+   * 网关需要的核心方法
    */
   isAdmin() {
-    return this.authType === AuthType.ADMIN || this._isAdmin === true;
+    return this._isAdmin;
   }
 
   /**
-   * 获取用户标识
+   * 获取用户ID
+   * 网关工具函数需要的方法
    */
   getUserId() {
-    return this.userId || this.adminId;
+    return this.userId;
+  }
+
+  /**
+   * 检查是否有任一权限
+   * 网关权限验证需要的方法
+   */
+  hasAnyPermission(permissionFlags) {
+    // 管理员拥有所有权限
+    if (this._isAdmin) {
+      return true;
+    }
+    return PermissionChecker.hasAnyPermission(this.permissions, permissionFlags);
+  }
+
+  /**
+   * 检查是否有所有权限
+   * 网关权限验证需要的方法
+   */
+  hasAllPermissions(permissionFlags) {
+    // 管理员拥有所有权限
+    if (this._isAdmin) {
+      return true;
+    }
+    return PermissionChecker.hasAllPermissions(this.permissions, permissionFlags);
   }
 }
 
 /**
- * 统一权限认证服务类
+ * 认证服务类 - 基于位标志权限系统
  */
 export class AuthService {
   constructor(db) {
@@ -89,26 +85,23 @@ export class AuthService {
   }
 
   /**
-   * 从请求头解析认证信息
+   * 解析认证头
    */
   parseAuthHeader(authHeader) {
     if (!authHeader) {
       return { type: null, token: null };
     }
 
-    if (authHeader.startsWith("Bearer ")) {
-      return { type: "bearer", token: authHeader.substring(7) };
+    const parts = authHeader.split(" ");
+    if (parts.length !== 2) {
+      return { type: null, token: null };
     }
 
-    if (authHeader.startsWith("ApiKey ")) {
-      return { type: "apikey", token: authHeader.substring(7) };
-    }
-
-    if (authHeader.startsWith("Basic ")) {
-      return { type: "basic", token: authHeader.substring(6) };
-    }
-
-    return { type: null, token: null };
+    const [type, token] = parts;
+    return {
+      type: type.toLowerCase(),
+      token: token,
+    };
   }
 
   /**
@@ -117,107 +110,105 @@ export class AuthService {
   async validateAdminAuth(token) {
     try {
       const adminId = await validateAdminToken(this.db, token);
-
       if (!adminId) {
         return new AuthResult();
       }
 
       return new AuthResult({
         isAuthenticated: true,
-        authType: AuthType.ADMIN,
-        adminId: adminId,
         userId: adminId,
-        permissions: {
-          [PermissionType.TEXT]: true,
-          [PermissionType.FILE]: true,
-          [PermissionType.MOUNT]: true,
-          [PermissionType.ADMIN]: true,
-        },
-        basicPath: "/",
+        permissions: 0,
+        isAdmin: true,
       });
     } catch (error) {
-      console.error("管理员认证验证失败:", error);
+      console.error("管理员认证失败:", error);
       return new AuthResult();
     }
   }
 
   /**
-   * 验证Basic认证
+   * 验证API密钥认证
    */
-  async validateBasicAuth(basicToken) {
+  async validateApiKeyAuth(apiKey) {
     try {
-      // 解码Base64编码的用户名:密码
-      const decoded = atob(basicToken);
+      const repositoryFactory = new RepositoryFactory(this.db);
+      const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+      const keyRecord = await apiKeyRepository.findByKey(apiKey);
 
-      // 使用indexOf查找分隔符，因为密码中可能包含冒号
-      const separatorIndex = decoded.indexOf(":");
-      if (separatorIndex === -1) {
-        console.log("WebDAV认证失败: 无效的认证格式");
+      if (!keyRecord) {
         return new AuthResult();
       }
 
-      const username = decoded.substring(0, separatorIndex);
-      const password = decoded.substring(separatorIndex + 1);
+      // 检查是否过期
+      if (await checkAndDeleteExpiredApiKey(this.db, keyRecord)) {
+        return new AuthResult();
+      }
+
+      // 更新最后使用时间
+      await apiKeyRepository.updateLastUsed(keyRecord.id);
+
+      return new AuthResult({
+        isAuthenticated: true,
+        userId: keyRecord.id,
+        permissions: keyRecord.permissions || 0,
+        basicPath: keyRecord.basic_path || "/",
+        keyInfo: {
+          id: keyRecord.id,
+          name: keyRecord.name,
+          key: keyRecord.key,
+          basicPath: keyRecord.basic_path || "/",
+          permissions: keyRecord.permissions || 0,
+          role: keyRecord.role || "GENERAL",
+          isGuest: keyRecord.is_guest === 1,
+        },
+      });
+    } catch (error) {
+      console.error("API密钥认证失败:", error);
+      return new AuthResult();
+    }
+  }
+
+  /**
+   * 验证Basic认证（用于WebDAV）
+   */
+  async validateBasicAuth(token) {
+    try {
+      const credentials = Buffer.from(token, "base64").toString("utf-8");
+      const [username, password] = credentials.split(":");
 
       if (!username || !password) {
         return new AuthResult();
       }
 
-      // 情况1: 管理员登录
+      // 尝试管理员认证
       try {
-        console.log(`WebDAV认证: 开始验证管理员用户凭证，用户名: ${username}`);
-        // 使用 Repository 查询管理员
         const repositoryFactory = new RepositoryFactory(this.db);
         const adminRepository = repositoryFactory.getAdminRepository();
-        const admin = await adminRepository.findByUsername(username);
+        const adminRecord = await adminRepository.findByUsername(username);
 
-        if (admin) {
-          console.log("WebDAV认证: 找到管理员账户，开始验证密码");
-          try {
-            // 使用verifyPassword验证密码
-            const isPasswordValid = await verifyPassword(password, admin.password);
-
-            if (isPasswordValid) {
-              console.log("WebDAV认证: 管理员密码验证成功");
-              return new AuthResult({
-                isAuthenticated: true,
-                authType: "basic", // Basic认证方式的管理员
-                adminId: admin.id,
-                userId: admin.id,
-                permissions: {
-                  [PermissionType.TEXT]: true,
-                  [PermissionType.FILE]: true,
-                  [PermissionType.MOUNT]: true,
-                  [PermissionType.ADMIN]: true,
-                },
-                basicPath: "/",
-                isAdmin: true, // 明确标记为管理员
-              });
-            } else {
-              console.log("WebDAV认证: 管理员密码验证失败");
-            }
-          } catch (verifyError) {
-            console.error("WebDAV认证: 密码验证出错", verifyError);
-          }
-        } else {
-          console.log(`WebDAV认证: 未找到匹配的管理员账户，用户名: ${username}`);
+        if (adminRecord && (await verifyPassword(password, adminRecord.password))) {
+          return new AuthResult({
+            isAuthenticated: true,
+            userId: adminRecord.id,
+            permissions: 0,
+            isAdmin: true,
+          });
         }
       } catch (error) {
-        console.error("WebDAV认证: 验证管理员过程出错", error);
+        console.error("WebDAV认证: 管理员验证过程出错", error);
       }
 
-      // 情况2: API密钥用户登录 (密钥值为用户名和密码)
+      // 尝试API密钥认证
       try {
-        // 使用 Repository 查询API密钥
         const repositoryFactory = new RepositoryFactory(this.db);
         const apiKeyRepository = repositoryFactory.getApiKeyRepository();
         const keyRecord = await apiKeyRepository.findByKey(username);
 
         if (keyRecord) {
-          // 检查mount_permission
-          const hasMountPermission = String(keyRecord.mount_permission) === "1" || keyRecord.mount_permission === true;
+          // 检查WebDAV权限 - 至少需要读取权限才能进行WebDAV认证
+          const hasWebDAVPermission = PermissionChecker.hasPermission(keyRecord.permissions || 0, Permission.WEBDAV_READ);
 
-          if (hasMountPermission) {
+          if (hasWebDAVPermission) {
             // 对于API密钥，用户名和密码应相同
             if (username === password) {
               // 检查是否过期
@@ -228,29 +219,20 @@ export class AuthService {
               // 更新最后使用时间
               await apiKeyRepository.updateLastUsed(keyRecord.id);
 
-              // 构建权限对象
-              const permissions = {
-                [PermissionType.TEXT]: keyRecord.text_permission === 1,
-                [PermissionType.FILE]: keyRecord.file_permission === 1,
-                [PermissionType.MOUNT]: keyRecord.mount_permission === 1,
-                [PermissionType.ADMIN]: false,
-              };
-
-              const keyInfo = {
-                id: keyRecord.id,
-                name: keyRecord.name,
-                key: keyRecord.key,
-                basicPath: keyRecord.basic_path || "/",
-                permissions: permissions,
-              };
-
               return new AuthResult({
                 isAuthenticated: true,
-                authType: AuthType.API_KEY,
                 userId: keyRecord.id,
-                permissions: permissions,
+                permissions: keyRecord.permissions || 0,
                 basicPath: keyRecord.basic_path || "/",
-                keyInfo: keyInfo,
+                keyInfo: {
+                  id: keyRecord.id,
+                  name: keyRecord.name,
+                  key: keyRecord.key,
+                  basicPath: keyRecord.basic_path || "/",
+                  permissions: keyRecord.permissions || 0,
+                  role: keyRecord.role || "GENERAL",
+                  isGuest: keyRecord.is_guest === 1,
+                },
               });
             }
           }
@@ -267,62 +249,8 @@ export class AuthService {
   }
 
   /**
-   * 验证API密钥认证
-   */
-  async validateApiKeyAuth(apiKey) {
-    try {
-      // 使用 Repository 查询API密钥记录
-      const repositoryFactory = new RepositoryFactory(this.db);
-      const apiKeyRepository = repositoryFactory.getApiKeyRepository();
-
-      const keyRecord = await apiKeyRepository.findByKey(apiKey);
-
-      if (!keyRecord) {
-        return new AuthResult();
-      }
-
-      // 检查是否过期
-      if (await checkAndDeleteExpiredApiKey(this.db, keyRecord)) {
-        return new AuthResult();
-      }
-
-      // 更新最后使用时间
-      await apiKeyRepository.updateLastUsed(keyRecord.id);
-
-      // 构建权限对象
-      const permissions = {
-        [PermissionType.TEXT]: keyRecord.text_permission === 1,
-        [PermissionType.FILE]: keyRecord.file_permission === 1,
-        [PermissionType.MOUNT]: keyRecord.mount_permission === 1,
-        [PermissionType.ADMIN]: false,
-      };
-
-      const keyInfo = {
-        id: keyRecord.id,
-        name: keyRecord.name,
-        key: apiKey,
-        basicPath: keyRecord.basic_path || "/",
-        permissions: permissions,
-      };
-
-      return new AuthResult({
-        isAuthenticated: true,
-        authType: AuthType.API_KEY,
-        userId: keyRecord.id,
-        permissions: permissions,
-        basicPath: keyRecord.basic_path || "/",
-        keyInfo: keyInfo,
-      });
-    } catch (error) {
-      console.error("API密钥认证验证失败:", error);
-      return new AuthResult();
-    }
-  }
-
-  /**
    * 统一认证方法
-   * @param {string} authHeader - Authorization 头
-   * @returns {Promise<AuthResult>} 认证结果
+   * 网关需要的核心方法
    */
   async authenticate(authHeader) {
     const { type, token } = this.parseAuthHeader(authHeader);
@@ -344,24 +272,8 @@ export class AuthService {
   }
 
   /**
-   * 检查权限
-   * @param {AuthResult} authResult - 认证结果
-   * @param {string} requiredPermission - 需要的权限类型
-   * @returns {boolean} 是否有权限
-   */
-  checkPermission(authResult, requiredPermission) {
-    if (!authResult.isAuthenticated) {
-      return false;
-    }
-
-    return authResult.hasPermission(requiredPermission);
-  }
-
-  /**
    * 检查路径权限
-   * @param {AuthResult} authResult - 认证结果
-   * @param {string} requestPath - 请求路径
-   * @returns {boolean} 是否有路径权限
+   * 网关需要的核心方法
    */
   checkPathPermission(authResult, requestPath) {
     if (!authResult.isAuthenticated) {
@@ -373,65 +285,30 @@ export class AuthService {
       return true;
     }
 
-    // API密钥检查基础路径权限 - 使用统一的权限检查逻辑
-    if (authResult.authType === AuthType.API_KEY) {
-      const basicPath = authResult.basicPath || "/";
-
-      // 使用已导入的PermissionUtils
-      return PermissionUtils.checkPathPermission(basicPath, requestPath);
-    }
-
-    return false;
+    // API密钥检查基础路径权限
+    const basicPath = authResult.basicPath || "/";
+    return this.checkBasicPathPermission(basicPath, requestPath);
   }
 
   /**
-   * 要求特定权限的认证
-   * @param {string} authHeader - Authorization 头
-   * @param {string} requiredPermission - 需要的权限类型
-   * @param {string} requestPath - 请求路径（可选）
-   * @returns {Promise<AuthResult>} 认证结果
-   * @throws {HTTPException} 认证失败时抛出异常
+   * 检查基础路径权限
    */
-  async requirePermission(authHeader, requiredPermission, requestPath = null) {
-    const authResult = await this.authenticate(authHeader);
-
-    if (!authResult.isAuthenticated) {
-      throw new HTTPException(ApiStatus.UNAUTHORIZED, {
-        message: "需要认证访问",
-      });
+  checkBasicPathPermission(basicPath, requestPath) {
+    if (!basicPath || !requestPath) {
+      return false;
     }
 
-    if (!this.checkPermission(authResult, requiredPermission)) {
-      throw new HTTPException(ApiStatus.FORBIDDEN, {
-        message: `需要${requiredPermission}权限`,
-      });
+    // 标准化路径
+    const normalizeBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+    const normalizeRequestPath = requestPath.replace(/\/+$/, "") || "/";
+
+    // 如果基本路径是根路径，允许所有访问
+    if (normalizeBasicPath === "/") {
+      return true;
     }
 
-    if (requestPath && !this.checkPathPermission(authResult, requestPath)) {
-      throw new HTTPException(ApiStatus.FORBIDDEN, {
-        message: "路径权限不足",
-      });
-    }
-
-    return authResult;
-  }
-
-  /**
-   * 要求管理员权限
-   * @param {string} authHeader - Authorization 头
-   * @returns {Promise<AuthResult>} 认证结果
-   * @throws {HTTPException} 认证失败时抛出异常
-   */
-  async requireAdmin(authHeader) {
-    const authResult = await this.authenticate(authHeader);
-
-    if (!authResult.isAuthenticated || !authResult.isAdmin()) {
-      throw new HTTPException(ApiStatus.FORBIDDEN, {
-        message: "需要管理员权限",
-      });
-    }
-
-    return authResult;
+    // 检查请求路径是否在基本路径范围内
+    return normalizeRequestPath === normalizeBasicPath || normalizeRequestPath.startsWith(normalizeBasicPath + "/");
   }
 }
 

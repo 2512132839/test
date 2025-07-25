@@ -734,20 +734,13 @@ export class FileSystem {
       return cachedResult;
     }
 
-    // 对于API密钥用户，检查基本路径权限
-    if (userType === "apiKey" && scope === "directory" && path) {
-      const apiKeyInfo = userIdOrInfo;
-      const { PermissionUtils } = await import("../../utils/permissionUtils.js");
-      if (!PermissionUtils.checkPathPermission(apiKeyInfo.basicPath, path)) {
-        throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限搜索此路径" });
-      }
-    }
-
-    // 获取可访问的挂载点
-    const { PermissionUtils } = await import("../../utils/permissionUtils.js");
+    // 获取可访问的挂载点 - 权限检查在路由层完成
     let accessibleMounts;
     try {
-      accessibleMounts = await PermissionUtils.getAccessibleMounts(this.mountManager.db, userIdOrInfo, userType);
+      const { RepositoryFactory } = await import("../../repositories/index.js");
+      const repositoryFactory = new RepositoryFactory(this.mountManager.db);
+      const mountRepository = repositoryFactory.getMountRepository();
+      accessibleMounts = await mountRepository.findAll(false); // false = 只获取活跃的挂载点
     } catch (error) {
       throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
     }

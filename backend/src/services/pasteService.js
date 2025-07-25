@@ -2,7 +2,6 @@ import { ApiStatus } from "../constants/index.js";
 import { generateRandomString, createErrorResponse } from "../utils/common.js";
 import { hashPassword, verifyPassword } from "../utils/crypto.js";
 import { HTTPException } from "hono/http-exception";
-import { checkAndDeleteExpiredApiKey } from "./apiKeyService.js";
 import { RepositoryFactory } from "../repositories/index.js";
 
 /**
@@ -48,27 +47,53 @@ export async function generateUniqueSlug(db, customSlug = null) {
 }
 
 /**
- * 增加文本分享查看次数并检查是否需要删除
+ * 原子化增加文本分享查看次数并检查状态
  * @param {D1Database} db - D1数据库实例
  * @param {string} pasteId - 文本分享ID
  * @param {number} maxViews - 最大查看次数
- * @returns {Promise<void>}
+ * @returns {Promise<Object>} 包含isDeleted、paste、isLastView、isLastNormalAccess的结果对象
  */
-export async function incrementPasteViews(db, pasteId, maxViews) {
+export async function incrementAndCheckPasteViews(db, pasteId, maxViews) {
   // 使用 PasteRepository
   const repositoryFactory = new RepositoryFactory(db);
   const pasteRepository = repositoryFactory.getPasteRepository();
 
-  // 增加查看次数
+  // 先获取当前paste信息，检查这是否是最后一次正常访问
+  const currentPaste = await pasteRepository.findById(pasteId);
+  if (!currentPaste) {
+    return { isDeleted: true, paste: null, isLastView: false, isLastNormalAccess: false };
+  }
+
+  // 检查这是否是最后一次正常访问（访问后刚好达到限制）
+  const isLastNormalAccess = maxViews && maxViews > 0 && currentPaste.views + 1 === maxViews;
+
+  // 原子增加查看次数
   await pasteRepository.incrementViews(pasteId);
 
-  if (maxViews && maxViews > 0) {
-    const updatedPaste = await pasteRepository.findById(pasteId);
-    if (updatedPaste && updatedPaste.views >= maxViews) {
-      console.log(`文本分享(${pasteId})已达到最大查看次数(${maxViews})，自动删除`);
-      await pasteRepository.deletePaste(pasteId);
-    }
+  // 重新获取更新后的paste信息
+  const updatedPaste = await pasteRepository.findById(pasteId);
+
+  if (!updatedPaste) {
+    return { isDeleted: true, paste: null, isLastView: false, isLastNormalAccess: false };
   }
+
+  // 检查是否需要删除
+  let isDeleted = false;
+  let isLastView = false;
+
+  if (maxViews && maxViews > 0 && updatedPaste.views >= maxViews) {
+    console.log(`文本分享(${pasteId})已达到最大查看次数(${maxViews})，自动删除`);
+    await pasteRepository.deletePaste(pasteId);
+    isDeleted = true;
+    isLastView = true;
+  }
+
+  return {
+    isDeleted,
+    paste: updatedPaste,
+    isLastView,
+    isLastNormalAccess, 
+  };
 }
 
 /**
@@ -272,7 +297,11 @@ export async function verifyPastePassword(db, slug, password, incrementViews = t
 
   // 增加查看次数（如果需要）
   if (incrementViews) {
-    await incrementPasteViews(db, paste.id, paste.max_views);
+    const result = await incrementAndCheckPasteViews(db, paste.id, paste.max_views);
+    // 如果文本被删除，抛出错误
+    if (result.isDeleted) {
+      throw new HTTPException(ApiStatus.GONE, { message: "文本分享已达到最大查看次数" });
+    }
   }
 
   return {
@@ -589,9 +618,10 @@ export async function updatePaste(db, slug, updateData, createdBy = null) {
     }
   }
 
-  // 检查是否修改了最大查看次数并需要重置views
-  const isMaxViewsChanged = updateData.maxViews !== null && updateData.maxViews !== undefined && updateData.maxViews !== paste.max_views;
-  const resetViews = isMaxViewsChanged && updateData.maxViews < paste.views;
+  // 简化重置策略：调用更新接口就重置views为0
+  let resetViews = true;
+  let newViewsValue = 0;
+  console.log(`文本分享(${paste.id})已更新，重置访问次数为0`);
 
   // 准备更新数据
   const updateDataForRepo = {
@@ -607,6 +637,7 @@ export async function updatePaste(db, slug, updateData, createdBy = null) {
     passwordHash,
     clearPassword,
     resetViews,
+    newViewsValue, // 传递新的views值
   };
 
   // 使用 Repository 执行复杂更新

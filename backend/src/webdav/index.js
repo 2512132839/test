@@ -20,7 +20,8 @@ import { RepositoryFactory } from "../repositories/index.js";
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
-import { createAuthService, AuthType, PermissionType } from "../services/authService.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
+import { Permission } from "../constants/permissions.js";
 import { storeAuthInfo, getAuthInfo, isWebDAVClient } from "./utils/authCache.js";
 
 /**
@@ -101,31 +102,69 @@ function createUnauthorizedResponse(message = "Unauthorized", userAgent = "", op
 }
 
 /**
- * 验证API密钥的挂载权限
+ * WebDAV方法权限映射
+ */
+const WEBDAV_METHOD_PERMISSIONS = {
+  // 只读操作 - 需要WEBDAV_READ权限
+  READ_METHODS: ["OPTIONS", "PROPFIND", "GET", "HEAD"],
+
+  // 管理操作 - 需要WEBDAV_MANAGE权限
+  MANAGE_METHODS: ["PUT", "DELETE", "MKCOL", "COPY", "MOVE", "PROPPATCH", "LOCK", "UNLOCK"],
+};
+
+/**
+ * 验证API密钥的WebDAV权限
  *
  * @param {D1Database} db - D1数据库实例
  * @param {string} apiKey - API密钥
- * @returns {Promise<boolean>} 是否具有挂载权限
+ * @param {string} method - HTTP方法（可选，用于精确权限检查）
+ * @returns {Promise<boolean>} 是否具有WebDAV权限
  */
-async function verifyApiKeyMountPermission(db, apiKey) {
+async function verifyApiKeyWebDAVPermission(db, apiKey, method = null) {
   try {
-    const repositoryFactory = new RepositoryFactory(db);
-    const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+    const authService = authGateway.createAuthService(db);
+    const authResult = await authService.validateApiKeyAuth(apiKey);
 
-    const result = await apiKeyRepository.findByKey(apiKey);
-
-    if (!result) {
+    if (!authResult.isAuthenticated) {
       console.log("WebDAV权限验证: API密钥无效");
       return false;
     }
 
-    const hasMountPermission = String(result.mount_permission) === "1" || result.mount_permission === true;
-
-    if (!hasMountPermission) {
-      console.log("WebDAV权限验证: 挂载权限不足");
+    // 如果没有指定方法，只检查基础的WebDAV读取权限
+    if (!method) {
+      const hasWebDAVPermission = authResult.hasPermission(Permission.WEBDAV_READ);
+      if (!hasWebDAVPermission) {
+        console.log("WebDAV权限验证: WebDAV基础权限不足");
+      }
+      return hasWebDAVPermission;
     }
 
-    return hasMountPermission;
+    // 根据HTTP方法检查相应权限
+    const upperMethod = method.toUpperCase();
+
+    if (WEBDAV_METHOD_PERMISSIONS.READ_METHODS.includes(upperMethod)) {
+      // 只读操作，检查读取权限
+      const hasReadPermission = authResult.hasPermission(Permission.WEBDAV_READ);
+      if (!hasReadPermission) {
+        console.log(`WebDAV权限验证: ${method}操作需要WebDAV读取权限`);
+      }
+      return hasReadPermission;
+    } else if (WEBDAV_METHOD_PERMISSIONS.MANAGE_METHODS.includes(upperMethod)) {
+      // 管理操作，检查管理权限
+      const hasManagePermission = authResult.hasPermission(Permission.WEBDAV_MANAGE);
+      if (!hasManagePermission) {
+        console.log(`WebDAV权限验证: ${method}操作需要WebDAV管理权限`);
+      }
+      return hasManagePermission;
+    } else {
+      // 未知方法，默认需要管理权限
+      console.log(`WebDAV权限验证: 未知方法${method}，默认需要管理权限`);
+      const hasManagePermission = authResult.hasPermission(Permission.WEBDAV_MANAGE);
+      if (!hasManagePermission) {
+        console.log(`WebDAV权限验证: ${method}操作需要WebDAV管理权限`);
+      }
+      return hasManagePermission;
+    }
   } catch (error) {
     console.error("WebDAV权限验证: 验证过程出错", error);
     return false;
@@ -218,7 +257,7 @@ function normalizePath(rawPath) {
  */
 export const webdavAuthMiddleware = async (c, next) => {
   const db = c.env.DB;
-  const authService = createAuthService(db);
+  const authService = authGateway.createAuthService(db);
   const authHeader = c.req.header("Authorization");
   const userAgent = c.req.header("User-Agent") || "Unknown";
 
@@ -236,10 +275,10 @@ export const webdavAuthMiddleware = async (c, next) => {
       const authResult = await authService.authenticate(authHeader);
 
       if (authResult.isAuthenticated) {
-        // 检查挂载权限
-        if (!authResult.hasPermission(PermissionType.MOUNT)) {
-          console.log("WebDAV认证失败: 缺少挂载权限");
-          return createUnauthorizedResponse("Unauthorized: Mount permission required", userAgent);
+        // 检查WebDAV权限
+        if (!authResult.hasPermission(Permission.WEBDAV_READ)) {
+          console.log("WebDAV认证失败: 缺少WebDAV权限");
+          return createUnauthorizedResponse("Unauthorized: WebDAV permission required", userAgent);
         }
 
         // 设置认证上下文
@@ -282,21 +321,20 @@ export const webdavAuthMiddleware = async (c, next) => {
  * @param {string} userAgent - 用户代理
  */
 async function setAuthenticationContext(c, authResult, clientIp, userAgent) {
-  if (authResult.authType === AuthType.ADMIN || authResult.isAdmin()) {
+  if (authResult.isAdmin()) {
     // 管理员用户
-    c.set("userId", authResult.adminId);
+    c.set("userId", authResult.getUserId());
     c.set("userType", "admin");
 
     const authInfo = {
-      userId: authResult.adminId,
+      userId: authResult.getUserId(),
       isAdmin: true,
-      authType: authResult.authType,
     };
     c.set("authInfo", authInfo);
 
     // 缓存认证信息 - 使用现有的authCache.js API
     storeAuthInfo(clientIp, userAgent, authInfo);
-  } else if (authResult.authType === AuthType.API_KEY || authResult.keyInfo) {
+  } else if (authResult.keyInfo) {
     // API密钥用户
     const apiKeyInfo = {
       id: authResult.keyInfo.id,
@@ -308,10 +346,9 @@ async function setAuthenticationContext(c, authResult, clientIp, userAgent) {
     c.set("userType", "apiKey");
 
     const authInfo = {
-      userId: authResult.userId,
+      userId: authResult.getUserId(),
       isAdmin: false,
-      apiKey: authResult.keyInfo ? authResult.keyInfo.key : "unknown",
-      authType: authResult.authType,
+      apiKey: authResult.keyInfo.key,
       apiKeyInfo: apiKeyInfo,
     };
     c.set("authInfo", authInfo);
@@ -319,10 +356,11 @@ async function setAuthenticationContext(c, authResult, clientIp, userAgent) {
     // 缓存认证信息 - 使用现有的authCache.js API
     storeAuthInfo(clientIp, userAgent, authInfo);
   } else {
-    throw new Error(`Unknown authentication type: ${authResult.authType}`);
+    throw new Error(`Unknown authentication result: neither admin nor API key`);
   }
 
-  console.log(`WebDAV认证成功: 用户类型=${authResult.authType}`);
+  const userType = authResult.isAdmin() ? "admin" : "apiKey";
+  console.log(`WebDAV认证成功: 用户类型=${userType}`);
 }
 
 /**
@@ -352,9 +390,9 @@ async function tryAuthenticationCache(c, db, clientIp, userAgent) {
       c.set("authInfo", cachedAuth);
       return true;
     } else if (cachedAuth.apiKey) {
-      // 重新验证API密钥权限
-      const hasMountPermission = await verifyApiKeyMountPermission(db, cachedAuth.apiKey);
-      if (!hasMountPermission) {
+      // 重新验证API密钥权限 
+      const hasWebDAVPermission = await verifyApiKeyWebDAVPermission(db, cachedAuth.apiKey);
+      if (!hasWebDAVPermission) {
         console.log("WebDAV认证: 缓存的API密钥权限已失效");
         return false;
       }
@@ -422,12 +460,12 @@ export async function handleWebDAV(c) {
   const db = c.env.DB;
 
   try {
-    // API密钥用户的权限重新验证
+    // API密钥用户的权限重新验证 - 根据HTTP方法进行精确权限检查
     if (userType === "apiKey" && authInfo && authInfo.apiKey) {
-      const hasMountPermission = await verifyApiKeyMountPermission(db, authInfo.apiKey);
-      if (!hasMountPermission) {
-        console.log(`WebDAV请求拒绝: ${method} ${path}, 挂载权限已撤销`);
-        return createUnauthorizedResponse("Unauthorized: Mount permission revoked", c.req.header("User-Agent") || "");
+      const hasWebDAVPermission = await verifyApiKeyWebDAVPermission(db, authInfo.apiKey, method);
+      if (!hasWebDAVPermission) {
+        console.log(`WebDAV请求拒绝: ${method} ${path}, WebDAV权限不足`);
+        return createUnauthorizedResponse(`Unauthorized: ${method} operation requires WebDAV permission`, c.req.header("User-Agent") || "");
       }
     }
 

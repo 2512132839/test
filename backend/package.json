@@ -1,6 +1,6 @@
 {
   "name": "cloudpaste-api",
-  "version": "1.0.0",
+  "version": "0.7.3",
   "description": "CloudPaste API基于Cloudflare Workers和D1数据库",
   "main": "worker.js",
   "scripts": {
@@ -17,7 +17,7 @@
     "paste"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
     "@aws-crypto/sha256-browser": "^5.2.0",

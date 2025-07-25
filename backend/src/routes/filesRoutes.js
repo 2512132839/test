@@ -4,35 +4,85 @@ import { createErrorResponse } from "../utils/common.js";
 import { deleteFileFromS3 } from "../utils/s3Utils.js";
 import { hashPassword, verifyPassword } from "../utils/crypto.js";
 import {
+  generateFileDownloadUrl,
+  getAdminFileList,
+  getAdminFileDetail,
+  getUserFileList,
+  getUserFileDetail,
   getFileBySlug,
   isFileAccessible,
   incrementAndCheckFileViews,
-  generateFileDownloadUrl,
   getPublicFileInfo,
-  getUserFileList,
-  getUserFileDetail,
 } from "../services/fileService.js";
 import { clearCache } from "../utils/DirectoryCache.js";
-import { baseAuthMiddleware, createFlexiblePermissionMiddleware } from "../middlewares/permissionMiddleware.js";
-import { PermissionUtils, PermissionType } from "../utils/permissionUtils.js";
+import { authGateway } from "../middlewares/authGatewayMiddleware.js";
 import { RepositoryFactory } from "../repositories/index.js";
 
-// 创建文件权限中间件（管理员或API密钥文件权限）
-const requireFilePermissionMiddleware = createFlexiblePermissionMiddleware({
-  permissions: [PermissionType.FILE],
-  allowAdmin: true,
-});
-
 /**
- * 用户文件路由
- * 负责公共文件访问和API密钥用户文件管理功能
+ * 统一文件路由
+ * 支持管理员和API密钥用户的文件管理功能
  */
 
 /**
- * 注册用户文件相关API路由
+ * 创建统一的认证中间件，支持admin和apiKey两种认证方式
+ */
+function createUnifiedAuthMiddleware() {
+  return async (c, next) => {
+    // 检查Authorization头
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader) {
+      return c.json(createErrorResponse(ApiStatus.UNAUTHORIZED, "需要认证"), ApiStatus.UNAUTHORIZED);
+    }
+
+    let isAuthenticated = false;
+
+    // 尝试admin认证
+    try {
+      await authGateway.requireAdmin()(c, async () => {
+        // admin认证成功，设置用户信息
+        c.set("userType", "admin");
+        c.set("userId", authGateway.utils.getUserId(c));
+        isAuthenticated = true;
+      });
+
+      if (isAuthenticated) {
+        return await next();
+      }
+    } catch (adminError) {
+      // admin认证失败，继续尝试apiKey认证
+    }
+
+    // 尝试apiKey认证
+    try {
+      await authGateway.requireFile()(c, async () => {
+        // apiKey认证成功，设置用户信息
+        c.set("userType", "apiKey");
+        c.set("userId", authGateway.utils.getUserId(c));
+        c.set("apiKeyInfo", authGateway.utils.getApiKeyInfo(c));
+        isAuthenticated = true;
+      });
+
+      if (isAuthenticated) {
+        return await next();
+      }
+    } catch (apiKeyError) {
+      // 两种认证都失败
+    }
+
+    // 如果到这里说明认证失败
+    return c.json(createErrorResponse(ApiStatus.UNAUTHORIZED, "需要管理员权限或有效的API密钥"), ApiStatus.UNAUTHORIZED);
+  };
+}
+
+/**
+ * 注册统一文件相关API路由
  * @param {Object} app - Hono应用实例
  */
-export function registerUserFilesRoutes(app) {
+export function registerFilesRoutes(app) {
+  const unifiedAuth = createUnifiedAuthMiddleware();
+
+  // ==================== 公共文件接口（无需认证） ====================
+
   // 获取公开文件（无需认证）
   app.get("/api/public/files/:slug", async (c) => {
     const db = c.env.DB;
@@ -207,43 +257,76 @@ export function registerUserFilesRoutes(app) {
     }
   });
 
-  // API密钥用户获取自己的文件列表
-  app.get("/api/user/files", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  // ==================== 统一认证文件接口 ====================
+
+  // 获取文件列表（统一接口）
+  app.get("/api/files", unifiedAuth, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = PermissionUtils.getUserId(c);
-    const apiKeyInfo = PermissionUtils.getApiKeyInfo(c);
+    const userType = c.get("userType");
+    const userId = c.get("userId");
+    const apiKeyInfo = c.get("apiKeyInfo");
 
     try {
-      // 获取查询参数
-      const limit = parseInt(c.req.query("limit") || "30");
-      const offset = parseInt(c.req.query("offset") || "0");
+      let result;
 
-      // 使用FileService获取用户文件列表
-      const result = await getUserFileList(db, apiKeyId, { limit, offset });
+      if (userType === "admin") {
+        // 管理员：获取查询参数
+        const limit = parseInt(c.req.query("limit") || "30");
+        const offset = parseInt(c.req.query("offset") || "0");
+        const createdBy = c.req.query("created_by");
 
-      return c.json({
+        // 构建查询选项
+        const options = { limit, offset };
+        if (createdBy) options.createdBy = createdBy;
+
+        // 使用管理员服务获取文件列表
+        result = await getAdminFileList(db, options);
+      } else {
+        // API密钥用户：获取查询参数
+        const limit = parseInt(c.req.query("limit") || "30");
+        const offset = parseInt(c.req.query("offset") || "0");
+
+        // 使用用户服务获取文件列表
+        result = await getUserFileList(db, userId, { limit, offset });
+      }
+
+      const response = {
         code: ApiStatus.SUCCESS,
         message: "获取文件列表成功",
         data: result,
-        key_info: apiKeyInfo, // 返回API密钥信息
         success: true,
-      });
+      };
+
+      // API密钥用户需要返回密钥信息
+      if (userType === "apiKey") {
+        response.key_info = apiKeyInfo;
+      }
+
+      return c.json(response);
     } catch (error) {
-      console.error("获取API密钥用户文件列表错误:", error);
+      console.error("获取文件列表错误:", error);
       return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "获取文件列表失败"), ApiStatus.INTERNAL_ERROR);
     }
   });
 
-  // API密钥用户获取单个文件详情
-  app.get("/api/user/files/:id", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  // 获取单个文件详情（统一接口）
+  app.get("/api/files/:id", unifiedAuth, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = PermissionUtils.getUserId(c);
+    const userType = c.get("userType");
+    const userId = c.get("userId");
     const { id } = c.req.param();
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
     try {
-      // 使用FileService获取用户文件详情
-      const result = await getUserFileDetail(db, id, apiKeyId, encryptionSecret, c.req.raw);
+      let result;
+
+      if (userType === "admin") {
+        // 管理员：可以获取任何文件的详情
+        result = await getAdminFileDetail(db, id, encryptionSecret, c.req.raw);
+      } else {
+        // API密钥用户：只能获取自己文件的详情
+        result = await getUserFileDetail(db, id, userId, encryptionSecret, c.req.raw);
+      }
 
       return c.json({
         code: ApiStatus.SUCCESS,
@@ -257,10 +340,11 @@ export function registerUserFilesRoutes(app) {
     }
   });
 
-  // 批量删除文件（API密钥用户）
-  app.delete("/api/user/files/batch-delete", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  // 批量删除文件（统一接口）
+  app.delete("/api/files/batch-delete", unifiedAuth, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = PermissionUtils.getUserId(c);
+    const userType = c.get("userType");
+    const userId = c.get("userId");
     const body = await c.req.json();
     const ids = body.ids;
 
@@ -276,20 +360,35 @@ export function registerUserFilesRoutes(app) {
 
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
     const s3ConfigIds = new Set(); // 收集需要清理缓存的S3配置ID
+
+    // 使用 Repository 获取文件信息
     const repositoryFactory = new RepositoryFactory(db);
     const fileRepository = repositoryFactory.getFileRepository();
 
     for (const id of ids) {
       try {
-        // 获取文件信息（只能删除自己的文件）
-        const file = await fileRepository.findByIdAndCreator(id, `apikey:${apiKeyId}`);
+        let file;
 
-        if (!file) {
-          result.failed.push({
-            id: id,
-            error: "文件不存在或无权删除",
-          });
-          continue;
+        if (userType === "admin") {
+          // 管理员：可以删除任何文件
+          file = await fileRepository.findByIdWithStorageConfig(id);
+          if (!file) {
+            result.failed.push({
+              id: id,
+              error: "文件不存在",
+            });
+            continue;
+          }
+        } else {
+          // API密钥用户：只能删除自己的文件
+          file = await fileRepository.findByIdAndCreator(id, `apikey:${userId}`);
+          if (!file) {
+            result.failed.push({
+              id: id,
+              error: "文件不存在或无权删除",
+            });
+            continue;
+          }
         }
 
         // 收集S3配置ID用于缓存清理（仅对S3存储类型）
@@ -316,7 +415,12 @@ export function registerUserFilesRoutes(app) {
           // 即使S3删除失败，也继续从数据库中删除记录
         }
 
-        // 使用 FileRepository 从数据库中删除记录
+        // 使用 FileRepository 删除记录和关联的密码记录
+        if (userType === "admin") {
+          // 管理员：删除密码记录
+          await fileRepository.deleteFilePasswordRecord(id);
+        }
+        // 删除文件记录
         await fileRepository.deleteFile(id);
 
         result.success++;
@@ -347,25 +451,36 @@ export function registerUserFilesRoutes(app) {
     });
   });
 
-  // API密钥用户更新自己文件的元数据
-  app.put("/api/user/files/:id", baseAuthMiddleware, requireFilePermissionMiddleware, async (c) => {
+  // 更新文件元数据（统一接口）
+  app.put("/api/files/:id", unifiedAuth, async (c) => {
     const db = c.env.DB;
-    const apiKeyId = PermissionUtils.getUserId(c);
+    const userType = c.get("userType");
+    const userId = c.get("userId");
     const { id } = c.req.param();
     const body = await c.req.json();
 
     try {
-      // 使用 FileRepository 检查文件是否存在且属于当前API密钥用户
+      // 使用 FileRepository 检查文件是否存在
       const repositoryFactory = new RepositoryFactory(db);
       const fileRepository = repositoryFactory.getFileRepository();
 
-      const existingFile = await fileRepository.findOne(DbTables.FILES, {
-        id: id,
-        created_by: `apikey:${apiKeyId}`,
-      });
+      let existingFile;
 
-      if (!existingFile) {
-        return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权更新"), ApiStatus.NOT_FOUND);
+      if (userType === "admin") {
+        // 管理员：可以更新任何文件
+        existingFile = await fileRepository.findById(id);
+        if (!existingFile) {
+          return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
+        }
+      } else {
+        // API密钥用户：只能更新自己的文件
+        existingFile = await fileRepository.findOne(DbTables.FILES, {
+          id: id,
+          created_by: `apikey:${userId}`,
+        });
+        if (!existingFile) {
+          return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权更新"), ApiStatus.NOT_FOUND);
+        }
       }
 
       // 构建更新数据对象
@@ -378,12 +493,18 @@ export function registerUserFilesRoutes(app) {
 
       if (body.slug !== undefined) {
         // 检查slug是否可用 (不与其他文件冲突)
-        const slugExistsCheck = await fileRepository.findBySlugExcludingId(body.slug, id);
-
-        if (slugExistsCheck) {
-          return c.json(createErrorResponse(ApiStatus.CONFLICT, "此链接后缀已被其他文件使用"), ApiStatus.CONFLICT);
+        let slugExistsCheck;
+        if (userType === "admin") {
+          slugExistsCheck = await fileRepository.findBySlug(body.slug);
+          if (slugExistsCheck && slugExistsCheck.id !== id) {
+            return c.json(createErrorResponse(ApiStatus.CONFLICT, "此链接后缀已被其他文件使用"), ApiStatus.CONFLICT);
+          }
+        } else {
+          slugExistsCheck = await fileRepository.findBySlugExcludingId(body.slug, id);
+          if (slugExistsCheck) {
+            return c.json(createErrorResponse(ApiStatus.CONFLICT, "此链接后缀已被其他文件使用"), ApiStatus.CONFLICT);
+          }
         }
-
         updateData.slug = body.slug;
       }
 
@@ -421,15 +542,15 @@ export function registerUserFilesRoutes(app) {
         }
       }
 
-      // 如果没有要更新的字段
-      if (Object.keys(updateData).length === 0) {
+      // 如果没有要更新的字段（API密钥用户需要检查）
+      if (userType === "apiKey" && Object.keys(updateData).length === 0) {
         return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "没有提供有效的更新字段"), ApiStatus.BAD_REQUEST);
       }
 
       // 添加更新时间
       updateData.updated_at = new Date().toISOString();
 
-      // 使用 Repository 更新文件（只能更新自己创建的文件）
+      // 使用 Repository 更新文件
       await fileRepository.updateFile(id, updateData);
 
       return c.json({
@@ -438,7 +559,7 @@ export function registerUserFilesRoutes(app) {
         success: true,
       });
     } catch (error) {
-      console.error("更新API密钥用户文件元数据错误:", error);
+      console.error("更新文件元数据错误:", error);
       return c.json(createErrorResponse(ApiStatus.INTERNAL_ERROR, error.message || "更新文件元数据失败"), ApiStatus.INTERNAL_ERROR);
     }
   });

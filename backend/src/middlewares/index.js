@@ -2,14 +2,5 @@
  * 中间件导出文件
  */
 
-// 导出权限认证中间件
-export {
-  baseAuthMiddleware,
-  requireAdminMiddleware,
-  requireAuthMiddleware,
-  requireTextPermissionMiddleware,
-  requireFilePermissionMiddleware,
-  requireMountPermissionMiddleware,
-  createFlexiblePermissionMiddleware,
-  customAuthMiddleware,
-} from "./permissionMiddleware.js";
+// 导出统一认证网关中间件（唯一的权限系统）
+export { authGateway } from "./authGatewayMiddleware.js";

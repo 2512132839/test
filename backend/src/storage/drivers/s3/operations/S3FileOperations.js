@@ -123,7 +123,7 @@ export class S3FileOperations {
    * @returns {Promise<Object>} 文件信息
    */
   async getFileInfo(s3SubPath, options = {}) {
-    const { mount, path, userType, userId, request } = options;
+    const { mount, path, userType, userId, request, db } = options;
 
     return handleFsError(
       async () => {
@@ -163,8 +163,8 @@ export class S3FileOperations {
               if (!!mount.web_proxy && this.driver?.hasCapability?.(CAPABILITIES.PROXY)) {
                 // 代理模式：使用驱动的代理能力生成URL
                 try {
-                  const previewProxy = await this.driver.generateProxyUrl(path, { mount, request, download: false });
-                  const downloadProxy = await this.driver.generateProxyUrl(path, { mount, request, download: true });
+                  const previewProxy = await this.driver.generateProxyUrl(path, { mount, request, download: false, db });
+                  const downloadProxy = await this.driver.generateProxyUrl(path, { mount, request, download: true, db });
 
                   result.preview_url = previewProxy.url;
                   result.download_url = downloadProxy.url;
@@ -231,8 +231,8 @@ export class S3FileOperations {
                 if (!!mount.web_proxy && this.driver?.hasCapability?.(CAPABILITIES.PROXY)) {
                   // 代理模式：使用驱动的代理能力生成URL
                   try {
-                    const previewProxy = await this.driver.generateProxyUrl(path, { mount, request, download: false });
-                    const downloadProxy = await this.driver.generateProxyUrl(path, { mount, request, download: true });
+                    const previewProxy = await this.driver.generateProxyUrl(path, { mount, request, download: false, db });
+                    const downloadProxy = await this.driver.generateProxyUrl(path, { mount, request, download: true, db });
 
                     result.preview_url = previewProxy.url;
                     result.download_url = downloadProxy.url;
