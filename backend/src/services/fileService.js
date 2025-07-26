@@ -503,7 +503,7 @@ export async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
 export async function generateFileDownloadUrl(db, file, encryptionSecret, request = null) {
   const fileService = new FileService(db, encryptionSecret);
-  return await fileService.generateFileDownloadUrl(file);
+  return await fileService.generateFileDownloadUrl(file, encryptionSecret, request);
 }
 
 export function getPublicFileInfo(file, requiresPassword, urlsObj = null) {

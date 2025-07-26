@@ -72,7 +72,6 @@ import { ref, computed, onMounted, defineProps, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { api } from "../api";
 import { useAuthStore } from "../stores/authStore.js";
-import { getFullApiUrl } from "../api/config.js";
 
 const { t } = useI18n();
 
@@ -206,37 +205,15 @@ const loadFileInfo = async () => {
           console.error("从会话存储获取密码出错:", err);
         }
 
-        // 处理代理URL：转换为完整的API URL
-        if (previewUrl && previewUrl.includes("/api/file-view/")) {
-          // 从URL中提取slug
-          const urlParts = previewUrl.split("/");
-          const slugWithParams = urlParts[urlParts.length - 1];
-          const slug = slugWithParams.split("?")[0];
-
-          // 使用getFullApiUrl构建完整的后端URL
-          previewUrl = getFullApiUrl(`file-view/${slug}`);
-
-          // 如果有保存的密码，添加密码参数
-          if (savedPassword && !previewUrl.includes("password=")) {
-            previewUrl += `?password=${encodeURIComponent(savedPassword)}`;
-            console.log("从会话存储中为代理预览URL添加密码参数");
-          }
+        // 如果有代理URL，并且有保存的密码，添加密码参数
+        if (previewUrl && previewUrl.includes("/api/file-view/") && savedPassword && !previewUrl.includes("password=")) {
+          previewUrl = previewUrl.includes("?") ? `${previewUrl}&password=${encodeURIComponent(savedPassword)}` : `${previewUrl}?password=${encodeURIComponent(savedPassword)}`;
+          console.log("从会话存储中为代理预览URL添加密码参数");
         }
 
         // 同样处理下载URL
-        if (downloadUrl && downloadUrl.includes("/api/file-download/")) {
-          // 从URL中提取slug
-          const urlParts = downloadUrl.split("/");
-          const slugWithParams = urlParts[urlParts.length - 1];
-          const slug = slugWithParams.split("?")[0];
-
-          // 使用getFullApiUrl构建完整的后端URL
-          downloadUrl = getFullApiUrl(`file-download/${slug}`);
-
-          // 如果有保存的密码，添加密码参数
-          if (savedPassword && !downloadUrl.includes("password=")) {
-            downloadUrl += `?password=${encodeURIComponent(savedPassword)}`;
-          }
+        if (downloadUrl && downloadUrl.includes("/api/file-download/") && savedPassword && !downloadUrl.includes("password=")) {
+          downloadUrl = downloadUrl.includes("?") ? `${downloadUrl}&password=${encodeURIComponent(savedPassword)}` : `${downloadUrl}?password=${encodeURIComponent(savedPassword)}`;
         }
 
         fileUrls.value = {
@@ -261,20 +238,15 @@ const loadFileInfo = async () => {
  * @param {Object} data - 包含文件URLs和信息的对象
  */
 const handlePasswordVerified = (data) => {
-  // 处理代理URL：转换为完整的API URL并添加密码参数
+  // 检查并修改预览URL，确保代理URL包含密码参数
   let previewUrl = data.previewUrl;
   if (previewUrl && previewUrl.includes("/api/file-view/")) {
-    // 从URL中提取slug
-    const urlParts = previewUrl.split("/");
-    const slugWithParams = urlParts[urlParts.length - 1];
-    const slug = slugWithParams.split("?")[0];
-
-    // 使用getFullApiUrl构建完整的后端URL
-    previewUrl = getFullApiUrl(`file-view/${slug}`);
-
-    // 如果有密码，添加密码参数
+    // 确保URL包含密码参数
     if (data.currentPassword && !previewUrl.includes("password=")) {
-      previewUrl += `?password=${encodeURIComponent(data.currentPassword)}`;
+      // 添加密码参数到预览URL
+      previewUrl = previewUrl.includes("?")
+          ? `${previewUrl}&password=${encodeURIComponent(data.currentPassword)}`
+          : `${previewUrl}?password=${encodeURIComponent(data.currentPassword)}`;
       console.log("已在验证阶段为代理预览URL添加密码参数");
     }
   }
