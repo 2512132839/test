@@ -80,6 +80,11 @@ export async function getUploadPresignedUrl(options) {
       path: options.path,
       slug: options.slug,
       size: options.size,
+      remark: options.remark,
+      password: options.password,
+      expires_in: options.expires_in,
+      max_views: options.max_views,
+      use_proxy: options.use_proxy,
     };
 
     return await post("s3/presign", data);
@@ -126,6 +131,11 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
       path: options.path,
       slug: options.slug,
       size: file.size, // 传递文件大小供后端验证
+      remark: options.remark,
+      password: options.password,
+      expires_in: options.expires_in,
+      max_views: options.max_views,
+      use_proxy: options.use_proxy,
     });
 
     if (!presignedData.success) {
@@ -280,7 +290,7 @@ export async function directUploadFile(file, options, onProgress, onXhrReady, on
       console.log("上传失败，正在删除文件记录:", fileId);
       try {
         // 使用认证Store检查用户身份
-        const { useAuthStore } = await import("../../stores/authStore.js");
+        const { useAuthStore } = await import("@/stores/authStore.js");
         const authStore = useAuthStore();
 
         // 使用统一的批量删除API删除文件

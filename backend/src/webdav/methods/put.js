@@ -405,8 +405,12 @@ export async function handlePut(c, path, userId, userType, db) {
     // 获取系统设置中的WebDAV上传模式
     let webdavUploadMode = "direct"; // 默认为直接上传模式
     try {
-      // 查询系统设置
-      const uploadModeSetting = await db.prepare("SELECT value FROM system_settings WHERE key = ?").bind("webdav_upload_mode").first();
+      // 使用Repository查询系统设置
+      const { RepositoryFactory } = await import("../../repositories/index.js");
+      const repositoryFactory = new RepositoryFactory(db);
+      const systemRepository = repositoryFactory.getSystemRepository();
+
+      const uploadModeSetting = await systemRepository.getSettingMetadata("webdav_upload_mode");
       if (uploadModeSetting && uploadModeSetting.value) {
         webdavUploadMode = uploadModeSetting.value;
       }

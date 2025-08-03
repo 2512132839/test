@@ -3,19 +3,13 @@
  * 专注交互功能（编辑、保存、下载等）
  */
 
-import { ref, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../../api/index.js";
+import { api } from "@/api";
 
 export function useFilePreviewExtensions(
   file,
   authInfo,
-  textContent,
-  editContent,
-  isEditMode,
-  isSaving,
-  showModeDropdown,
-  isGeneratingPreview,
   officePreviewLoading,
   officePreviewError,
   officePreviewTimedOut,
@@ -26,8 +20,7 @@ export function useFilePreviewExtensions(
   authenticatedPreviewUrl,
   previewTimeoutId,
   microsoftOfficePreviewUrl,
-  googleDocsPreviewUrl,
-  initializePreview
+  googleDocsPreviewUrl
 ) {
   const { t } = useI18n();
 
@@ -63,98 +56,7 @@ export function useFilePreviewExtensions(
     console.log("Office预览错误处理完成");
   };
 
-  // ===== 编辑模式处理 =====
-
-  /**
-   * 切换下拉框显示状态
-   */
-  const toggleModeDropdown = () => {
-    showModeDropdown.value = !showModeDropdown.value;
-  };
-
-  /**
-   * 选择预览/编辑模式
-   */
-  const selectMode = (mode) => {
-    if (mode === "edit" && !isEditMode.value) {
-      switchToEditMode();
-    } else if (mode === "preview" && isEditMode.value) {
-      cancelEdit();
-    }
-    showModeDropdown.value = false;
-  };
-
-  /**
-   * 点击外部关闭下拉框
-   */
-  const handleClickOutside = (event) => {
-    const dropdown = document.querySelector(".mode-selector .relative");
-    if (dropdown && !dropdown.contains(event.target) && showModeDropdown.value) {
-      showModeDropdown.value = false;
-    }
-  };
-
-  /**
-   * 切换到编辑模式
-   */
-  const switchToEditMode = () => {
-    editContent.value = textContent.value;
-    isEditMode.value = true;
-  };
-
-  /**
-   * 取消编辑
-   */
-  const cancelEdit = async () => {
-    isEditMode.value = false;
-    editContent.value = "";
-
-    // 重置下拉框状态
-    showModeDropdown.value = false;
-
-    // 取消编辑时重新初始化预览
-    if (initializePreview) {
-      await nextTick();
-      await initializePreview();
-    }
-  };
-
-  /**
-   * 保存编辑内容
-   */
-  const saveContent = async () => {
-    if (isSaving.value) return;
-
-    isSaving.value = true;
-    try {
-      // 检查内容大小限制 (10MB)
-      const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
-      if (editContent.value.length > MAX_CONTENT_SIZE) {
-        throw new Error("文件过大，无法保存");
-      }
-
-      // 使用统一的文件更新API
-      const response = await api.fs.updateFile(file.value.path, editContent.value);
-
-      if (response.success) {
-        // 更新文本内容
-        textContent.value = editContent.value;
-
-        // 退出编辑模式并重新初始化预览
-        await cancelEdit();
-
-        console.log("文件保存成功");
-        emit("saved");
-      } else {
-        throw new Error(response.message || "保存失败");
-      }
-    } catch (error) {
-      console.error("保存文件失败:", error);
-      emit("error", error);
-    } finally {
-      isSaving.value = false;
-    }
-  };
+  // ===== 编辑模式处理已移除 =====
 
   // ===== 音频播放器事件处理 =====
 
@@ -188,6 +90,9 @@ export function useFilePreviewExtensions(
   };
 
   // ===== 其他功能 =====
+
+  // S3直链预览状态
+  const isGeneratingPreview = ref(false);
 
   /**
    * 处理下载按钮点击
@@ -292,7 +197,6 @@ export function useFilePreviewExtensions(
     // 添加全屏变化监听
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("click", handleClickOutside);
 
     console.log("文件预览扩展功能初始化完成");
   };
@@ -307,16 +211,7 @@ export function useFilePreviewExtensions(
       authenticatedPreviewUrl.value = null;
     }
 
-    // 清理编辑模式状态
-    if (isEditMode) {
-      isEditMode.value = false;
-    }
-    if (editContent) {
-      editContent.value = "";
-    }
-
     // 移除事件监听器
-    document.removeEventListener("click", handleClickOutside);
     document.removeEventListener("keydown", handleKeyDown);
     document.removeEventListener("fullscreenchange", handleFullscreenChange);
 
@@ -324,11 +219,6 @@ export function useFilePreviewExtensions(
     if (previewTimeoutId && previewTimeoutId.value) {
       clearTimeout(previewTimeoutId.value);
       previewTimeoutId.value = null;
-    }
-
-    // 清理其他资源
-    if (textContent) {
-      textContent.value = "";
     }
     if (microsoftOfficePreviewUrl) {
       microsoftOfficePreviewUrl.value = "";
@@ -349,20 +239,13 @@ export function useFilePreviewExtensions(
     handleOfficePreviewLoaded,
     handleOfficePreviewError,
 
-    // 编辑模式处理
-    toggleModeDropdown,
-    selectMode,
-    handleClickOutside,
-    switchToEditMode,
-    cancelEdit,
-    saveContent,
-
     // 音频处理
     handleAudioPlay,
     handleAudioPause,
     handleAudioError,
 
     // 其他功能
+    isGeneratingPreview,
     handleDownload,
     handleS3DirectPreview,
     getCurrentDirectoryPath,

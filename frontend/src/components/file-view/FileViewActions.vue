@@ -2,17 +2,17 @@
   <div class="file-actions flex flex-wrap gap-3">
     <!-- 预览按钮 -->
     <button
-      v-if="fileUrls.previewUrl"
-      @click="previewFile"
-      class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
+        v-if="fileUrls.previewUrl"
+        @click="previewFile"
+        class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
         />
       </svg>
       <span>{{ t("fileView.actions.preview") }}</span>
@@ -20,9 +20,9 @@
 
     <!-- 下载按钮 -->
     <button
-      v-if="fileUrls.downloadUrl"
-      @click="downloadFile"
-      class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
+        v-if="fileUrls.downloadUrl"
+        @click="downloadFile"
+        class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -32,16 +32,16 @@
 
     <!-- 编辑按钮 (管理员可见所有文件，API密钥用户只能看到自己的文件) -->
     <button
-      v-if="(isAdmin || (hasApiKey && hasFilePermission && isCreator)) && fileInfo.id"
-      @click="$emit('edit')"
-      class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white focus:ring-gray-400 dark:focus:ring-gray-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
+        v-if="(isAdmin || (hasApiKey && hasFilePermission && isCreator)) && fileInfo.id"
+        @click="$emit('edit')"
+        class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white focus:ring-gray-400 dark:focus:ring-gray-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
         />
       </svg>
       <span>{{ t("fileView.actions.edit") }}</span>
@@ -49,15 +49,15 @@
 
     <!-- 分享按钮 -->
     <button
-      @click="shareFile"
-      class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
+        @click="shareFile"
+        class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
         />
       </svg>
       <span>{{ t("fileView.actions.share") }}</span>
@@ -65,16 +65,16 @@
 
     <!-- 删除按钮 (管理员可见所有文件，API密钥用户只能看到自己的文件) -->
     <button
-      v-if="(isAdmin || (hasApiKey && hasFilePermission && isCreator)) && fileInfo.id"
-      @click="confirmDelete"
-      class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
+        v-if="(isAdmin || (hasApiKey && hasFilePermission && isCreator)) && fileInfo.id"
+        @click="confirmDelete"
+        class="action-button flex items-center justify-center px-4 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 focus:ring-offset-white dark:focus:ring-offset-gray-800"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
         />
       </svg>
       <span>{{ t("fileView.actions.delete") }}</span>
@@ -89,8 +89,8 @@
         </p>
         <div class="flex justify-end space-x-3">
           <button
-            @click="showDeleteConfirm = false"
-            class="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white"
+              @click="showDeleteConfirm = false"
+              class="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white"
           >
             {{ t("common.cancel") }}
           </button>
@@ -103,8 +103,8 @@
 
     <!-- 复制成功提示 -->
     <div
-      v-if="showCopyToast"
-      class="fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center transition-opacity duration-200 bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-700"
+        v-if="showCopyToast"
+        class="fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center transition-opacity duration-200 bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-700"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -114,12 +114,12 @@
 
     <!-- 错误提示组件 -->
     <ErrorToast
-      :visible="showErrorToast"
-      :title="errorTitle"
-      :message="errorMessage"
-      :action-text="errorActionText"
-      :action-handler="errorActionHandler"
-      @close="closeErrorToast"
+        :visible="showErrorToast"
+        :title="errorTitle"
+        :message="errorMessage"
+        :action-text="errorActionText"
+        :action-handler="errorActionHandler"
+        @close="closeErrorToast"
     />
   </div>
 </template>
@@ -127,13 +127,12 @@
 <script setup>
 import { ref, defineProps, defineEmits, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { isOffice as isOfficeFileType } from "../../utils/mimeUtils.js";
-import { api } from "../../api";
+import { api } from "@/api";
 import { ApiStatus } from "../../api/ApiStatus";
-import { getFullApiUrl } from "../../api/config";
 import { copyToClipboard } from "@/utils/clipboard";
 import ErrorToast from "../common/ErrorToast.vue";
-import { useAuthStore } from "../../stores/authStore.js";
+import { useAuthStore } from "@/stores/authStore.js";
+import { FileType } from "@/utils/fileTypes.js";
 
 const { t } = useI18n();
 
@@ -202,11 +201,9 @@ const isCreator = computed(() => {
   return authStore.isFileCreator(props.fileInfo);
 });
 
-// 认证信息已由认证Store管理，不需要额外的验证逻辑
-
-// 辅助函数：获取文件密码（按优先级顺序）
+// 辅助函数：获取文件密码
 const getFilePassword = () => {
-  // 1. 优先使用文件信息中存储的已验证密码（最可靠）
+  // 1. 优先使用文件信息中存储的已验证密码
   if (props.fileInfo.currentPassword) {
     console.log("使用已验证的密码");
     return props.fileInfo.currentPassword;
@@ -223,7 +220,7 @@ const getFilePassword = () => {
     console.error("从会话存储获取密码出错:", err);
   }
 
-  // 3. 最后尝试从URL获取密码参数（可能不安全，但为了兼容性保留）
+  // 3. 最后尝试从URL获取密码参数
   try {
     const currentUrl = new URL(window.location.href);
     const passwordParam = currentUrl.searchParams.get("password");
@@ -246,36 +243,41 @@ const previewFile = async () => {
   if (!props.fileUrls.previewUrl) return;
 
   try {
-    // 首先判断是否是Office文件
-    const isOffice = isOfficeFileType(props.fileInfo.mimetype, props.fileInfo.filename);
+    // 判断是否是需要Office在线预览的文件
+    const isOffice = props.fileInfo.type === FileType.OFFICE;
+    const needsOfficePreview = isOffice;
 
-    // 如果是Office文件，需要特殊处理
-    if (isOffice) {
+    // 如果是需要Office在线预览的文件，需要特殊处理
+    if (needsOfficePreview) {
       let officePreviewUrl;
 
-      // 判断是代理URL还是S3直链
-      if (props.fileUrls.previewUrl.includes("/api/file-view/")) {
-        // Worker代理模式：文件需要通过我们的API获取直接URL
+      // 使用统一的文件分享API处理Office预览
+      const urlInfo = api.fileView.parseFileShareUrl(props.fileUrls.previewUrl);
+      if (urlInfo.isFileShare) {
+        // Worker代理模式：通过API获取Office预览URL
         console.log("Office文件预览 - Worker代理模式");
 
-        // 从URL中提取slug
-        const urlParts = props.fileUrls.previewUrl.split("/");
-        const slugWithParams = urlParts[urlParts.length - 1];
-        const slug = slugWithParams.split("?")[0];
-
-        // 获取文件密码
         const filePassword = getFilePassword();
 
         try {
           // 使用统一的预览服务
-          officePreviewUrl = await api.preview.getOfficePreviewUrl(slug, {
+          officePreviewUrl = await api.fileView.getOfficePreviewUrl(urlInfo.slug, {
             password: filePassword,
             provider: "microsoft",
           });
         } catch (error) {
-          showError(t("fileView.actions.previewFailed"), `${t("fileView.actions.getPreviewUrlFailed")}: ${error.message}`, t("fileView.actions.retry"), () =>
-            emit("refresh-file-info")
-          );
+          console.error("Office预览失败:", error);
+
+          // 根据状态码选择合适的错误信息
+          let errorMessage;
+          if (error.status) {
+            const errorKey = api.fileView.getErrorKeyByStatus(error.status);
+            errorMessage = t(errorKey);
+          } else {
+            errorMessage = error.message || t("fileView.errors.serverError");
+          }
+
+          showError(t("fileView.actions.previewFailed"), errorMessage, t("fileView.actions.retry"), () => emit("refresh-file-info"));
           return;
         }
       } else {
@@ -304,36 +306,16 @@ const previewFile = async () => {
     // 检查是否是代理URL并添加密码参数
     let previewUrl = props.fileUrls.previewUrl;
 
-    // 判断是否是代理URL（以/api/file-view/开头）
-    if (previewUrl.includes("/api/file-view/")) {
-      // 检查是否是worker代理模式
-      if (props.fileInfo.use_proxy) {
-        // 从URL中提取slug
-        const urlParts = previewUrl.split("/");
-        const slugWithParams = urlParts[urlParts.length - 1];
-        const slug = slugWithParams.split("?")[0];
+    // 使用统一的文件分享API处理预览URL
+    const urlInfo = api.fileView.parseFileShareUrl(previewUrl);
+    if (urlInfo.isFileShare && urlInfo.type === "preview") {
+      const filePassword = getFilePassword();
 
-        // 获取文件密码
-        const filePassword = getFilePassword();
-
-        // 使用getFullApiUrl构建完整的后端URL
-        previewUrl = getFullApiUrl(`file-view/${slug}`);
-
-        // 如果有密码，添加密码参数
-        if (filePassword) {
-          previewUrl += `?password=${encodeURIComponent(filePassword)}`;
-        }
-      } else {
-        // 获取文件密码
-        const filePassword = getFilePassword();
-
-        // 如果有密码，并且预览URL中还没有包含密码参数
-        if (filePassword && !previewUrl.includes("password=")) {
-          // 添加密码参数到预览URL
-          previewUrl = previewUrl.includes("?") ? `${previewUrl}&password=${encodeURIComponent(filePassword)}` : `${previewUrl}?password=${encodeURIComponent(filePassword)}`;
-
-          console.log("已添加密码参数到预览URL");
-        }
+      // 如果需要密码且URL中没有密码参数，则添加密码参数
+      // 注意：不论是否为代理模式，都直接使用后端返回的URL，只添加密码参数
+      if (filePassword && !urlInfo.password) {
+        previewUrl = api.fileView.addPasswordToUrl(previewUrl, filePassword);
+        console.log("已通过API服务添加密码参数到预览URL");
       }
     }
 
@@ -358,20 +340,17 @@ const downloadFile = () => {
     // 提取文件名，用于下载时的文件命名
     const fileName = props.fileInfo.filename || t("fileView.actions.downloadFile");
 
-    // 检查是否是代理URL并添加密码参数
+    // 使用统一的文件分享API处理下载URL
     let downloadUrl = props.fileUrls.downloadUrl;
 
-    // 判断是否是代理URL（以/api/file-download/开头）
-    if (downloadUrl.includes("/api/file-download/")) {
-      // 获取文件密码
+    // 检查是否为文件分享URL并统一处理
+    const urlInfo = api.fileView.parseFileShareUrl(downloadUrl);
+    if (urlInfo.isFileShare && urlInfo.type === "download") {
       const filePassword = getFilePassword();
-
-      // 如果有密码，并且下载URL中还没有包含密码参数
-      if (filePassword && !downloadUrl.includes("password=")) {
-        // 添加密码参数到下载URL
-        downloadUrl = downloadUrl.includes("?") ? `${downloadUrl}&password=${encodeURIComponent(filePassword)}` : `${downloadUrl}?password=${encodeURIComponent(filePassword)}`;
-
-        console.log("已添加密码参数到下载URL");
+      if (filePassword && !urlInfo.password) {
+        // 使用API服务添加密码参数
+        downloadUrl = api.fileView.addPasswordToUrl(downloadUrl, filePassword);
+        console.log("已通过API服务添加密码参数到下载URL");
       }
     }
 
@@ -413,13 +392,13 @@ const downloadFile = () => {
 
     // 如果是授权问题，提示刷新页面
     if (
-      err.status === ApiStatus.FORBIDDEN ||
-      err.response?.status === ApiStatus.FORBIDDEN ||
-      err.status === ApiStatus.UNAUTHORIZED ||
-      err.response?.status === ApiStatus.UNAUTHORIZED ||
-      err.code === ApiStatus.FORBIDDEN ||
-      err.code === ApiStatus.UNAUTHORIZED ||
-      (err.message && (err.message.includes(ApiStatus.FORBIDDEN.toString()) || err.message.includes(ApiStatus.UNAUTHORIZED.toString())))
+        err.status === ApiStatus.FORBIDDEN ||
+        err.response?.status === ApiStatus.FORBIDDEN ||
+        err.status === ApiStatus.UNAUTHORIZED ||
+        err.response?.status === ApiStatus.UNAUTHORIZED ||
+        err.code === ApiStatus.FORBIDDEN ||
+        err.code === ApiStatus.UNAUTHORIZED ||
+        (err.message && (err.message.includes(ApiStatus.FORBIDDEN.toString()) || err.message.includes(ApiStatus.UNAUTHORIZED.toString())))
     ) {
       showError(t("fileView.actions.downloadFailed"), t("fileView.actions.downloadExpired"), t("fileView.actions.refresh"), () => emit("refresh-file-info"));
     } else {

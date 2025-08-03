@@ -103,6 +103,8 @@ export default {
       pageLoadFailed: "Page load failed",
       pageLoadFailedRetry: "Page load failed, please refresh and try again",
       previewLoadFailed: "Preview load failed",
+      fileSaveSuccess: "File {name} saved successfully",
+      fileSaveFailed: "Failed to save file",
     },
     filePreview: {
       downloadFile: "Download File",
@@ -149,8 +151,9 @@ export default {
       fileContentTooLarge: "File content is too large, exceeds server limit",
       noPermissionUpdate: "No permission to update this file",
       serverNoResponse: "Server not responding, please check network connection",
-      fileCreated: "File created successfully",
-      fileUpdated: "File updated successfully",
+      saveFileShortcut: "Save file (Ctrl+S)",
+      rightClickHint: "Right-click editor for more features (insert timestamp, text stats, formatting, etc.)",
+      cannotGetEditorContent: "Cannot get editor content",
     },
     uploadModal: {
       title: "Upload Files",
@@ -241,7 +244,9 @@ export default {
       loadingVideo: "Loading video...",
       videoPlayer: "Video Player",
     },
-
+    textPreview: {
+      loadingText: "Loading text content...",
+    },
     taskManager: {
       title: "Task Manager",
       noTasks: "No tasks",

@@ -352,7 +352,7 @@ const emit = defineEmits(["navigate", "download", "getLink", "rename", "delete",
 const sortedItems = createSortedItems(computed(() => props.items));
 
 // 导入统一的工具函数
-import { formatFileSize } from "../../../utils/fileUtils.js";
+import { formatFileSize } from "@/utils/fileUtils.js";
 
 // 判断一个项目是否被选中
 const isItemSelected = (item) => {

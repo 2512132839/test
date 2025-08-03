@@ -103,6 +103,7 @@ export class S3StorageDriver extends BaseDriver {
       mount,
       subPath, // 使用正确的子路径用于缓存键生成
       path,
+      db,
     });
   }
 
@@ -123,6 +124,16 @@ export class S3StorageDriver extends BaseDriver {
     // 更新挂载点的最后使用时间
     if (db && mount.id) {
       await updateMountLastUsed(db, mount.id);
+    }
+
+    // 特殊处理：当s3SubPath为空字符串时（访问挂载点根目录），直接作为目录处理，跳过文件检查
+    // 因为S3对象Key不能为空字符串，所以空字符串永远不可能是有效的文件
+    if (s3SubPath === "") {
+      console.log(`getFileInfo - 检测到挂载点根目录访问，直接作为目录处理: ${path}`);
+      return await this.directoryOps.getDirectoryInfo(s3SubPath, {
+        mount,
+        path,
+      });
     }
 
     try {

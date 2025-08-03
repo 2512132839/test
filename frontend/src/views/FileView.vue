@@ -12,17 +12,17 @@
     <div v-if="error" class="error-container py-12 px-4 max-w-4xl mx-auto text-center">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-red-600 dark:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
       </svg>
       <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("fileView.error") }}</h2>
       <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ error }}</p>
       <a
-          href="/"
-          class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+        href="/"
+        class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
       >
         {{ t("common.back") }}
       </a>
@@ -70,8 +70,8 @@
 <script setup>
 import { ref, computed, onMounted, defineProps, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../api";
-import { useAuthStore } from "../stores/authStore.js";
+import { api } from "@/api";
+import { useAuthStore } from "@/stores/authStore.js";
 
 const { t } = useI18n();
 
@@ -79,7 +79,7 @@ const { t } = useI18n();
 import FileViewInfo from "../components/file-view/FileViewInfo.vue";
 import FileViewPassword from "../components/file-view/FileViewPassword.vue";
 import FileViewActions from "../components/file-view/FileViewActions.vue";
-import FileEditModal from "../components/adminManagement/files-management/FileEditModal.vue";
+import FileEditModal from "@/components/file/FileEditModal.vue";
 import ErrorToast from "../components/common/ErrorToast.vue";
 
 const props = defineProps({
@@ -205,15 +205,21 @@ const loadFileInfo = async () => {
           console.error("从会话存储获取密码出错:", err);
         }
 
-        // 如果有代理URL，并且有保存的密码，添加密码参数
-        if (previewUrl && previewUrl.includes("/api/file-view/") && savedPassword && !previewUrl.includes("password=")) {
-          previewUrl = previewUrl.includes("?") ? `${previewUrl}&password=${encodeURIComponent(savedPassword)}` : `${previewUrl}?password=${encodeURIComponent(savedPassword)}`;
-          console.log("从会话存储中为代理预览URL添加密码参数");
+        // 使用统一的文件分享API处理密码参数
+        if (previewUrl && savedPassword) {
+          const previewUrlInfo = api.fileView.parseFileShareUrl(previewUrl);
+          if (previewUrlInfo.isFileShare && !previewUrlInfo.password) {
+            previewUrl = api.fileView.addPasswordToUrl(previewUrl, savedPassword);
+            console.log("从会话存储中为代理预览URL添加密码参数");
+          }
         }
 
         // 同样处理下载URL
-        if (downloadUrl && downloadUrl.includes("/api/file-download/") && savedPassword && !downloadUrl.includes("password=")) {
-          downloadUrl = downloadUrl.includes("?") ? `${downloadUrl}&password=${encodeURIComponent(savedPassword)}` : `${downloadUrl}?password=${encodeURIComponent(savedPassword)}`;
+        if (downloadUrl && savedPassword) {
+          const downloadUrlInfo = api.fileView.parseFileShareUrl(downloadUrl);
+          if (downloadUrlInfo.isFileShare && !downloadUrlInfo.password) {
+            downloadUrl = api.fileView.addPasswordToUrl(downloadUrl, savedPassword);
+          }
         }
 
         fileUrls.value = {
@@ -238,15 +244,12 @@ const loadFileInfo = async () => {
  * @param {Object} data - 包含文件URLs和信息的对象
  */
 const handlePasswordVerified = (data) => {
-  // 检查并修改预览URL，确保代理URL包含密码参数
+  // 使用统一的文件分享API处理密码验证后的URL
   let previewUrl = data.previewUrl;
-  if (previewUrl && previewUrl.includes("/api/file-view/")) {
-    // 确保URL包含密码参数
-    if (data.currentPassword && !previewUrl.includes("password=")) {
-      // 添加密码参数到预览URL
-      previewUrl = previewUrl.includes("?")
-          ? `${previewUrl}&password=${encodeURIComponent(data.currentPassword)}`
-          : `${previewUrl}?password=${encodeURIComponent(data.currentPassword)}`;
+  if (previewUrl && data.currentPassword) {
+    const urlInfo = api.fileView.parseFileShareUrl(previewUrl);
+    if (urlInfo.isFileShare && !urlInfo.password) {
+      previewUrl = api.fileView.addPasswordToUrl(previewUrl, data.currentPassword);
       console.log("已在验证阶段为代理预览URL添加密码参数");
     }
   }
@@ -293,10 +296,15 @@ const openEditModal = async () => {
       response = await api.file.getFile(fileInfo.value.id);
 
       if (response.success) {
-        // 更新文件信息
+        // 更新文件信息，但保留分享相关的关键字段
         fileInfo.value = {
           ...response.data,
-          slug: fileInfo.value.slug, // 保留原来的slug
+          slug: fileInfo.value.slug, 
+          type: fileInfo.value.type, 
+          requires_password: fileInfo.value.requires_password, 
+          passwordVerified: fileInfo.value.passwordVerified, 
+          currentPassword: fileInfo.value.currentPassword, 
+          use_proxy: fileInfo.value.use_proxy, 
         };
       } else {
         console.error("获取文件详情失败:", response.message);

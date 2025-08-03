@@ -6,7 +6,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
-import { api } from "../api/index.js";
+import { api } from "@/api";
 import { useAuthStore } from "./authStore.js";
 
 export const useFileSystemStore = defineStore("fileSystem", () => {

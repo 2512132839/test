@@ -8,7 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../../../../constants/index.js";
 import { listS3Directory } from "../../../../utils/s3Utils.js";
 import { normalizeS3SubPath } from "../utils/S3PathUtils.js";
-import { getMimeTypeFromFilename } from "../../../../utils/fileUtils.js";
+import { getEffectiveMimeType } from "../../../../utils/fileUtils.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 import { updateMountLastUsed } from "../../../fs/utils/MountResolver.js";
 
@@ -63,8 +63,7 @@ export class S3SearchOperations {
         }
 
         // 构建完整的S3前缀
-        const rootPrefix = this.config.root_prefix ? 
-          (this.config.root_prefix.endsWith("/") ? this.config.root_prefix : this.config.root_prefix + "/") : "";
+        const rootPrefix = this.config.root_prefix ? (this.config.root_prefix.endsWith("/") ? this.config.root_prefix : this.config.root_prefix + "/") : "";
         let fullPrefix = rootPrefix;
         if (searchPrefix && searchPrefix !== "/") {
           fullPrefix += searchPrefix;
@@ -172,7 +171,7 @@ export class S3SearchOperations {
       size: item.Size,
       modified: item.LastModified,
       isDirectory: false,
-      contentType: getMimeTypeFromFilename(fileName),
+      contentType: getEffectiveMimeType(null, fileName),
       mount_id: mount.id,
       mount_name: mount.name,
       storage_type: mount.storage_type,

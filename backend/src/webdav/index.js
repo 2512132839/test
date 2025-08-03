@@ -1,7 +1,6 @@
 /**
  * WebDAV服务入口文件
  *
- * 基于主流WebDAV实现设计，提供完整的WebDAV协议支持
  */
 
 import { handlePropfind } from "./methods/propfind.js";
@@ -15,161 +14,10 @@ import { handleCopy } from "./methods/copy.js";
 import { handleLock } from "./methods/lock.js";
 import { handleUnlock } from "./methods/unlock.js";
 import { handleProppatch } from "./methods/proppatch.js";
-import { RepositoryFactory } from "../repositories/index.js";
-
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { createWebDAVErrorResponse } from "./utils/errorUtils.js";
-import { authGateway } from "../middlewares/authGatewayMiddleware.js";
-import { Permission } from "../constants/permissions.js";
-import { storeAuthInfo, getAuthInfo, isWebDAVClient } from "./utils/authCache.js";
-
-/**
- * WebDAV服务配置
- */
-const WEBDAV_CONFIG = {
-  // 支持的HTTP方法
-  SUPPORTED_METHODS: ["OPTIONS", "PROPFIND", "GET", "HEAD", "PUT", "DELETE", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK", "PROPPATCH"],
-
-  // 路径前缀处理
-  PATH_PREFIX: "/dav",
-
-  // 安全配置
-  SECURITY: {
-    MAX_PATH_LENGTH: 2048,
-    CACHE_TTL: 300, // 5分钟认证缓存
-    MAX_AUTH_ATTEMPTS: 5,
-    RATE_LIMIT_WINDOW: 60000, // 1分钟
-  },
-
-  // 客户端兼容性配置
-  CLIENT_COMPATIBILITY: {
-    WINDOWS_WEBDAV: {
-      userAgentPattern: /Microsoft-WebDAV-MiniRedir|Windows.*WebDAV/i,
-      authHeader: 'Basic realm="WebDAV", Bearer realm="WebDAV"',
-    },
-    DART_CLIENT: {
-      userAgentPattern: /Dart\/.*dart:io/i,
-      authHeader: 'Basic realm="WebDAV"',
-    },
-    DEFAULT: {
-      authHeader: 'Basic realm="WebDAV", Bearer realm="WebDAV"',
-    },
-  },
-};
-
-/**
- * 创建标准化的未授权响应
- * 根据客户端类型提供最佳的认证挑战
- *
- * @param {string} message - 响应消息
- * @param {string} userAgent - 用户代理字符串
- * @param {Object} options - 额外选项
- * @returns {Response} 401响应对象
- */
-function createUnauthorizedResponse(message = "Unauthorized", userAgent = "", options = {}) {
-  const headers = {
-    "Content-Type": "text/plain",
-    "Cache-Control": "no-cache, no-store, must-revalidate",
-    Pragma: "no-cache",
-    Expires: "0",
-  };
-
-  // 根据客户端类型设置最适合的WWW-Authenticate头
-  let authHeader = WEBDAV_CONFIG.CLIENT_COMPATIBILITY.DEFAULT.authHeader;
-
-  for (const [clientType, config] of Object.entries(WEBDAV_CONFIG.CLIENT_COMPATIBILITY)) {
-    if (clientType !== "DEFAULT" && config.userAgentPattern.test(userAgent)) {
-      authHeader = config.authHeader;
-      console.log(`WebDAV认证: 为${clientType}客户端提供专用认证头`);
-      break;
-    }
-  }
-
-  headers["WWW-Authenticate"] = authHeader;
-
-  // 添加CORS头支持跨域WebDAV客户端
-  if (options.includeCors) {
-    headers["Access-Control-Allow-Origin"] = "*";
-    headers["Access-Control-Allow-Methods"] = WEBDAV_CONFIG.SUPPORTED_METHODS.join(", ");
-    headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Depth, If, Lock-Token, Overwrite, Destination";
-  }
-
-  return new Response(message, {
-    status: ApiStatus.UNAUTHORIZED,
-    headers: headers,
-  });
-}
-
-/**
- * WebDAV方法权限映射
- */
-const WEBDAV_METHOD_PERMISSIONS = {
-  // 只读操作 - 需要WEBDAV_READ权限
-  READ_METHODS: ["OPTIONS", "PROPFIND", "GET", "HEAD"],
-
-  // 管理操作 - 需要WEBDAV_MANAGE权限
-  MANAGE_METHODS: ["PUT", "DELETE", "MKCOL", "COPY", "MOVE", "PROPPATCH", "LOCK", "UNLOCK"],
-};
-
-/**
- * 验证API密钥的WebDAV权限
- *
- * @param {D1Database} db - D1数据库实例
- * @param {string} apiKey - API密钥
- * @param {string} method - HTTP方法（可选，用于精确权限检查）
- * @returns {Promise<boolean>} 是否具有WebDAV权限
- */
-async function verifyApiKeyWebDAVPermission(db, apiKey, method = null) {
-  try {
-    const authService = authGateway.createAuthService(db);
-    const authResult = await authService.validateApiKeyAuth(apiKey);
-
-    if (!authResult.isAuthenticated) {
-      console.log("WebDAV权限验证: API密钥无效");
-      return false;
-    }
-
-    // 如果没有指定方法，只检查基础的WebDAV读取权限
-    if (!method) {
-      const hasWebDAVPermission = authResult.hasPermission(Permission.WEBDAV_READ);
-      if (!hasWebDAVPermission) {
-        console.log("WebDAV权限验证: WebDAV基础权限不足");
-      }
-      return hasWebDAVPermission;
-    }
-
-    // 根据HTTP方法检查相应权限
-    const upperMethod = method.toUpperCase();
-
-    if (WEBDAV_METHOD_PERMISSIONS.READ_METHODS.includes(upperMethod)) {
-      // 只读操作，检查读取权限
-      const hasReadPermission = authResult.hasPermission(Permission.WEBDAV_READ);
-      if (!hasReadPermission) {
-        console.log(`WebDAV权限验证: ${method}操作需要WebDAV读取权限`);
-      }
-      return hasReadPermission;
-    } else if (WEBDAV_METHOD_PERMISSIONS.MANAGE_METHODS.includes(upperMethod)) {
-      // 管理操作，检查管理权限
-      const hasManagePermission = authResult.hasPermission(Permission.WEBDAV_MANAGE);
-      if (!hasManagePermission) {
-        console.log(`WebDAV权限验证: ${method}操作需要WebDAV管理权限`);
-      }
-      return hasManagePermission;
-    } else {
-      // 未知方法，默认需要管理权限
-      console.log(`WebDAV权限验证: 未知方法${method}，默认需要管理权限`);
-      const hasManagePermission = authResult.hasPermission(Permission.WEBDAV_MANAGE);
-      if (!hasManagePermission) {
-        console.log(`WebDAV权限验证: ${method}操作需要WebDAV管理权限`);
-      }
-      return hasManagePermission;
-    }
-  } catch (error) {
-    console.error("WebDAV权限验证: 验证过程出错", error);
-    return false;
-  }
-}
+import { createWebDAVMiddleware, getWebDAVConfig } from "./auth/index.js";
 
 /**
  * 执行路径安全检查
@@ -179,10 +27,12 @@ async function verifyApiKeyWebDAVPermission(db, apiKey, method = null) {
  * @throws {HTTPException} 路径不安全时抛出异常
  */
 function validatePathSecurity(path) {
+  const config = getWebDAVConfig();
+
   // 检查路径长度
-  if (path.length > WEBDAV_CONFIG.SECURITY.MAX_PATH_LENGTH) {
+  if (path.length > config.PATH.MAX_LENGTH) {
     throw new HTTPException(400, {
-      message: `Path too long: maximum ${WEBDAV_CONFIG.SECURITY.MAX_PATH_LENGTH} characters allowed`,
+      message: `Path too long: maximum ${config.PATH.MAX_LENGTH} characters allowed`,
     });
   }
 
@@ -217,13 +67,14 @@ function validatePathSecurity(path) {
 
 /**
  * 标准化路径处理
- * 移除WebDAV前缀并规范化路径格式
+ *
  *
  * @param {string} rawPath - 原始路径
  * @returns {string} 标准化后的路径
  */
 function normalizePath(rawPath) {
   let path;
+  const config = getWebDAVConfig();
 
   // 安全的URL解码
   try {
@@ -234,7 +85,7 @@ function normalizePath(rawPath) {
   }
 
   // 移除WebDAV前缀
-  path = path.replace(new RegExp(`^${WEBDAV_CONFIG.PATH_PREFIX}/?`), "/");
+  path = path.replace(new RegExp(`^${config.PATH.PREFIX}/?`), "/");
 
   // 确保路径以/开头
   if (path === "" || path === "/") {
@@ -247,180 +98,15 @@ function normalizePath(rawPath) {
 }
 
 /**
- * WebDAV认证中间件
- *
- * 基于主流WebDAV服务器的认证模式设计
- * 支持多种认证方式：Bearer Token、API Key、Basic Auth
+ * WebDAV统一认证中间件
  *
  * @param {Object} c - Hono上下文
  * @param {Function} next - 下一个中间件
  */
-export const webdavAuthMiddleware = async (c, next) => {
-  const db = c.env.DB;
-  const authService = authGateway.createAuthService(db);
-  const authHeader = c.req.header("Authorization");
-  const userAgent = c.req.header("User-Agent") || "Unknown";
-
-  // 获取客户端标识信息
-  const clientIp = c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || c.req.header("X-Real-IP") || "unknown";
-
-  // 安全日志记录（清理敏感信息）
-  const sanitizedPath = c.req.path.replace(/[^\w\-\/\.]/g, "_");
-  const truncatedUserAgent = userAgent.substring(0, 50) + (userAgent.length > 50 ? "..." : "");
-  console.log(`WebDAV认证请求: ${c.req.method} ${sanitizedPath}, 客户端: ${truncatedUserAgent}`);
-
-  try {
-    // 第一步：尝试使用认证头进行认证
-    if (authHeader) {
-      const authResult = await authService.authenticate(authHeader);
-
-      if (authResult.isAuthenticated) {
-        // 检查WebDAV权限
-        if (!authResult.hasPermission(Permission.WEBDAV_READ)) {
-          console.log("WebDAV认证失败: 缺少WebDAV权限");
-          return createUnauthorizedResponse("Unauthorized: WebDAV permission required", userAgent);
-        }
-
-        // 设置认证上下文
-        await setAuthenticationContext(c, authResult, clientIp, userAgent);
-        return next();
-      }
-    }
-
-    // 第二步：尝试使用认证缓存
-    if (!authHeader) {
-      const cachedAuth = await tryAuthenticationCache(c, db, clientIp, userAgent);
-      if (cachedAuth) {
-        return next();
-      }
-    }
-
-    // 第三步：检测WebDAV客户端并发送认证挑战
-    if (isWebDAVClient(userAgent)) {
-      console.log(`WebDAV认证: 检测到WebDAV客户端，发送认证挑战`);
-      return createUnauthorizedResponse("Authentication required for WebDAV access", userAgent, {
-        includeCors: true,
-      });
-    }
-
-    // 第四步：通用认证失败响应
-    console.log("WebDAV认证失败: 缺少有效认证");
-    return createUnauthorizedResponse("Unauthorized: Missing or invalid authentication", userAgent);
-  } catch (error) {
-    console.error("WebDAV认证错误:", error);
-    return createUnauthorizedResponse("Unauthorized: Authentication error", userAgent);
-  }
+export const webdavAuthMiddleware = (c, next) => {
+  const middleware = createWebDAVMiddleware(c.env.DB, "hono");
+  return middleware(c, next);
 };
-
-/**
- * 设置认证上下文信息
- *
- * @param {Object} c - Hono上下文
- * @param {Object} authResult - 认证结果
- * @param {string} clientIp - 客户端IP
- * @param {string} userAgent - 用户代理
- */
-async function setAuthenticationContext(c, authResult, clientIp, userAgent) {
-  if (authResult.isAdmin()) {
-    // 管理员用户
-    c.set("userId", authResult.getUserId());
-    c.set("userType", "admin");
-
-    const authInfo = {
-      userId: authResult.getUserId(),
-      isAdmin: true,
-    };
-    c.set("authInfo", authInfo);
-
-    // 缓存认证信息 - 使用现有的authCache.js API
-    storeAuthInfo(clientIp, userAgent, authInfo);
-  } else if (authResult.keyInfo) {
-    // API密钥用户
-    const apiKeyInfo = {
-      id: authResult.keyInfo.id,
-      name: authResult.keyInfo.name,
-      basicPath: authResult.basicPath,
-    };
-
-    c.set("userId", apiKeyInfo);
-    c.set("userType", "apiKey");
-
-    const authInfo = {
-      userId: authResult.getUserId(),
-      isAdmin: false,
-      apiKey: authResult.keyInfo.key,
-      apiKeyInfo: apiKeyInfo,
-    };
-    c.set("authInfo", authInfo);
-
-    // 缓存认证信息 - 使用现有的authCache.js API
-    storeAuthInfo(clientIp, userAgent, authInfo);
-  } else {
-    throw new Error(`Unknown authentication result: neither admin nor API key`);
-  }
-
-  const userType = authResult.isAdmin() ? "admin" : "apiKey";
-  console.log(`WebDAV认证成功: 用户类型=${userType}`);
-}
-
-/**
- * 尝试使用认证缓存
- *
- * @param {Object} c - Hono上下文
- * @param {D1Database} db - 数据库实例
- * @param {string} clientIp - 客户端IP
- * @param {string} userAgent - 用户代理
- * @returns {Promise<boolean>} 是否成功使用缓存认证
- */
-async function tryAuthenticationCache(c, db, clientIp, userAgent) {
-  try {
-    // 使用现有的authCache.js API
-    const cachedAuth = getAuthInfo(clientIp, userAgent);
-
-    if (!cachedAuth) {
-      return false;
-    }
-
-    console.log(`WebDAV认证: 使用缓存的认证信息`);
-
-    // 验证缓存的认证信息
-    if (cachedAuth.isAdmin) {
-      c.set("userId", cachedAuth.userId);
-      c.set("userType", "admin");
-      c.set("authInfo", cachedAuth);
-      return true;
-    } else if (cachedAuth.apiKey) {
-      // 重新验证API密钥权限 
-      const hasWebDAVPermission = await verifyApiKeyWebDAVPermission(db, cachedAuth.apiKey);
-      if (!hasWebDAVPermission) {
-        console.log("WebDAV认证: 缓存的API密钥权限已失效");
-        return false;
-      }
-
-      // 重新获取API密钥信息
-      const repositoryFactory = new RepositoryFactory(db);
-      const apiKeyRepository = repositoryFactory.getApiKeyRepository();
-      const apiKey = await apiKeyRepository.findById(cachedAuth.userId);
-
-      if (apiKey) {
-        const apiKeyInfo = {
-          id: apiKey.id,
-          name: apiKey.name,
-          basicPath: apiKey.basic_path || "/",
-        };
-        c.set("userId", apiKeyInfo);
-        c.set("userType", "apiKey");
-        c.set("authInfo", { ...cachedAuth, apiKeyInfo });
-        return true;
-      }
-    }
-
-    return false;
-  } catch (error) {
-    console.error("WebDAV认证缓存处理错误:", error);
-    return false;
-  }
-}
 
 /**
  * WebDAV主处理函数
@@ -432,6 +118,10 @@ async function tryAuthenticationCache(c, db, clientIp, userAgent) {
 export async function handleWebDAV(c) {
   const method = c.req.method;
   const url = new URL(c.req.url);
+
+  // 获取认证上下文
+  const userId = c.get("userId");
+  const userType = c.get("userType");
 
   // 路径处理和安全检查
   const rawPath = url.pathname;
@@ -453,22 +143,10 @@ export async function handleWebDAV(c) {
     throw error;
   }
 
-  // 获取认证上下文
-  const userId = c.get("userId");
-  const userType = c.get("userType");
-  const authInfo = c.get("authInfo");
+  // 获取认证上下文（已在上面获取）
   const db = c.env.DB;
 
   try {
-    // API密钥用户的权限重新验证 - 根据HTTP方法进行精确权限检查
-    if (userType === "apiKey" && authInfo && authInfo.apiKey) {
-      const hasWebDAVPermission = await verifyApiKeyWebDAVPermission(db, authInfo.apiKey, method);
-      if (!hasWebDAVPermission) {
-        console.log(`WebDAV请求拒绝: ${method} ${path}, WebDAV权限不足`);
-        return createUnauthorizedResponse(`Unauthorized: ${method} operation requires WebDAV permission`, c.req.header("User-Agent") || "");
-      }
-    }
-
     // 记录请求日志
     console.log(`WebDAV请求: ${method} ${path}, 用户类型: ${userType}`);
 

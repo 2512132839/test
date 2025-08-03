@@ -4,11 +4,12 @@
  */
 
 import { HTTPException } from "hono/http-exception";
-import { ApiStatus } from "../../../../constants/index.js";
+import { ApiStatus, FILE_TYPES, FILE_TYPE_NAMES } from "../../../../constants/index.js";
 import { S3Client, ListObjectsV2Command, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { checkDirectoryExists, updateParentDirectoriesModifiedTime } from "../utils/S3DirectoryUtils.js";
 import { directoryCacheManager, clearCache } from "../../../../utils/DirectoryCache.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
+import { GetFileType, getFileTypeName } from "../../../../utils/fileTypeDetector.js";
 
 export class S3DirectoryOperations {
   /**
@@ -102,7 +103,7 @@ export class S3DirectoryOperations {
    * @returns {Promise<Object>} 目录内容
    */
   async listDirectory(s3SubPath, options = {}) {
-    const { mount, subPath } = options;
+    const { mount, subPath, db } = options;
 
     return handleFsError(
       async () => {
@@ -192,6 +193,8 @@ export class S3DirectoryOperations {
                 isVirtual: false,
                 size: directorySize,
                 modified: directoryModified,
+                type: FILE_TYPES.FOLDER, // 目录类型常量 (1)
+                typeName: FILE_TYPE_NAMES[FILE_TYPES.FOLDER], // "folder"
               });
             }
           }
@@ -225,6 +228,8 @@ export class S3DirectoryOperations {
             // 构建子项路径 - 确保路径正确拼接，避免双斜杠
             const separator = subPath.endsWith("/") ? "" : "/";
             const itemPath = mount.mount_path + subPath + separator + relativePath;
+            const fileType = await GetFileType(relativePath, db);
+            const fileTypeName = await getFileTypeName(relativePath, db);
 
             result.items.push({
               name: relativePath,
@@ -233,6 +238,8 @@ export class S3DirectoryOperations {
               size: content.Size,
               modified: content.LastModified ? content.LastModified.toISOString() : new Date().toISOString(),
               etag: content.ETag ? content.ETag.replace(/"/g, "") : undefined,
+              type: fileType, // 整数类型常量 (0-6)
+              typeName: fileTypeName, // 类型名称（用于调试）
             });
           }
         }
@@ -270,66 +277,105 @@ export class S3DirectoryOperations {
 
     return handleFsError(
       async () => {
-        // 检查父目录是否存在
-        if (s3SubPath.split("/").filter(Boolean).length > 1) {
-          const parentPath = s3SubPath.substring(0, s3SubPath.lastIndexOf("/", s3SubPath.length - 2) + 1);
-          const parentExists = await checkDirectoryExists(this.s3Client, this.config.bucket_name, parentPath);
+        // nginx风格的递归创建功能：自动创建所有需要的中间目录
+        // 参考nginx WebDAV模块的create_full_put_path功能
+        console.log(`开始递归创建目录: ${s3SubPath}`);
+        await this._ensureParentDirectoriesExist(s3SubPath);
 
-          if (!parentExists) {
-            throw new HTTPException(ApiStatus.CONFLICT, { message: "父目录不存在" });
-          }
+        // 清除缓存，因为目录结构已变更
+        if (mount && mount.id && subPath !== "/") {
+          await clearCache({ mountId: mount.id });
+          console.log(`已清理挂载点 ${mount.id} 的缓存`);
         }
 
-        // 检查目录是否已存在
-        try {
-          const headParams = {
-            Bucket: this.config.bucket_name,
-            Key: s3SubPath,
-          };
-
-          const headCommand = new HeadObjectCommand(headParams);
-          await this.s3Client.send(headCommand);
-
-          // 如果没有抛出异常，说明目录已存在
-          throw new HTTPException(ApiStatus.CONFLICT, { message: "目录已存在" });
-        } catch (error) {
-          if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-            // 目录不存在，可以创建
-            const putParams = {
-              Bucket: this.config.bucket_name,
-              Key: s3SubPath,
-              Body: "",
-              ContentType: "application/x-directory",
-            };
-
-            const putCommand = new PutObjectCommand(putParams);
-            await this.s3Client.send(putCommand);
-
-            // 更新父目录的修改时间
-            const rootPrefix = this.config.root_prefix ? (this.config.root_prefix.endsWith("/") ? this.config.root_prefix : this.config.root_prefix + "/") : "";
-            await updateParentDirectoriesModifiedTime(this.s3Client, this.config.bucket_name, s3SubPath, rootPrefix);
-
-            // 清除父目录的缓存，因为目录内容已变更
-            if (subPath !== "/") {
-              await clearCache({ mountId: mount.id });
-            }
-
-            // 目录创建操作完成，无需额外的业务逻辑处理
-
-            return {
-              success: true,
-              path: path,
-              message: "目录创建成功",
-            };
-          }
-
-          // 其他错误则抛出
-          throw error;
-        }
+        return {
+          success: true,
+          path: path,
+          message: "目录创建成功",
+        };
       },
       "创建目录",
       "创建目录失败"
     );
+  }
+
+  /**
+   * 确保父目录存在，如果不存在则递归创建
+   * @param {string} s3SubPath - S3子路径
+   * @private
+   */
+  async _ensureParentDirectoriesExist(s3SubPath) {
+    const pathParts = s3SubPath.split("/").filter(Boolean);
+
+    // 如果是根目录或只有一级目录，不需要检查父目录
+    if (pathParts.length <= 1) {
+      return await this._createSingleDirectory(s3SubPath);
+    }
+
+    // 递归创建所有父目录
+    let currentPath = "";
+    for (let i = 0; i < pathParts.length; i++) {
+      currentPath += pathParts[i] + "/";
+
+      // 检查当前目录是否存在
+      const exists = await checkDirectoryExists(this.s3Client, this.config.bucket_name, currentPath);
+
+      if (!exists) {
+        console.log(`递归创建目录 - 创建中间目录: ${currentPath}`);
+        await this._createSingleDirectory(currentPath);
+      }
+    }
+  }
+
+  /**
+   * 创建单个目录（不检查父目录）
+   * @param {string} s3SubPath - S3子路径
+   * @private
+   */
+  async _createSingleDirectory(s3SubPath) {
+    // 检查目录是否已存在
+    try {
+      const headParams = {
+        Bucket: this.config.bucket_name,
+        Key: s3SubPath,
+      };
+
+      const headCommand = new HeadObjectCommand(headParams);
+      await this.s3Client.send(headCommand);
+
+      // 如果没有抛出异常，说明目录已存在，直接返回成功
+      console.log(`目录已存在，跳过创建: ${s3SubPath}`);
+      return {
+        success: true,
+        message: "目录已存在",
+      };
+    } catch (error) {
+      if (error.$metadata && error.$metadata.httpStatusCode === 404) {
+        // 目录不存在，可以创建
+        const putParams = {
+          Bucket: this.config.bucket_name,
+          Key: s3SubPath,
+          Body: "",
+          ContentType: "application/x-directory",
+        };
+
+        const putCommand = new PutObjectCommand(putParams);
+        await this.s3Client.send(putCommand);
+
+        // 更新父目录的修改时间
+        const rootPrefix = this.config.root_prefix ? (this.config.root_prefix.endsWith("/") ? this.config.root_prefix : this.config.root_prefix + "/") : "";
+        await updateParentDirectoriesModifiedTime(this.s3Client, this.config.bucket_name, s3SubPath, rootPrefix);
+
+        console.log(`成功创建目录: ${s3SubPath}`);
+        return {
+          success: true,
+          message: "目录创建成功",
+        };
+      }
+
+      // 其他错误则抛出
+      throw error;
+    }
   }
 
   /**
@@ -401,6 +447,23 @@ export class S3DirectoryOperations {
   async getDirectoryInfo(s3SubPath, options = {}) {
     const { mount, path } = options;
 
+    // 特殊处理：挂载点根目录（空路径）总是存在
+    if (s3SubPath === "" || s3SubPath === "/") {
+      console.log(`getDirectoryInfo - 挂载点根目录总是存在: ${path}`);
+      return {
+        path: path,
+        name: path.split("/").filter(Boolean).pop() || "/",
+        isDirectory: true,
+        size: 0,
+        modified: new Date().toISOString(),
+        contentType: "application/x-directory",
+        mount_id: mount.id,
+        storage_type: mount.storage_type,
+        type: FILE_TYPES.FOLDER, // 目录类型常量 (1)
+        typeName: FILE_TYPE_NAMES[FILE_TYPES.FOLDER], // "folder"
+      };
+    }
+
     // 尝试作为目录处理
     const dirPath = s3SubPath.endsWith("/") ? s3SubPath : s3SubPath + "/";
 
@@ -432,6 +495,8 @@ export class S3DirectoryOperations {
         contentType: "application/x-directory",
         mount_id: mount.id,
         storage_type: mount.storage_type,
+        type: FILE_TYPES.FOLDER, // 目录类型常量 (1)
+        typeName: FILE_TYPE_NAMES[FILE_TYPES.FOLDER], // "folder"
       };
     }
 

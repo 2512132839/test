@@ -4,7 +4,7 @@
  */
 
 import { fileTypeFromBuffer } from "file-type";
-import { getMimeTypeFromFilename, getMimeTypeGroup, isOfficeFile } from "./fileUtils.js";
+import { getEffectiveMimeType } from "./fileUtils.js";
 
 /**
  * 从URL获取文件内容并检测MIME类型
@@ -30,7 +30,7 @@ export async function detectMimeTypeFromUrl(url, realFilename = null, options = 
   try {
     // 优先使用真实文件名推断MIME类型
     if (realFilename) {
-      result.filenameMimeType = getMimeTypeFromFilename(realFilename);
+      result.filenameMimeType = getEffectiveMimeType(null, realFilename);
       result.finalMimeType = result.filenameMimeType;
       result.detectionMethod = "filename";
       result.confidence = 0.9;
@@ -40,7 +40,7 @@ export async function detectMimeTypeFromUrl(url, realFilename = null, options = 
       const pathname = urlObj.pathname;
       const filename = pathname.split("/").pop() || "";
       if (filename) {
-        result.filenameMimeType = getMimeTypeFromFilename(filename);
+        result.filenameMimeType = getEffectiveMimeType(null, filename);
         result.finalMimeType = result.filenameMimeType;
         result.detectionMethod = "url-filename";
         result.confidence = 0.7;
@@ -236,7 +236,7 @@ export async function getEnhancedUrlMetadata(url, realFilename = null, options =
 
     // 如果没有检测结果，使用文件名推断
     if (!metadata.enhancedContentType) {
-      metadata.enhancedContentType = getMimeTypeFromFilename(metadata.filename);
+      metadata.enhancedContentType = getEffectiveMimeType(null, metadata.filename);
       metadata.detectionMethod = ["filename-fallback"];
       metadata.detectionConfidence = 0.6;
     }
@@ -245,21 +245,4 @@ export async function getEnhancedUrlMetadata(url, realFilename = null, options =
   }
 
   return metadata;
-}
-
-/**
- * 检查MIME类型是否需要特殊处理
- * @param {string} mimeType - MIME类型
- * @returns {Object} 处理建议
- */
-export function getMimeTypeHandling(mimeType) {
-  const group = getMimeTypeGroup(mimeType);
-
-  return {
-    group,
-    isOffice: isOfficeFile(mimeType),
-    needsPreview: ["image", "video", "audio", "pdf", "text"].includes(group),
-    isDownloadable: true,
-    suggestedAction: group === "executable" ? "download" : "preview",
-  };
 }

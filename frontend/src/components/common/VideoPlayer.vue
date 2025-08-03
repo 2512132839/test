@@ -96,7 +96,6 @@ const emit = defineEmits([
   "volumechange",
   "seeked",
 
-  // 新增的高级功能事件
   "flip", // 视频翻转事件
   "aspectRatio", // 长宽比变化事件
   "pip", // 画中画事件
@@ -123,15 +122,24 @@ const initArtplayer = async () => {
 
   // 销毁现有实例
   if (artplayerInstance.value) {
-    // 清理FLV播放器实例
-    if (artplayerInstance.value.flvPlayer) {
+    // 清理流媒体播放器实例
+    if (artplayerInstance.value.streamPlayer) {
       try {
-        artplayerInstance.value.flvPlayer.pause();
-        artplayerInstance.value.flvPlayer.unload();
-        artplayerInstance.value.flvPlayer.detachMediaElement();
-        artplayerInstance.value.flvPlayer.destroy();
+        if (artplayerInstance.value.streamPlayer.pause) {
+          artplayerInstance.value.streamPlayer.pause();
+        }
+        if (artplayerInstance.value.streamPlayer.unload) {
+          artplayerInstance.value.streamPlayer.unload();
+        }
+        if (artplayerInstance.value.streamPlayer.detachMediaElement) {
+          artplayerInstance.value.streamPlayer.detachMediaElement();
+        }
+        if (artplayerInstance.value.streamPlayer.destroy) {
+          artplayerInstance.value.streamPlayer.destroy();
+        }
+        console.log("🧹 流媒体播放器清理完成");
       } catch (error) {
-        console.warn("清理FLV播放器时出错:", error);
+        console.warn("清理流媒体播放器时出错:", error);
       }
     }
 
@@ -210,17 +218,19 @@ const initArtplayer = async () => {
     options.controls = [];
   }
 
-  // 🎯 检测并添加FLV支持
-  await addFLVSupport(options);
+  // 检测并添加流媒体支持
+  await addStreamingSupport(options);
 
   try {
     // 创建 Artplayer 实例
     artplayerInstance.value = new Artplayer(options);
 
-    // 如果是FLV播放器，将flvPlayer实例从video元素转移到artplayerInstance
-    if (options.type === "flv" && artplayerInstance.value.video && artplayerInstance.value.video.flvPlayer) {
-      artplayerInstance.value.flvPlayer = artplayerInstance.value.video.flvPlayer;
-      console.log("🎬 FLV播放器实例已转移到Artplayer实例");
+    // 如果是流媒体播放器，将播放器实例从video元素转移到artplayerInstance
+    if (artplayerInstance.value.video) {
+      if (artplayerInstance.value.video.streamPlayer) {
+        artplayerInstance.value.streamPlayer = artplayerInstance.value.video.streamPlayer;
+        console.log("🎬 流媒体播放器实例已转移到Artplayer实例");
+      }
     }
 
     // 绑定事件监听器
@@ -238,138 +248,299 @@ const initArtplayer = async () => {
   }
 };
 
-// 🎯 添加FLV支持函数
-const addFLVSupport = async (options) => {
+// 检测流媒体格式
+const detectStreamingFormat = (url, contentType, fileName) => {
+  // HLS 检测
+  if (url.toLowerCase().includes(".m3u8") || contentType.includes("mpegurl") || contentType.includes("application/vnd.apple.mpegurl")) {
+    return "hls";
+  }
+  // MPEG-TS 检测
+  if (
+    url.toLowerCase().includes(".ts") ||
+    url.toLowerCase().includes(".m2ts") ||
+    contentType.includes("mp2t") ||
+    fileName.toLowerCase().endsWith(".ts") ||
+    fileName.toLowerCase().endsWith(".m2ts")
+  ) {
+    return "mpegts";
+  }
+  // FLV 检测
+  if (url.toLowerCase().includes(".flv") || contentType.includes("flv") || contentType === "video/x-flv" || fileName.toLowerCase().endsWith(".flv")) {
+    return "flv";
+  }
+  return null;
+};
+
+// 添加流媒体支持函数
+const addStreamingSupport = async (options) => {
   const videoUrl = props.video?.url || "";
   const contentType = props.video?.contentType || props.video?.mimetype || "";
   const fileName = props.video?.name || "";
 
-  // 检测是否为FLV格式
-  const isFLV = videoUrl.toLowerCase().includes(".flv") || contentType.includes("flv") || contentType === "video/x-flv" || fileName.toLowerCase().endsWith(".flv");
+  // 检测流媒体格式
+  const streamingFormat = detectStreamingFormat(videoUrl, contentType, fileName);
 
-  if (!isFLV) {
-    console.log("🎬 非FLV格式，使用默认播放器");
+  if (!streamingFormat) {
+    console.log("🎬 非流媒体格式，使用默认播放器");
     return;
   }
 
-  console.log("🎬 检测到FLV格式，正在加载flv.js...");
+  console.log(`🎬 检测到${streamingFormat.toUpperCase()}格式，正在加载相应播放器...`);
 
   try {
-    // 动态导入flv.js
-    const flvjs = await import("flv.js");
-
-    // 检查浏览器支持
-    if (!flvjs.default.isSupported()) {
-      console.warn("🎬 当前浏览器不支持FLV播放");
-      emit("error", {
-        type: "flv_not_supported",
-        message: "当前浏览器不支持FLV播放，请使用Chrome、Firefox或Edge浏览器",
-      });
-      return;
-    }
-
-    console.log("🎬 flv.js加载成功，配置FLV播放器...");
-
     // 初始化customType对象
     options.customType = options.customType || {};
 
-    // 配置FLV自定义类型
-    options.customType.flv = function (video, url) {
-      console.log("🎬 初始化FLV播放器，URL:", url);
-
-      const flvPlayer = flvjs.default.createPlayer(
-        {
-          type: "flv",
-          url: url,
-          isLive: false,
-          cors: true,
-          withCredentials: false,
-          hasAudio: true,
-          hasVideo: true,
-        },
-        {
-          enableWorker: false, // 🔧 禁用Web Worker避免Vite兼容性问题
-          enableStashBuffer: true, // 启用缓冲
-          stashInitialSize: 128, // 初始缓冲大小(KB)
-          autoCleanupSourceBuffer: true, // 自动清理缓冲
-          autoCleanupMaxBackwardDuration: 30, // 最大后向清理时长(秒)
-          autoCleanupMinBackwardDuration: 10, // 最小后向清理时长(秒)
-          fixAudioTimestampGap: true, // 修复音频时间戳间隙
-          accurateSeek: true, // 精确定位
-          seekType: "range", // 定位类型
-          lazyLoad: true, // 懒加载
-          lazyLoadMaxDuration: 3 * 60, // 懒加载最大时长(秒)
-          lazyLoadRecoverDuration: 30, // 懒加载恢复时长(秒)
-        }
-      );
-
-      // 绑定到video元素
-      flvPlayer.attachMediaElement(video);
-
-      // FLV播放器事件处理
-      flvPlayer.on("error", (errorType, errorDetail) => {
-        console.error("🎬 FLV播放错误:", errorType, errorDetail);
-
-        let errorMessage = "FLV播放出现错误";
-        switch (errorType) {
-          case "NetworkError":
-            errorMessage = "网络错误，无法加载FLV视频";
-            break;
-          case "MediaError":
-            errorMessage = "媒体解码错误，FLV格式可能不兼容";
-            break;
-          case "LoadError":
-            errorMessage = "加载错误，无法获取FLV视频数据";
-            break;
-          case "UnrecoverableEarlyEof":
-            errorMessage = "视频文件不完整或已损坏";
-            break;
-          default:
-            errorMessage = `FLV播放错误: ${errorDetail?.info || "未知错误"}`;
-        }
-
-        emit("error", {
-          type: "flv_error",
-          errorType,
-          errorDetail,
-          message: errorMessage,
-        });
-      });
-
-      flvPlayer.on("loading_complete", () => {
-        console.log("🎬 FLV加载完成");
-      });
-
-      flvPlayer.on("recovered_early_eof", () => {
-        console.log("🎬 FLV早期EOF恢复");
-      });
-
-      flvPlayer.on("media_info", (mediaInfo) => {
-        console.log("🎬 FLV媒体信息:", mediaInfo);
-      });
-
-      // 加载视频
-      flvPlayer.load();
-
-      // 存储flvPlayer实例以便后续清理
-      // 注意：此时artplayerInstance.value还未创建，需要在创建后再存储
-      video.flvPlayer = flvPlayer;
-
-      console.log("🎬 FLV播放器初始化完成");
-    };
-
-    // 设置URL类型为flv
-    options.type = "flv";
-
-    console.log("🎬 FLV支持配置完成");
+    if (streamingFormat === "hls") {
+      await setupHLSPlayer(options, videoUrl);
+    } else if (streamingFormat === "flv" || streamingFormat === "mpegts") {
+      await setupMpegTSPlayer(options, videoUrl, streamingFormat);
+    }
   } catch (error) {
-    console.error("🎬 加载flv.js失败:", error);
+    console.error(`🎬 加载${streamingFormat}播放器失败:`, error);
     emit("error", {
-      type: "flv_load_error",
-      message: `加载FLV播放器失败: ${error.message}`,
+      type: `${streamingFormat}_load_error`,
+      message: `加载${streamingFormat.toUpperCase()}播放器失败: ${error.message}`,
       originalError: error,
     });
   }
+};
+
+// 设置 HLS 播放器
+const setupHLSPlayer = async (options, videoUrl) => {
+  // 动态导入 hls.js
+  const Hls = await import("hls.js");
+
+  // 检查浏览器支持
+  if (!Hls.default.isSupported()) {
+    console.warn("🎬 当前浏览器不支持HLS播放");
+    emit("error", {
+      type: "hls_not_supported",
+      message: "当前浏览器不支持HLS播放，请使用Chrome、Firefox或Edge浏览器",
+    });
+    return;
+  }
+
+  // 配置HLS自定义类型
+  options.customType.hls = function (video, url) {
+    // 获取HLS分片URL映射
+    const hlsSegmentUrls = props.video?.hlsSegmentUrls;
+
+    const hlsPlayer = new Hls.default({
+      debug: false,
+      enableWorker: true,
+      lowLatencyMode: true,
+      backBufferLength: 30,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 120,
+      maxBufferSize: 60 * 1000 * 1000,
+      maxBufferHole: 0.5,
+      highBufferWatchdogPeriod: 2,
+      nudgeOffset: 0.1,
+      nudgeMaxRetry: 3,
+      maxFragLookUpTolerance: 0.25,
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: 10,
+      abrBandWidthFactor: 0.8,
+      //重试配置
+      fragLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 10000,
+          maxLoadTimeMs: 120000,
+          timeoutRetry: {
+            maxNumRetry: 2, // 最多重试2次
+            retryDelayMs: 1000,
+            maxRetryDelayMs: 8000,
+          },
+          errorRetry: {
+            maxNumRetry: 1, // 错误重试最多1次
+            retryDelayMs: 1000,
+            maxRetryDelayMs: 8000,
+          },
+        },
+      },
+      playlistLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 10000,
+          maxLoadTimeMs: 120000,
+          timeoutRetry: {
+            maxNumRetry: 2,
+            retryDelayMs: 1000,
+            maxRetryDelayMs: 8000,
+          },
+          errorRetry: {
+            maxNumRetry: 1,
+            retryDelayMs: 1000,
+            maxRetryDelayMs: 8000,
+          },
+        },
+      },
+      // HLS请求拦截和URL重写
+      xhrSetup: function (xhr, requestUrl) {
+        // 检测是否为 .ts 分片文件
+        if (requestUrl.includes(".ts") || requestUrl.includes(".m2ts")) {
+          // 从URL中提取文件名
+          const urlParts = requestUrl.split("/");
+          const fileName = urlParts[urlParts.length - 1].split("?")[0];
+
+          // 查找对应的预签名URL
+          if (hlsSegmentUrls && hlsSegmentUrls.has(fileName)) {
+            const presignedUrl = hlsSegmentUrls.get(fileName);
+
+            // 重写请求URL
+            const originalOpen = xhr.open;
+            xhr.open = function (method, originalUrl, async, user, password) {
+              originalOpen.call(xhr, method, presignedUrl, async, user, password);
+            };
+          } else {
+            console.warn("⚠️ 未找到TS文件的预签名URL:", fileName);
+          }
+        }
+
+        // 禁用凭据传递
+        xhr.withCredentials = false;
+      },
+    });
+
+    // HLS播放器事件处理
+    hlsPlayer.on(Hls.default.Events.ERROR, (event, data) => {
+      let errorMessage = "HLS播放出现错误";
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.default.ErrorTypes.NETWORK_ERROR:
+            errorMessage = "网络错误，HLS.js将自动重试";
+            break;
+          case Hls.default.ErrorTypes.MEDIA_ERROR:
+            errorMessage = "媒体解码错误，HLS.js将自动恢复";
+            break;
+          default:
+            errorMessage = `HLS播放错误: ${data.details || "未知错误"}`;
+            console.error("🔧 HLS致命错误，销毁播放器:", data.details);
+            hlsPlayer.destroy();
+            break;
+        }
+
+        emit("error", {
+          type: "hls_error",
+          errorType: data.type,
+          errorDetail: data,
+          message: errorMessage,
+        });
+      }
+    });
+
+    // 加载HLS源
+    hlsPlayer.loadSource(url);
+    hlsPlayer.attachMedia(video);
+
+    // 存储hlsPlayer实例以便后续清理
+    video.streamPlayer = hlsPlayer;
+    console.log("🎬 HLS播放器初始化完成");
+  };
+
+  // 设置URL类型为hls
+  options.type = "hls";
+};
+
+// 设置 mpegts.js 播放器 (支持 FLV 和 MPEG-TS)
+const setupMpegTSPlayer = async (options, videoUrl, format) => {
+  console.log(`🎬 正在加载 mpegts.js 用于 ${format.toUpperCase()} 播放...`);
+
+  // 动态导入 mpegts.js
+  const mpegts = await import("mpegts.js");
+
+  // 检查浏览器支持
+  if (!mpegts.getFeatureList().mseLivePlayback) {
+    console.warn("🎬 当前浏览器不支持MPEG-TS/FLV播放");
+    emit("error", {
+      type: `${format}_not_supported`,
+      message: `当前浏览器不支持${format.toUpperCase()}播放，请使用Chrome、Firefox或Edge浏览器`,
+    });
+    return;
+  }
+
+  console.log(`🎬 mpegts.js加载成功，配置${format.toUpperCase()}播放器...`);
+
+  // 配置自定义类型
+  options.customType[format] = function (video, url) {
+    console.log(`🎬 初始化${format.toUpperCase()}播放器，URL:`, url);
+
+    const playerConfig = {
+      type: format === "flv" ? "flv" : "mse",
+      isLive: false,
+      url: url,
+    };
+
+    const mediaConfig = {
+      enableWorker: true, 
+      enableStashBuffer: true,
+      stashInitialSize: 128,
+      autoCleanupSourceBuffer: true,
+      autoCleanupMaxBackwardDuration: 20, 
+      autoCleanupMinBackwardDuration: 10,
+      fixAudioTimestampGap: true,
+      accurateSeek: true,
+      seekType: "range",
+      lazyLoad: true,
+      lazyLoadMaxDuration: 60, 
+      lazyLoadRecoverDuration: 30,
+    };
+
+    const streamPlayer = mpegts.createPlayer(playerConfig, mediaConfig);
+
+    // 播放器事件处理
+    streamPlayer.on(mpegts.Events.ERROR, (errorType, errorDetail) => {
+      console.error(`🎬 ${format.toUpperCase()}播放错误:`, errorType, errorDetail);
+
+      let errorMessage = `${format.toUpperCase()}播放出现错误`;
+      switch (errorType) {
+        case mpegts.ErrorTypes.NETWORK_ERROR:
+          errorMessage = `网络错误，无法加载${format.toUpperCase()}视频`;
+          break;
+        case mpegts.ErrorTypes.MEDIA_ERROR:
+          errorMessage = `媒体解码错误，${format.toUpperCase()}格式可能不兼容`;
+          break;
+        case mpegts.ErrorTypes.OTHER_ERROR:
+          errorMessage = `加载错误，无法获取${format.toUpperCase()}视频数据`;
+          break;
+        default:
+          errorMessage = `${format.toUpperCase()}播放错误: ${errorDetail?.info || "未知错误"}`;
+      }
+
+      emit("error", {
+        type: `${format}_error`,
+        errorType,
+        errorDetail,
+        message: errorMessage,
+      });
+    });
+
+    streamPlayer.on(mpegts.Events.LOADING_COMPLETE, () => {
+      console.log(`🎬 ${format.toUpperCase()}加载完成`);
+    });
+
+    streamPlayer.on(mpegts.Events.RECOVERED_EARLY_EOF, () => {
+      console.log(`🎬 ${format.toUpperCase()}早期EOF恢复`);
+    });
+
+    streamPlayer.on(mpegts.Events.MEDIA_INFO, (mediaInfo) => {
+      console.log(`🎬 ${format.toUpperCase()}媒体信息:`, mediaInfo);
+    });
+
+    // 绑定到video元素并加载
+    streamPlayer.attachMediaElement(video);
+    streamPlayer.load();
+
+    // 存储streamPlayer实例以便后续清理
+    video.streamPlayer = streamPlayer;
+
+    console.log(`🎬 ${format.toUpperCase()}播放器初始化完成`);
+  };
+
+  // 设置URL类型
+  options.type = format;
+
+  console.log(`🎬 ${format.toUpperCase()}支持配置完成`);
 };
 
 // 绑定事件监听器
@@ -723,17 +894,25 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (artplayerInstance.value) {
-    // 清理FLV播放器实例
-    if (artplayerInstance.value.flvPlayer) {
+    // 清理流媒体播放器实例
+    if (artplayerInstance.value.streamPlayer) {
       try {
-        console.log("🧹 清理FLV播放器实例...");
-        artplayerInstance.value.flvPlayer.pause();
-        artplayerInstance.value.flvPlayer.unload();
-        artplayerInstance.value.flvPlayer.detachMediaElement();
-        artplayerInstance.value.flvPlayer.destroy();
-        console.log("🧹 FLV播放器清理完成");
+        console.log("🧹 清理流媒体播放器实例...");
+        if (artplayerInstance.value.streamPlayer.pause) {
+          artplayerInstance.value.streamPlayer.pause();
+        }
+        if (artplayerInstance.value.streamPlayer.unload) {
+          artplayerInstance.value.streamPlayer.unload();
+        }
+        if (artplayerInstance.value.streamPlayer.detachMediaElement) {
+          artplayerInstance.value.streamPlayer.detachMediaElement();
+        }
+        if (artplayerInstance.value.streamPlayer.destroy) {
+          artplayerInstance.value.streamPlayer.destroy();
+        }
+        console.log("🧹 流媒体播放器清理完成");
       } catch (error) {
-        console.warn("清理FLV播放器时出错:", error);
+        console.warn("清理流媒体播放器时出错:", error);
       }
     }
 

@@ -154,7 +154,8 @@ export class ProxySignatureService {
     }
 
     try {
-      const value = await this.systemRepository.getSettingValue(key, "");
+      const setting = await this.systemRepository.getSettingMetadata(key);
+      const value = setting ? setting.value : "";
 
       // 缓存5分钟
       this.configCache.set(cacheKey, value);

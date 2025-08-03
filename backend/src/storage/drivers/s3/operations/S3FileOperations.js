@@ -11,6 +11,7 @@ import { getMimeTypeFromFilename } from "../../../../utils/fileUtils.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 import { updateParentDirectoriesModifiedTime } from "../utils/S3DirectoryUtils.js";
 import { CAPABILITIES } from "../../../interfaces/capabilities/index.js";
+import { GetFileType, getFileTypeName } from "../../../../utils/fileTypeDetector.js";
 
 export class S3FileOperations {
   /**
@@ -138,9 +139,13 @@ export class S3FileOperations {
           const headResponse = await this.s3Client.send(headCommand);
 
           // 构建文件信息对象
+          const fileName = path.split("/").filter(Boolean).pop() || "/";
+          const fileType = await GetFileType(fileName, db);
+          const fileTypeName = await getFileTypeName(fileName, db);
+
           const result = {
             path: path,
-            name: path.split("/").filter(Boolean).pop() || "/",
+            name: fileName,
             isDirectory: false,
             size: headResponse.ContentLength || 0,
             modified: headResponse.LastModified ? headResponse.LastModified.toISOString() : new Date().toISOString(),
@@ -148,6 +153,8 @@ export class S3FileOperations {
             etag: headResponse.ETag ? headResponse.ETag.replace(/"/g, "") : undefined,
             mount_id: mount.id,
             storage_type: mount.storage_type,
+            type: fileType, // 整数类型常量 (0-6)
+            typeName: fileTypeName, // 类型名称（用于调试）
           };
 
           // 生成预签名URL（如果需要）
@@ -206,9 +213,13 @@ export class S3FileOperations {
             const getCommand = new GetObjectCommand(getParams);
             const getResponse = await this.s3Client.send(getCommand);
 
+            const fileName = path.split("/").filter(Boolean).pop() || "/";
+            const fileType = await GetFileType(fileName, db);
+            const fileTypeName = await getFileTypeName(fileName, db);
+
             const result = {
               path: path,
-              name: path.split("/").filter(Boolean).pop() || "/",
+              name: fileName,
               isDirectory: false,
               size: getResponse.ContentLength || 0,
               modified: getResponse.LastModified ? getResponse.LastModified.toISOString() : new Date().toISOString(),
@@ -216,6 +227,8 @@ export class S3FileOperations {
               etag: getResponse.ETag ? getResponse.ETag.replace(/"/g, "") : undefined,
               mount_id: mount.id,
               storage_type: mount.storage_type,
+              type: fileType, // 整数类型常量 (0-6)
+              typeName: fileTypeName, // 类型名称（用于调试）
             };
 
             // 生成预签名URL（如果需要）

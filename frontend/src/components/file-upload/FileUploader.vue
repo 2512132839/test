@@ -493,7 +493,7 @@
 
 <script setup>
 import { ref, reactive, defineProps, defineEmits, getCurrentInstance, onMounted, onUnmounted, watch } from "vue";
-import { api } from "../../api";
+import { api } from "@/api";
 import { API_BASE_URL } from "../../api/config"; // 导入API_BASE_URL
 import { useI18n } from "vue-i18n"; // 导入i18n
 import UrlUploader from "./UrlUploader.vue"; // 导入URL上传组件
@@ -802,7 +802,7 @@ const formatMaxFileSize = () => {
 };
 
 // 导入统一的工具函数
-import { formatFileSize } from "../../utils/fileUtils.js";
+import { formatFileSize } from "@/utils/fileUtils.js";
 
 // 取消上传
 const cancelUpload = () => {

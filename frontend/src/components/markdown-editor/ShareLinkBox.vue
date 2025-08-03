@@ -62,7 +62,7 @@
 import { ref, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
-import { api } from "../../api";
+import { api } from "@/api";
 
 const { t } = useI18n();
 

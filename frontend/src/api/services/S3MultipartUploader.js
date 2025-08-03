@@ -43,7 +43,7 @@ export class S3MultipartUploader {
     // 持久化键名
     this.persistenceKey = null;
 
-    // 业务标识符（由业务层提供，用于持久化区分）
+    // 业务标识符
     this.identifier = null;
   }
 

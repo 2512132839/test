@@ -5,8 +5,8 @@
 
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { api } from "../api";
-import { Permission, PermissionChecker } from "../constants/permissions.js";
+import { api } from "@/api";
+import { Permission, PermissionChecker } from "@/constants/permissions.js";
 
 // 配置常量
 const REVALIDATION_INTERVAL = 5 * 60 * 1000; // 5分钟

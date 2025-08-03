@@ -50,22 +50,8 @@
             <div class="truncate">
               <div class="flex items-center">
                 <!-- 文件图标 -->
-                <div class="flex-shrink-0 mr-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-5 w-5"
-                    :class="getFileIconClassLocal(file.mimetype, file.filename)"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
+                <div class="flex-shrink-0 mr-2 w-5 h-5">
+                  <span v-html="getFileIconClassLocal(file)"></span>
                 </div>
                 <!-- 文件名 -->
                 <div class="flex-1 truncate">
@@ -207,22 +193,8 @@
             <div class="flex items-start justify-between">
               <div class="flex items-start">
                 <!-- 文件图标 -->
-                <div class="mr-3 mt-0.5">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-6 w-6"
-                    :class="getFileIconClassLocal(file.mimetype, file.filename)"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
+                <div class="mr-3 mt-0.5 w-6 h-6">
+                  <span v-html="getFileIconClassLocal(file)"></span>
                 </div>
 
                 <!-- 文件信息 -->
@@ -408,11 +380,10 @@
 
 <script setup>
 import { ref, defineProps, defineEmits, watch, onUnmounted } from "vue";
-import { api } from "../../api";
+import { api } from "@/api";
 import { useI18n } from "vue-i18n";
-import { formatMimeType as formatMimeTypeUtil } from "../../utils/mimeUtils";
 import { copyToClipboard } from "@/utils/clipboard";
-import { useDeleteSettingsStore } from "../../stores/deleteSettingsStore.js";
+import { useDeleteSettingsStore } from "@/stores/deleteSettingsStore.js";
 
 const { t } = useI18n();
 
@@ -441,8 +412,9 @@ const props = defineProps({
 const emit = defineEmits(["refresh"]);
 
 // 导入统一的工具函数
-import { getRemainingViews as getRemainingViewsUtil, formatFileSize } from "../../utils/fileUtils.js";
-import { getFileIconClass as getFileIconClassUtil } from "../../utils/mimeUtils.js";
+import { getRemainingViews as getRemainingViewsUtil, formatFileSize } from "@/utils/fileUtils.js";
+import { getFileIcon } from "@/utils/fileTypeIcons.js";
+
 import QRCode from "qrcode";
 
 /**
@@ -467,10 +439,6 @@ let messageTimeout = null;
 const showQRModal = ref(false);
 const qrCodeUrl = ref(null);
 const currentFileUrl = ref("");
-
-// 判断用户类型
-const isAdmin = () => props.userType === "admin";
-const isApiKeyUser = () => props.userType === "apikey";
 
 // 复制成功标志
 const copiedPermanentFiles = ref({});
@@ -587,15 +555,33 @@ const startMessageTimer = () => {
 
 // 格式化MIME类型
 const formatMimeType = (mimetype, filename) => {
-  return formatMimeTypeUtil(mimetype, filename);
+  if (mimetype) {
+    return mimetype;
+  }
+  // 如果没有 MIME 类型，从文件名推断
+  const ext = filename?.split(".").pop()?.toLowerCase();
+  return ext ? `${ext} 文件` : "未知类型";
 };
 
-const getFileIconClassLocal = (mimetype, filename) => {
-  return getFileIconClassUtil(mimetype, filename, props.darkMode);
+/**
+ * 获取文件图标HTML（使用后端返回的type字段）
+ * @param {Object} file - 文件对象（包含type字段）
+ * @returns {string} SVG图标HTML字符串
+ */
+const getFileIconClassLocal = (file) => {
+  // 直接使用后端返回的type字段
+  const fileItem = {
+    name: file.filename,
+    filename: file.filename,
+    isDirectory: false,
+    type: file.type,
+  };
+
+  return getFileIcon(fileItem, props.darkMode);
 };
 
 // 导入统一的时间处理工具
-import { formatDateTime } from "../../utils/timeUtils.js";
+import { formatDateTime } from "@/utils/timeUtils.js";
 
 // 格式化日期
 const formatDate = (dateString) => {

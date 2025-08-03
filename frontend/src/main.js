@@ -3,9 +3,9 @@ import { createPinia } from "pinia";
 import "./style.css";
 import App from "./App.vue";
 import api, { getEnvironmentInfo } from "./api";
-import i18n from "./i18n"; // 导入i18n配置
-import router from "./router"; // 导入路由配置
-import MasonryWall from "@yeger/vue-masonry-wall"; // 导入MasonryWall组件
+import i18n from "./i18n";
+import router from "./router";
+import MasonryWall from "@yeger/vue-masonry-wall"; 
 
 // 导入vue3-context-menu
 import "@imengyu/vue3-context-menu/lib/vue3-context-menu.css";
@@ -39,9 +39,6 @@ app.config.errorHandler = (err, instance, info) => {
         url: window.location.href,
         time: new Date().toISOString(),
       });
-
-      // 如果有专门的错误上报API，可以在这里调用
-      // api.reportError({ error: err.message, path: window.location.pathname });
     } catch (e) {
       // 避免上报过程中出错
       console.error("错误上报失败:", e);

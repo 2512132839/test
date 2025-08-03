@@ -153,11 +153,11 @@ const toggleSelect = () => {
 };
 
 // 导入统一的工具函数
-import { formatFileSize } from "../../../utils/fileUtils.js";
+import { formatFileSize } from "@/utils/fileUtils.js";
 import { getFileIcon as getFileIconSvg } from "../../../utils/fileTypeIcons.js";
 
 // 导入统一的时间处理工具
-import { formatDateTime } from "../../../utils/timeUtils.js";
+import { formatDateTime } from "@/utils/timeUtils.js";
 
 /**
  * 格式化日期

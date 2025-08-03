@@ -7,11 +7,11 @@ import PasteViewPreview from "./PasteViewPreview.vue";
 import PasteViewOutline from "./PasteViewOutline.vue";
 import PasteViewEditor from "./PasteViewEditor.vue";
 import { formatExpiry, debugLog } from "./PasteViewUtils";
-import { isExpired } from "../../utils/timeUtils.js";
-import { api } from "../../api";
+import { isExpired } from "@/utils/timeUtils.js";
+import { api } from "@/api";
 import { ApiStatus } from "../../api/ApiStatus";
 import { copyToClipboard } from "@/utils/clipboard";
-import { useAuthStore } from "../../stores/authStore.js";
+import { useAuthStore } from "@/stores/authStore.js";
 
 // 定义环境变量
 const isDev = import.meta.env.DEV;

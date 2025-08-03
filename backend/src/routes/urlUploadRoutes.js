@@ -142,6 +142,10 @@ app.post("/api/url/presign", authGateway.requireFile(), async (c) => {
       slug: body.slug || null,
       remark: body.remark || null,
       customPath: body.path || null,
+      password: body.password || null,
+      expires_in: body.expires_in || null,
+      max_views: body.max_views || null,
+      use_proxy: body.use_proxy,
     };
 
     // 创建URL上传

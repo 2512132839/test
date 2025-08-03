@@ -298,7 +298,7 @@ class S3ConfigService {
     }
 
     // 检查是否有文件使用此配置
-    const filesCount = await this.fileRepository.countByS3ConfigId(id);
+    const filesCount = await this.fileRepository.countByStorageConfigId(id, "S3");
     if (filesCount > 0) {
       throw new HTTPException(ApiStatus.CONFLICT, { message: `无法删除此配置，因为有${filesCount}个文件正在使用它` });
     }

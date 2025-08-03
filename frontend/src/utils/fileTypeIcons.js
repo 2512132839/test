@@ -1,16 +1,9 @@
 /**
  * 文件类型图标工具
  * 提供根据文件类型返回相应SVG图标的功能
- *
- * 此模块专注于图标渲染，使用新的 mimeUtils.js 来进行文件类型判断
- * 提供了三种方式获取图标：
- * 1. getFileIcon: 基于文件项对象获取图标
- * 2. getFileIconByMimeType: 基于MIME类型获取图标
- * 3. getFileIconByFilename: 基于文件名获取图标
  */
 
-// 导入新的 mimeUtils 中的函数
-import { getFileExtension, getFileIcon as getFileIconType } from "./mimeUtils";
+import { getIconType, getExtension } from "./fileTypes.js";
 
 // 文件类型图标映射
 const fileIconsMap = {
@@ -360,65 +353,120 @@ export const getFileIcon = (item, darkMode = false) => {
     return item.isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
   }
 
-  // 使用新的 mimeUtils 获取图标类型
-  const iconType = getFileIconType(item.mimeType || "", item.name || "");
+  // 获取后端返回的图标类型和文件扩展名
+  const iconType = getIconType(item);
+  const extension = getExtension(item.filename || item.name || "");
 
-  // Word文档特殊处理（doc, docx, rtf）
-  const extension = getFileExtension(item.name);
-  if (extension && ["doc", "docx", "rtf"].includes(extension.toLowerCase())) {
-    return fileIconsMap.word(darkMode);
+  // 根据大类型进行细分处理
+  if (extension) {
+    const ext = extension.toLowerCase();
+
+    // TEXT 类型的细分处理
+    if (iconType === "text") {
+      // Markdown 文件
+      if (["md", "markdown"].includes(ext)) {
+        return fileIconsMap.markdown(darkMode);
+      }
+
+      // HTML 文件特殊处理
+      if (["html", "htm"].includes(ext)) {
+        return fileIconsMap.html(darkMode);
+      }
+
+      // 配置文件
+      const configExtensions = ["ini", "conf", "config", "cfg", "env"];
+      if (configExtensions.includes(ext)) {
+        return fileIconsMap.config(darkMode);
+      }
+
+      // 数据库文件
+      if (["sql", "db", "sqlite", "sqlite3"].includes(ext)) {
+        return fileIconsMap.database(darkMode);
+      }
+
+      // 代码文件
+      const codeExtensions = [
+        "js",
+        "jsx",
+        "ts",
+        "tsx",
+        "vue",
+        "css",
+        "scss",
+        "sass",
+        "less",
+        "py",
+        "java",
+        "c",
+        "cpp",
+        "cc",
+        "cxx",
+        "h",
+        "hpp",
+        "cs",
+        "php",
+        "rb",
+        "go",
+        "rs",
+        "kt",
+        "sh",
+        "bash",
+        "zsh",
+        "ps1",
+        "bat",
+        "cmd",
+        "json",
+        "xml",
+        "yml",
+        "yaml",
+        "toml",
+        "dockerfile",
+        "makefile",
+        "cmake",
+        "gradle",
+      ];
+
+      if (codeExtensions.includes(ext)) {
+        return fileIconsMap.code(darkMode);
+      }
+    }
+
+    // OFFICE 类型的细分处理
+    if (iconType === "document") {
+      // PDF 文件
+      if (ext === "pdf") {
+        return fileIconsMap.pdf(darkMode);
+      }
+
+      // PowerPoint 文件
+      if (["ppt", "pptx"].includes(ext)) {
+        return fileIconsMap.presentation(darkMode);
+      }
+
+      // Excel 文件
+      if (["xls", "xlsx"].includes(ext)) {
+        return fileIconsMap.spreadsheet(darkMode);
+      }
+
+      // Word 文件
+      if (["doc", "docx", "rtf"].includes(ext)) {
+        return fileIconsMap.word(darkMode);
+      }
+    }
+
+    // 压缩文件的特殊处理（跨类型）
+    const archiveExtensions = ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "tar.gz", "tar.bz2", "tar.xz"];
+    if (archiveExtensions.includes(ext)) {
+      return fileIconsMap.archive(darkMode);
+    }
+
+    // 可执行文件的特殊处理（跨类型）
+    const executableExtensions = ["exe", "msi", "app", "deb", "rpm", "dmg", "pkg", "run", "bin"];
+    if (executableExtensions.includes(ext)) {
+      return fileIconsMap.executable(darkMode);
+    }
   }
 
-  return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
-};
-
-/**
- * 根据MIME类型获取文件图标
- * @param {string} mimeType - 文件的MIME类型
- * @param {boolean} isDirectory - 是否为目录
- * @param {boolean} isMount - 是否为挂载点
- * @param {boolean} darkMode - 是否为暗色模式
- * @returns {string} SVG图标字符串
- */
-export const getFileIconByMimeType = (mimeType, isDirectory = false, isMount = false, darkMode = false) => {
-  // 如果是文件夹
-  if (isDirectory) {
-    return isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
-  }
-
-  // 使用新的 mimeUtils 获取图标类型
-  const iconType = getFileIconType(mimeType, "");
-
-  // Word文档特殊处理
-  if (mimeType === "application/msword" || mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || mimeType === "application/rtf") {
-    return fileIconsMap.word(darkMode);
-  }
-
-  return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
-};
-
-/**
- * 根据文件名获取文件图标
- * @param {string} filename - 文件名
- * @param {boolean} isDirectory - 是否为目录
- * @param {boolean} isMount - 是否为挂载点
- * @param {boolean} darkMode - 是否为暗色模式
- * @returns {string} SVG图标字符串
- */
-export const getFileIconByFilename = (filename, isDirectory = false, isMount = false, darkMode = false) => {
-  // 如果是文件夹
-  if (isDirectory) {
-    return isMount ? fileIconsMap.mountFolder(darkMode) : fileIconsMap.folder(darkMode);
-  }
-
-  // 使用新的 mimeUtils 获取图标类型
-  const iconType = getFileIconType("", filename);
-
-  // Word文档特殊处理（doc, docx, rtf）
-  const extension = getFileExtension(filename);
-  if (extension && ["doc", "docx", "rtf"].includes(extension.toLowerCase())) {
-    return fileIconsMap.word(darkMode);
-  }
-
+  // 使用默认的类型图标
   return fileIconsMap[iconType] ? fileIconsMap[iconType](darkMode) : fileIconsMap.default(darkMode);
 };

@@ -110,11 +110,11 @@
 
 <script setup>
 import { ref, onMounted, computed, onBeforeUnmount } from "vue";
-import { api } from "../api";
+import { api } from "@/api";
 import FileUploader from "../components/file-upload/FileUploader.vue";
 import FileList from "../components/file-upload/FileList.vue";
 import { useI18n } from "vue-i18n"; // 导入i18n
-import { useAuthStore } from "../stores/authStore.js";
+import { useAuthStore } from "@/stores/authStore.js";
 
 const { t } = useI18n(); // 初始化i18n
 
@@ -203,8 +203,8 @@ const loadFiles = async () => {
 
   loadingFiles.value = true;
   try {
-    // 使用统一的API
-    const response = await api.file.getFiles();
+    // 使用统一的API，只请求5个文件（显示3个，留2个余量）
+    const response = await api.file.getFiles(5, 0);
 
     if (response.success && response.data) {
       // 确保按时间倒序排序，最新的在前面

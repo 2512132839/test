@@ -17,7 +17,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted } from "vue";
-import { useAuthStore } from "../../stores/authStore.js";
+import { useAuthStore } from "@/stores/authStore.js";
 
 // Props
 const props = defineProps({

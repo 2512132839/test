@@ -72,6 +72,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { getExtension } from "@/utils/fileTypes.js";
 
 const { t } = useI18n();
 
@@ -108,10 +109,10 @@ const useGoogleDocsPreview = ref(false);
 const officePreviewLoading = ref(true);
 const officePreviewError = ref("");
 
-// Office子类型判断
+// Office子类型判断 - 使用标准的 getExtension 函数
 const isWordDocument = computed(() => {
+  const ext = getExtension(props.filename || "");
   const mime = props.mimetype?.toLowerCase() || "";
-  const filename = props.filename?.toLowerCase() || "";
 
   // 通过MIME类型判断
   if (
@@ -124,13 +125,12 @@ const isWordDocument = computed(() => {
   }
 
   // 通过文件扩展名判断
-  const ext = filename.split(".").pop() || "";
   return ["doc", "docx", "odt", "rtf"].includes(ext);
 });
 
 const isSpreadsheet = computed(() => {
+  const ext = getExtension(props.filename || "");
   const mime = props.mimetype?.toLowerCase() || "";
-  const filename = props.filename?.toLowerCase() || "";
 
   // 通过MIME类型判断
   if (
@@ -143,13 +143,12 @@ const isSpreadsheet = computed(() => {
   }
 
   // 通过文件扩展名判断
-  const ext = filename.split(".").pop() || "";
   return ["xls", "xlsx", "ods", "csv"].includes(ext);
 });
 
 const isPresentation = computed(() => {
+  const ext = getExtension(props.filename || "");
   const mime = props.mimetype?.toLowerCase() || "";
-  const filename = props.filename?.toLowerCase() || "";
 
   // 通过MIME类型判断
   if (
@@ -161,7 +160,6 @@ const isPresentation = computed(() => {
   }
 
   // 通过文件扩展名判断
-  const ext = filename.split(".").pop() || "";
   return ["ppt", "pptx", "odp"].includes(ext);
 });
 

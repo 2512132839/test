@@ -27,6 +27,8 @@ export default {
     // 密码验证
     password: {
       title: "请输入访问密码",
+      description: "此文件已被密码保护，请输入密码查看内容",
+      label: "密码",
       placeholder: "请输入密码",
       submit: "确认",
       error: "密码错误，请重试",

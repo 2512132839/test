@@ -7,6 +7,7 @@ import { generatePresignedUrl } from "../utils/s3Utils.js";
 import { FileRepository, S3ConfigRepository } from "../repositories/index.js";
 import { StorageConfigUtils } from "../storage/utils/StorageConfigUtils.js";
 import { StorageFactory } from "../storage/factory/StorageFactory.js";
+import { GetFileType, getFileTypeName } from "../utils/fileTypeDetector.js";
 
 export class FileService {
   /**
@@ -63,23 +64,6 @@ export class FileService {
     const driver = await StorageFactory.createDriver(file.storage_type, config, this.encryptionSecret);
 
     return driver;
-  }
-
-  /**
-   * 通过存储驱动获取文件下载URL
-   * @param {Object} file - 文件对象
-   * @returns {Promise<string>} 文件下载URL
-   */
-  async generateFileDownloadUrl(file) {
-    const driver = await this.getStorageDriver(file);
-
-    // 使用存储驱动生成预签名URL
-    const result = await driver.generatePresignedUrl(file.storage_path, {
-      operation: "download",
-      expiresIn: 3600, // 1小时有效期
-    });
-
-    return result.url;
   }
 
   /**
@@ -200,15 +184,19 @@ export class FileService {
    * @param {Object} file - 文件对象
    * @param {boolean} requiresPassword - 是否需要密码
    * @param {Object} urlsObj - URL对象
-   * @returns {Object} 公开文件信息
+   * @returns {Promise<Object>} 公开文件信息
    */
-  getPublicFileInfo(file, requiresPassword, urlsObj = null) {
+  async getPublicFileInfo(file, requiresPassword, urlsObj = null) {
     // 确定使用哪种URL
     const useProxy = urlsObj?.use_proxy !== undefined ? urlsObj.use_proxy : file.use_proxy || 0;
 
     // 根据是否使用代理选择URL
     const effectivePreviewUrl = useProxy === 1 ? urlsObj?.proxyPreviewUrl : urlsObj?.previewUrl || file.s3_url;
     const effectiveDownloadUrl = useProxy === 1 ? urlsObj?.proxyDownloadUrl : urlsObj?.downloadUrl || file.s3_url;
+
+    // 获取文件类型
+    const fileType = await GetFileType(file.filename, this.db);
+    const fileTypeName = await getFileTypeName(file.filename, this.db);
 
     return {
       id: file.id,
@@ -230,6 +218,8 @@ export class FileService {
       proxy_download_url: urlsObj?.proxyDownloadUrl,
       use_proxy: useProxy,
       created_by: file.created_by || null,
+      type: fileType, // 整数类型常量 (0-6)
+      typeName: fileTypeName, // 类型名称（用于调试）
     };
   }
 
@@ -346,7 +336,7 @@ export class FileService {
   }
 
   /**
-   * 处理文件列表中的API密钥名称
+   * 处理文件列表中的API密钥名称和文件类型
    * @param {Array} files - 文件列表
    * @returns {Promise<Array>} 处理后的文件列表
    */
@@ -354,41 +344,47 @@ export class FileService {
     // 收集所有API密钥ID
     const apiKeyIds = files.filter((file) => file.created_by && file.created_by.startsWith("apikey:")).map((file) => file.created_by.substring(7));
 
-    if (apiKeyIds.length === 0) {
-      return files.map((file) => ({
-        ...file,
-        has_password: file.password ? true : false,
-      }));
-    }
-
     // 获取API密钥名称映射
     const keyNamesMap = new Map();
-    const uniqueKeyIds = [...new Set(apiKeyIds)];
+    if (apiKeyIds.length > 0) {
+      const uniqueKeyIds = [...new Set(apiKeyIds)];
 
-    for (const keyId of uniqueKeyIds) {
-      const keyInfo = await this.getApiKeyInfo(keyId);
-      if (keyInfo) {
-        keyNamesMap.set(keyId, keyInfo.name);
+      for (const keyId of uniqueKeyIds) {
+        const keyInfo = await this.getApiKeyInfo(keyId);
+        if (keyInfo) {
+          keyNamesMap.set(keyId, keyInfo.name);
+        }
       }
     }
 
-    // 为每个文件添加key_name字段
-    return files.map((file) => {
-      const result = {
-        ...file,
-        has_password: file.password ? true : false,
-      };
+    // 为每个文件添加字段（包括文件类型检测）
+    const processedFiles = await Promise.all(
+      files.map(async (file) => {
+        // 添加文件类型信息
+        const fileType = await GetFileType(file.filename, this.db);
+        const fileTypeName = await getFileTypeName(file.filename, this.db);
 
-      if (file.created_by && file.created_by.startsWith("apikey:")) {
-        const keyId = file.created_by.substring(7);
-        const keyName = keyNamesMap.get(keyId);
-        if (keyName) {
-          result.key_name = keyName;
+        const result = {
+          ...file,
+          has_password: file.password ? true : false,
+          type: fileType, // 整数类型常量 (0-6)
+          typeName: fileTypeName, // 类型名称（用于调试）
+        };
+
+        // 添加API密钥名称
+        if (file.created_by && file.created_by.startsWith("apikey:")) {
+          const keyId = file.created_by.substring(7);
+          const keyName = keyNamesMap.get(keyId);
+          if (keyName) {
+            result.key_name = keyName;
+          }
         }
-      }
 
-      return result;
-    });
+        return result;
+      })
+    );
+
+    return processedFiles;
   }
 
   /**
@@ -506,32 +502,10 @@ export async function generateFileDownloadUrl(db, file, encryptionSecret, reques
   return await fileService.generateFileDownloadUrl(file, encryptionSecret, request);
 }
 
-export function getPublicFileInfo(file, requiresPassword, urlsObj = null) {
-  // 这个方法不需要数据库访问，可以直接调用静态逻辑
-  // 确定使用哪种URL
-  const useProxy = urlsObj?.use_proxy !== undefined ? urlsObj.use_proxy : file.use_proxy || 0;
-
-  // 根据是否使用代理选择URL
-  const effectivePreviewUrl = useProxy === 1 ? urlsObj?.proxyPreviewUrl : urlsObj?.previewUrl || file.s3_url;
-  const effectiveDownloadUrl = useProxy === 1 ? urlsObj?.proxyDownloadUrl : urlsObj?.downloadUrl || file.s3_url;
-
-  return {
-    id: file.id,
-    slug: file.slug,
-    filename: file.filename,
-    mimetype: file.mimetype,
-    size: file.size,
-    remark: file.remark,
-    created_at: file.created_at,
-    created_by: file.created_by,
-    requires_password: requiresPassword,
-    views: file.views,
-    max_views: file.max_views,
-    expires_at: file.expires_at,
-    previewUrl: effectivePreviewUrl,
-    downloadUrl: effectiveDownloadUrl,
-    use_proxy: useProxy,
-  };
+export async function getPublicFileInfo(file, requiresPassword, urlsObj = null) {
+  // 使用类方法，避免代码重复
+  const fileService = new FileService(null);
+  return await fileService.getPublicFileInfo(file, requiresPassword, urlsObj);
 }
 
 export async function deleteFileRecordByStoragePath(db, storageConfigId, storagePath, storageType) {

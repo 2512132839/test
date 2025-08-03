@@ -77,7 +77,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../api";
+import { api } from "@/api";
 import { ApiStatus } from "../api/ApiStatus";
 
 // 导入子组件

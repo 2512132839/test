@@ -3,7 +3,7 @@
 // 将这些功能提取到单独的文件中有助于避免代码重复，并使主组件保持简洁
 
 // 导入统一的时间处理工具
-import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil, isExpired } from "../../utils/timeUtils.js";
+import { formatDateTime, formatRelativeTime as formatRelativeTimeUtil, formatExpiry as formatExpiryUtil, isExpired } from "@/utils/timeUtils.js";
 
 /**
  * 格式化日期 - 使用统一的时间处理工具

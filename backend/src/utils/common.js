@@ -123,6 +123,29 @@ export function generateShortId() {
 }
 
 /**
+ * 根据系统设置决定是否使用随机后缀
+ * @param {D1Database} db - 数据库实例
+ * @returns {Promise<boolean>} 是否使用随机后缀
+ */
+export async function shouldUseRandomSuffix(db) {
+  try {
+    // 动态导入避免循环依赖
+    const { getSettingMetadata } = await import("../services/systemService.js");
+
+    // 获取文件命名策略设置，默认为覆盖模式
+    const setting = await getSettingMetadata(db, "file_naming_strategy");
+    const strategy = setting ? setting.value : "overwrite";
+
+    // 返回是否使用随机后缀
+    return strategy === "random_suffix";
+  } catch (error) {
+    console.warn("获取文件命名策略失败，使用默认覆盖模式:", error);
+    // 出错时默认使用覆盖模式（不使用随机后缀）
+    return false;
+  }
+}
+
+/**
  * 从文件名中获取文件名和扩展名
  * @param {string} filename - 文件名
  * @returns {Object} 包含文件名和扩展名的对象

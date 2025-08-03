@@ -161,25 +161,12 @@
 <script setup>
 import { computed, ref, defineProps, onMounted, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../../api/index.js";
+import { api } from "@/api";
 
 const { t } = useI18n();
-import {
-  formatFileSize,
-  formatMimeType,
-  isImage as isImageType,
-  isVideo as isVideoType,
-  isAudio as isAudioType,
-  isPdf as isPdfType,
-  isMarkdown as isMarkdownType,
-  isHtml as isHtmlType,
-  isText as isTextType,
-  isCode as isCodeType,
-  isConfig as isConfigType,
-  isOffice as isOfficeFileType,
-  getFileIconClass as getFileIconClassUtil,
-} from "../../utils/mimeUtils.js";
-import { formatDateTime } from "../../utils/timeUtils.js";
+import { getPreviewComponent, formatFileSize, FileType, getIconType } from "@/utils/fileTypes.js";
+import { getPreviewModeFromFilename, PREVIEW_MODES } from "@/utils/textUtils.js";
+import { formatDateTime } from "@/utils/timeUtils.js";
 import { copyToClipboard as clipboardCopy } from "@/utils/clipboard";
 
 //导入预览组件
@@ -188,6 +175,7 @@ import VideoPreview from "./previews/VideoPreview.vue";
 import AudioPreview from "./previews/AudioPreview.vue";
 import PdfPreview from "./previews/PdfPreview.vue";
 import TextPreview from "./previews/TextPreview.vue";
+import CodePreview from "./previews/CodePreview.vue";
 import MarkdownPreview from "./previews/MarkdownPreview.vue";
 import HtmlPreview from "./previews/HtmlPreview.vue";
 import OfficePreview from "./previews/OfficePreview.vue";
@@ -271,7 +259,7 @@ const formattedSize = computed(() => {
 
 // 格式化的MIME类型
 const formattedMimeType = computed(() => {
-  return formatMimeType(props.fileInfo.mimetype, props.fileInfo.filename);
+  return props.fileInfo.filename || props.fileInfo.name || "";
 });
 
 // 格式化的创建时间
@@ -284,37 +272,64 @@ const formattedExpiresAt = computed(() => {
   return formatDateTime(props.fileInfo.expires_at);
 });
 
-// 文件图标类名
-const iconClass = computed(() => {
-  return getFileIconClassUtil(props.fileInfo.mimetype, props.fileInfo.filename, props.darkMode);
+// 文件信息（直接使用后端type字段）
+
+// 文件类型判断计算属性 - 遵循 usePreviewRenderers.js 的标准模式
+const isOfficeFile = computed(() => props.fileInfo.type === FileType.OFFICE);
+const isText = computed(() => props.fileInfo.type === FileType.TEXT);
+const isImage = computed(() => props.fileInfo.type === FileType.IMAGE);
+const isVideo = computed(() => props.fileInfo.type === FileType.VIDEO);
+const isAudio = computed(() => props.fileInfo.type === FileType.AUDIO);
+
+// 文本文件的细分类型判断 - 使用标准化的工具类函数
+const textPreviewMode = computed(() => {
+  if (!isText.value) return null;
+  return getPreviewModeFromFilename(props.fileInfo.filename || "");
 });
 
-// 文件类型检查
-const isImage = computed(() => isImageType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isVideo = computed(() => isVideoType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isAudio = computed(() => isAudioType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isPdf = computed(() => isPdfType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isMarkdown = computed(() => isMarkdownType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isHtml = computed(() => isHtmlType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isText = computed(() => isTextType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isCode = computed(() => isCodeType(props.fileInfo.mimetype, props.fileInfo.filename));
-const isConfig = computed(() => isConfigType(props.fileInfo.mimetype, props.fileInfo.filename));
+const isCode = computed(() => textPreviewMode.value === PREVIEW_MODES.CODE);
+const isMarkdown = computed(() => textPreviewMode.value === PREVIEW_MODES.MARKDOWN);
+const isHtml = computed(() => textPreviewMode.value === PREVIEW_MODES.HTML);
 
-// Office文件类型检查
-const isOfficeFile = computed(() => isOfficeFileType(props.fileInfo.mimetype, props.fileInfo.filename));
+// PDF文件判断
+const isPdf = computed(() => {
+  return props.fileInfo.type === FileType.DOCUMENT;
+});
 
-// 动态组件逻辑
+// 文件图标类名 - 使用标准的 getIconType 函数
+const iconClass = computed(() => {
+  const iconType = getIconType(props.fileInfo);
+  // 根据文件类型返回对应的图标颜色类
+  const colorMap = {
+    image: "text-green-500",
+    video: "text-purple-500",
+    audio: "text-blue-500",
+    text: "text-yellow-500",
+    document: "text-red-500",
+    folder: "text-blue-500",
+    file: "text-gray-500",
+  };
+  return colorMap[iconType] || "text-gray-500";
+});
+
 const currentPreviewComponent = computed(() => {
-  if (isImage.value) return ImagePreview;
-  if (isVideo.value) return VideoPreview;
-  if (isAudio.value) return AudioPreview;
-  if (isPdf.value) return PdfPreview;
-  if (isMarkdown.value) return MarkdownPreview;
-  if (isHtml.value) return HtmlPreview;
-  if (isText.value || isCode.value || isConfig.value) return TextPreview;
-  if (isOfficeFile.value) return OfficePreview;
+  const componentName = getPreviewComponent(props.fileInfo);
 
-  return GenericPreview;
+  // 组件映射
+  const componentMap = {
+    ImagePreview,
+    VideoPreview,
+    AudioPreview,
+    PdfPreview,
+    CodePreview,
+    MarkdownPreview,
+    HtmlPreview,
+    TextPreview,
+    OfficePreview,
+    GenericPreview,
+  };
+
+  return componentMap[componentName] || GenericPreview;
 });
 
 // 是否应该显示预览
@@ -358,24 +373,7 @@ const getCodeLanguage = computed(() => {
   return languageMap[extension] || t("fileView.preview.code.title");
 });
 
-// 获取配置文件的语言类型
-const getConfigLanguage = computed(() => {
-  if (!props.fileInfo.filename) return t("fileView.preview.config.title");
-
-  const extension = props.fileInfo.filename.split(".").pop().toLowerCase();
-  const configLanguageMap = {
-    json: "JSON",
-    xml: "XML",
-    yaml: "YAML",
-    yml: "YAML",
-    toml: "TOML",
-    ini: "INI",
-    env: "ENV",
-    conf: "CONF",
-  };
-
-  return configLanguageMap[extension] || t("fileView.preview.config.title");
-});
+// 删除getConfigLanguage - 不再区分配置文件
 
 // 动态组件属性配置
 const previewComponentProps = computed(() => {
@@ -385,12 +383,13 @@ const previewComponentProps = computed(() => {
     mimetype: props.fileInfo.mimetype,
   };
 
-  if (isText.value || isCode.value || isConfig.value) {
+  if (isText.value || isCode.value) {
     return {
       ...baseProps,
-      title: isCode.value ? t("fileView.preview.code.title") : isConfig.value ? t("fileView.preview.config.title") : t("fileView.preview.text.title"),
-      language: isCode.value ? getCodeLanguage.value : isConfig.value ? getConfigLanguage.value : "",
-      loadingText: isCode.value ? t("fileView.preview.code.loading") : isConfig.value ? t("fileView.preview.config.loading") : t("fileView.preview.text.loading"),
+      title: isCode.value ? t("fileView.preview.code.title") : t("fileView.preview.text.title"),
+      language: isCode.value ? getCodeLanguage.value : "",
+      loadingText: isCode.value ? t("fileView.preview.code.loading") : t("fileView.preview.text.loading"),
+      darkMode: props.darkMode,
     };
   }
 
@@ -402,6 +401,14 @@ const previewComponentProps = computed(() => {
   }
 
   if (isHtml.value) {
+    return {
+      ...baseProps,
+      darkMode: props.darkMode,
+    };
+  }
+
+  // PDF文件特殊处理
+  if (isPdf.value) {
     return baseProps;
   }
 
@@ -416,7 +423,7 @@ const previewComponentProps = computed(() => {
     };
   }
 
-  if (isImage.value || isAudio.value || isPdf.value) {
+  if (isImage.value || isAudio.value) {
     return baseProps;
   }
 
@@ -564,7 +571,7 @@ const getOfficeDirectUrlForPreview = async () => {
     console.log("正在获取Office直接URL", { slug: props.fileInfo.slug, hasPassword: !!filePassword });
 
     // 使用统一的预览服务获取所有预览URL
-    const previewUrls = await api.preview.getOfficePreviewUrl(props.fileInfo.slug, {
+    const previewUrls = await api.fileView.getOfficePreviewUrl(props.fileInfo.slug, {
       password: filePassword,
       returnAll: true,
     });
@@ -622,7 +629,7 @@ const updateOfficePreviewUrls = async () => {
 
       if (directUrl) {
         // 使用统一的预览服务
-        const previewUrls = await api.preview.getOfficePreviewUrl({ directUrl }, { returnAll: true });
+        const previewUrls = await api.fileView.getOfficePreviewUrl({ directUrl }, { returnAll: true });
 
         microsoftOfficePreviewUrl.value = previewUrls.microsoft;
         googleDocsPreviewUrl.value = previewUrls.google;
@@ -660,7 +667,7 @@ const updateOfficePreviewUrls = async () => {
       }
 
       // 使用统一的预览服务
-      const previewUrls = await api.preview.getOfficePreviewUrl({ directUrl: url }, { returnAll: true });
+      const previewUrls = await api.fileView.getOfficePreviewUrl({ directUrl: url }, { returnAll: true });
 
       microsoftOfficePreviewUrl.value = previewUrls.microsoft;
       googleDocsPreviewUrl.value = previewUrls.google;

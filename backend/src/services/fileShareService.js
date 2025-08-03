@@ -9,9 +9,10 @@ import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { FileShareSystem } from "../storage/fs/FileShareSystem.js";
 import { RepositoryFactory } from "../repositories/index.js";
-import { generateFileId, generateUniqueFileSlug, generateShortId, getFileNameAndExt, getSafeFileName, formatFileSize } from "../utils/common.js";
+import { generateFileId, generateUniqueFileSlug, generateShortId, getFileNameAndExt, getSafeFileName, formatFileSize, shouldUseRandomSuffix } from "../utils/common.js";
 import { getMimeTypeFromFilename } from "../utils/fileUtils.js";
 import { hashPassword } from "../utils/crypto.js";
+import { GetFileType, getFileTypeName } from "../utils/fileTypeDetector.js";
 
 // 默认最大上传限制（MB）
 const DEFAULT_MAX_UPLOAD_SIZE_MB = 100;
@@ -139,9 +140,15 @@ export class FileShareService {
     // 6. 后续清理工作
     await this._postCommitCleanup(fileRecord, config);
 
+    // 7. 添加文件类型信息
+    const fileType = await GetFileType(updatedFile.filename, this.db);
+    const fileTypeName = await getFileTypeName(updatedFile.filename, this.db);
+
     return {
       ...updatedFile,
       url: `/file/${updatedFile.slug}`,
+      type: fileType, // 整数类型常量 (0-6)
+      typeName: fileTypeName, // 类型名称（用于调试）
     };
   }
 
@@ -153,7 +160,7 @@ export class FileShareService {
     if (!fileSize) return;
 
     const systemRepository = this.repositoryFactory.getSystemRepository();
-    const maxUploadSizeResult = await systemRepository.getSetting("max_upload_size");
+    const maxUploadSizeResult = await systemRepository.getSettingMetadata("max_upload_size");
 
     const maxUploadSizeMB = maxUploadSizeResult ? parseInt(maxUploadSizeResult.value) : DEFAULT_MAX_UPLOAD_SIZE_MB;
     const maxUploadSizeBytes = maxUploadSizeMB * 1024 * 1024;
@@ -228,7 +235,7 @@ export class FileShareService {
     const uniqueSlug = await generateUniqueFileSlug(this.db, slug, override === "true");
 
     // 生成存储路径
-    const storagePath = this._generateStoragePath(filename, customPath, userIdOrInfo, userType, config);
+    const storagePath = await this._generateStoragePath(filename, customPath, userIdOrInfo, userType, config);
     const contentType = getMimeTypeFromFilename(filename);
 
     // 处理密码
@@ -239,17 +246,24 @@ export class FileShareService {
 
     // 处理过期时间
     let expiresAt = null;
-    if (expires_in) {
-      const expiresInHours = parseInt(expires_in);
-      if (!isNaN(expiresInHours) && expiresInHours > 0) {
-        const expiresDate = new Date();
-        expiresDate.setHours(expiresDate.getHours() + expiresInHours);
-        expiresAt = expiresDate.toISOString();
-      }
+    if (typeof expires_in === "number" && expires_in > 0) {
+      const expiresDate = new Date();
+      expiresDate.setHours(expiresDate.getHours() + expires_in);
+      expiresAt = expiresDate.toISOString();
     }
 
     // 处理最大查看次数
-    const maxViews = max_views ? parseInt(max_views) : null;
+    const maxViews = typeof max_views === "number" && max_views > 0 ? max_views : null;
+
+    // 获取全局默认代理设置
+    let defaultUseProxy = false; // 硬编码默认值作为后备
+    try {
+      const systemRepository = this.repositoryFactory.getSystemRepository();
+      const defaultProxySetting = await systemRepository.getSettingMetadata("default_use_proxy");
+      defaultUseProxy = defaultProxySetting?.value === "true";
+    } catch (error) {
+      console.warn("获取全局默认代理设置失败，使用硬编码默认值:", error);
+    }
 
     // 创建文件记录
     const fileRepository = this.repositoryFactory.getFileRepository();
@@ -268,7 +282,7 @@ export class FileShareService {
       password: passwordHash,
       expires_at: expiresAt,
       max_views: maxViews > 0 ? maxViews : null,
-      use_proxy: use_proxy !== undefined ? use_proxy : true,
+      use_proxy: use_proxy !== undefined ? use_proxy : defaultUseProxy,
       created_by: userType === "admin" ? userIdOrInfo : `apikey:${userIdOrInfo}`,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -296,22 +310,30 @@ export class FileShareService {
    * 生成存储路径
    * @private
    */
-  _generateStoragePath(filename, customPath, userIdOrInfo, userType, config) {
-    const shortId = generateShortId();
-    const { name: baseName, ext: fileExt } = getFileNameAndExt(filename);
-    const safeFileName = getSafeFileName(baseName);
-
+  async _generateStoragePath(filename, customPath, userIdOrInfo, userType, config) {
     // 处理默认文件夹路径
     const folderPath = config.default_folder ? (config.default_folder.endsWith("/") ? config.default_folder : config.default_folder + "/") : "";
 
+    // 构建目标目录
+    let targetDirectory = folderPath;
     if (customPath) {
-      // 如果有自定义路径，组合：默认文件夹 + 自定义路径 + 文件名
       const normalizedCustomPath = customPath.endsWith("/") ? customPath : customPath + "/";
-      return folderPath + normalizedCustomPath + shortId + "-" + safeFileName + fileExt;
+      targetDirectory = folderPath + normalizedCustomPath;
+    }
+
+    // 根据系统设置决定文件命名策略
+    const useRandomSuffix = await shouldUseRandomSuffix(this.db);
+
+    const { name: baseName, ext: fileExt } = getFileNameAndExt(filename);
+    const safeFileName = getSafeFileName(baseName);
+
+    if (useRandomSuffix) {
+      // 随机后缀模式：避免文件名冲突，格式为 filename-shortId.ext
+      const shortId = generateShortId();
+      return targetDirectory + safeFileName + "-" + shortId + fileExt;
     } else {
-      // 没有自定义路径，使用：默认文件夹 + 文件名
-      // 无论是管理员还是API密钥用户，都使用相同的逻辑
-      return folderPath + shortId + "-" + safeFileName + fileExt;
+      // 覆盖模式：使用原始文件名（可能冲突）
+      return targetDirectory + safeFileName + fileExt;
     }
   }
 
@@ -520,6 +542,10 @@ export class FileShareService {
         filename = "download";
       }
 
+      // 添加文件类型检测
+      const fileType = await GetFileType(filename, this.db);
+      const fileTypeName = await getFileTypeName(filename, this.db);
+
       // 构建元数据对象
       metadata = {
         url: url,
@@ -529,6 +555,8 @@ export class FileShareService {
         lastModified: lastModified,
         method: method,
         corsSupported: corsSupported,
+        type: fileType, // 整数类型常量 (0-6)
+        typeName: fileTypeName, // 类型名称（用于调试）
       };
 
       return metadata;
@@ -736,6 +764,10 @@ export class FileShareService {
       // 6. 提交后清理工作
       await this._postCommitCleanup(fileRecord, config);
 
+      // 7. 添加文件类型信息
+      const fileType = await GetFileType(fileRecord.filename, this.db);
+      const fileTypeName = await getFileTypeName(fileRecord.filename, this.db);
+
       return {
         success: true,
         fileId: fileId,
@@ -745,6 +777,8 @@ export class FileShareService {
         etag: completeResult.etag,
         url: `/file/${fileRecord.slug}`,
         s3Url: completeResult.s3Url,
+        type: fileType, // 整数类型常量 (0-6)
+        typeName: fileTypeName, // 类型名称（用于调试）
       };
     } catch (error) {
       console.error("URL分片上传完成失败:", error);

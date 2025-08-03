@@ -1,18 +1,13 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
-import AdminLogin from "../components/adminManagement/AdminLogin.vue";
-import AdminPanel from "../components/adminManagement/AdminPanel.vue";
-import { useAuthStore } from "../stores/authStore.js";
+import { computed, onMounted, onBeforeUnmount } from "vue";
+import AdminLogin from "../components/admin/AdminLogin.vue";
+import { useAuthStore } from "@/stores/authStore.js";
 
-// 定义props，接收父组件传递的darkMode和路由参数
+// 定义props，接收父组件传递的darkMode
 const props = defineProps({
   darkMode: {
     type: Boolean,
     required: true,
-  },
-  activeModule: {
-    type: String,
-    default: "dashboard",
   },
 });
 
@@ -21,7 +16,6 @@ const authStore = useAuthStore();
 
 // 从Store获取状态的计算属性
 const isLoggedIn = computed(() => authStore.isAuthenticated);
-const loginType = computed(() => authStore.authType);
 const userPermissions = computed(() => ({
   isAdmin: authStore.isAdmin,
   text: authStore.hasTextPermission,
@@ -77,6 +71,6 @@ const handleLogout = async () => {
   <div class="h-screen flex flex-col">
     <!-- 根据登录状态显示登录页面或管理面板 -->
     <AdminLogin v-if="!isLoggedIn" :darkMode="darkMode" @login-success="handleLoginSuccess" class="flex-1" />
-    <AdminPanel v-else :darkMode="darkMode" :loginType="loginType" :permissions="userPermissions" :activeModule="activeModule" @logout="handleLogout" class="flex-1" />
+    <router-view v-else :dark-mode="darkMode" :permissions="userPermissions" @logout="handleLogout" class="flex-1" />
   </div>
 </template>

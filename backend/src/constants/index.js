@@ -33,6 +33,30 @@ export const ApiStatus = {
   INTERNAL_ERROR: 500,
 };
 
+// alist风格的文件类型常量
+export const FILE_TYPES = {
+  UNKNOWN: 0, // 未知文件
+  FOLDER: 1, // 文件夹
+  VIDEO: 2, // 视频文件
+  AUDIO: 3, // 音频文件
+  TEXT: 4, // 文本文件
+  IMAGE: 5, // 图片文件
+  OFFICE: 6, // Office文档
+  DOCUMENT: 7, // 文档文件
+};
+
+// 文件类型名称映射
+export const FILE_TYPE_NAMES = {
+  [FILE_TYPES.UNKNOWN]: "unknown",
+  [FILE_TYPES.FOLDER]: "folder",
+  [FILE_TYPES.VIDEO]: "video",
+  [FILE_TYPES.AUDIO]: "audio",
+  [FILE_TYPES.TEXT]: "text",
+  [FILE_TYPES.IMAGE]: "image",
+  [FILE_TYPES.OFFICE]: "office",
+  [FILE_TYPES.DOCUMENT]: "document",
+};
+
 // S3提供商类型常量
 export const S3ProviderTypes = {
   R2: "Cloudflare R2",

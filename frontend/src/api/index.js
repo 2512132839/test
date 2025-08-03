@@ -16,7 +16,7 @@ import * as mountService from "./services/mountService";
 import * as systemService from "./services/systemService";
 import * as urlUploadService from "./services/urlUploadService";
 import * as fsService from "./services/fsService";
-import * as previewService from "./services/previewService";
+import * as fileViewService from "./services/fileViewService";
 
 // 统一服务导出 - 按功能模块重新组织
 export const api = {
@@ -36,8 +36,8 @@ export const api = {
     batchDeleteFiles: fileService.batchDeleteFiles,
   },
 
-  // 文件预览相关
-  preview: previewService,
+  // 文件分享查看相关（包含预览功能）
+  fileView: fileViewService,
 
   // 存储配置相关
   storage: storageService,
@@ -45,12 +45,15 @@ export const api = {
   // 挂载点管理相关
   mount: mountService,
 
-  // 系统管理相关
+  // 系统管理相关（统一使用分组CRUD架构）
   system: {
     ...systemService,
-    // 代理签名设置
-    getProxySignSettings: systemService.getProxySignSettings,
-    updateProxySignSettings: systemService.updateProxySignSettings,
+    // 分组设置管理
+    getSettingsByGroup: systemService.getSettingsByGroup,
+    getAllSettingsByGroups: systemService.getAllSettingsByGroups,
+    updateGroupSettings: systemService.updateGroupSettings,
+    getGroupsInfo: systemService.getGroupsInfo,
+    getSettingMetadata: systemService.getSettingMetadata,
   },
 
   // URL上传相关
@@ -91,9 +94,8 @@ export const api = {
     setDefaultS3Config: storageService.setDefaultS3Config,
     testS3Config: storageService.testS3Config,
 
-    // 系统管理
-    getSystemSettings: systemService.getSystemSettings,
-    updateSystemSettings: systemService.updateSystemSettings,
+    // 系统管理（已重构为分组CRUD架构）
+    // 旧API已删除，请使用 api.system.* 的新分组API
     getDashboardStats: systemService.getDashboardStats,
     getCacheStats: systemService.getCacheStats,
     clearCache: systemService.clearCacheAdmin,

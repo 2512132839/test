@@ -4,7 +4,7 @@
  *
  */
 
-import { formatFileSize as formatFileSizeUtil } from "./mimeUtils.js";
+import { formatFileSize as formatFileSizeUtil } from "./fileTypes.js";
 
 /**
  * 使用fetch API下载文件并保存
@@ -58,7 +58,7 @@ export async function getAuthHeaders() {
 
   try {
     // 使用认证Store获取认证信息
-    const { useAuthStore } = await import("../stores/authStore.js");
+    const { useAuthStore } = await import("@/stores/authStore.js");
     const authStore = useAuthStore();
 
     if (authStore.isAuthenticated) {

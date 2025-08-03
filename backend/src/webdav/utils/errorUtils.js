@@ -83,6 +83,18 @@ export function handleWebDAVError(operation, error, includeDetails = false, useX
 
   // 记录错误信息
   console.error(`WebDAV ${operation} 操作错误 [${errorId}]:`, error);
+  
+  if (error.status && typeof error.status === "number") {
+    const statusCode = error.status;
+    const message = error.message || `${operation}操作失败`;
+
+    return useXmlResponse
+      ? createStandardWebDAVErrorResponse(message, statusCode)
+      : new Response(message, {
+          status: statusCode,
+          headers: { "Content-Type": "text/plain" },
+        });
+  }
 
   // 特殊处理S3的404错误
   if (error.$metadata && error.$metadata.httpStatusCode === 404) {

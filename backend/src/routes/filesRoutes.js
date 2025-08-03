@@ -117,7 +117,7 @@ app.get("/api/public/files/:slug", async (c) => {
           if (fileStillExists) {
             console.log(`文件(${file.id})达到最大访问次数但未被删除，再次尝试删除...`);
             // 导入并使用 checkAndDeleteExpiredFile 函数
-            const { checkAndDeleteExpiredFile } = await import("../routes/fileViewRoutes.js");
+            const { checkAndDeleteExpiredFile } = await import("../services/fileViewService.js");
             await checkAndDeleteExpiredFile(db, result.file, encryptionSecret);
           }
         } catch (error) {
@@ -130,7 +130,7 @@ app.get("/api/public/files/:slug", async (c) => {
       const urlsObj = await generateFileDownloadUrl(db, result.file, encryptionSecret, c.req.raw);
 
       // 构建公开信息
-      const publicInfo = getPublicFileInfo(result.file, requiresPassword, urlsObj);
+      const publicInfo = await getPublicFileInfo(result.file, requiresPassword, urlsObj);
 
       return c.json({
         code: ApiStatus.SUCCESS,
@@ -140,7 +140,7 @@ app.get("/api/public/files/:slug", async (c) => {
       });
     } else {
       // 文件需要密码验证，只返回基本信息
-      const publicInfo = getPublicFileInfo(file, true);
+      const publicInfo = await getPublicFileInfo(file, true);
 
       return c.json({
         code: ApiStatus.SUCCESS,
@@ -211,7 +211,7 @@ app.post("/api/public/files/:slug/verify", async (c) => {
         if (fileStillExists) {
           console.log(`文件(${file.id})达到最大访问次数但未被删除，再次尝试删除...`);
           // 导入并使用 checkAndDeleteExpiredFile 函数
-          const { checkAndDeleteExpiredFile } = await import("../routes/fileViewRoutes.js");
+          const { checkAndDeleteExpiredFile } = await import("../services/fileViewService.js");
           await checkAndDeleteExpiredFile(db, result.file, encryptionSecret);
         }
       } catch (error) {
@@ -238,8 +238,8 @@ app.post("/api/public/files/:slug/verify", async (c) => {
       }
     }
 
-    // 使用getPublicFileInfo函数构建完整的响应，包括代理链接
-    const publicInfo = getPublicFileInfo(fileWithPassword, false, urlsObj);
+    // 使用getPublicFileInfo函数构建完整的响应，包括代理链接和type字段
+    const publicInfo = await getPublicFileInfo(fileWithPassword, false, urlsObj);
 
     return c.json({
       code: ApiStatus.SUCCESS,

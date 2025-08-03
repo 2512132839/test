@@ -16,7 +16,7 @@ import {
   isOffice as checkIsOffice,
   canPreview as checkCanPreview,
   quickDetect,
-} from "../../utils/mimeUtils.js";
+} from "@/utils/mimeUtils.js";
 
 export function usePreviewTypes() {
   // ===== 文件类型检测方法（完全按照原版本逻辑） =====

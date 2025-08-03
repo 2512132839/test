@@ -7,9 +7,9 @@ import { computed, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { useFileBasketStore } from "../../stores/fileBasketStore.js";
-import { useAuthStore } from "../../stores/authStore.js";
+import { useAuthStore } from "@/stores/authStore.js";
 import { useTaskManager } from "../../utils/taskManager.js";
-import { api } from "../../api/index.js";
+import { api } from "@/api";
 
 export function useFileBasket() {
   const { t } = useI18n();

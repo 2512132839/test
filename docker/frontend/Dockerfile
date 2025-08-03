@@ -3,6 +3,9 @@ FROM node:18.18-alpine AS build
 
 WORKDIR /app
 
+# 安装必要的系统依赖
+RUN apk add --no-cache git
+
 # 复制前端package.json
 COPY frontend/package.json ./
 

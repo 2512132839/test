@@ -50,6 +50,10 @@ export default {
       mountManagement: "挂载管理",
       keyManagement: "密钥管理",
       settings: "系统设置",
+      globalSettings: "全局设置",
+      previewSettings: "预览设置",
+      accountSettings: "账号管理",
+      webdavSettings: "WebDAV设置",
     },
   },
   nav: {
@@ -67,6 +71,14 @@ export default {
   },
   footer: {
     copyright: "© {year} CloudPaste. 保留所有权利。",
+  },
+  textPreview: {
+    loadingHighlight: "正在加载代码高亮...",
+    loadingEditor: "正在加载编辑器...",
+    loadingMarkdown: "正在渲染Markdown...",
+    fallbackEditor: "编辑器加载失败，使用简单文本编辑器...",
+    markdownRenderFailed: "Markdown渲染失败",
+    editorInitFailed: "编辑器初始化失败",
   },
   language: {
     toggle: "切换语言",

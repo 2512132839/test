@@ -1,12 +1,12 @@
 /**
- * 文件上传 Composable - 根本性重构版本
+ * 文件上传 Composable
  * 彻底解决进度计算和状态管理问题
  */
 
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../../api/index.js";
-import { useAuthStore } from "../../stores/authStore.js";
+import { api } from "@/api";
+import { useAuthStore } from "@/stores/authStore.js";
 import { useGlobalMessage } from "../core/useGlobalMessage.js";
 
 export function useFileUpload() {

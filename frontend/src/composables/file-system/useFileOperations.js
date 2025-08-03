@@ -5,9 +5,9 @@
 
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../../api/index.js";
-import { downloadFileWithAuth } from "../../utils/fileUtils.js";
-import { copyToClipboard } from "../../utils/clipboard.js";
+import { api } from "@/api";
+import { downloadFileWithAuth } from "@/utils/fileUtils.js";
+import { copyToClipboard } from "@/utils/clipboard.js";
 
 export function useFileOperations() {
   const { t } = useI18n();

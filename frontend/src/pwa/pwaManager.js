@@ -624,8 +624,9 @@ class PWAManager {
         return await post("/api/pastes/clear-expired", data);
 
       // ⚙️ 系统管理操作
-      case "updateSystemSettings":
-        return await put("/api/admin/system-settings", data);
+      case "updateGroupSettings":
+        // endpoint 应该是 /api/admin/settings/group/:groupId
+        return await put(endpoint, data);
       case "clearCache":
         return await post("/api/admin/cache/clear", data);
 

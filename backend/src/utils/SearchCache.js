@@ -219,35 +219,6 @@ class SearchCacheManager extends BaseCache {
     return count;
   }
 
-  /**
-   * 清理指定挂载点的搜索缓存
-   * @param {string} mountId - 挂载点ID
-   * @returns {number} 清理的缓存项数量
-   */
-  invalidateMount(mountId) {
-    let clearedCount = 0;
-
-    // 遍历所有缓存项，删除包含指定挂载点的搜索结果
-    for (const [key, item] of this.cache.entries()) {
-      // 正确的数据结构访问：item.data.searchParams 或 item.searchParams（额外数据）
-      const searchParams = item.data?.searchParams || item.searchParams;
-
-      // 检查搜索参数中是否包含该挂载点
-      if (searchParams && searchParams.mountId === mountId) {
-        this.cache.delete(key);
-        clearedCount++;
-      }
-    }
-
-    if (clearedCount > 0) {
-      this.stats.invalidations += clearedCount;
-      console.log(`挂载点搜索缓存已失效 - 挂载点:${mountId}, 删除项:${clearedCount}`);
-    }
-
-    return clearedCount;
-  }
-
-  // prune() 和 getStats() 方法已由基类提供，无需重复实现
 }
 
 // 创建单例实例 - 复用DirectoryCache的单例模式

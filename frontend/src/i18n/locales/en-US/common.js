@@ -47,6 +47,10 @@ export default {
       mountManagement: "Mount Management",
       keyManagement: "Key Management",
       settings: "System Settings",
+      globalSettings: "Global Settings",
+      previewSettings: "Preview Settings",
+      accountSettings: "Account Management",
+      webdavSettings: "WebDAV Settings",
     },
   },
   nav: {
@@ -64,6 +68,14 @@ export default {
   },
   footer: {
     copyright: "© {year} CloudPaste. All rights reserved.",
+  },
+  textPreview: {
+    loadingHighlight: "Loading code highlighting...",
+    loadingEditor: "Loading editor...",
+    loadingMarkdown: "Rendering Markdown...",
+    fallbackEditor: "Editor failed to load, using simple text editor...",
+    markdownRenderFailed: "Markdown rendering failed",
+    editorInitFailed: "Editor initialization failed",
   },
   language: {
     toggle: "Toggle language",

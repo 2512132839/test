@@ -27,6 +27,8 @@ export default {
     // Password verification
     password: {
       title: "Please enter access password",
+      description: "This file is password protected, please enter the password to view the content",
+      label: "Password",
       placeholder: "Enter password",
       submit: "Confirm",
       error: "Incorrect password, please try again",

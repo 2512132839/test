@@ -561,8 +561,8 @@ export async function handlePropfind(c, path, userId, userType, db) {
       userIdOrInfo = userId;
       actualUserType = "admin";
     } else if (userType === "apiKey") {
-      // 对于API密钥用户，userId已经是完整的信息对象
-      if (typeof userId === "object") {
+      // 对于API密钥用户，userId应该是完整的信息对象
+      if (typeof userId === "object" && userId !== null) {
         userIdOrInfo = {
           id: userId.id,
           name: userId.name,
@@ -695,19 +695,66 @@ async function handleStoragePropfind(fileSystem, path, requestInfo, userIdOrInfo
 
     if (requestInfo.depth === "0") {
       // 只获取当前资源信息
-      const fileInfo = await fileSystem.getFileInfo(path, userIdOrInfo, actualUserType);
-      result = {
-        path: path,
-        isDirectory: fileInfo.isDirectory,
-        name: fileInfo.name,
-        size: fileInfo.size,
-        modified: fileInfo.modified,
-        created: fileInfo.created,
-        items: [], // depth=0时不包含子项
-      };
+      try {
+        const fileInfo = await fileSystem.getFileInfo(path, userIdOrInfo, actualUserType);
+        result = {
+          path: path,
+          isDirectory: fileInfo.isDirectory,
+          name: fileInfo.name,
+          size: fileInfo.size,
+          modified: fileInfo.modified,
+          created: fileInfo.created,
+          items: [], // depth=0时不包含子项
+        };
+      } catch (error) {
+        // nginx风格便利功能：如果资源不存在，尝试自动创建目录
+        if (error.status === 404) {
+          console.log(`WebDAV PROPFIND - 资源不存在，尝试自动创建目录: ${path}`);
+          try {
+            await fileSystem.createDirectory(path, userIdOrInfo, actualUserType);
+            console.log(`WebDAV PROPFIND - 自动创建目录成功: ${path}`);
+
+            // 重新获取文件信息
+            const fileInfo = await fileSystem.getFileInfo(path, userIdOrInfo, actualUserType);
+            result = {
+              path: path,
+              isDirectory: fileInfo.isDirectory,
+              name: fileInfo.name,
+              size: fileInfo.size,
+              modified: fileInfo.modified,
+              created: fileInfo.created,
+              items: [],
+            };
+          } catch (createError) {
+            console.log(`WebDAV PROPFIND - 自动创建目录失败，返回原始404错误: ${createError.message}`);
+            throw error; // 返回原始的404错误
+          }
+        } else {
+          throw error;
+        }
+      }
     } else if (requestInfo.depth === "1") {
       // 获取当前资源和直接子项
-      result = await fileSystem.listDirectory(path, userIdOrInfo, actualUserType);
+      try {
+        result = await fileSystem.listDirectory(path, userIdOrInfo, actualUserType);
+      } catch (error) {
+        // 风格便利功能：如果目录不存在，尝试自动创建
+        if (error.status === 404) {
+          console.log(`WebDAV PROPFIND - 目录不存在，尝试自动创建: ${path}`);
+          try {
+            await fileSystem.createDirectory(path, userIdOrInfo, actualUserType);
+            console.log(`WebDAV PROPFIND - 自动创建目录成功: ${path}`);
+
+            // 重新列出目录
+            result = await fileSystem.listDirectory(path, userIdOrInfo, actualUserType);
+          } catch (createError) {
+            console.log(`WebDAV PROPFIND - 自动创建目录失败，返回原始404错误: ${createError.message}`);
+            throw error; // 返回原始的404错误
+          }
+        } else {
+          throw error;
+        }
+      }
     } else {
       // infinity深度 - 大多数服务器会拒绝此请求
       return createErrorResponse("/dav" + path, 403, "Depth infinity is not supported for performance reasons");

@@ -154,6 +154,10 @@ export async function getUrlUploadPresignedUrl(options) {
     if (options.slug) data.slug = options.slug;
     if (options.remark) data.remark = options.remark;
     if (options.path) data.path = options.path;
+    if (options.password) data.password = options.password;
+    if (options.expires_in !== undefined) data.expires_in = options.expires_in;
+    if (options.max_views !== undefined) data.max_views = options.max_views;
+    if (options.use_proxy !== undefined) data.use_proxy = options.use_proxy;
 
     return await post("url/presign", data);
   } catch (error) {

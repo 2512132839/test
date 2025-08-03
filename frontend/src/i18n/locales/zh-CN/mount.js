@@ -106,6 +106,8 @@ export default {
       pageLoadFailed: "页面加载失败",
       pageLoadFailedRetry: "页面加载失败，请刷新重试",
       previewLoadFailed: "预览加载失败",
+      fileSaveSuccess: "文件 {name} 保存成功",
+      fileSaveFailed: "文件保存失败",
     },
     filePreview: {
       downloadFile: "下载文件",
@@ -152,8 +154,9 @@ export default {
       fileContentTooLarge: "文件内容过大，超过服务器限制",
       noPermissionUpdate: "没有权限更新该文件",
       serverNoResponse: "服务器无响应，请检查网络连接",
-      fileCreated: "文件创建成功",
-      fileUpdated: "文件更新成功",
+      saveFileShortcut: "保存文件 (Ctrl+S)",
+      rightClickHint: "右键编辑器查看更多功能（插入时间戳、文本统计、格式化等）",
+      cannotGetEditorContent: "无法获取编辑器内容",
     },
     audioPreview: {
       loadingAudio: "正在加载音频...",
@@ -163,7 +166,9 @@ export default {
       loadingVideo: "正在加载视频...",
       videoPlayer: "视频播放器",
     },
-
+    textPreview: {
+      loadingText: "正在加载文本内容...",
+    },
     uploadModal: {
       title: "上传文件",
       uploadMethod: "上传方式:",

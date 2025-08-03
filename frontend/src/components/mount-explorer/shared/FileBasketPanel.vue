@@ -158,7 +158,7 @@ import { ref, computed, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { useFileBasket } from "../../../composables/file-system/useFileBasket.js";
-import { formatFileSize } from "../../../utils/fileUtils.js";
+import { formatFileSize } from "@/utils/fileUtils.js";
 import { getFileIcon } from "../../../utils/fileTypeIcons.js";
 
 const { t } = useI18n();

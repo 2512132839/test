@@ -6,7 +6,7 @@
 import { MountManager } from "../../storage/managers/MountManager.js";
 import { FileSystem } from "../../storage/fs/FileSystem.js";
 import { handleWebDAVError, createWebDAVErrorResponse } from "../utils/errorUtils.js";
-import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
+import { getEffectiveMimeType } from "../../utils/fileUtils.js";
 
 /**
  * 处理GET请求
@@ -26,7 +26,7 @@ export async function handleGet(c, path, userId, userType, db) {
 
     // 获取文件名并统一从文件名推断MIME类型
     const fileName = path.split("/").pop();
-    const contentType = getMimeTypeFromFilename(fileName);
+    const contentType = getEffectiveMimeType(null, fileName);
     console.log(`WebDAV GET - 从文件名[${fileName}]推断MIME类型: ${contentType}`);
 
     // 处理条件请求头

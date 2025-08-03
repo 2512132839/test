@@ -6,47 +6,6 @@
 import { get, post, put } from "../client";
 
 /******************************************************************************
- * 系统设置API
- ******************************************************************************/
-
-/**
- * 获取系统设置
- * @returns {Promise<Object>} 系统设置响应
- */
-export function getSystemSettings() {
-  return get("/admin/system-settings");
-}
-
-/**
- * 更新系统设置
- * @param {Object} settings - 要更新的设置
- * @param {number} [settings.max_upload_size] - 最大上传大小(MB)，前端可能会根据不同单位(KB/MB/GB)转换后再传入
- * @returns {Promise<Object>} 更新结果
- */
-export function updateSystemSettings(settings) {
-  return put("/admin/system-settings", settings);
-}
-
-/**
- * 获取代理签名设置
- * @returns {Promise<Object>} 代理签名设置响应
- */
-export function getProxySignSettings() {
-  return get("/admin/proxy-sign-settings");
-}
-
-/**
- * 更新代理签名设置
- * @param {Object} settings - 代理签名设置
- * @param {boolean} settings.signAll - 是否签名所有
- * @param {number} settings.expires - 签名过期时间（秒）
- * @returns {Promise<Object>} 更新结果
- */
-export function updateProxySignSettings(settings) {
-  return post("/admin/proxy-sign-settings", settings);
-}
-
-/******************************************************************************
  * 仪表盘统计API
  ******************************************************************************/
 
@@ -77,6 +36,67 @@ export async function getMaxUploadSize() {
     console.error("获取最大上传大小失败:", error);
     return 100; // 出错时返回默认值
   }
+}
+
+/******************************************************************************
+ * 分组设置管理API
+ ******************************************************************************/
+
+/**
+ * 按分组获取设置项
+ * @param {number} groupId - 分组ID
+ * @param {boolean} includeMetadata - 是否包含元数据
+ * @returns {Promise<Object>} 分组设置响应
+ */
+export function getSettingsByGroup(groupId, includeMetadata = true) {
+  const params = new URLSearchParams();
+  params.append("group", groupId.toString());
+  if (!includeMetadata) {
+    params.append("metadata", "false");
+  }
+  return get(`/admin/settings?${params.toString()}`);
+}
+
+/**
+ * 获取所有分组的设置项
+ * @param {boolean} includeSystemGroup - 是否包含系统内部分组
+ * @returns {Promise<Object>} 所有分组设置响应
+ */
+export function getAllSettingsByGroups(includeSystemGroup = false) {
+  const params = new URLSearchParams();
+  if (includeSystemGroup) {
+    params.append("includeSystem", "true");
+  }
+  return get(`/admin/settings?${params.toString()}`);
+}
+
+/**
+ * 获取分组列表和统计信息
+ * @returns {Promise<Object>} 分组信息响应
+ */
+export function getGroupsInfo() {
+  return get("/admin/settings/groups");
+}
+
+/**
+ * 获取设置项元数据
+ * @param {string} key - 设置键名
+ * @returns {Promise<Object>} 设置元数据响应
+ */
+export function getSettingMetadata(key) {
+  return get(`/admin/settings/metadata?key=${encodeURIComponent(key)}`);
+}
+
+/**
+ * 按分组批量更新设置
+ * @param {number} groupId - 分组ID
+ * @param {Object} settings - 设置键值对
+ * @param {boolean} validateType - 是否进行类型验证
+ * @returns {Promise<Object>} 更新结果
+ */
+export function updateGroupSettings(groupId, settings, validateType = true) {
+  const params = validateType ? "" : "?validate=false";
+  return put(`/admin/settings/group/${groupId}${params}`, settings);
 }
 
 /******************************************************************************

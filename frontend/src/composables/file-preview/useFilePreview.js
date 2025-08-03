@@ -5,8 +5,8 @@
 
 import { ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { api } from "../../api/index.js";
-import { useAuthStore } from "../../stores/authStore.js";
+import { api } from "@/api";
+import { useAuthStore } from "@/stores/authStore.js";
 
 export function useFilePreview() {
   const route = useRoute();

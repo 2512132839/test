@@ -2,8 +2,8 @@
  * 文件搜索组合式函数
  */
 import { ref, computed, watch } from "vue";
-import { useAuthStore } from "../../stores/authStore.js";
-import { api } from "../../api/index.js";
+import { useAuthStore } from "@/stores/authStore.js";
+import { api } from "@/api";
 import { useI18n } from "vue-i18n";
 
 export function useFileSearch() {

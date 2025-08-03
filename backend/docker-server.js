@@ -16,8 +16,9 @@ import crypto from "crypto"; // 添加用于生成随机文件名
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
 import app from "./src/index.js";
-import { handleFileDownload } from "./src/routes/fileViewRoutes.js";
 import { ApiStatus } from "./src/constants/index.js";
+
+import { getWebDAVConfig } from "./src/webdav/auth/index.js";
 
 // ES模块兼容性处理：获取__dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -235,49 +236,20 @@ const sqliteAdapter = createSQLiteAdapter(dbPath);
 let isDbInitialized = false;
 
 // ==========================================
-// WebDAV支持配置 - 集中WebDAV相关定义
+// WebDAV统一认证系统配置
 // ==========================================
 
-// WebDAV支持的HTTP方法
-const WEBDAV_METHODS = ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"];
+// 获取WebDAV配置
+const webdavConfig = getWebDAVConfig();
 
-/**
- * 判断是否为WebDAV客户端
- * @param {string} userAgent - 用户代理字符串
- * @returns {boolean} 是否为WebDAV客户端
- */
-function isWebDAVClient(userAgent) {
-  // Windows WebDAV客户端
-  if (userAgent.includes("Microsoft-WebDAV-MiniRedir") || (userAgent.includes("Windows") && userAgent.includes("WebDAV"))) {
-    return true;
-  }
-
-  // Dart WebDAV客户端 (AuthPass等)
-  if (userAgent.includes("Dart/") && userAgent.includes("dart:io")) {
-    return true;
-  }
-
-  // 常见WebDAV客户端
-  if (userAgent.includes("WebDAVLib") || userAgent.includes("WebDAVFS") || userAgent.includes("davfs") || userAgent.includes("gvfs") || userAgent.includes("WinSCP")) {
-    return true;
-  }
-
-  // MacOS客户端
-  if ((userAgent.includes("Darwin") || userAgent.includes("Mac")) && (userAgent.includes("WebDAV") || userAgent.includes("Finder"))) {
-    return true;
-  }
-
-  return false;
-}
-
-// CORS配置 - WebDAV方法支持
+// CORS配置 - 使用统一配置
 const corsOptions = {
-  origin: "*", // 允许的域名，如果未设置则允许所有
-  methods: WEBDAV_METHODS.join(","), // 使用上面定义的WebDAV方法
+  origin: webdavConfig.CORS.ALLOW_ORIGIN,
+  methods: webdavConfig.SUPPORTED_METHODS.join(","),
   credentials: true,
   optionsSuccessStatus: 204,
-  maxAge: 86400, // 缓存预检请求结果24小时
-  exposedHeaders: ["ETag", "Content-Type", "Content-Length", "Last-Modified"],
+  maxAge: 86400,
+  exposedHeaders: webdavConfig.CORS.ALLOW_HEADERS,
 };
 
 // ==========================================
@@ -285,7 +257,7 @@ const corsOptions = {
 // ==========================================
 
 // 明确告知Express处理WebDAV方法
-WEBDAV_METHODS.forEach((method) => {
+webdavConfig.SUPPORTED_METHODS.forEach((method) => {
   server[method.toLowerCase()] = function (path, ...handlers) {
     return server.route(path).all(function (req, res, next) {
       if (req.method === method) {
@@ -297,7 +269,7 @@ WEBDAV_METHODS.forEach((method) => {
 });
 
 // 为WebDAV方法添加直接路由，确保它们能被正确处理
-WEBDAV_METHODS.forEach((method) => {
+webdavConfig.SUPPORTED_METHODS.forEach((method) => {
   server[method.toLowerCase()]("/dav*", (req, res, next) => {
     logMessage("debug", `直接WebDAV路由处理: ${method} ${req.path}`);
     next();
@@ -316,17 +288,17 @@ server.use(methodOverride("X-HTTP-Method"));
 server.use(methodOverride("X-Method-Override"));
 server.disable("x-powered-by");
 
-// WebDAV基础方法支持
+// WebDAV基础方法支持 - 使用统一配置
 server.use((req, res, next) => {
   if (req.path.startsWith("/dav")) {
-    res.setHeader("Access-Control-Allow-Methods", WEBDAV_METHODS.join(","));
-    res.setHeader("Allow", WEBDAV_METHODS.join(","));
+    res.setHeader("Access-Control-Allow-Methods", webdavConfig.SUPPORTED_METHODS.join(","));
+    res.setHeader("Allow", webdavConfig.SUPPORTED_METHODS.join(","));
 
     // 对于OPTIONS请求，直接响应以支持预检请求
     if (req.method === "OPTIONS") {
       // 添加WebDAV特定的响应头
-      res.setHeader("DAV", "1,2");
-      res.setHeader("MS-Author-Via", "DAV");
+      res.setHeader("DAV", webdavConfig.PROTOCOL.RESPONSE_HEADERS.DAV);
+      res.setHeader("MS-Author-Via", webdavConfig.PROTOCOL.RESPONSE_HEADERS["MS-Author-Via"]);
       return res.status(204).end();
     }
   }
@@ -460,7 +432,7 @@ server.use((err, req, res, next) => {
     });
   }
 
-  // 增强：处理内容类型解析错误
+  // 处理内容类型错误
   if (err.status === 415 || (err.message && err.message.includes("content type"))) {
     logMessage("error", `内容类型错误:`, {
       method: req.method,
@@ -504,45 +476,18 @@ server.use((req, res, next) => {
   next();
 });
 
-// WebDAV详细处理中间件
+// WebDAV请求日志记录 - 认证由Hono层处理
 server.use("/dav", (req, res, next) => {
   // 明确设置允许的方法
-  res.setHeader("Allow", WEBDAV_METHODS.join(","));
+  res.setHeader("Allow", webdavConfig.SUPPORTED_METHODS.join(","));
 
-  // 仅在INFO级别记录关键WebDAV请求信息
+  // 记录WebDAV请求信息
   logMessage("info", `WebDAV请求: ${req.method} ${req.path}`, {
     contentType: req.headers["content-type"] || "无",
     contentLength: req.headers["content-length"] || "无",
   });
 
-  // 针对MKCOL方法的特殊处理
-  if (req.method === "MKCOL") {
-    // 仅记录Windows客户端的MKCOL请求
-    if ((req.headers["user-agent"] || "").includes("Microsoft") || (req.headers["user-agent"] || "").includes("Windows")) {
-      logMessage("debug", `Windows客户端的MKCOL请求: ${req.path}`);
-    }
-  }
-
-  // 处理无认证的WebDAV客户端请求
-  const userAgent = req.headers["user-agent"] || "";
-  if (!req.headers.authorization && isWebDAVClient(userAgent)) {
-    logMessage("info", `WebDAV请求: 检测到无认证WebDAV客户端，发送认证挑战: ${userAgent.substring(0, 30)}...`);
-
-    // 根据客户端类型设置不同的WWW-Authenticate头
-    if (userAgent.includes("Dart/") && userAgent.includes("dart:io")) {
-      // Dart客户端需要更简单的认证头格式
-      logMessage("debug", "WebDAV认证: 为Dart客户端提供简化的认证头");
-      res.setHeader("WWW-Authenticate", 'Basic realm="WebDAV"');
-    } else {
-      // 默认格式，支持Basic和Bearer认证
-      res.setHeader("WWW-Authenticate", 'Basic realm="WebDAV", Bearer realm="WebDAV"');
-    }
-
-    // 返回401状态码，符合WebDAV标准
-    res.status(401).send("Authentication required for WebDAV access");
-    return;
-  }
-
+  // 直接传递给下一个中间件，认证由Hono层的webdavAuthMiddleware处理
   next();
 });
 
@@ -578,39 +523,7 @@ server.use(async (req, res, next) => {
 // 路由处理
 // ==========================================
 
-/**
- * 文件下载路由处理
- * 支持文件下载和预览功能
- */
-server.get("/api/file-download/:slug", async (req, res) => {
-  try {
-    const response = await handleFileDownload(req.params.slug, req.env, createAdaptedRequest(req), true);
-    await convertWorkerResponseToExpress(response, res);
-  } catch (error) {
-    logMessage("error", "文件下载错误:", { error });
-    res.status(ApiStatus.INTERNAL_ERROR).json(createErrorResponse(error, ApiStatus.INTERNAL_ERROR, "文件下载失败"));
-  }
-});
 
-server.get("/api/file-view/:slug", async (req, res) => {
-  try {
-    const response = await handleFileDownload(req.params.slug, req.env, createAdaptedRequest(req), false);
-    await convertWorkerResponseToExpress(response, res);
-  } catch (error) {
-    logMessage("error", "文件预览错误:", { error });
-    res.status(ApiStatus.INTERNAL_ERROR).json(createErrorResponse(error, ApiStatus.INTERNAL_ERROR, "文件预览失败"));
-  }
-});
-
-server.get("/api/office-preview/:slug", async (req, res) => {
-  try {
-    const response = await app.fetch(createAdaptedRequest(req), req.env, {});
-    await convertWorkerResponseToExpress(response, res);
-  } catch (error) {
-    logMessage("error", "Office预览URL生成错误:", { error });
-    res.status(ApiStatus.INTERNAL_ERROR).json(createErrorResponse(error, ApiStatus.INTERNAL_ERROR, "Office预览URL生成失败"));
-  }
-});
 
 // 通配符路由 - 处理所有其他API请求
 server.use("*", async (req, res) => {

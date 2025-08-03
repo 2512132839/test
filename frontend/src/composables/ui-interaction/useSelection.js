@@ -4,7 +4,7 @@
  */
 
 import { ref, computed } from "vue";
-import { formatFileSize } from "../../utils/fileUtils.js";
+import { formatFileSize } from "@/utils/fileUtils.js";
 
 export function useSelection() {
   // ===== 状态管理 =====

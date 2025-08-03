@@ -124,7 +124,7 @@
       <div class="file-item p-3 rounded-lg border transition-colors" :class="darkMode ? 'bg-gray-800/60 border-gray-700' : 'bg-gray-50 border-gray-200'">
         <div class="flex items-center">
           <div class="file-icon mr-3 p-1.5 rounded-lg" :class="darkMode ? 'bg-gray-700' : 'bg-white'">
-            <div class="h-8 w-8" v-html="getFileIconHtml(fileInfo.filename)"></div>
+            <div class="h-8 w-8" v-html="getFileIconClassLocal(fileInfo.filename)"></div>
           </div>
           <div class="file-info w-0 flex-grow mr-3">
             <div class="font-medium text-base truncate" :class="darkMode ? 'text-white' : 'text-gray-900'">
@@ -458,11 +458,10 @@
 <script setup>
 import { ref, reactive, defineProps, defineEmits, watch, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { api } from "../../api";
+import { api } from "@/api";
 // 导入文件类型工具
 import { getFileIcon } from "../../utils/fileTypeIcons";
-import { formatFileSize as formatFileSizeUtil, getDetailedFileType } from "../../utils/mimeUtils";
-// 导入URL验证API（后端增强检测）
+import { formatFileSize as formatFileSizeUtil } from "@/utils/fileTypes.js";
 import { validateUrlInfo } from "../../api/services/urlUploadService.js";
 
 const { t } = useI18n(); // 初始化i18n
@@ -536,17 +535,19 @@ const displayFileSize = computed(() => {
 const displayMimeType = computed(() => {
   if (!fileInfo.value) return null;
 
-  // 如果有明确的MIME类型且不是默认的application/octet-stream，使用它
+  // 优先显示 contentType，再显示后端的 typeName
   if (fileInfo.value.contentType && fileInfo.value.contentType !== "application/octet-stream") {
-    return getDetailedFileType(fileInfo.value.contentType, fileInfo.value.filename);
+    console.log("✅ 使用 contentType:", fileInfo.value.contentType);
+    return fileInfo.value.contentType;
   }
 
-  // 否则，尝试从文件名猜测MIME类型
-  if (fileInfo.value.filename) {
-    return getDetailedFileType("", fileInfo.value.filename);
+  // 如果 contentType 无效，使用后端返回的 typeName
+  if (fileInfo.value.typeName && fileInfo.value.typeName !== "unknown") {
+    console.log("✅ 使用 typeName:", fileInfo.value.typeName);
+    return fileInfo.value.typeName;
   }
 
-  // 如果无法猜测，不显示类型信息（返回null而不是"Unknown Type"）
+  // 最后回退：不显示类型信息
   return null;
 });
 
@@ -589,13 +590,12 @@ watch(
  * @param {string} filename - 文件名
  * @returns {string} SVG图标HTML字符串
  */
-const getFileIconHtml = (filename) => {
+const getFileIconClassLocal = (filename) => {
   if (!filename) return getDefaultFileIcon();
-
-  // 为了使用 getFileIcon 函数，需要构造一个模拟的文件项对象
   const mockFileItem = {
     name: filename,
     isDirectory: false,
+    type: fileInfo.value?.type || 0,
   };
 
   return getFileIcon(mockFileItem, props.darkMode);
@@ -650,12 +650,12 @@ const analyzeUrl = async () => {
         size: metadata.size,
         lastModified: metadata.lastModified,
         corsSupported: metadata.corsSupported,
-        // 兼容性字段
         mimetype: metadata.enhancedContentType || metadata.contentType,
-        // 增强检测信息
         detectionMethod: metadata.detectionMethod,
         detectionConfidence: metadata.detectionConfidence,
         fileTypeLibraryUsed: metadata.fileTypeLibraryUsed,
+        type: metadata.type,
+        typeName: metadata.typeName,
       };
 
       fileInfo.value = data;
@@ -904,6 +904,9 @@ const presignedDirectUpload = async () => {
       slug: formData.slug,
       remark: formData.remark,
       path: formData.path,
+      password: formData.password,
+      expires_in: Number(formData.expires_in),
+      max_views: formData.max_views,
       metadata: {
         source_url: urlInput.value,
       },
@@ -1085,7 +1088,7 @@ const chunkedMultipartUpload = async () => {
     currentStage.value = "uploading";
 
     const result = await api.urlUpload.performUrlMultipartUpload(urlInput.value, blob, uploadConfig, {
-      onProgress: (progress, uploadedBytes, totalBytes, speed) => {
+      onProgress: (progress, _uploadedBytes, _totalBytes, speed) => {
         // 上传占总进度的60%，40%~100%之间
         const adjustedProgress = 40 + Math.round(progress * 0.6);
         uploadProgress.value = Math.min(adjustedProgress, 100);

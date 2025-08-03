@@ -428,7 +428,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["close", "copy-complete"]);
+const emit = defineEmits(["close", "copy-started", "copy-complete"]);
 
 // 使用统一的文件系统API
 const fsApi = api.fs;
@@ -785,6 +785,17 @@ const confirmCopy = async () => {
 
     // 创建任务
     const { taskManager, taskId } = createCopyTask(props.selectedItems.length);
+
+    // 任务创建成功后立即发出复制开始事件
+    emit("copy-started", {
+      message: t("mount.taskManager.copyStarted", {
+        count: props.selectedItems.length,
+        path: currentPath.value,
+      }),
+      taskId: taskId,
+      itemCount: props.selectedItems.length,
+      targetPath: currentPath.value,
+    });
 
     // 任务创建成功后立即关闭模态框，让任务在后台执行
     emit("close");
