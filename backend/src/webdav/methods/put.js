@@ -698,31 +698,33 @@ export async function handlePut(c, path, userId, userType, db) {
       let s3Key = null;
 
       try {
-        // 初始化后端分片上传
-        const initResult = await fileSystem.initializeBackendMultipartUpload(path, userId, userType, contentType, declaredContentLength, filename);
+        // 直接使用真正的流式上传，跳过传统的初始化步骤
+        console.log(`WebDAV PUT - 直接使用流式上传，跳过初始化步骤`);
 
-        uploadId = initResult.uploadId;
-        s3Key = initResult.key;
-        const recommendedPartSize = initResult.recommendedPartSize || MULTIPART_THRESHOLD;
+        // 获取driver来构建S3 key
+        const { driver, mount, subPath } = await fileSystem.mountManager.getDriverByPath(path, userId, userType);
 
-        //分片上传管理器
-        const uploadContext = {
-          path,
-          userId,
-          userType,
-          uploadId,
-          s3Key,
-          recommendedPartSize,
+        // 构建S3 key（参考S3StorageDriver的_normalizeFilePath方法）
+        const s3Key = subPath.endsWith("/") ? subPath + filename : subPath + "/" + filename;
+
+        console.log(`WebDAV PUT - 使用S3 key: ${s3Key}`);
+
+        // 直接调用真正的流式上传
+        const streamingContext = {
+          key: s3Key,
         };
 
-        const uploadOptions = {
+        const streamingOptions = {
           contentLength: declaredContentLength,
           contentType,
-          isSpecialClient: clientInfo.isPotentiallyProblematicClient || clientInfo.isChunkedClient,
-          originalStream: bodyStream,
+          path: path,
+          userIdOrInfo: userId,
+          userType: userType,
         };
 
-        const { result: completeResult, totalProcessed, partCount } = await managedMultipartUpload(bodyStream, uploadContext, fileSystem, uploadOptions);
+        const uploadResult = await trueStreamingUpload(bodyStream, streamingContext, fileSystem, streamingOptions);
+
+        const { result: completeResult, totalProcessed, partCount } = uploadResult;
 
         // 检查上传数据是否完整
         if (declaredContentLength > 0 && totalProcessed < declaredContentLength) {
@@ -738,7 +740,6 @@ export async function handlePut(c, path, userId, userType, db) {
         }
 
         // 清理缓存
-        const { mount } = await mountManager.getDriverByPath(path, userId, userType);
         if (mount) {
           await clearDirectoryCache({ mountId: mount.id });
         }
