@@ -216,7 +216,7 @@ async function trueStreamingUpload(stream, uploadContext, fileSystem, options = 
 
     console.log(`WebDAV PUT - 使用S3 bucket: ${bucketName}, key: ${uploadContext.key}`);
 
-    // 创建Upload实例
+    // 创建Upload实例 - CPU优化配置
     const upload = new Upload({
       client: driver.s3Client,
       params: {
@@ -225,19 +225,20 @@ async function trueStreamingUpload(stream, uploadContext, fileSystem, options = 
         Body: stream, // 直接传递ReadableStream！
         ContentType: contentType,
       },
-      // 上传配置
-      queueSize: 3, // 最多3个分片并发上传
-      partSize: 5 * 1024 * 1024, // 5MB分片大小
+      // 激进CPU优化配置
+      queueSize: 1, // 串行上传，最小CPU争用
+      partSize: 20 * 1024 * 1024, // 20MB分片大小，大幅减少分片数量
       leavePartsOnError: false, // 出错时清理分片
     });
 
-    // 监听上传进度
+    // 监听上传进度 - 减少日志频率以降低CPU消耗
     let lastProgressLog = 0;
     upload.on("httpUploadProgress", (progress) => {
       const { loaded = 0, total = contentLength } = progress;
 
-      // 每20MB记录一次进度
-      if (loaded - lastProgressLog >= PROGRESS_LOG_INTERVAL) {
+      // 每50MB记录一次进度，减少CPU消耗
+      const REDUCED_LOG_INTERVAL = 50 * 1024 * 1024; // 50MB
+      if (loaded - lastProgressLog >= REDUCED_LOG_INTERVAL) {
         const progressMB = (loaded / (1024 * 1024)).toFixed(2);
         const totalMB = total > 0 ? (total / (1024 * 1024)).toFixed(2) : "未知";
         const percentage = total > 0 ? ((loaded / total) * 100).toFixed(1) : "未知";
@@ -698,6 +699,12 @@ export async function handlePut(c, path, userId, userType, db) {
       let s3Key = null;
 
       try {
+        // 检查文件大小限制（基于经验值）
+        const MAX_STREAMING_SIZE = 200 * 1024 * 1024; // 200MB限制
+        if (declaredContentLength > MAX_STREAMING_SIZE) {
+          throw new Error(`文件过大 (${(declaredContentLength / 1024 / 1024).toFixed(2)}MB)，超过流式上传限制 (${MAX_STREAMING_SIZE / 1024 / 1024}MB)`);
+        }
+
         // 直接使用真正的流式上传，跳过传统的初始化步骤
         console.log(`WebDAV PUT - 直接使用流式上传，跳过初始化步骤`);
 
