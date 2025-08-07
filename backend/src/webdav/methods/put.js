@@ -699,11 +699,6 @@ export async function handlePut(c, path, userId, userType, db) {
       let s3Key = null;
 
       try {
-        // 检查文件大小限制（基于经验值）
-        const MAX_STREAMING_SIZE = 200 * 1024 * 1024; // 200MB限制
-        if (declaredContentLength > MAX_STREAMING_SIZE) {
-          throw new Error(`文件过大 (${(declaredContentLength / 1024 / 1024).toFixed(2)}MB)，超过流式上传限制 (${MAX_STREAMING_SIZE / 1024 / 1024}MB)`);
-        }
 
         // 直接使用真正的流式上传，跳过传统的初始化步骤
         console.log(`WebDAV PUT - 直接使用流式上传，跳过初始化步骤`);
