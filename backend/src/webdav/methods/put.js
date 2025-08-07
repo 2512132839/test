@@ -6,8 +6,8 @@ import { MountManager } from "../../storage/managers/MountManager.js";
 import { FileSystem } from "../../storage/fs/FileSystem.js";
 import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
 import { handleWebDAVError } from "../utils/errorUtils.js";
-import { clearCache } from "../../utils/DirectoryCache.js";
-import { concatUint8Arrays } from "uint8array-extras";
+import { clearDirectoryCache } from "../../cache/index.js";
+
 import { getLockManager } from "../utils/LockManager.js";
 import { checkLockPermission } from "../utils/lockUtils.js";
 
@@ -54,17 +54,62 @@ function identifyClient(c) {
 }
 
 /**
- * 合并两个Uint8Array（使用优化的库函数）
- * @param {Uint8Array} arr1 - 第一个数组
- * @param {Uint8Array} arr2 - 第二个数组
+ * 高效合并缓冲区列表到指定大小
+ * @param {Uint8Array[]} bufferList - 缓冲区列表
+ * @param {number} targetSize - 目标大小
  * @returns {Uint8Array} 合并后的数组
  */
-function mergeUint8Arrays(arr1, arr2) {
-  return concatUint8Arrays([arr1, arr2]);
+function combineBuffers(bufferList, targetSize) {
+  const result = new Uint8Array(targetSize);
+  let offset = 0;
+  let remaining = targetSize;
+
+  for (const buffer of bufferList) {
+    if (remaining <= 0) break;
+
+    const copySize = Math.min(buffer.length, remaining);
+    result.set(buffer.subarray(0, copySize), offset);
+    offset += copySize;
+    remaining -= copySize;
+  }
+
+  return result;
 }
 
 /**
- * 确保数据是ArrayBuffer格式（简化版本）
+ * 移除已使用的缓冲区数据
+ * @param {Uint8Array[]} bufferList - 缓冲区列表
+ * @param {number} usedSize - 已使用的大小
+ * @returns {{remainingBuffers: Uint8Array[], remainingSize: number}} 剩余的缓冲区和大小
+ */
+function removeUsedBuffers(bufferList, usedSize) {
+  const remainingBuffers = [];
+  let remainingSize = 0;
+  let processedSize = 0;
+
+  for (const buffer of bufferList) {
+    if (processedSize + buffer.length <= usedSize) {
+      // 整个缓冲区都被使用了
+      processedSize += buffer.length;
+    } else if (processedSize < usedSize) {
+      // 部分缓冲区被使用了
+      const usedFromThisBuffer = usedSize - processedSize;
+      const remainingFromThisBuffer = buffer.subarray(usedFromThisBuffer);
+      remainingBuffers.push(remainingFromThisBuffer);
+      remainingSize += remainingFromThisBuffer.length;
+      processedSize = usedSize;
+    } else {
+      // 这个缓冲区完全没有被使用
+      remainingBuffers.push(buffer);
+      remainingSize += buffer.length;
+    }
+  }
+
+  return { remainingBuffers, remainingSize };
+}
+
+/**
+ * 确保数据是ArrayBuffer格式
  * @param {any} data - 输入数据
  * @returns {ArrayBuffer} ArrayBuffer格式的数据
  */
@@ -94,20 +139,18 @@ function checkSizeDifference(actualSize, declaredSize) {
 
 /**
  * 带重试机制的分片上传
- * @param {D1Database} db - 数据库实例
  * @param {string} path - 文件路径
  * @param {string} uploadId - 上传ID
  * @param {number} partNumber - 分片编号
  * @param {ArrayBuffer} partData - 分片数据
  * @param {string|Object} userIdOrInfo - 用户ID或信息
  * @param {string} userType - 用户类型
- * @param {string} encryptionSecret - 加密密钥
  * @param {string} s3Key - S3键
  * @param {FileSystem} fileSystem - 文件系统实例
  * @param {number} maxRetries - 最大重试次数
  * @returns {Promise<Object>} 上传结果
  */
-async function uploadPartWithRetry(db, path, uploadId, partNumber, partData, userIdOrInfo, userType, encryptionSecret, s3Key, fileSystem, maxRetries = MAX_RETRIES) {
+async function uploadPartWithRetry(path, uploadId, partNumber, partData, userIdOrInfo, userType, s3Key, fileSystem, maxRetries = MAX_RETRIES) {
   let lastError;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -135,11 +178,98 @@ async function uploadPartWithRetry(db, path, uploadId, partNumber, partData, use
 }
 
 /**
- * 分片上传
- * - 达到5MB立即上传
- * - 内存安全检查：MAX_BUFFER_SIZE防止Worker内存溢出
- * - 强制上传机制：超过阈值时强制上传，确保内存可控
- * - 除最后分片外，所有分片≥5MB
+ * 真正的流式上传 - 使用AWS SDK Upload类
+ * - 零内存缓冲：直接传递ReadableStream给AWS SDK
+ * - 自动分片管理：AWS SDK处理所有分片逻辑
+ * - 并发上传：支持多个分片同时上传
+ * - CPU优化：Worker只作为流的管道
+ *
+ * @param {ReadableStream} stream - 输入流
+ * @param {Object} uploadContext - 上传上下文
+ * @param {FileSystem} fileSystem - 文件系统实例
+ * @param {Object} options - 选项参数
+ * @returns {Promise<Object>} 上传结果
+ */
+async function trueStreamingUpload(stream, uploadContext, fileSystem, options = {}) {
+  const { contentLength = 0, contentType = "application/octet-stream", path, userIdOrInfo, userType } = options;
+
+  try {
+    // 动态导入Upload类
+    const { Upload } = await import("@aws-sdk/lib-storage");
+
+    console.log(`WebDAV PUT - 开始真正流式上传，文件大小: ${(contentLength / (1024 * 1024)).toFixed(2)}MB`);
+
+    // 通过FileSystem获取正确的driver和s3Client
+    const { driver } = await fileSystem.mountManager.getDriverByPath(path, userIdOrInfo, userType);
+
+    if (!driver.s3Client) {
+      throw new Error("无法获取S3客户端实例");
+    }
+
+    console.log(`WebDAV PUT - 获取S3客户端成功，驱动类型: ${driver.getType()}`);
+
+    // 从driver配置中获取bucket信息
+    const bucketName = driver.config.bucket_name;
+    if (!bucketName) {
+      throw new Error("无法获取S3 bucket名称");
+    }
+
+    console.log(`WebDAV PUT - 使用S3 bucket: ${bucketName}, key: ${uploadContext.key}`);
+
+    // 创建Upload实例
+    const upload = new Upload({
+      client: driver.s3Client,
+      params: {
+        Bucket: bucketName,
+        Key: uploadContext.key,
+        Body: stream, // 直接传递ReadableStream！
+        ContentType: contentType,
+      },
+      // 上传配置
+      queueSize: 3, // 最多3个分片并发上传
+      partSize: 5 * 1024 * 1024, // 5MB分片大小
+      leavePartsOnError: false, // 出错时清理分片
+    });
+
+    // 监听上传进度
+    let lastProgressLog = 0;
+    upload.on("httpUploadProgress", (progress) => {
+      const { loaded = 0, total = contentLength } = progress;
+
+      // 每20MB记录一次进度
+      if (loaded - lastProgressLog >= PROGRESS_LOG_INTERVAL) {
+        const progressMB = (loaded / (1024 * 1024)).toFixed(2);
+        const totalMB = total > 0 ? (total / (1024 * 1024)).toFixed(2) : "未知";
+        const percentage = total > 0 ? ((loaded / total) * 100).toFixed(1) : "未知";
+        console.log(`WebDAV PUT - 流式上传进度: ${progressMB}MB / ${totalMB}MB (${percentage}%)`);
+        lastProgressLog = loaded;
+      }
+    });
+
+    // 执行上传
+    const startTime = Date.now();
+    const result = await upload.done();
+    const duration = Date.now() - startTime;
+    const speedMBps = contentLength > 0 ? (contentLength / 1024 / 1024 / (duration / 1000)).toFixed(2) : "未知";
+
+    console.log(`WebDAV PUT - 流式上传完成，用时: ${duration}ms，平均速度: ${speedMBps}MB/s`);
+
+    return {
+      result,
+      totalProcessed: contentLength,
+      partCount: Math.ceil(contentLength / (5 * 1024 * 1024)) || 1,
+    };
+  } catch (error) {
+    console.error("WebDAV PUT - 流式上传失败:", error);
+    throw error;
+  }
+}
+
+/**
+ * CPU优化的分片上传（备用方案）
+ * - 使用缓冲区列表避免频繁合并
+ * - 减少内存复制操作
+ * - 优化CPU时间使用
  *
  * @param {ReadableStream} stream - 输入流
  * @param {number} partSize - 分片大小（通常5MB）
@@ -147,17 +277,16 @@ async function uploadPartWithRetry(db, path, uploadId, partNumber, partData, use
  * @param {Object} options - 选项参数
  * @returns {Promise<{parts: Array, totalProcessed: number}>} 处理结果
  */
-async function streamingMultipartUpload(stream, partSize, uploadPartCallback, options = {}) {
-  const { isSpecialClient = false, contentLength = 0 } = options;
-
-  // 内存安全配置
-  const MAX_BUFFER_SIZE = Math.max(partSize * 2, 10 * 1024 * 1024); // 最大缓冲：2个分片大小或10MB
-  const FORCE_UPLOAD_THRESHOLD = Math.max(partSize * 1.5, 8 * 1024 * 1024); // 强制上传阈值
+async function bufferedMultipartUpload(stream, partSize, uploadPartCallback, options = {}) {
+  const { contentLength = 0 } = options;
 
   const reader = stream.getReader();
   const parts = [];
   let partNumber = 1;
-  let currentChunk = new Uint8Array(0);
+
+  // 使用缓冲区列表而不是频繁合并
+  let bufferList = [];
+  let totalBufferSize = 0;
   let totalProcessed = 0;
   let lastProgressLog = 0;
 
@@ -167,27 +296,36 @@ async function streamingMultipartUpload(stream, partSize, uploadPartCallback, op
 
       if (done) {
         // 处理剩余的数据（最后一个分片可以小于5MB）
-        if (currentChunk.length > 0) {
-          console.log(`WebDAV PUT - 处理最后分片 #${partNumber}，大小: ${(currentChunk.length / (1024 * 1024)).toFixed(2)}MB`);
+        if (totalBufferSize > 0) {
+          console.log(`WebDAV PUT - 处理最后分片 #${partNumber}，大小: ${(totalBufferSize / (1024 * 1024)).toFixed(2)}MB`);
 
-          const partResult = await uploadPartCallback(partNumber, currentChunk.buffer);
+          // 高效合并剩余数据
+          const finalChunk = combineBuffers(bufferList, totalBufferSize);
+          const partResult = await uploadPartCallback(partNumber, finalChunk.buffer);
           parts.push(partResult);
-          totalProcessed += currentChunk.length;
+          totalProcessed += totalBufferSize;
         }
         break;
       }
 
-      // 合并当前chunk和新数据
-      currentChunk = mergeUint8Arrays(currentChunk, new Uint8Array(value));
+      // 添加到缓冲区列表（避免立即合并）
+      const chunk = new Uint8Array(value);
+      bufferList.push(chunk);
+      totalBufferSize += chunk.length;
 
-      // 达到标准分片大小立即上传
-      while (currentChunk.length >= partSize) {
-        const partData = currentChunk.slice(0, partSize);
-        currentChunk = currentChunk.slice(partSize);
+      // 达到分片大小时才进行合并和上传
+      while (totalBufferSize >= partSize) {
+        console.log(`WebDAV PUT - 上传分片 #${partNumber}，大小: ${(partSize / (1024 * 1024)).toFixed(2)}MB`);
 
-        console.log(`WebDAV PUT - 立即上传分片 #${partNumber}，大小: ${(partData.length / (1024 * 1024)).toFixed(2)}MB`);
+        // 高效合并数据到分片大小
+        const partData = combineBuffers(bufferList, partSize);
 
-        //记录分片上传时间
+        // 更新缓冲区列表（移除已使用的数据）
+        const { remainingBuffers, remainingSize } = removeUsedBuffers(bufferList, partSize);
+        bufferList = remainingBuffers;
+        totalBufferSize = remainingSize;
+
+        // 记录分片上传时间
         const partStartTime = Date.now();
         const partResult = await uploadPartCallback(partNumber, partData.buffer);
         const partDuration = Date.now() - partStartTime;
@@ -206,32 +344,6 @@ async function streamingMultipartUpload(stream, partSize, uploadPartCallback, op
           console.log(`WebDAV PUT - 上传进度: ${progressMB}MB / ${totalMB}MB`);
           lastProgressLog = totalProcessed;
         }
-      }
-
-      //防止缓冲区过大导致Worker内存溢出
-      if (currentChunk.length >= FORCE_UPLOAD_THRESHOLD) {
-        console.warn(`WebDAV PUT - 内存安全触发：缓冲区达到${(currentChunk.length / (1024 * 1024)).toFixed(2)}MB，强制上传分片 #${partNumber}`);
-
-        const partData = currentChunk;
-        currentChunk = new Uint8Array(0);
-
-        const partResult = await uploadPartCallback(partNumber, partData.buffer);
-        parts.push(partResult);
-        totalProcessed += partData.length;
-        partNumber++;
-      }
-
-      // 不能超过最大缓冲区大小
-      if (currentChunk.length >= MAX_BUFFER_SIZE) {
-        console.error(`WebDAV PUT - 极限安全触发：缓冲区达到${(currentChunk.length / (1024 * 1024)).toFixed(2)}MB，立即强制上传`);
-
-        const partData = currentChunk;
-        currentChunk = new Uint8Array(0);
-
-        const partResult = await uploadPartCallback(partNumber, partData.buffer);
-        parts.push(partResult);
-        totalProcessed += partData.length;
-        partNumber++;
       }
     }
   } finally {
@@ -252,27 +364,62 @@ async function streamingMultipartUpload(stream, partSize, uploadPartCallback, op
  */
 async function managedMultipartUpload(stream, uploadContext, fileSystem, options = {}) {
   const { path, userId, userType, uploadId, s3Key, recommendedPartSize } = uploadContext;
-  const { db, encryptionSecret, contentLength = 0 } = options;
+  const { contentLength = 0 } = options;
 
   let abortCalled = false;
 
   try {
     // 创建优化的上传回调函数
     const uploadPartCallback = async (partNumber, partData) => {
-      return await uploadPartWithRetry(db, path, uploadId, partNumber, partData, userId, userType, encryptionSecret, s3Key, fileSystem);
+      return await uploadPartWithRetry(path, uploadId, partNumber, partData, userId, userType, s3Key, fileSystem);
     };
     const streamStartTime = Date.now();
-    const { parts, totalProcessed } = await streamingMultipartUpload(stream, recommendedPartSize, uploadPartCallback, {
-      contentLength,
-      ...options,
-    });
+    // 尝试真正的流式上传（大文件优先）
+    let uploadResult;
+    const shouldUseTrueStreaming = contentLength > 10 * 1024 * 1024; // 10MB以上使用流式
+
+    if (shouldUseTrueStreaming) {
+      try {
+        console.log(`WebDAV PUT - 尝试真正流式上传 (${(contentLength / (1024 * 1024)).toFixed(2)}MB)`);
+
+        const streamingContext = {
+          key: s3Key, // 使用正确的S3 key，bucket从driver获取
+        };
+
+        uploadResult = await trueStreamingUpload(stream, streamingContext, fileSystem, {
+          contentLength,
+          contentType: options.contentType,
+          path: path,
+          userIdOrInfo: userId,
+          userType: userType,
+        });
+
+        console.log(`WebDAV PUT - 真正流式上传成功`);
+      } catch (streamingError) {
+        console.warn(`WebDAV PUT - 流式上传失败，回退到缓冲模式:`, streamingError.message);
+        // 回退到缓冲模式
+        uploadResult = await bufferedMultipartUpload(stream, recommendedPartSize, uploadPartCallback, {
+          contentLength,
+          ...options,
+        });
+      }
+    } else {
+      // 小文件直接使用缓冲模式
+      uploadResult = await bufferedMultipartUpload(stream, recommendedPartSize, uploadPartCallback, {
+        contentLength,
+        ...options,
+      });
+    }
+
+    const { parts = [], totalProcessed = 0, partCount = 0 } = uploadResult;
     const streamDuration = Date.now() - streamStartTime;
 
     // 完成multipart upload
-    console.log(`WebDAV PUT - 流式上传完成，共${parts.length}个分片，总大小: ${(totalProcessed / (1024 * 1024)).toFixed(2)}MB，用时: ${streamDuration}ms`);
+    const actualPartCount = parts.length || partCount || 0;
+    console.log(`WebDAV PUT - 流式上传完成，共${actualPartCount}个分片，总大小: ${(totalProcessed / (1024 * 1024)).toFixed(2)}MB，用时: ${streamDuration}ms`);
 
     // 检查是否有分片上传 - 处理0字节文件的特殊情况
-    if (parts.length === 0) {
+    if (actualPartCount === 0 && totalProcessed === 0) {
       console.log(`WebDAV PUT - 检测到0字节文件，取消分片上传并使用直接上传`);
 
       // 取消分片上传
@@ -299,6 +446,18 @@ async function managedMultipartUpload(stream, uploadContext, fileSystem, options
       };
     }
 
+    // 如果是真正的流式上传，已经完成了整个上传过程
+    if (uploadResult.result && !parts.length) {
+      console.log(`WebDAV PUT - 真正流式上传已完成，无需调用completeBackendMultipartUpload`);
+      return {
+        success: true,
+        result: uploadResult.result,
+        totalProcessed,
+        partCount: actualPartCount,
+      };
+    }
+
+    // 缓冲模式需要完成multipart upload
     const result = await fileSystem.completeBackendMultipartUpload(path, userId, userType, uploadId, parts, s3Key);
 
     return {
@@ -441,7 +600,7 @@ export async function handlePut(c, path, userId, userType, db) {
       // 清理缓存
       const { mount } = await mountManager.getDriverByPath(path, userId, userType);
       if (mount) {
-        await clearCache({ mountId: mount.id });
+        await clearDirectoryCache({ mountId: mount.id });
       }
 
       console.log(`WebDAV PUT - 空文件上传成功: ${JSON.stringify(result)}`);
@@ -503,7 +662,7 @@ export async function handlePut(c, path, userId, userType, db) {
         // 清理缓存
         const { mount } = await mountManager.getDriverByPath(path, userId, userType);
         if (mount) {
-          await clearCache({ mountId: mount.id });
+          await clearDirectoryCache({ mountId: mount.id });
         }
 
         const uploadDuration = Math.ceil((Date.now() - requestStartTime) / 1000);
@@ -565,15 +724,13 @@ export async function handlePut(c, path, userId, userType, db) {
         };
 
         const uploadOptions = {
-          db,
-          encryptionSecret: c.env.ENCRYPTION_SECRET,
           contentLength: declaredContentLength,
           contentType,
           isSpecialClient: clientInfo.isPotentiallyProblematicClient || clientInfo.isChunkedClient,
           originalStream: bodyStream,
         };
 
-        const { success, result: completeResult, totalProcessed, partCount } = await managedMultipartUpload(bodyStream, uploadContext, fileSystem, uploadOptions);
+        const { result: completeResult, totalProcessed, partCount } = await managedMultipartUpload(bodyStream, uploadContext, fileSystem, uploadOptions);
 
         // 检查上传数据是否完整
         if (declaredContentLength > 0 && totalProcessed < declaredContentLength) {
@@ -591,13 +748,13 @@ export async function handlePut(c, path, userId, userType, db) {
         // 清理缓存
         const { mount } = await mountManager.getDriverByPath(path, userId, userType);
         if (mount) {
-          await clearCache({ mountId: mount.id });
+          await clearDirectoryCache({ mountId: mount.id });
         }
 
         const uploadDuration = Math.ceil((Date.now() - requestStartTime) / 1000);
         const uploadSpeedMBps = (totalProcessed / 1024 / 1024 / uploadDuration).toFixed(2);
 
-        console.log(`WebDAV PUT - 主流风格分片上传完成，${partCount}个分片，总用时: ${uploadDuration}秒，平均速度: ${uploadSpeedMBps}MB/s`);
+        console.log(`WebDAV PUT - 分片上传完成，${partCount}个分片，总用时: ${uploadDuration}秒，平均速度: ${uploadSpeedMBps}MB/s`);
         console.log(`WebDAV PUT - 完成结果: ${JSON.stringify(completeResult)}`);
 
         // 成功完成分片上传后返回成功响应
