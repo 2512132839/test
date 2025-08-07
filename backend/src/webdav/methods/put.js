@@ -704,8 +704,8 @@ export async function handlePut(c, path, userId, userType, db) {
         // 获取driver来构建S3 key
         const { driver, mount, subPath } = await fileSystem.mountManager.getDriverByPath(path, userId, userType);
 
-        // 构建S3 key（参考S3StorageDriver的_normalizeFilePath方法）
-        const s3Key = subPath.endsWith("/") ? subPath + filename : subPath + "/" + filename;
+        // 使用S3StorageDriver的_normalizeFilePath方法构建正确的S3 key
+        const s3Key = driver._normalizeFilePath(subPath, path, filename);
 
         console.log(`WebDAV PUT - 使用S3 key: ${s3Key}`);
 
