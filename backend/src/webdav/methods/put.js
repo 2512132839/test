@@ -258,7 +258,7 @@ async function trueStreamingUpload(stream, uploadContext, fileSystem, options = 
     return {
       result,
       totalProcessed: contentLength,
-      partCount: Math.ceil(contentLength / (5 * 1024 * 1024)) || 1,
+      partCount: Math.ceil(contentLength / (80 * 1024 * 1024)) || 1,
     };
   } catch (error) {
     console.error("WebDAV PUT - 流式上传失败:", error);
