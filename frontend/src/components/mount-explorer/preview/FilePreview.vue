@@ -199,13 +199,10 @@
 
       <!-- 预览内容 -->
       <div
-        class="preview-content border rounded-lg overflow-hidden transition-all duration-300"
-        :class="[darkMode ? 'border-gray-700' : 'border-gray-200', isContentFullscreen ? 'preview-content-fullscreen' : '']"
-        :style="
-          isContentFullscreen
-            ? 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; max-height: 100vh; min-height: 100vh; border-radius: 0;'
-            : 'max-height: 600px; min-height: 400px'
-        "
+        ref="previewContentRef"
+        class="preview-content border rounded-lg overflow-hidden transition-all duration-300 flex flex-col"
+        :class="[darkMode ? 'border-gray-700' : 'border-gray-200']"
+        style="max-height: 600px; min-height: 400px"
       >
         <!-- 全屏模式下的工具栏 -->
         <div v-if="isContentFullscreen && isText" class="fullscreen-toolbar p-3 border-b" :class="darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'">
@@ -296,12 +293,14 @@
           </div>
         </div>
         <!-- 加载指示器 -->
-        <div v-if="isLoading" class="flex flex-col items-center justify-center p-12">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
+        <div v-if="isLoading" class="flex-1 flex items-center justify-center">
+          <div class="flex flex-col items-center justify-center p-12">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2" :class="darkMode ? 'border-primary-500' : 'border-primary-600'"></div>
+          </div>
         </div>
 
         <!-- 图片预览 -->
-        <div v-else-if="isImage" class="image-preview flex justify-center items-center p-4">
+        <div v-else-if="isImage" class="flex-1 flex justify-center items-center p-4">
           <img
             v-if="authenticatedPreviewUrl"
             :src="authenticatedPreviewUrl"
@@ -329,7 +328,7 @@
         </div>
 
         <!-- 音频预览 -->
-        <div v-else-if="isAudio">
+        <div v-else-if="isAudio" class="flex-1 flex items-center justify-center">
           <AudioPreview
             :file="file"
             :audio-url="authenticatedPreviewUrl"
@@ -441,15 +440,18 @@
         </div>
 
         <!-- Markdown预览 - 使用TextRenderer统一处理 -->
-        <div v-else-if="isMarkdown">
+        <div v-else-if="isMarkdown" :class="isContentFullscreen ? 'fullscreen-text-container' : ''">
           <TextPreview
             ref="textPreviewRef"
             :file="file"
             :text-url="authenticatedPreviewUrl"
             :dark-mode="darkMode"
             :is-admin="isAdmin"
+            :current-path="getCurrentDirectoryPath()"
+            :directory-items="directoryItems"
             :initial-mode="textPreviewMode"
             :initial-encoding="textEncoding"
+            :max-height="dynamicMaxHeight"
             @load="handleContentLoaded"
             @error="handleContentError"
             @mode-change="handleModeChange"
@@ -478,45 +480,49 @@
         </div>
 
         <!-- 其他文件类型或错误状态 -->
-        <div v-else-if="loadError" class="generic-preview text-center py-12">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-20 w-20 mx-auto mb-4"
-            :class="darkMode ? 'text-red-400' : 'text-red-500'"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-          <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-red-300' : 'text-red-700'">{{ t("mount.filePreview.previewError") }}</p>
-          <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.filePreview.retryLoad") }}</p>
+        <div v-else-if="loadError" class="flex-1 flex items-center justify-center">
+          <div class="generic-preview text-center py-12">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-20 w-20 mx-auto mb-4"
+              :class="darkMode ? 'text-red-400' : 'text-red-500'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-red-300' : 'text-red-700'">{{ t("mount.filePreview.previewError") }}</p>
+            <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.filePreview.retryLoad") }}</p>
+          </div>
         </div>
 
         <!-- 不支持预览的文件类型 -->
-        <div v-else class="generic-preview text-center py-12">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-20 w-20 mx-auto mb-4"
-            :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-            />
-          </svg>
-          <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.cannotPreview") }}</p>
-          <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.filePreview.downloadToView") }}</p>
+        <div v-else class="flex-1 flex items-center justify-center">
+          <div class="generic-preview text-center py-12">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-20 w-20 mx-auto mb-4"
+              :class="darkMode ? 'text-gray-500' : 'text-gray-400'"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
+            </svg>
+            <p class="text-lg font-medium mb-2" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ t("mount.filePreview.cannotPreview") }}</p>
+            <p class="text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">{{ t("mount.filePreview.downloadToView") }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -706,6 +712,7 @@ const availableEncodings = computed(() => {
 
 // 内容区域全屏状态管理
 const isContentFullscreen = ref(false);
+const previewContentRef = ref(null);
 
 // 动态计算文本预览的最大高度
 const dynamicMaxHeight = computed(() => {
@@ -718,11 +725,15 @@ const dynamicMaxHeight = computed(() => {
   }
 });
 
-// 内容区域全屏切换功能
+// 简洁的全屏切换实现
 const toggleFullscreen = () => {
-  isContentFullscreen.value = !isContentFullscreen.value;
-  console.log("内容区域全屏状态:", isContentFullscreen.value);
-  console.log("动态最大高度:", dynamicMaxHeight.value);
+  if (!document.fullscreenElement) {
+    // 进入全屏
+    previewContentRef.value?.requestFullscreen();
+  } else {
+    // 退出全屏
+    document.exitFullscreen();
+  }
 };
 
 // 保存文件功能
@@ -819,12 +830,17 @@ watch(
 // 组件生命周期
 onMounted(() => {
   console.log("FilePreview组件已挂载");
+
+  // 监听全屏变化
+  document.addEventListener("fullscreenchange", () => {
+    isContentFullscreen.value = !!document.fullscreenElement;
+  });
 });
 
 onBeforeUnmount(() => {
   // 退出全屏状态（如果处于全屏中）
-  if (isContentFullscreen.value) {
-    isContentFullscreen.value = false;
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(console.error);
   }
 });
 </script>
@@ -849,6 +865,8 @@ onBeforeUnmount(() => {
   background-color: white;
   padding: 0;
   overflow: auto;
+  border: none !important;
+  border-radius: 0 !important;
 }
 
 :deep(.dark :fullscreen) {
@@ -856,7 +874,7 @@ onBeforeUnmount(() => {
 }
 
 :deep(:fullscreen iframe) {
-  height: calc(100vh - 45px);
+  height: calc(100vh - 60px);
   width: 100%;
   border: none;
 }
@@ -867,6 +885,33 @@ onBeforeUnmount(() => {
   top: 0;
   z-index: 20;
   width: 100%;
+}
+
+/* 全屏模式下的工具栏样式 */
+:deep(:fullscreen .fullscreen-toolbar) {
+  position: sticky;
+  top: 0;
+  z-index: 21;
+  background-color: inherit;
+}
+
+/* 全屏模式下的文本容器 */
+:deep(:fullscreen .fullscreen-text-container) {
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* 全屏模式下工具栏的暗色主题适配 */
+:deep(:fullscreen .fullscreen-toolbar.bg-gray-800) {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+:deep(:fullscreen .fullscreen-toolbar.bg-white) {
+  background-color: #ffffff !important;
+  border-color: #e5e7eb !important;
 }
 
 /* 全屏按钮悬停效果增强 */

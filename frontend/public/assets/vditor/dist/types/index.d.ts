@@ -333,6 +333,7 @@ interface ITips {
 }
 
 interface II18n {
+    de_DE: ITips;
     en_US: ITips;
     fr_FR: ITips;
     ja_JP: ITips;
@@ -841,6 +842,7 @@ interface IVditor {
         element: HTMLElement
         isUploading: boolean
         range: Range,
+        xhr?: XMLHttpRequest,
     };
     undo?: {
         clearStack(vditor: IVditor): void,

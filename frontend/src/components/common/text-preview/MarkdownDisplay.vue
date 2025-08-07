@@ -69,7 +69,7 @@ const loadVditor = async () => {
     try {
       await loadVditorCSS();
 
-      // 从assets目录加载Vditor
+      // 从本地vditor目录加载Vditor
       const script = document.createElement("script");
       script.src = "/assets/vditor/dist/index.min.js";
 
@@ -169,7 +169,6 @@ const renderMarkdown = async () => {
       throw new Error(`Vditor 加载失败: ${loadError.message}`);
     }
 
-
     // 再次检查组件状态
     if (isDestroyed.value || !markdownContainer.value) {
       console.warn("MarkdownDisplay组件已销毁，取消Vditor渲染");
@@ -182,6 +181,7 @@ const renderMarkdown = async () => {
         mode: "dark-light", // 支持明暗主题
         theme: {
           current: props.darkMode ? "dark" : "light", // 根据darkMode设置主题
+          path: "/assets/vditor/dist/css/content-theme",
         },
         cdn: "/assets/vditor",
         hljs: {

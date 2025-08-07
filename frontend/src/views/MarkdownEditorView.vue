@@ -17,13 +17,16 @@
       </div>
     </div>
 
+    <!-- 🎯 公告弹窗 - 主流设计 -->
+    <AnnouncementModal :content="siteSettings.site_announcement_content" :enabled="siteSettings.site_announcement_enabled" :dark-mode="darkMode" />
+
     <!-- 权限管理组件 -->
     <PermissionManager :dark-mode="darkMode" @permission-change="handlePermissionChange" @navigate-to-admin="navigateToAdmin" />
 
     <!-- 编辑器组件 -->
     <div class="editor-wrapper">
       <div class="flex flex-col md:flex-row gap-4">
-        <VditorEditor
+        <VditorUnified
           ref="editorRef"
           :dark-mode="darkMode"
           :is-plain-text-mode="isPlainTextMode"
@@ -81,12 +84,13 @@ import { api } from "@/api";
 import { ApiStatus } from "../api/ApiStatus";
 
 // 导入子组件
-import VditorEditor from "../components/markdown-editor/VditorEditor.vue";
+import VditorUnified from "../components/common/VditorUnified.vue";
 import PermissionManager from "../components/markdown-editor/PermissionManager.vue";
 import EditorForm from "../components/markdown-editor/EditorForm.vue";
 import ShareLinkBox from "../components/markdown-editor/ShareLinkBox.vue";
 import QRCodeModal from "../components/markdown-editor/QRCodeModal.vue";
 import CopyFormatMenu from "../components/markdown-editor/CopyFormatMenu.vue";
+import AnnouncementModal from "../components/admin/AnnouncementModal.vue";
 
 const { t } = useI18n();
 
@@ -120,6 +124,12 @@ const showQRCodeModal = ref(false);
 // 复制格式菜单状态
 const copyFormatMenuVisible = ref(false);
 const copyFormatMenuPosition = ref({ x: 0, y: 0 });
+
+// 站点设置状态
+const siteSettings = ref({
+  site_announcement_enabled: false,
+  site_announcement_content: "",
+});
 
 // 组件事件处理函数
 const handlePermissionChange = (permission) => {
@@ -375,7 +385,7 @@ const autoSaveDebounce = () => {
 };
 
 // 组件挂载
-onMounted(() => {
+onMounted(async () => {
   // 恢复保存的内容
   try {
     const savedContent = localStorage.getItem("cloudpaste-content");
@@ -384,6 +394,23 @@ onMounted(() => {
     }
   } catch (e) {
     console.warn(t("markdown.messages.restoreContentFailed"), e);
+  }
+
+  // 获取站点设置
+  try {
+    const response = await api.system.getSettingsByGroup(4, false);
+    if (response && response.success && response.data) {
+      response.data.forEach((setting) => {
+        if (setting.key === "site_announcement_enabled") {
+          siteSettings.value.site_announcement_enabled = setting.value === "true";
+        } else if (setting.key === "site_announcement_content") {
+          siteSettings.value.site_announcement_content = setting.value || "";
+        }
+      });
+    }
+  } catch (error) {
+    console.error("获取站点设置失败:", error);
+    // 获取站点设置失败不影响页面正常使用
   }
 });
 
@@ -403,293 +430,6 @@ onUnmounted(() => {
   box-sizing: border-box; /* 确保内边距不增加元素实际宽度 */
 }
 
-/* VS Code 风格暗色主题 */
-:deep(.vditor) {
-  border: 1px solid;
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e2e8f0"');
-  border-radius: 0.375rem;
-  transition: border-color 0.2s, background-color 0.2s;
-}
-
-:deep(.vditor-toolbar) {
-  border-bottom-width: 1px;
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e2e8f0"');
-  transition: background-color 0.2s;
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
-  z-index: 10;
-}
-
-:deep(.vditor-toolbar__item) {
-  color: v-bind('props.darkMode ? "#cccccc" : "#374151"');
-}
-
-:deep(.vditor-toolbar__item:hover) {
-  background-color: v-bind('props.darkMode ? "#2c2c2d" : "#f3f4f6"');
-}
-
-:deep(.vditor-toolbar__divider) {
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
-}
-
-:deep(.vditor-reset) {
-  font-size: 16px;
-  line-height: 1.6;
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
-  tab-size: 4;
-  -moz-tab-size: 4;
-}
-
-:deep(.vditor-sv) {
-  font-size: 16px;
-  line-height: 1.6;
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
-  tab-size: 4;
-  -moz-tab-size: 4;
-}
-
-:deep(.vditor-sv__marker) {
-  color: v-bind('props.darkMode ? "#6a9955" : "#6b7280"');
-}
-
-:deep(.vditor-sv__marker--heading) {
-  color: v-bind('props.darkMode ? "#569cd6" : "#3b82f6"');
-}
-
-:deep(.vditor-sv__marker--link) {
-  color: v-bind('props.darkMode ? "#4ec9b0" : "#3b82f6"');
-}
-
-:deep(.vditor-sv__marker--strong) {
-  color: v-bind('props.darkMode ? "#ce9178" : "#ef4444"');
-}
-
-:deep(.vditor-sv__marker--em) {
-  color: v-bind('props.darkMode ? "#dcdcaa" : "#f59e0b"');
-}
-
-:deep(.vditor-ir) {
-  font-size: 16px;
-  line-height: 1.6;
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
-  tab-size: 4;
-  -moz-tab-size: 4;
-}
-
-:deep(.vditor-ir__node--expand) {
-  background-color: v-bind('props.darkMode ? "#2c2c2d" : "#f3f4f6"');
-}
-
-/* 即时渲染模式表格样式 */
-:deep(.vditor-ir table) {
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"') !important;
-  border-collapse: collapse;
-  margin: 1rem 0;
-}
-
-:deep(.vditor-ir th) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#f3f4f6"') !important;
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"') !important;
-  padding: 8px 12px;
-  font-weight: 600;
-  color: v-bind('props.darkMode ? "#e2e8f0" : "#374151"') !important;
-}
-
-:deep(.vditor-ir td) {
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"') !important;
-  padding: 8px 12px;
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"') !important;
-}
-
-:deep(.vditor-ir tr:nth-child(even) td) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#f9fafb"') !important;
-}
-
-:deep(.vditor-ir tr:hover td) {
-  background-color: v-bind('props.darkMode ? "#2c2c2d" : "#f3f4f6"') !important;
-}
-
-:deep(.vditor-preview) {
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
-}
-
-:deep(.vditor-preview h1, .vditor-preview h2) {
-  border-bottom-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
-}
-
-:deep(.vditor-preview blockquote) {
-  border-left-color: v-bind('props.darkMode ? "#4b5563" : "#e5e7eb"');
-  background-color: v-bind('props.darkMode ? "#252526" : "#f9fafb"');
-}
-
-:deep(.vditor-preview code:not(.hljs)) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#f3f4f6"');
-  color: v-bind('props.darkMode ? "#ce9178" : "#ef4444"');
-}
-
-:deep(.vditor-preview table) {
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
-  border-collapse: collapse;
-  margin: 1rem 0;
-}
-
-:deep(.vditor-preview th) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#f3f4f6"');
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
-  padding: 8px 12px;
-  font-weight: 600;
-  color: v-bind('props.darkMode ? "#e2e8f0" : "#374151"');
-}
-
-:deep(.vditor-preview td) {
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
-  padding: 8px 12px;
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
-}
-
-:deep(.vditor-preview tr:nth-child(even) td) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#f9fafb"');
-}
-
-:deep(.vditor-preview tr:hover td) {
-  background-color: v-bind('props.darkMode ? "#2c2c2d" : "#f3f4f6"');
-}
-
-:deep(.vditor-outline) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#ffffff"');
-  border-right-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
-}
-
-:deep(.vditor-outline__item) {
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
-}
-
-:deep(.vditor-outline__item:hover) {
-  background-color: v-bind('props.darkMode ? "#2c2c2d" : "#f3f4f6"');
-}
-
-:deep(.vditor-counter) {
-  color: v-bind('props.darkMode ? "#808080" : "#6b7280"');
-}
-
-/* 代码高亮增强 - VS Code风格 */
-/* JavaScript */
-:deep(.language-javascript) {
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
-}
-
-:deep(.language-javascript .hljs-keyword) {
-  color: v-bind('props.darkMode ? "#569cd6" : "#3b82f6"');
-}
-
-:deep(.language-javascript .hljs-string) {
-  color: v-bind('props.darkMode ? "#ce9178" : "#ef4444"');
-}
-
-:deep(.language-javascript .hljs-comment) {
-  color: v-bind('props.darkMode ? "#6a9955" : "#6b7280"');
-}
-
-:deep(.language-javascript .hljs-variable) {
-  color: v-bind('props.darkMode ? "#9cdcfe" : "#374151"');
-}
-
-:deep(.language-javascript .hljs-function) {
-  color: v-bind('props.darkMode ? "#dcdcaa" : "#4b5563"');
-}
-
-/* TypeScript */
-:deep(.language-typescript .hljs-keyword) {
-  color: v-bind('props.darkMode ? "#569cd6" : "#3b82f6"');
-}
-
-:deep(.language-typescript .hljs-built_in) {
-  color: v-bind('props.darkMode ? "#4ec9b0" : "#0284c7"');
-}
-
-/* Python */
-:deep(.language-python .hljs-keyword) {
-  color: v-bind('props.darkMode ? "#569cd6" : "#3b82f6"');
-}
-
-:deep(.language-python .hljs-built_in) {
-  color: v-bind('props.darkMode ? "#4ec9b0" : "#0284c7"');
-}
-
-:deep(.language-python .hljs-decorator) {
-  color: v-bind('props.darkMode ? "#dcdcaa" : "#f59e0b"');
-}
-
-/* HTML */
-:deep(.language-html .hljs-tag) {
-  color: v-bind('props.darkMode ? "#569cd6" : "#3b82f6"');
-}
-
-:deep(.language-html .hljs-attr) {
-  color: v-bind('props.darkMode ? "#9cdcfe" : "#0369a1"');
-}
-
-:deep(.language-html .hljs-string) {
-  color: v-bind('props.darkMode ? "#ce9178" : "#ef4444"');
-}
-
-/* CSS */
-:deep(.language-css .hljs-selector-class) {
-  color: v-bind('props.darkMode ? "#d7ba7d" : "#0369a1"');
-}
-
-:deep(.language-css .hljs-selector-id) {
-  color: v-bind('props.darkMode ? "#d7ba7d" : "#0369a1"');
-}
-
-:deep(.language-css .hljs-property) {
-  color: v-bind('props.darkMode ? "#9cdcfe" : "#0369a1"');
-}
-
-:deep(.language-css .hljs-attribute) {
-  color: v-bind('props.darkMode ? "#9cdcfe" : "#0369a1"');
-}
-
-/* JSON */
-:deep(.language-json .hljs-attr) {
-  color: v-bind('props.darkMode ? "#9cdcfe" : "#0369a1"');
-}
-
-:deep(.language-json .hljs-string) {
-  color: v-bind('props.darkMode ? "#ce9178" : "#ef4444"');
-}
-
-/* Shell */
-:deep(.language-bash .hljs-built_in) {
-  color: v-bind('props.darkMode ? "#4ec9b0" : "#0284c7"');
-}
-
-:deep(.language-bash .hljs-variable) {
-  color: v-bind('props.darkMode ? "#9cdcfe" : "#0369a1"');
-}
-
-/* 拖动区域样式 */
-:deep(.vditor-resize) {
-  padding: 3px 0;
-  cursor: row-resize;
-  user-select: none;
-  position: absolute;
-  width: 100%;
-}
-
-:deep(.vditor-resize > div) {
-  height: 3px;
-  background-color: v-bind('props.darkMode ? "#3f3f3f" : "#e5e7eb"');
-  border-radius: 3px;
-}
-
-:deep(.vditor-resize:hover > div) {
-  background-color: v-bind('props.darkMode ? "#007acc" : "#d1d5db"');
-}
-
 /* 移动端优化 */
 @media (max-width: 640px) {
   .editor-container {
@@ -697,21 +437,6 @@ onUnmounted(() => {
     padding-right: 0.5rem;
     width: 100%;
     overflow-x: hidden;
-  }
-
-  :deep(.vditor) {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  :deep(.vditor-toolbar) {
-    overflow-x: auto;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-
-  :deep(.vditor-toolbar__item) {
-    margin-bottom: 4px;
   }
 
   .form-input,
@@ -811,173 +536,6 @@ onUnmounted(() => {
   }
 }
 
-/* 所见即所得模式表格样式 */
-:deep(.vditor-wysiwyg table) {
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"') !important;
-  border-collapse: collapse;
-  margin: 1rem 0;
-}
-
-:deep(.vditor-wysiwyg th) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#f3f4f6"') !important;
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"') !important;
-  padding: 8px 12px;
-  font-weight: 600;
-  color: v-bind('props.darkMode ? "#e2e8f0" : "#374151"') !important;
-}
-
-:deep(.vditor-wysiwyg td) {
-  border-color: v-bind('props.darkMode ? "#30363d" : "#e5e7eb"') !important;
-  padding: 8px 12px;
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"') !important;
-}
-
-:deep(.vditor-wysiwyg tr:nth-child(even) td) {
-  background-color: v-bind('props.darkMode ? "#252526" : "#f9fafb"') !important;
-}
-
-:deep(.vditor-wysiwyg tr:hover td) {
-  background-color: v-bind('props.darkMode ? "#2c2c2d" : "#f3f4f6"') !important;
-}
-
-:deep(.vditor-preview) {
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
-  color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
-}
-
-/* 添加多级列表样式支持 */
-/* 有序列表样式 */
-:deep(.vditor-reset ol) {
-  list-style-type: decimal;
-  padding-left: 2em;
-}
-
-:deep(.vditor-reset ol ol) {
-  list-style-type: decimal;
-}
-
-:deep(.vditor-reset ol ol ol) {
-  list-style-type: decimal;
-}
-
-/* 无序列表样式 */
-:deep(.vditor-reset ul) {
-  list-style-type: disc;
-  padding-left: 2em;
-}
-
-:deep(.vditor-reset ul ul) {
-  list-style-type: circle;
-}
-
-:deep(.vditor-reset ul ul ul) {
-  list-style-type: square;
-}
-
-/* 预览模式列表样式 */
-:deep(.vditor-preview ol) {
-  list-style-type: decimal;
-  padding-left: 2em;
-}
-
-:deep(.vditor-preview ol ol) {
-  list-style-type: decimal;
-}
-
-:deep(.vditor-preview ol ol ol) {
-  list-style-type: decimal;
-}
-
-:deep(.vditor-preview ul) {
-  list-style-type: disc;
-  padding-left: 2em;
-}
-
-:deep(.vditor-preview ul ul) {
-  list-style-type: circle;
-}
-
-:deep(.vditor-preview ul ul ul) {
-  list-style-type: square;
-}
-
-/* 确保即时渲染模式的列表也正确显示 */
-:deep(.vditor-ir ol) {
-  list-style-type: decimal;
-  padding-left: 2em;
-}
-
-:deep(.vditor-ir ol ol) {
-  list-style-type: decimal;
-}
-
-:deep(.vditor-ir ol ol ol) {
-  list-style-type: decimal;
-}
-
-:deep(.vditor-ir ul) {
-  list-style-type: disc;
-  padding-left: 2em;
-}
-
-:deep(.vditor-ir ul ul) {
-  list-style-type: circle;
-}
-
-:deep(.vditor-ir ul ul ul) {
-  list-style-type: square;
-}
-
-/* 禁用编辑器点击时的背景色自动变化 */
-:deep(.vditor-input:focus),
-:deep(.vditor-textarea:focus),
-:deep(.vditor-sv:focus),
-:deep(.vditor-ir:focus),
-:deep(.vditor-wysiwyg:focus) {
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
-  outline: none !important;
-}
-
-/* 确保编辑区域在所有模式下都保持一致的背景色 */
-:deep(.vditor-sv),
-:deep(.vditor-ir),
-:deep(.vditor-wysiwyg) {
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
-}
-
-/* 禁用Vditor内置的focus背景色变化 */
-:deep(.vditor--dark .vditor-input:focus),
-:deep(.vditor--dark .vditor-textarea:focus) {
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
-}
-
-:deep(.vditor .vditor-input:focus),
-:deep(.vditor .vditor-textarea:focus) {
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"') !important;
-}
-
-/* 制表符样式支持 */
-:deep(.vditor-reset) {
-  tab-size: 4;
-  -moz-tab-size: 4;
-}
-
-:deep(.vditor-ir) {
-  tab-size: 4;
-  -moz-tab-size: 4;
-}
-
-:deep(.vditor-sv) {
-  tab-size: 4;
-  -moz-tab-size: 4;
-}
-
-:deep(.vditor-wysiwyg) {
-  tab-size: 4;
-  -moz-tab-size: 4;
-}
-
 /* 复制格式菜单样式 */
 #copyFormatMenu {
   min-width: 180px;
@@ -988,25 +546,5 @@ onUnmounted(() => {
 
 #copyFormatMenu div {
   transition: background-color 0.15s ease-in-out;
-}
-
-/* 纯文本编辑器样式 */
-.editor-wrapper textarea {
-  resize: vertical;
-  min-height: 400px;
-  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
-  line-height: 1.6;
-  tab-size: 4;
-  -moz-tab-size: 4;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.editor-wrapper textarea:focus {
-  outline: none;
-}
-
-/* 纯文本编辑器暗色模式 */
-.editor-wrapper textarea.bg-gray-800 {
-  color: #d4d4d4;
 }
 </style>

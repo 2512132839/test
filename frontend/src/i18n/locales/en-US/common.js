@@ -27,18 +27,41 @@ export default {
       close: "Close",
       srClose: "Close",
     },
+    dialogs: {
+      confirm: "Confirm",
+      cancel: "Cancel",
+      processing: "Processing...",
+      requiredField: "This field is required",
+      invalidInput: "Invalid input",
+      selectUpload: {
+        title: "Select Upload to Resume",
+        description: "Found {count} resumable uploads, please select one to continue:",
+        recommended: "Recommended",
+        matchScore: "Match {score}%",
+        partsInfo: "{count}/{total} parts",
+        partialComplete: "Partially complete",
+        atLeastParts: "At least {count} parts",
+        progressInfo: "{percentage}% ({uploaded}/{total}MB)",
+        copyIdTooltip: "Click to copy full ID: {id}",
+        uploadIdCopied: "Upload ID copied to clipboard",
+        copyFailed: "Copy failed",
+        reupload: "Re-upload",
+        resumeSelected: "Resume Selected Upload",
+      },
+    },
   },
   app: {
     title: "CloudPaste",
   },
   pageTitle: {
-    home: "CloudPaste - Online Clipboard",
-    upload: "File Upload - CloudPaste",
-    admin: "Admin Panel - CloudPaste",
-    pasteView: "View Share - CloudPaste",
-    fileView: "File Preview - CloudPaste",
-    mountExplorer: "Mount Explorer - CloudPaste",
-    notFound: "Page Not Found - CloudPaste",
+    // Main page subtitles (for dynamic composition)
+    homeSubtitle: "Online Clipboard",
+    uploadSubtitle: "File Upload",
+    pasteViewSubtitle: "View Share",
+    fileViewSubtitle: "File Preview",
+    mountExplorerSubtitle: "Mount Explorer",
+    notFoundSubtitle: "Page Not Found",
+    // Admin module titles
     adminModules: {
       dashboard: "Dashboard",
       textManagement: "Text Management",
@@ -51,6 +74,7 @@ export default {
       previewSettings: "Preview Settings",
       accountSettings: "Account Management",
       webdavSettings: "WebDAV Settings",
+      siteSettings: "Site Settings",
     },
   },
   nav: {
@@ -65,9 +89,6 @@ export default {
     light: "Light mode",
     dark: "Dark mode",
     auto: "Auto mode",
-  },
-  footer: {
-    copyright: "© {year} CloudPaste. All rights reserved.",
   },
   textPreview: {
     loadingHighlight: "Loading code highlighting...",

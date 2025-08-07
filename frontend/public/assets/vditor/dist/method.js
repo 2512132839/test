@@ -1,5 +1,5 @@
 /*!
- * Vditor v3.11.0 - A markdown editor written in TypeScript.
+ * Vditor v3.11.1 - A markdown editor written in TypeScript.
  *
  * MIT License
  *
@@ -45,7 +45,7 @@ return /******/ (() => { // webpackBootstrap
 /* harmony export */   "g": () => (/* binding */ Constants)
 /* harmony export */ });
 /* unused harmony export VDITOR_VERSION */
-var _VDITOR_VERSION = (/* unused pure expression or super */ null && ("3.11.0"));
+var _VDITOR_VERSION = (/* unused pure expression or super */ null && ("3.11.1"));
 
 var Constants = /** @class */ (function () {
     function Constants() {
@@ -93,7 +93,7 @@ var Constants = /** @class */ (function () {
         // 别名
         "js", "ts", "html", "toml", "c#", "bat"
     ];
-    Constants.CDN = "https://unpkg.com/vditor@".concat("3.11.0");
+    Constants.CDN = "https://unpkg.com/vditor@".concat("3.11.1");
     Constants.MARKDOWN_OPTIONS = {
         autoSpace: false,
         gfmAutoLink: true,
@@ -2507,7 +2507,7 @@ var previewRender = function (previewElement, markdown, options) { return __awai
                 previewElement.innerHTML = html;
                 previewElement.classList.add("vditor-reset");
                 if (!!mergedOptions.i18n) return [3 /*break*/, 5];
-                if (!!["en_US", "fr_FR", "pt_BR", "ja_JP", "ko_KR", "ru_RU", "sv_SE", "zh_CN", "zh_TW"].includes(mergedOptions.lang)) return [3 /*break*/, 2];
+                if (!!["de_DE", "en_US", "fr_FR", "pt_BR", "ja_JP", "ko_KR", "ru_RU", "sv_SE", "zh_CN", "zh_TW"].includes(mergedOptions.lang)) return [3 /*break*/, 2];
                 throw new Error("options.lang error, see https://ld246.com/article/1549638745630#options");
             case 2:
                 i18nScriptPrefix = "vditorI18nScript";

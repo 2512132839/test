@@ -11,6 +11,7 @@ export const SETTING_GROUPS = {
   GLOBAL: 1, // 全局设置
   PREVIEW: 2, // 预览设置
   WEBDAV: 3, // WebDAV设置
+  SITE: 4, // 站点设置
   SYSTEM: 99, // 系统内部设置（不在前端显示）
 };
 
@@ -45,6 +46,7 @@ export const SETTING_GROUP_NAMES = {
   [SETTING_GROUPS.GLOBAL]: "全局设置",
   [SETTING_GROUPS.PREVIEW]: "预览设置",
   [SETTING_GROUPS.WEBDAV]: "WebDAV设置",
+  [SETTING_GROUPS.SITE]: "站点设置",
   [SETTING_GROUPS.SYSTEM]: "系统设置",
 };
 
@@ -195,6 +197,84 @@ export const DEFAULT_SETTINGS = {
     default_value: "multipart",
   },
 
+  // 站点设置组
+  site_title: {
+    key: "site_title",
+    type: SETTING_TYPES.TEXT,
+    group_id: SETTING_GROUPS.SITE,
+    help: "站点标题，显示在浏览器标签页和页面标题中",
+    options: null,
+    sort_order: 1,
+    flag: SETTING_FLAGS.PUBLIC,
+    default_value: "CloudPaste",
+  },
+
+  site_favicon_url: {
+    key: "site_favicon_url",
+    type: SETTING_TYPES.TEXT,
+    group_id: SETTING_GROUPS.SITE,
+    help: "站点图标URL，支持https链接或base64格式，留空使用默认图标",
+    options: null,
+    sort_order: 2,
+    flag: SETTING_FLAGS.PUBLIC,
+    default_value: "",
+  },
+
+  site_announcement_enabled: {
+    key: "site_announcement_enabled",
+    type: SETTING_TYPES.BOOL,
+    group_id: SETTING_GROUPS.SITE,
+    help: "是否在首页显示公告栏",
+    options: null,
+    sort_order: 3,
+    flag: SETTING_FLAGS.PUBLIC,
+    default_value: "false",
+  },
+
+  site_announcement_content: {
+    key: "site_announcement_content",
+    type: SETTING_TYPES.TEXTAREA,
+    group_id: SETTING_GROUPS.SITE,
+    help: "公告内容，支持 Markdown 格式",
+    options: null,
+    sort_order: 4,
+    flag: SETTING_FLAGS.PUBLIC,
+    default_value: "",
+  },
+
+  site_footer_markdown: {
+    key: "site_footer_markdown",
+    type: SETTING_TYPES.TEXTAREA,
+    group_id: SETTING_GROUPS.SITE,
+    help: "页脚内容，支持 Markdown 格式，留空则不显示页脚",
+    options: null,
+    sort_order: 5,
+    flag: SETTING_FLAGS.PUBLIC,
+    default_value: "© 2025 CloudPaste. 保留所有权利。",
+  },
+
+  site_custom_head: {
+    key: "site_custom_head",
+    type: SETTING_TYPES.TEXTAREA,
+    group_id: SETTING_GROUPS.SITE,
+    help: "在此处设置的任何内容都会自动放置在网页头部的开头",
+    options: null,
+    sort_order: 6,
+    flag: SETTING_FLAGS.PUBLIC,
+    default_value: "",
+  },
+
+  site_custom_body: {
+    key: "site_custom_body",
+    type: SETTING_TYPES.TEXTAREA,
+    group_id: SETTING_GROUPS.SITE,
+    help: "在此处设置的任何内容都会自动放置在网页正文的末尾",
+    options: null,
+    sort_order: 7,
+    flag: SETTING_FLAGS.PUBLIC,
+    default_value: "",
+  },
+
   // 系统内部设置（不在前端显示）
   db_initialized: {
     key: "db_initialized",
@@ -247,6 +327,13 @@ export function validateSettingValue(key, value, type) {
     case SETTING_TYPES.SELECT:
       if (key === "webdav_upload_mode") {
         return ["direct", "multipart"].includes(value);
+      }
+      return true;
+
+    case SETTING_TYPES.TEXTAREA:
+      // 自定义头部和body的长度限制
+      if (key === "site_custom_head" || key === "site_custom_body") {
+        return value.length <= 100000; // 100KB限制
       }
       return true;
 

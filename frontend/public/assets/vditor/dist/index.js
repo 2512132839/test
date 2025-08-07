@@ -1,5 +1,5 @@
 /*!
- * Vditor v3.11.0 - A markdown editor written in TypeScript.
+ * Vditor v3.11.1 - A markdown editor written in TypeScript.
  *
  * MIT License
  *
@@ -2471,7 +2471,7 @@ var previewRender = function (previewElement, markdown, options) { return __awai
                 previewElement.innerHTML = html;
                 previewElement.classList.add("vditor-reset");
                 if (!!mergedOptions.i18n) return [3 /*break*/, 5];
-                if (!!["en_US", "fr_FR", "pt_BR", "ja_JP", "ko_KR", "ru_RU", "sv_SE", "zh_CN", "zh_TW"].includes(mergedOptions.lang)) return [3 /*break*/, 2];
+                if (!!["de_DE", "en_US", "fr_FR", "pt_BR", "ja_JP", "ko_KR", "ru_RU", "sv_SE", "zh_CN", "zh_TW"].includes(mergedOptions.lang)) return [3 /*break*/, 2];
                 throw new Error("options.lang error, see https://ld246.com/article/1549638745630#options");
             case 2:
                 i18nScriptPrefix = "vditorI18nScript";
@@ -2633,7 +2633,7 @@ var Vditor = /** @class */ (function () {
 /* harmony export */   "H": () => (/* binding */ _VDITOR_VERSION),
 /* harmony export */   "g": () => (/* binding */ Constants)
 /* harmony export */ });
-var _VDITOR_VERSION = "3.11.0";
+var _VDITOR_VERSION = "3.11.1";
 
 var Constants = /** @class */ (function () {
     function Constants() {
@@ -2681,7 +2681,7 @@ var Constants = /** @class */ (function () {
         // 别名
         "js", "ts", "html", "toml", "c#", "bat"
     ];
-    Constants.CDN = "https://unpkg.com/vditor@".concat("3.11.0");
+    Constants.CDN = "https://unpkg.com/vditor@".concat("3.11.1");
     Constants.MARKDOWN_OPTIONS = {
         autoSpace: false,
         gfmAutoLink: true,
@@ -9488,6 +9488,7 @@ var uploadFiles = function (vditor, files, element) { return __awaiter(void 0, v
                     formData.append(vditor.options.upload.fieldName, validateResult[i]);
                 }
                 xhr = new XMLHttpRequest();
+                vditor.upload.xhr = xhr;
                 xhr.open("POST", vditor.options.upload.url);
                 if (vditor.options.upload.token) {
                     xhr.setRequestHeader("X-Upload-Token", vditor.options.upload.token);
@@ -9526,6 +9527,7 @@ var uploadFiles = function (vditor, files, element) { return __awaiter(void 0, v
                             element.value = "";
                         }
                         vditor.upload.element.style.display = "none";
+                        vditor.upload.xhr = undefined;
                     }
                 };
                 xhr.upload.onprogress = function (event) {
@@ -10799,7 +10801,7 @@ var fixBlockquote = function (vditor, range, event, pElement) {
 };
 var fixTask = function (vditor, range, event) {
     var startContainer = range.startContainer;
-    var taskItemElement = (0,hasClosest/* hasClosestByMatchTag */.lG)(startContainer, "li");
+    var taskItemElement = (0,hasClosest/* hasClosestByMatchTag */.lG)(startContainer, "LI");
     if (taskItemElement && taskItemElement.classList.contains("vditor-task")) {
         if (matchHotKey("⇧⌘J", event)) {
             // ctrl + shift: toggle checked
@@ -15409,6 +15411,7 @@ var Vditor = /** @class */ (function (_super) {
      */
     function Vditor(id, options) {
         var _this = _super.call(this) || this;
+        _this.isDestroyed = false;
         _this.version = constants/* VDITOR_VERSION */.H;
         if (typeof id === "string") {
             if (!options) {
@@ -15434,7 +15437,7 @@ var Vditor = /** @class */ (function (_super) {
         var mergedOptions = getOptions.merge();
         // 支持自定义国际化
         if (!mergedOptions.i18n) {
-            if (!["en_US", "fr_FR", "pt_BR", "ja_JP", "ko_KR", "ru_RU", "sv_SE", "zh_CN", "zh_TW"].includes(mergedOptions.lang)) {
+            if (!["de_DE", "en_US", "fr_FR", "pt_BR", "ja_JP", "ko_KR", "ru_RU", "sv_SE", "zh_CN", "zh_TW"].includes(mergedOptions.lang)) {
                 throw new Error("options.lang error, see https://ld246.com/article/1549638745630#options");
             }
             else {
@@ -15706,6 +15709,7 @@ var Vditor = /** @class */ (function (_super) {
         UIUnbindListener();
         this.vditor.wysiwyg.unbindListener();
         this.vditor.options.after = undefined;
+        this.isDestroyed = true;
     };
     /** 获取评论 ID */
     Vditor.prototype.getCommentIds = function () {
@@ -15809,6 +15813,9 @@ var Vditor = /** @class */ (function (_super) {
     };
     Vditor.prototype.init = function (id, mergedOptions) {
         var _this = this;
+        if (this.isDestroyed) {
+            return;
+        }
         this.vditor = {
             currentMode: mergedOptions.mode,
             element: id,

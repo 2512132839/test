@@ -68,7 +68,7 @@ systemRoutes.get("/api/version", async (c) => {
   const isDocker = runtimeEnv === "docker";
 
   // 统一的默认版本配置
-  const DEFAULT_VERSION = "0.7.4.1";
+  const DEFAULT_VERSION = "0.7.6.1";
   const DEFAULT_NAME = "cloudpaste-api";
 
   let version = DEFAULT_VERSION;
@@ -115,8 +115,8 @@ systemRoutes.get("/api/version", async (c) => {
 
 // ==================== 新增：分组设置管理API接口 ====================
 
-// 按分组获取设置项
-systemRoutes.get("/api/admin/settings", authGateway.requireAdmin(), async (c) => {
+// 按分组获取设置项（公开访问，无需认证）
+systemRoutes.get("/api/admin/settings", async (c) => {
   const db = c.env.DB;
 
   try {

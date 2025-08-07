@@ -115,7 +115,7 @@ export default {
     textTypes: "文本文件类型",
     textTypesLabel: "支持的文本文件扩展名",
     textTypesPlaceholder:
-        "txt,htm,html,xml,java,properties,sql,js,md,json,conf,ini,vue,php,py,bat,yml,go,sh,c,cpp,h,hpp,tsx,vtt,srt,ass,rs,lrc,dockerfile,makefile,gitignore,license,readme",
+      "txt,htm,html,xml,java,properties,sql,js,md,json,conf,ini,vue,php,py,bat,yml,go,sh,c,cpp,h,hpp,tsx,vtt,srt,ass,rs,lrc,dockerfile,makefile,gitignore,license,readme",
     textTypesHelp: "用逗号分隔的文本文件扩展名，这些文件将使用文本预览器显示",
 
     imageTypes: "图片文件类型",
@@ -147,4 +147,59 @@ export default {
     resetConfirm: "确定要重置为默认设置吗？这将覆盖当前的所有配置。",
     saveSuccess: "预览设置保存成功",
   },
+
+  // 站点设置页面
+  site: {
+    title: "站点设置",
+    description: "配置站点相关功能",
+    groups: {
+      basic: "基本设置",
+      announcement: "公告设置",
+    },
+    siteTitle: {
+      label: "站点标题",
+      hint: "显示在浏览器标签页和页面标题中",
+      placeholder: "请输入站点标题",
+    },
+    favicon: {
+      label: "站点图标",
+      hint: "支持 http://、https:// 链接或 data: base64 格式，留空使用默认图标",
+      placeholder: "https://example.com/favicon.svg",
+    },
+    footer: {
+      label: "页脚内容",
+      hint: "支持 Markdown 格式，可以使用链接、粗体等语法，留空则不显示页脚",
+      placeholder: "© 2025 CloudPaste. 保留所有权利。",
+    },
+    announcement: {
+      enableLabel: "启用公告栏",
+      enableHint: "开启后将在首页显示公告栏",
+      contentLabel: "公告内容",
+      contentHint: "支持 Markdown 格式，可以使用粗体、斜体、链接等",
+      contentPlaceholder: "请输入公告内容，支持 Markdown 格式...",
+    },
+    customHead: "自定义头部",
+    customHeadPlaceholder: "<!-- 在此输入自定义头部内容 -->",
+    customHeadHelp: "在此处设置的任何内容都会自动放置在网页头部的开头",
+    customBody: "自定义body",
+    customBodyPlaceholder: "<!-- 在此输入自定义body内容 -->",
+    customBodyHelp: "在此处设置的任何内容都会自动放置在网页正文的末尾",
+    buttons: {
+      updateSettings: "更新设置",
+      updating: "更新中...",
+      reset: "重置",
+    },
+    messages: {
+      updateSuccess: "站点设置更新成功",
+      updateFailed: "更新站点设置失败",
+      confirmReset: "确定要重置所有站点设置吗？",
+    },
+  },
+};
+
+// 公告弹窗
+export const announcement = {
+  title: "网站公告",
+  dontShowAgain: "不再显示此公告",
+  gotIt: "我知道了",
 };
