@@ -227,7 +227,7 @@ async function trueStreamingUpload(stream, uploadContext, fileSystem, options = 
       },
       // 终极CPU优化配置 - 测试Worker内存限制
       queueSize: 1, // 串行上传，最小CPU争用
-      partSize: 100 * 1024 * 1024, // 100MB分片大小，测试内存限制
+      partSize: 80 * 1024 * 1024, // 100MB分片大小，测试内存限制
       leavePartsOnError: false, // 出错时自动清理分片
     });
 
