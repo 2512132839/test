@@ -225,9 +225,9 @@ async function trueStreamingUpload(stream, uploadContext, fileSystem, options = 
         Body: stream, // 直接传递ReadableStream！
         ContentType: contentType,
       },
-      // 激进CPU优化配置
+      // 极限CPU优化配置
       queueSize: 1, // 串行上传，最小CPU争用
-      partSize: 20 * 1024 * 1024, // 20MB分片大小，大幅减少分片数量
+      partSize: 50 * 1024 * 1024, // 50MB分片大小，极限减少分片数量
       leavePartsOnError: false, // 出错时清理分片
     });
 
@@ -236,8 +236,8 @@ async function trueStreamingUpload(stream, uploadContext, fileSystem, options = 
     upload.on("httpUploadProgress", (progress) => {
       const { loaded = 0, total = contentLength } = progress;
 
-      // 每50MB记录一次进度，减少CPU消耗
-      const REDUCED_LOG_INTERVAL = 50 * 1024 * 1024; // 50MB
+      // 每100MB记录一次进度，进一步减少CPU消耗
+      const REDUCED_LOG_INTERVAL = 100 * 1024 * 1024; // 100MB
       if (loaded - lastProgressLog >= REDUCED_LOG_INTERVAL) {
         const progressMB = (loaded / (1024 * 1024)).toFixed(2);
         const totalMB = total > 0 ? (total / (1024 * 1024)).toFixed(2) : "未知";
@@ -699,7 +699,6 @@ export async function handlePut(c, path, userId, userType, db) {
       let s3Key = null;
 
       try {
-
         // 直接使用真正的流式上传，跳过传统的初始化步骤
         console.log(`WebDAV PUT - 直接使用流式上传，跳过初始化步骤`);
 
