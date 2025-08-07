@@ -374,37 +374,29 @@ async function managedMultipartUpload(stream, uploadContext, fileSystem, options
       return await uploadPartWithRetry(path, uploadId, partNumber, partData, userId, userType, s3Key, fileSystem);
     };
     const streamStartTime = Date.now();
-    // 尝试真正的流式上传（大文件优先）
+    // 既然选择了分片模式，直接使用真正的流式上传（最优方案）
     let uploadResult;
-    const shouldUseTrueStreaming = contentLength > 10 * 1024 * 1024; // 10MB以上使用流式
 
-    if (shouldUseTrueStreaming) {
-      try {
-        console.log(`WebDAV PUT - 尝试真正流式上传 (${(contentLength / (1024 * 1024)).toFixed(2)}MB)`);
+    // 优先尝试真正的流式上传
+    try {
+      console.log(`WebDAV PUT - 尝试真正流式上传 (${(contentLength / (1024 * 1024)).toFixed(2)}MB)`);
 
-        const streamingContext = {
-          key: s3Key, // 使用正确的S3 key，bucket从driver获取
-        };
+      const streamingContext = {
+        key: s3Key, // 使用正确的S3 key，bucket从driver获取
+      };
 
-        uploadResult = await trueStreamingUpload(stream, streamingContext, fileSystem, {
-          contentLength,
-          contentType: options.contentType,
-          path: path,
-          userIdOrInfo: userId,
-          userType: userType,
-        });
+      uploadResult = await trueStreamingUpload(stream, streamingContext, fileSystem, {
+        contentLength,
+        contentType: options.contentType,
+        path: path,
+        userIdOrInfo: userId,
+        userType: userType,
+      });
 
-        console.log(`WebDAV PUT - 真正流式上传成功`);
-      } catch (streamingError) {
-        console.warn(`WebDAV PUT - 流式上传失败，回退到缓冲模式:`, streamingError.message);
-        // 回退到缓冲模式
-        uploadResult = await bufferedMultipartUpload(stream, recommendedPartSize, uploadPartCallback, {
-          contentLength,
-          ...options,
-        });
-      }
-    } else {
-      // 小文件直接使用缓冲模式
+      console.log(`WebDAV PUT - 真正流式上传成功`);
+    } catch (streamingError) {
+      console.warn(`WebDAV PUT - 流式上传失败，回退到缓冲模式:`, streamingError.message);
+      // 回退到缓冲模式
       uploadResult = await bufferedMultipartUpload(stream, recommendedPartSize, uploadPartCallback, {
         contentLength,
         ...options,
