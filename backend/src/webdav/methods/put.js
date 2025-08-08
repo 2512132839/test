@@ -8,6 +8,7 @@ import { getMimeTypeFromFilename } from "../../utils/fileUtils.js";
 import { handleWebDAVError } from "../utils/errorUtils.js";
 import { clearDirectoryCache } from "../../cache/index.js";
 import { getSettingsByGroup } from "../../services/systemService.js";
+import { Upload } from "@aws-sdk/lib-storage";
 
 import { getLockManager } from "../utils/LockManager.js";
 import { checkLockPermission } from "../utils/lockUtils.js";
@@ -28,8 +29,7 @@ async function trueStreamingUpload(stream, uploadContext, fileSystem, options = 
     const { contentLength = 0, contentType = "application/octet-stream", path, userIdOrInfo, userType } = options;
 
     try {
-        // 动态导入Upload类
-        const { Upload } = await import("@aws-sdk/lib-storage");
+
 
         console.log(`WebDAV PUT - 开始流式上传，文件大小: ${(contentLength / (1024 * 1024)).toFixed(2)}MB`);
 
