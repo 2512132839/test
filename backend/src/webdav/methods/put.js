@@ -13,8 +13,8 @@ import { getLockManager } from "../utils/LockManager.js";
 import { checkLockPermission } from "../utils/lockUtils.js";
 
 // 流式上传配置
-const STREAMING_PART_SIZE = 15 * 1024 * 1024; // 5MB分片大小
-const STREAMING_QUEUE_SIZE = 1; // 2个并发分片
+const STREAMING_PART_SIZE = 5 * 1024 * 1024; // 5MB分片大小
+const STREAMING_QUEUE_SIZE = 4; // 2个并发分片
 
 /**
  * 检查请求体是否为空
