@@ -13,50 +13,8 @@ import { getLockManager } from "../utils/LockManager.js";
 import { checkLockPermission } from "../utils/lockUtils.js";
 
 // 流式上传配置
-const STREAMING_PART_SIZE = 5 * 1024 * 1024; // 5MB分片大小
+const STREAMING_PART_SIZE = 8 * 1024 * 1024; // 5MB分片大小
 const STREAMING_QUEUE_SIZE = 1; // 2个并发分片
-
-/**
- * 检查请求体是否为空
- * @param {ReadableStream} stream - 请求体流
- * @returns {Promise<{isEmpty: boolean, stream: ReadableStream}>} 检查结果
- */
-async function checkEmptyBody(stream) {
-    const reader = stream.getReader();
-    try {
-        const { done, value } = await reader.read();
-        if (done || !value || value.length === 0) {
-            return { isEmpty: true, stream: new ReadableStream() };
-        }
-
-        // 重新构造流，包含已读取的数据
-        const newStream = new ReadableStream({
-            start(controller) {
-                controller.enqueue(value);
-
-                // 继续读取剩余数据
-                const pump = async () => {
-                    try {
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            controller.enqueue(value);
-                        }
-                        controller.close();
-                    } catch (error) {
-                        controller.error(error);
-                    }
-                };
-                pump();
-            },
-        });
-
-        return { isEmpty: false, stream: newStream };
-    } catch (error) {
-        reader.releaseLock();
-        throw error;
-    }
-}
 
 /**
  * 真正的流式上传 - 使用AWS SDK Upload类
@@ -221,12 +179,11 @@ export async function handlePut(c, path, userId, userType, db) {
             throw new Error("请求体为空");
         }
 
-        // 检查是否为空文件
-        const { isEmpty, stream: processedStream } = await checkEmptyBody(bodyStream);
         const filename = path.split("/").pop();
 
-        if (isEmpty) {
-            console.log(`WebDAV PUT - 检测到0字节文件，使用FileSystem直接上传`);
+        // 优化：使用 Content-Length 头部判断空文件，避免流重构的 CPU 开销
+        if (declaredContentLength === 0) {
+            console.log(`WebDAV PUT - 检测到0字节文件（基于Content-Length），使用FileSystem直接上传`);
 
             // 创建一个空的File对象
             const emptyFile = new File([""], filename, { type: contentType });
@@ -252,6 +209,9 @@ export async function handlePut(c, path, userId, userType, db) {
                 },
             });
         }
+
+        // 直接使用原始流，不进行重构
+        const processedStream = bodyStream;
 
         // 根据配置决定上传模式
         if (uploadMode === "direct") {
@@ -311,7 +271,6 @@ export async function handlePut(c, path, userId, userType, db) {
             console.log(`WebDAV PUT - 文件名: ${filename}, 开始流式分片上传模式`);
 
             try {
-
                 // 获取driver来构建S3 key
                 const { driver, mount, subPath } = await fileSystem.mountManager.getDriverByPath(path, userId, userType);
 
