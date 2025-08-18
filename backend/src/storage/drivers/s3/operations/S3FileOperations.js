@@ -135,9 +135,16 @@ export class S3FileOperations {
           Key: s3SubPath,
         };
 
+        // 添加详细的诊断日志
+        console.log(`🔍[S3FileOps] getFileInfo开始 - 路径: ${path}, S3Key: ${s3SubPath}`);
+        console.log(`🔍[S3FileOps] S3配置 - Bucket: ${this.config.bucket_name}, Endpoint: ${this.config.endpoint_url}, Region: ${this.config.region || "auto"}`);
+        console.log(`🔍[S3FileOps] 挂载点信息 - ID: ${mount?.id}, 类型: ${mount?.storage_type}`);
+
         try {
+          console.log(`🔍[S3FileOps] 执行HeadObjectCommand - Bucket: ${headParams.Bucket}, Key: ${headParams.Key}`);
           const headCommand = new HeadObjectCommand(headParams);
           const headResponse = await this.s3Client.send(headCommand);
+          console.log(`✅[S3FileOps] HeadObjectCommand成功 - ContentType: ${headResponse.ContentType}, Size: ${headResponse.ContentLength}`);
 
           // 构建文件信息对象
           const fileName = path.split("/").filter(Boolean).pop() || "/";
@@ -207,8 +214,24 @@ export class S3FileOperations {
           console.log(`getFileInfo - 文件[${result.name}], S3 ContentType[${headResponse.ContentType}]`);
           return result;
         } catch (headError) {
+          // 添加详细的错误诊断日志
+          console.error(`❌[S3FileOps] HeadObjectCommand失败 - 路径: ${path}, S3Key: ${s3SubPath}`);
+          console.error(`❌[S3FileOps] 错误详情:`, {
+            name: headError.name,
+            message: headError.message,
+            code: headError.code,
+            statusCode: headError.$metadata?.httpStatusCode,
+            requestId: headError.$metadata?.requestId,
+            extendedRequestId: headError.$metadata?.extendedRequestId,
+            cfId: headError.$metadata?.cfId,
+            attempts: headError.$metadata?.attempts,
+            totalRetryDelay: headError.$metadata?.totalRetryDelay,
+          });
+          console.error(`❌[S3FileOps] 完整错误对象:`, JSON.stringify(headError, null, 2));
+
           // 如果HEAD失败，尝试GET请求（某些S3服务可能不支持HEAD）
           if (headError.$metadata?.httpStatusCode === 405) {
+            console.log(`🔄[S3FileOps] HeadObject返回405，尝试GET请求fallback`);
             const getParams = {
               Bucket: this.config.bucket_name,
               Key: s3SubPath,
@@ -288,9 +311,17 @@ export class S3FileOperations {
 
           // 检查是否是NotFound错误，转换为HTTPException
           if (headError.$metadata?.httpStatusCode === 404 || headError.name === "NotFound") {
+            console.log(`🔍[S3FileOps] 确认为404错误，文件不存在`);
             throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
           }
 
+          // 对于403错误，添加特殊处理和日志
+          if (headError.$metadata?.httpStatusCode === 403) {
+            console.error(`🚫[S3FileOps] 403权限错误 - 这可能是Worker环境特有的问题`);
+            console.error(`🚫[S3FileOps] 建议检查: 1)S3权限策略 2)地理限制 3)IP白名单 4)Worker网络环境`);
+          }
+
+          console.error(`❌[S3FileOps] 抛出原始错误，将被handleFsError处理`);
           throw headError;
         }
       },
