@@ -235,11 +235,25 @@ export class S3FileOperations {
             const getParams = {
               Bucket: this.config.bucket_name,
               Key: s3SubPath,
-              Range: "bytes=0-0", // 只获取第一个字节来检查文件存在性
+              // 移除Range header避免Worker环境下的签名问题
             };
 
             const getCommand = new GetObjectCommand(getParams);
             const getResponse = await this.s3Client.send(getCommand);
+
+            // 消费响应流以避免内存泄漏（我们只需要metadata，不需要内容）
+            if (getResponse.Body) {
+              try {
+                // 读取并丢弃响应体
+                const reader = getResponse.Body.getReader();
+                while (true) {
+                  const { done } = await reader.read();
+                  if (done) break;
+                }
+              } catch (streamError) {
+                console.warn(`消费响应流时出错: ${streamError.message}`);
+              }
+            }
 
             const fileName = path.split("/").filter(Boolean).pop() || "/";
 
