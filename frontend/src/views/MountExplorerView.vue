@@ -34,44 +34,20 @@
       </button>
     </div>
 
-    <!-- 权限提示 -->
-    <div
-      v-if="!hasPermission"
-      class="mb-4 p-3 rounded-md border"
-      :class="
-        isApiKeyUserWithoutPermission
-          ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-200'
-          : 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200'
-      "
-    >
-      <div class="flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            :d="
-              isApiKeyUserWithoutPermission
-                ? 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z'
-                : 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-            "
-          />
-        </svg>
-        <span v-if="isApiKeyUserWithoutPermission">
-          {{ $t("common.noPermission") }}
-        </span>
-        <span v-else>
-          {{ $t("mount.permissionRequired") }}
-          <a href="#" @click.prevent="navigateToAdmin" class="font-medium underline">{{ $t("mount.loginAuth") }}</a
-          >。
-        </span>
-      </div>
-    </div>
+    <!-- 权限管理组件 -->
+    <PermissionManager
+      :dark-mode="darkMode"
+      permission-type="mount"
+      :permission-required-text="$t('mount.permissionRequired')"
+      :login-auth-text="$t('mount.loginAuth')"
+      @permission-change="handlePermissionChange"
+      @navigate-to-admin="navigateToAdmin"
+    />
 
     <!-- 主要内容区域 -->
     <div v-if="hasPermission" class="mount-explorer-main">
       <!-- 操作按钮 -->
-      <div class="card mb-4" :class="darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'">
+      <div class="card mb-4">
         <div class="p-3">
           <FileOperations
             :current-path="currentPath"
@@ -117,6 +93,26 @@
 
       <!-- 任务管理弹窗 -->
       <TasksModal :is-open="isTasksModalOpen" :dark-mode="darkMode" @close="handleCloseTasksModal" />
+
+      <!-- 新建文件夹弹窗 -->
+      <InputDialog
+        :is-open="showCreateFolderDialog"
+        :title="t('mount.operations.createFolder')"
+        :description="t('mount.createFolder.enterName')"
+        :label="t('mount.createFolder.folderName')"
+        :placeholder="t('mount.createFolder.placeholder')"
+        :confirm-text="t('mount.createFolder.create')"
+        :cancel-text="t('mount.createFolder.cancel')"
+        :loading="isCreatingFolder"
+        :loading-text="t('mount.createFolder.creating')"
+        :dark-mode="darkMode"
+        @confirm="handleCreateFolderConfirm"
+        @cancel="handleCreateFolderCancel"
+        @close="showCreateFolderDialog = false"
+      />
+
+      <!-- 文件篮面板 -->
+      <FileBasketPanel :is-open="isBasketOpen" :dark-mode="darkMode" @close="closeBasket" @task-created="handleTaskCreated" @show-message="handleShowMessage" />
 
       <!-- 通用 ConfirmDialog 组件替换内联对话框 -->
       <ConfirmDialog
@@ -224,9 +220,9 @@
       </div>
 
       <!-- 内容区域 - 根据模式显示文件列表或文件预览 -->
-      <div class="card" :class="darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'">
+      <div class="card">
         <!-- 文件列表模式 -->
-        <div v-if="!isPreviewMode">
+        <div v-if="!hasPreviewIntent">
           <!-- 错误提示 -->
           <div v-if="error" class="mb-4 p-4 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
             <div class="flex items-center">
@@ -266,7 +262,36 @@
 
         <!-- 文件预览模式 -->
         <div v-else>
-          <div class="p-4">
+          <!-- 预览加载状态 -->
+          <div v-if="isPreviewLoading" class="p-8 text-center">
+            <div class="flex flex-col items-center space-y-4">
+              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <div class="text-gray-600 dark:text-gray-400">{{ $t("common.loading") }}{{ route.query.preview ? ` ${route.query.preview}` : "" }}...</div>
+            </div>
+          </div>
+
+          <!-- 预览错误状态 -->
+          <div v-else-if="previewError" class="p-8 text-center">
+            <div class="flex flex-col items-center space-y-4">
+              <svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.694-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z"
+                ></path>
+              </svg>
+              <div class="text-red-600 dark:text-red-400">
+                {{ previewError }}
+              </div>
+              <button @click="closePreviewWithUrl" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                {{ $t("common.back") }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 预览内容 -->
+          <div v-else-if="previewFile" class="p-4">
             <!-- 返回按钮 -->
             <div class="mb-4">
               <button
@@ -335,6 +360,9 @@ import CopyModal from "../components/mount-explorer/shared/modals/CopyModal.vue"
 import TasksModal from "../components/mount-explorer/shared/modals/TasksModal.vue";
 import SearchModal from "../components/mount-explorer/shared/modals/SearchModal.vue";
 import ConfirmDialog from "../components/common/dialogs/ConfirmDialog.vue";
+import InputDialog from "../components/common/dialogs/InputDialog.vue";
+import FileBasketPanel from "../components/mount-explorer/shared/FileBasketPanel.vue";
+import PermissionManager from "../components/common/PermissionManager.vue";
 
 const { t } = useI18n();
 
@@ -353,6 +381,9 @@ const fileOperations = useFileOperations();
 const uiState = useUIState();
 const fileBasket = useFileBasket();
 
+// 文件篮状态
+const { isBasketOpen } = storeToRefs(fileBasket);
+
 // 使用storeToRefs解构响应式状态
 const { currentPath, loading, error, hasPermissionForCurrentPath, directoryItems, isVirtualDirectory } = storeToRefs(fileSystemStore);
 
@@ -361,7 +392,10 @@ const { refreshDirectory, navigateTo, initializeFromRoute, updateUrl } = fileSys
 
 const { isCheckboxMode, selectedItems, selectedCount, setAvailableItems, toggleCheckboxMode, toggleSelectAll, getSelectedItems, selectItem } = selection;
 
-const { previewFile, previewInfo, isPreviewMode, isLoading: isPreviewLoading, updatePreviewUrl, stopPreview, initPreviewFromRoute } = filePreview;
+const { previewFile, previewInfo, isPreviewMode, isLoading: isPreviewLoading, error: previewError, updatePreviewUrl, stopPreview, initPreviewFromRoute } = filePreview;
+
+// 计算属性：基于路由参数判断是否有预览意图
+const hasPreviewIntent = computed(() => !!route.query.preview);
 
 // 组合式函数状态和方法
 const {
@@ -390,6 +424,10 @@ const {
 const showDeleteDialog = ref(false);
 const itemsToDelete = ref([]);
 const isDeleting = ref(false);
+
+// 新建文件夹弹窗状态
+const showCreateFolderDialog = ref(false);
+const isCreatingFolder = ref(false);
 
 const props = defineProps({
   darkMode: {
@@ -431,10 +469,11 @@ const hasFilePermission = computed(() => authStore.hasFilePermission);
 const hasMountPermission = computed(() => authStore.hasMountPermission);
 const hasPermission = computed(() => authStore.hasMountPermission);
 
-// 判断是否为已登录但无挂载权限的API密钥用户
-const isApiKeyUserWithoutPermission = computed(() => {
-  return authStore.isAuthenticated && authStore.authType === "apikey" && !authStore.hasMountPermission;
-});
+// 权限变化处理
+const handlePermissionChange = (hasPermission) => {
+  console.log("MountExplorer: 权限状态变化", hasPermission);
+  // 权限状态会自动更新，这里只需要记录日志
+};
 
 // API密钥信息
 const apiKeyInfo = computed(() => authStore.apiKeyInfo);
@@ -534,20 +573,54 @@ const handleViewModeChange = (newViewMode) => {
 };
 
 /**
- * 处理文件夹创建
+ * 处理文件夹创建 - 打开弹窗
  */
-const handleCreateFolder = async ({ name, path }) => {
-  if (!name || !path) return;
+const handleCreateFolder = () => {
+  showCreateFolderDialog.value = true;
+};
 
-  // 使用fileOperations创建文件夹，传递正确的参数
-  const result = await fileOperations.createFolder(path, name);
+/**
+ * 处理新建文件夹确认
+ */
+const handleCreateFolderConfirm = async (folderName) => {
+  if (!folderName) return;
 
-  if (result.success) {
-    showMessage("success", result.message);
-    // 重新加载当前目录内容
-    await refreshDirectory();
-  } else {
-    showMessage("error", result.message);
+  isCreatingFolder.value = true;
+  try {
+    // 使用fileOperations创建文件夹，传递正确的参数
+    const result = await fileOperations.createFolder(currentPath.value, folderName);
+
+    if (result.success) {
+      showMessage("success", result.message);
+      // 重新加载当前目录内容
+      await refreshDirectory();
+      showCreateFolderDialog.value = false;
+    } else {
+      showMessage("error", result.message);
+    }
+  } catch (error) {
+    console.error("创建文件夹失败:", error);
+    showMessage("error", "创建文件夹失败，请重试");
+  } finally {
+    isCreatingFolder.value = false;
+  }
+};
+
+/**
+ * 处理新建文件夹取消
+ */
+const handleCreateFolderCancel = () => {
+  showCreateFolderDialog.value = false;
+};
+
+/**
+ * 关闭文件篮面板
+ */
+const closeBasket = () => {
+  try {
+    fileBasket.closeBasket();
+  } catch (error) {
+    console.error("关闭文件篮面板失败:", error);
   }
 };
 
@@ -652,7 +725,7 @@ const batchDelete = () => {
 };
 
 /**
- * 🔧 取消删除 
+ * 🔧 取消删除
  */
 const cancelDelete = () => {
   // 删除过程中不允许取消

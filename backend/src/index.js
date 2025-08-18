@@ -4,11 +4,11 @@ import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import adminRoutes from "./routes/adminRoutes.js";
 import apiKeyRoutes from "./routes/apiKeyRoutes.js";
+import { backupRoutes } from "./routes/backupRoutes.js";
 
 import s3ConfigRoutes from "./routes/s3ConfigRoutes.js";
 import systemRoutes from "./routes/systemRoutes.js";
-import adminStorageMountRoutes from "./routes/adminStorageMountRoutes.js";
-import userStorageMountRoutes from "./routes/userStorageMountRoutes.js";
+import mountRoutes from "./routes/mountRoutes.js";
 import webdavRoutes from "./routes/webdavRoutes.js";
 import fsRoutes from "./routes/fsRoutes.js";
 import { DbTables, ApiStatus } from "./constants/index.js";
@@ -61,20 +61,18 @@ app.use(
 // 注册路由
 app.route("/", adminRoutes);
 app.route("/", apiKeyRoutes);
+app.route("/", backupRoutes);
+app.route("/", fileViewRoutes);
 app.route("/", filesRoutes);
 app.route("/", pastesRoutes);
 app.route("/", s3UploadRoutes);
-app.route("/", fileViewRoutes);
 app.route("/", urlUploadRoutes);
 app.route("/", s3ConfigRoutes);
 app.route("/", systemRoutes);
-app.route("/", adminStorageMountRoutes);
-app.route("/", userStorageMountRoutes);
+app.route("/", mountRoutes);
 app.route("/", webdavRoutes);
 app.route("/", fsRoutes);
 app.route("/", fsProxyRoutes);
-
-
 
 // 健康检查路由
 app.get("/api/health", (c) => {

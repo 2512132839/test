@@ -6,7 +6,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { createAuthenticatedPreviewUrl } from "@/utils/fileUtils.js";
 import { formatDateTime } from "@/utils/timeUtils.js";
-import { formatFileSize as formatFileSizeUtil, FileType } from "@/utils/fileTypes.js";
+import { formatFileSize as formatFileSizeUtil, FileType, isArchiveFile } from "@/utils/fileTypes.js";
 
 export function usePreviewRenderers(file, emit, darkMode) {
   // ===== 状态管理 =====
@@ -44,7 +44,7 @@ export function usePreviewRenderers(file, emit, darkMode) {
    */
   const fileTypeInfo = computed(() => {
     if (!file.value) return null;
-    const mimeType = file.value.contentType || file.value.mimetype;
+    const mimeType = file.value.mimetype;
     return {
       mimeType,
       filename: file.value.name,
@@ -65,17 +65,17 @@ export function usePreviewRenderers(file, emit, darkMode) {
   const isPdfFile = computed(() => {
     return file.value?.type === FileType.DOCUMENT;
   });
-  // Office 子类型判断 - 基于MIME类型（保持原有逻辑）
+  // Office 子类型判断 - 统一使用mimetype字段
   const isWordDoc = computed(() => {
-    const mimeType = file.value?.contentType || file.value?.mimetype;
+    const mimeType = file.value?.mimetype;
     return mimeType?.includes("wordprocessingml") || mimeType === "application/msword";
   });
   const isExcel = computed(() => {
-    const mimeType = file.value?.contentType || file.value?.mimetype;
+    const mimeType = file.value?.mimetype;
     return mimeType?.includes("spreadsheetml") || mimeType === "application/vnd.ms-excel";
   });
   const isPowerPoint = computed(() => {
-    const mimeType = file.value?.contentType || file.value?.mimetype;
+    const mimeType = file.value?.mimetype;
     return mimeType?.includes("presentationml") || mimeType === "application/vnd.ms-powerpoint";
   });
 
@@ -435,7 +435,7 @@ export function usePreviewRenderers(file, emit, darkMode) {
         console.group(`📁 文件预览类型分析: ${newFile.name}`);
         console.log("🔍 文件信息:", {
           name: newFile.name,
-          contentType: newFile.contentType || newFile.mimetype,
+          mimetype: newFile.mimetype,
           size: newFile.size,
           path: newFile.path,
         });
@@ -459,9 +459,15 @@ export function usePreviewRenderers(file, emit, darkMode) {
         console.log(`✅ 最终预览类型: ${selectedType}`);
         console.groupEnd();
 
-        // 使用S3预签名URL（图片、视频、音频、PDF）
+        // 使用S3预签名URL（图片、视频、音频、PDF、压缩文件）
         if (typeChecks.isImage || typeChecks.isVideo || typeChecks.isAudio || typeChecks.isPdf) {
           authenticatedPreviewUrl.value = previewUrl.value;
+        }
+
+        // 为压缩文件也生成预览URL（用于在线解压）
+        if (file.value?.name && isArchiveFile(file.value.name)) {
+          authenticatedPreviewUrl.value = previewUrl.value;
+          console.log("为压缩文件生成预览URL:", previewUrl.value);
         }
 
         // 如果是Office文件，更新Office预览URL

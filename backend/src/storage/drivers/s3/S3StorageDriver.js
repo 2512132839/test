@@ -18,7 +18,6 @@ import { S3FileOperations } from "./operations/S3FileOperations.js";
 import { S3DirectoryOperations } from "./operations/S3DirectoryOperations.js";
 import { S3BatchOperations } from "./operations/S3BatchOperations.js";
 import { S3UploadOperations } from "./operations/S3UploadOperations.js";
-// import { S3BackendMultipartOperations } from "./operations/S3BackendMultipartOperations.js"; // 已废弃，使用前端分片上传
 import { S3SearchOperations } from "./operations/S3SearchOperations.js";
 
 export class S3StorageDriver extends BaseDriver {

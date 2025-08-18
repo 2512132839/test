@@ -94,7 +94,7 @@ export const WEBDAV_PERMISSIONS = {
 
 /**
  * 平台特定配置
- * 仅保留真正必要的平台差异配置
+ *
  */
 export const PLATFORM_CONFIG = {
   // Cloudflare Workers特定配置

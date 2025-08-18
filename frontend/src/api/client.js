@@ -40,7 +40,7 @@ function getOfflineOperationType(endpoint, method) {
     return { type: "clearCache", description: "离线缓存清理已加入队列" };
   }
 
-  // 文件密码验证 
+  // 文件密码验证
   if (endpoint.includes("/public/files/") && endpoint.includes("/verify") && method === "POST") {
     return { type: "verifyFilePassword", description: "离线文件密码验证已加入队列" };
   }
@@ -240,7 +240,12 @@ export async function fetchApi(endpoint, options = {}) {
     // 首先解析响应内容
     let responseData;
     const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
+
+    // 检查是否需要返回blob响应
+    if (options.responseType === "blob") {
+      responseData = await response.blob();
+      console.log(`📦 API响应Blob(${url}): ${responseData.size} 字节, 类型: ${responseData.type}`);
+    } else if (contentType && contentType.includes("application/json")) {
       responseData = await response.json();
       console.log(`📦 API响应数据(${url}):`, responseData);
     } else {
@@ -250,6 +255,18 @@ export async function fetchApi(endpoint, options = {}) {
 
     // 如果响应不成功，抛出错误
     if (!response.ok) {
+      // 对于blob响应的错误，需要重新解析为JSON获取错误信息
+      if (options.responseType === "blob" && responseData instanceof Blob) {
+        try {
+          const errorText = await responseData.text();
+          const errorData = JSON.parse(errorText);
+          responseData = errorData;
+        } catch (e) {
+          // 如果无法解析为JSON，使用默认错误信息
+          responseData = { message: `HTTP错误 ${response.status}` };
+        }
+      }
+
       // 特殊处理401未授权错误
       if (response.status === ApiStatus.UNAUTHORIZED) {
         console.error(`🚫 授权失败(${url}):`, responseData);
@@ -292,12 +309,19 @@ export async function fetchApi(endpoint, options = {}) {
           }
           // API密钥处理
           else if (authHeader.startsWith("ApiKey ")) {
-            // 检查是否是文件访问权限问题（文件相关API）
-            const isFileAccess = url.includes("/api/files") || url.includes("/api/upload");
-            const isPermissionIssue = responseData && responseData.message && (responseData.message.includes("未授权访问") || responseData.message.includes("无权访问"));
+            // 检查是否是权限不足问题（而非API密钥无效）
+            const isPermissionIssue =
+              responseData &&
+              responseData.message &&
+              (responseData.message.includes("未授权访问") ||
+                responseData.message.includes("无权访问") ||
+                responseData.message.includes("需要管理员权限或有效的API密钥") ||
+                responseData.message.includes("权限不足") ||
+                responseData.message.includes("没有权限"));
 
-            if (isFileAccess && isPermissionIssue) {
-              // 仅抛出错误，但不清除API密钥
+            if (isPermissionIssue) {
+              // 权限不足，仅抛出错误，但不清除API密钥
+              console.log("API密钥权限不足，不执行登出");
               throw new Error(responseData.message || "访问被拒绝，您可能无权执行此操作");
             } else {
               // 其他情况（如密钥真的无效）时，执行登出

@@ -14,6 +14,7 @@ import { getMimeTypeFromFilename } from "../../../../utils/fileUtils.js";
 import { clearDirectoryCache } from "../../../../cache/index.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 import { updateParentDirectoriesModifiedTime } from "../utils/S3DirectoryUtils.js";
+import { getEnvironmentOptimizedUploadConfig, convertStreamForAWSCompatibility } from "../../../../utils/environmentUtils.js";
 
 export class S3UploadOperations {
   /**
@@ -29,6 +30,7 @@ export class S3UploadOperations {
   }
 
   /**
+   * 待废弃，使用uploadStream代替
    * 直接上传文件
    * @param {string} s3SubPath - S3子路径
    * @param {File} file - 文件对象
@@ -142,6 +144,11 @@ export class S3UploadOperations {
           // 使用AWS SDK Upload类进行流式分片上传
           const { Upload } = await import("@aws-sdk/lib-storage");
 
+          // 获取环境自适应的上传配置
+          const uploadConfig = getEnvironmentOptimizedUploadConfig();
+
+          console.log(`S3流式分片上传 - 环境: ${uploadConfig.environment}, 分片: ${uploadConfig.partSize / 1024 / 1024}MB, 并发: ${uploadConfig.queueSize}`);
+
           const upload = new Upload({
             client: this.s3Client,
             params: {
@@ -150,8 +157,8 @@ export class S3UploadOperations {
               Body: stream,
               ContentType: contentType,
             },
-            queueSize: 1, // 使用配置的并发数
-            partSize: 6 * 1024 * 1024, // 分片大小
+            queueSize: uploadConfig.queueSize,
+            partSize: uploadConfig.partSize,
             leavePartsOnError: false, // 出错时自动清理分片
           });
 
@@ -160,7 +167,7 @@ export class S3UploadOperations {
           upload.on("httpUploadProgress", (progress) => {
             const { loaded = 0, total = contentLength } = progress;
 
-            // 每100MB记录一次进度，与成功代码完全相同
+            // 每50MB记录一次进度，与成功代码完全相同
             const REDUCED_LOG_INTERVAL = 50 * 1024 * 1024; // 50MB
             if (loaded - lastProgressLog >= REDUCED_LOG_INTERVAL || loaded === total) {
               const progressMB = (loaded / (1024 * 1024)).toFixed(2);
@@ -184,10 +191,13 @@ export class S3UploadOperations {
           // 使用PutObjectCommand进行直接流式上传
           console.log(`WebDAV PUT [${filename}]: 开始直接上传 (${(contentLength / 1024 / 1024).toFixed(1)}MB)`);
 
+          // 处理AWS SDK v3在Node.js环境中的ReadableStream兼容性问题
+          const compatibleStream = await convertStreamForAWSCompatibility(stream);
+
           const putCommand = new PutObjectCommand({
             Bucket: this.config.bucket_name,
             Key: finalS3Path,
-            Body: stream,
+            Body: compatibleStream,
             ContentType: contentType,
             ContentLength: contentLength > 0 ? contentLength : undefined,
           });
