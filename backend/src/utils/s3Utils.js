@@ -92,26 +92,13 @@ export async function createS3Client(config, encryptionSecret) {
 
   // 日志记录所选服务商和配置
   console.log(
-    `🔧[S3Utils] 正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+    `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
       config.path_style ? "是" : "否"
     }, maxRetries: ${maxRetries}, checksumMode: ${clientConfig.requestChecksumCalculation || "默认"}`
   );
 
-  // 检测运行环境
-  const isWorkerEnv = typeof globalThis !== "undefined" && globalThis.navigator && globalThis.navigator.userAgent && globalThis.navigator.userAgent.includes("Cloudflare-Workers");
-  const isCloudflareEnv = typeof caches !== "undefined" && typeof Request !== "undefined" && typeof Response !== "undefined";
-
-  if (isWorkerEnv || isCloudflareEnv) {
-    console.log(`🌐[S3Utils] 检测到Cloudflare Worker环境`);
-    console.log(`🌐[S3Utils] Worker环境特殊配置 - 超时: ${clientConfig.requestTimeout}ms, 重试: ${maxRetries}次`);
-  } else {
-    console.log(`🖥️[S3Utils] 检测到标准Node.js环境`);
-  }
-
   // 返回创建的S3客户端
-  const s3Client = new S3Client(clientConfig);
-  console.log(`✅[S3Utils] S3客户端创建成功`);
-  return s3Client;
+  return new S3Client(clientConfig);
 }
 
 /**
