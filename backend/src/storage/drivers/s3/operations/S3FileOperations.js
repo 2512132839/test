@@ -229,9 +229,9 @@ export class S3FileOperations {
           });
           console.error(`❌[S3FileOps] 完整错误对象:`, JSON.stringify(headError, null, 2));
 
-          // 如果HEAD失败，尝试GET请求（某些S3服务可能不支持HEAD）
-          if (headError.$metadata?.httpStatusCode === 405) {
-            console.log(`🔄[S3FileOps] HeadObject返回405，尝试GET请求fallback`);
+          // 如果HEAD失败，尝试GET请求（某些S3服务可能不支持HEAD，或Worker环境兼容性问题）
+          if (headError.$metadata?.httpStatusCode === 405 || headError.$metadata?.httpStatusCode === 403) {
+            console.log(`🔄[S3FileOps] HeadObject返回${headError.$metadata?.httpStatusCode}，尝试GET请求fallback`);
             const getParams = {
               Bucket: this.config.bucket_name,
               Key: s3SubPath,
@@ -315,9 +315,9 @@ export class S3FileOperations {
             throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文件不存在" });
           }
 
-          // 对于403错误，添加特殊处理和日志
+          // 对于403错误，如果没有尝试GET回退，添加特殊处理和日志
           if (headError.$metadata?.httpStatusCode === 403) {
-            console.error(`🚫[S3FileOps] 403权限错误 - 这可能是Worker环境特有的问题`);
+            console.error(`🚫[S3FileOps] 403权限错误 - GET回退也失败，这可能是Worker环境特有的问题`);
             console.error(`🚫[S3FileOps] 建议检查: 1)S3权限策略 2)地理限制 3)IP白名单 4)Worker网络环境`);
           }
 
