@@ -3,12 +3,15 @@
  * 用于复制文件和目录
  */
 import { MountManager } from "../../storage/managers/MountManager.js";
+import { getEncryptionSecret } from "../../utils/environmentUtils.js";
 import { FileSystem } from "../../storage/fs/FileSystem.js";
-import { handleWebDAVError, createWebDAVErrorResponse, addCorsHeaders } from "../utils/errorUtils.js";
+import { createWebDAVErrorResponse, withWebDAVErrorHandling } from "../utils/errorUtils.js";
+import { getStandardWebDAVHeaders } from "../utils/headerUtils.js";
 import { parseDestinationPath } from "../utils/webdavUtils.js";
-import { clearDirectoryCache } from "../../cache/index.js";
-import { getLockManager } from "../utils/LockManager.js";
+import { invalidateFsCache } from "../../cache/invalidation.js";
+import { lockManager } from "../utils/LockManager.js";
 import { checkLockPermission } from "../utils/lockUtils.js";
+import { DriverError } from "../../http/errors.js";
 
 /**
  * 执行同步跨存储传输
@@ -149,7 +152,7 @@ async function performFileCrossStorageTransfer(fileItem) {
     console.log(`下载文件: ${downloadUrl}`);
     const downloadResponse = await fetch(downloadUrl);
     if (!downloadResponse.ok) {
-      throw new Error(`下载失败: ${downloadResponse.status} ${downloadResponse.statusText}`);
+      throw new DriverError(`下载失败: ${downloadResponse.status} ${downloadResponse.statusText}`);
     }
 
     // 2. 获取文件内容长度
@@ -174,7 +177,7 @@ async function performFileCrossStorageTransfer(fileItem) {
     });
 
     if (!uploadResponse.ok) {
-      throw new Error(`上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      throw new DriverError(`上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`);
     }
 
     console.log(`文件跨存储传输成功: ${fileName}`);
@@ -194,7 +197,7 @@ async function performFileCrossStorageTransfer(fileItem) {
  * @param {D1Database} db - D1数据库实例
  */
 export async function handleCopy(c, path, userId, userType, db) {
-  try {
+  return withWebDAVErrorHandling("COPY", async () => {
     // 1. 解析WebDAV头部
     const destination = c.req.header("Destination");
     const overwrite = c.req.header("Overwrite") || "T";
@@ -215,9 +218,6 @@ export async function handleCopy(c, path, userId, userType, db) {
       console.warn(`WebDAV COPY - 无效的Destination头: ${destination}`);
       return createWebDAVErrorResponse("无效的Destination头", 400, false);
     }
-
-    // 获取锁定管理器实例
-    const lockManager = getLockManager();
 
     // 检查目标路径的锁定状态（COPY操作会在目标位置创建新资源）
     const lockConflict = checkLockPermission(lockManager, destPath, ifHeader, "COPY");
@@ -243,7 +243,8 @@ export async function handleCopy(c, path, userId, userType, db) {
     }
 
     // 6. 创建FileSystem实例
-    const mountManager = new MountManager(db, c.env.ENCRYPTION_SECRET);
+    const repositoryFactory = c.get("repos");
+    const mountManager = new MountManager(db, getEncryptionSecret(c), repositoryFactory);
     const fileSystem = new FileSystem(mountManager);
 
     console.log(`WebDAV COPY - 开始复制: ${path} -> ${destPath}, 用户类型: ${userType}`);
@@ -291,25 +292,24 @@ export async function handleCopy(c, path, userId, userType, db) {
             const { mount: destMountResult } = await mountManager.getDriverByPath(destPath, userId, userType);
 
             if (sourceMountResult) {
-              await clearDirectoryCache({ mountId: sourceMountResult.id });
-              console.log(`WebDAV COPY - 已清理源挂载点 ${sourceMountResult.id} 的缓存`);
+              invalidateFsCache({ mountId: sourceMountResult.id, reason: "webdav-copy-cross", db });
             }
 
-            if (destMountResult && destMountResult.id !== sourceMountResult?.id) {
-              await clearDirectoryCache({ mountId: destMountResult.id });
-              console.log(`WebDAV COPY - 已清理目标挂载点 ${destMountResult.id} 的缓存`);
+            if (destMountResult) {
+              invalidateFsCache({ mountId: destMountResult.id, reason: "webdav-copy-cross", db });
             }
           } catch (cacheError) {
-            // 缓存清理失败不应该影响复制操作的成功响应
             console.warn(`WebDAV COPY - 跨存储复制后缓存清理失败: ${cacheError.message}`);
           }
 
           // 返回标准WebDAV成功响应
           return new Response(null, {
             status: 201, // Created - 跨存储复制总是创建新文件
-            headers: addCorsHeaders({
-              "Content-Type": "text/plain",
-              "Content-Length": "0",
+            headers: getStandardWebDAVHeaders({
+              customHeaders: {
+                "Content-Type": "text/plain",
+                "Content-Length": "0",
+              },
             }),
           });
         } else {
@@ -335,16 +335,13 @@ export async function handleCopy(c, path, userId, userType, db) {
       const { mount: destMountResult } = await mountManager.getDriverByPath(destPath, userId, userType);
 
       if (sourceMountResult) {
-        await clearDirectoryCache({ mountId: sourceMountResult.id });
-        console.log(`WebDAV COPY - 已清理源挂载点 ${sourceMountResult.id} 的缓存`);
+        invalidateFsCache({ mountId: sourceMountResult.id, reason: "webdav-copy", db });
       }
 
-      if (destMountResult && destMountResult.id !== sourceMountResult?.id) {
-        await clearDirectoryCache({ mountId: destMountResult.id });
-        console.log(`WebDAV COPY - 已清理目标挂载点 ${destMountResult.id} 的缓存`);
+      if (destMountResult) {
+        invalidateFsCache({ mountId: destMountResult.id, reason: "webdav-copy", db });
       }
     } catch (cacheError) {
-      // 缓存清理失败不应该影响复制操作的成功响应
       console.warn(`WebDAV COPY - 缓存清理失败: ${cacheError.message}`);
     }
 
@@ -359,14 +356,12 @@ export async function handleCopy(c, path, userId, userType, db) {
 
     return new Response(null, {
       status: statusCode,
-      headers: addCorsHeaders({
-        "Content-Type": "text/plain",
-        "Content-Length": "0",
+      headers: getStandardWebDAVHeaders({
+        customHeaders: {
+          "Content-Type": "text/plain",
+          "Content-Length": "0",
+        },
       }),
     });
-  } catch (error) {
-    console.error(`WebDAV COPY - 处理错误: ${error.message}`, error);
-    // 使用统一的WebDAV错误处理
-    return handleWebDAVError("COPY", error, false, false);
-  }
+  }, { includeDetails: false, useXmlResponse: false });
 }

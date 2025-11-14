@@ -1,8 +1,10 @@
 import { ApiStatus } from "../constants/index.js";
-import { generateRandomString, createErrorResponse } from "../utils/common.js";
+import { generateRandomString, createErrorResponse, validateSlugFormat } from "../utils/common.js";
 import { hashPassword, verifyPassword } from "../utils/crypto.js";
-import { HTTPException } from "hono/http-exception";
-import { RepositoryFactory } from "../repositories/index.js";
+import { AppError, ValidationError, ConflictError, NotFoundError, AuthenticationError } from "../http/errors.js";
+import { ensureRepositoryFactory } from "../utils/repositories.js";
+
+const resolveRepositoryFactory = ensureRepositoryFactory;
 
 /**
  * 生成唯一的文本分享短链接slug
@@ -10,16 +12,15 @@ import { RepositoryFactory } from "../repositories/index.js";
  * @param {string} customSlug - 自定义短链接
  * @returns {Promise<string>} 生成的唯一slug
  */
-export async function generateUniqueSlug(db, customSlug = null) {
+export async function generateUniqueSlug(db, customSlug = null, repositoryFactory = null) {
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   if (customSlug) {
-    // 添加格式验证：只允许字母、数字、连字符、下划线
-    const slugRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!slugRegex.test(customSlug)) {
-      throw new Error("链接后缀格式无效，只允许使用字母、数字、连字符(-)和下划线(_)");
+    // 添加格式验证：只允许字母、数字、连字符、下划线、点号
+    if (!validateSlugFormat(customSlug)) {
+      throw new ValidationError("链接后缀格式无效，只允许使用字母、数字、连字符(-)、下划线(_)和点号(.)");
     }
 
     // 检查自定义slug是否已存在
@@ -28,7 +29,7 @@ export async function generateUniqueSlug(db, customSlug = null) {
       return customSlug;
     }
     // 如果自定义slug已存在，抛出特定错误
-    throw new Error("链接后缀已被占用，请尝试其他后缀");
+    throw new ConflictError("链接后缀已被占用，请尝试其他后缀");
   }
 
   // 生成随机slug
@@ -43,7 +44,7 @@ export async function generateUniqueSlug(db, customSlug = null) {
     }
   }
 
-  throw new Error("无法生成唯一链接，请稍后再试");
+  throw new AppError("无法生成唯一链接，请稍后再试", { status: ApiStatus.INTERNAL_ERROR, code: "INTERNAL_ERROR", expose: false });
 }
 
 /**
@@ -53,10 +54,10 @@ export async function generateUniqueSlug(db, customSlug = null) {
  * @param {number} maxViews - 最大查看次数
  * @returns {Promise<Object>} 包含isDeleted、paste、isLastView、isLastNormalAccess的结果对象
  */
-export async function incrementAndCheckPasteViews(db, pasteId, maxViews) {
+export async function incrementAndCheckPasteViews(db, pasteId, maxViews, repositoryFactory = null) {
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 先获取当前paste信息，检查这是否是最后一次正常访问
   const currentPaste = await pasteRepository.findById(pasteId);
@@ -102,14 +103,14 @@ export async function incrementAndCheckPasteViews(db, pasteId, maxViews) {
  * @param {Object} paste - 文本分享对象
  * @returns {Promise<boolean>} 是否已过期并删除
  */
-export async function checkAndDeleteExpiredPaste(db, paste) {
+export async function checkAndDeleteExpiredPaste(db, paste, repositoryFactory = null) {
   if (!paste) return false;
 
   const now = new Date();
 
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 检查过期时间
   if (paste.expires_at && new Date(paste.expires_at) < now) {
@@ -158,23 +159,23 @@ export function isPasteAccessible(paste) {
  * @param {string} created_by - 创建者标识
  * @returns {Promise<Object>} 创建的文本分享
  */
-export async function createPaste(db, pasteData, created_by) {
+export async function createPaste(db, pasteData, created_by, repositoryFactory = null) {
   // 必须提供内容
   if (!pasteData.content) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "内容不能为空" });
+    throw new ValidationError("内容不能为空");
   }
 
   // 验证可打开次数不能为负数
   if (pasteData.max_views !== null && pasteData.max_views !== undefined && parseInt(pasteData.max_views) < 0) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "可打开次数不能为负数" });
+    throw new ValidationError("可打开次数不能为负数");
   }
 
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 生成唯一slug
-  const slug = await generateUniqueSlug(db, pasteData.slug);
+  const slug = await generateUniqueSlug(db, pasteData.slug, factory);
   const pasteId = crypto.randomUUID();
 
   // 处理密码 (如果提供)
@@ -222,17 +223,17 @@ export async function createPaste(db, pasteData, created_by) {
  * @param {string} slug - 唯一标识
  * @returns {Promise<Object>} 文本分享
  */
-export async function getPasteBySlug(db, slug) {
+export async function getPasteBySlug(db, slug, repositoryFactory = null) {
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 查询文本分享
   const paste = await pasteRepository.findBySlug(slug);
 
   // 如果不存在则返回404
   if (!paste) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文本分享不存在或已过期" });
+    throw new NotFoundError("文本分享不存在或已过期");
   }
 
   // 添加 has_password 字段
@@ -243,7 +244,7 @@ export async function getPasteBySlug(db, slug) {
 
   // 检查是否过期并删除
   if (await checkAndDeleteExpiredPaste(db, pasteWithPasswordFlag)) {
-    throw new HTTPException(ApiStatus.GONE, { message: "文本分享已过期或超过最大查看次数" });
+    throw new AppError("文本分享已过期或超过最大查看次数", { status: ApiStatus.GONE, code: "PASTE_GONE", expose: true });
   }
 
   return pasteWithPasswordFlag;
@@ -257,17 +258,17 @@ export async function getPasteBySlug(db, slug) {
  * @param {boolean} incrementViews - 是否增加查看次数，默认为true
  * @returns {Promise<Object>} 文本分享
  */
-export async function verifyPastePassword(db, slug, password, incrementViews = true) {
+export async function verifyPastePassword(db, slug, password, incrementViews = true, repositoryFactory = null) {
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 查询文本分享
   const paste = await pasteRepository.findBySlug(slug);
 
   // 如果不存在则返回404
   if (!paste) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文本分享不存在" });
+    throw new NotFoundError("文本分享不存在");
   }
 
   // 添加 has_password 字段用于过期检查
@@ -278,18 +279,18 @@ export async function verifyPastePassword(db, slug, password, incrementViews = t
 
   // 检查是否过期并删除
   if (await checkAndDeleteExpiredPaste(db, pasteWithPasswordFlag)) {
-    throw new HTTPException(ApiStatus.GONE, { message: "文本分享已过期或超过最大查看次数" });
+    throw new AppError("文本分享已过期或超过最大查看次数", { status: ApiStatus.GONE, code: "PASTE_GONE", expose: true });
   }
 
   // 如果没有密码
   if (!paste.password) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "此文本分享无需密码" });
+    throw new ValidationError("此文本分享无需密码");
   }
 
   // 验证密码
   const isValid = await verifyPassword(password, paste.password);
   if (!isValid) {
-    throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "密码错误" });
+    throw new AuthenticationError("密码错误");
   }
 
   // 查询明文密码
@@ -300,7 +301,7 @@ export async function verifyPastePassword(db, slug, password, incrementViews = t
     const result = await incrementAndCheckPasteViews(db, paste.id, paste.max_views);
     // 如果文本被删除，抛出错误
     if (result.isDeleted) {
-      throw new HTTPException(ApiStatus.GONE, { message: "文本分享已达到最大查看次数" });
+      throw new AppError("文本分享已达到最大查看次数", { status: ApiStatus.GONE, code: "PASTE_GONE", expose: true });
     }
   }
 
@@ -321,11 +322,11 @@ export async function verifyPastePassword(db, slug, password, incrementViews = t
  * @param {number} offset - 偏移量（优先使用）
  * @returns {Promise<Object>} 分页结果
  */
-export async function getAllPastes(db, page = 1, limit = 10, created_by = null, search = null, offset = null) {
+export async function getAllPastes(db, page = 1, limit = 10, created_by = null, search = null, offset = null, repositoryFactory = null) {
   // 使用 Repository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
-  const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
+  const apiKeyRepository = factory.getApiKeyRepository();
 
   // 使用 PasteRepository 获取管理员列表数据，支持offset模式
   const pasteData = await pasteRepository.findAllForAdmin({
@@ -383,11 +384,11 @@ export async function getAllPastes(db, page = 1, limit = 10, created_by = null, 
  * @param {string} search - 搜索关键词
  * @returns {Promise<Object>} 分页结果
  */
-export async function getUserPastes(db, apiKeyId, limit = 30, offset = 0, search = null) {
+export async function getUserPastes(db, apiKeyId, limit = 30, offset = 0, search = null, repositoryFactory = null) {
   // 使用 Repository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
-  const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
+  const apiKeyRepository = factory.getApiKeyRepository();
 
   // 使用 PasteRepository 获取用户文本列表
   const created_by = `apikey:${apiKeyId}`;
@@ -442,17 +443,17 @@ export async function getUserPastes(db, apiKeyId, limit = 30, offset = 0, search
  * @param {string} id - 文本ID
  * @returns {Promise<Object>} 文本详情
  */
-export async function getPasteById(db, id) {
+export async function getPasteById(db, id, repositoryFactory = null) {
   // 使用 Repository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
-  const apiKeyRepository = repositoryFactory.getApiKeyRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
+  const apiKeyRepository = factory.getApiKeyRepository();
 
   // 查询文本分享记录（包含密码信息）
   const paste = await pasteRepository.findByIdWithPassword(id, true);
 
   if (!paste) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文本分享不存在" });
+    throw new NotFoundError("文本分享不存在");
   }
 
   // 添加 has_password 字段
@@ -480,16 +481,16 @@ export async function getPasteById(db, id) {
  * @param {string} id - 文本ID
  * @returns {Promise<void>}
  */
-export async function deletePaste(db, id) {
+export async function deletePaste(db, id, repositoryFactory = null) {
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 检查分享是否存在
   const paste = await pasteRepository.findById(id);
 
   if (!paste) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文本分享不存在" });
+    throw new NotFoundError("文本分享不存在");
   }
 
   // 删除分享
@@ -503,10 +504,10 @@ export async function deletePaste(db, id) {
  * @param {boolean} clearExpired - 是否清理过期内容
  * @returns {Promise<number>} 删除的数量
  */
-export async function batchDeletePastes(db, ids, clearExpired = false) {
+export async function batchDeletePastes(db, ids, clearExpired = false, repositoryFactory = null) {
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 如果指定了清理过期内容
   if (clearExpired) {
@@ -516,7 +517,7 @@ export async function batchDeletePastes(db, ids, clearExpired = false) {
 
   // 否则按照指定的ID删除
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "请提供有效的ID数组" });
+    throw new ValidationError("请提供有效的ID数组");
   }
 
   // 执行批量删除
@@ -531,15 +532,15 @@ export async function batchDeletePastes(db, ids, clearExpired = false) {
  * @param {string} apiKeyId - API密钥ID
  * @returns {Promise<number>} 删除的数量
  */
-export async function batchDeleteUserPastes(db, ids, apiKeyId) {
+export async function batchDeleteUserPastes(db, ids, apiKeyId, repositoryFactory = null) {
   // 验证请求数据
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "请提供有效的ID数组" });
+    throw new ValidationError("请提供有效的ID数组");
   }
 
   // 使用 PasteRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 构建创建者标识
   const created_by = `apikey:${apiKeyId}`;
@@ -558,31 +559,31 @@ export async function batchDeleteUserPastes(db, ids, apiKeyId) {
  * @param {string} created_by - 创建者标识（可选，用于权限检查）
  * @returns {Promise<Object>} 更新后的信息
  */
-export async function updatePaste(db, slug, updateData, created_by = null) {
+export async function updatePaste(db, slug, updateData, created_by = null, repositoryFactory = null) {
   // 使用 Repository
-  const repositoryFactory = new RepositoryFactory(db);
-  const pasteRepository = repositoryFactory.getPasteRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const pasteRepository = factory.getPasteRepository();
 
   // 检查分享是否存在
   const paste = await pasteRepository.findBySlugForUpdate(slug, created_by);
 
   if (!paste) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "文本分享不存在或无权修改" });
+    throw new NotFoundError("文本分享不存在或无权修改");
   }
 
   // 检查是否过期
-  if (await checkAndDeleteExpiredPaste(db, paste)) {
-    throw new HTTPException(ApiStatus.GONE, { message: "文本分享已过期或超过最大查看次数，无法修改" });
+  if (await checkAndDeleteExpiredPaste(db, paste, factory)) {
+    throw new AppError("文本分享已过期或超过最大查看次数，无法修改", { status: ApiStatus.GONE, code: "PASTE_GONE", expose: true });
   }
 
   // 验证内容
   if (!updateData.content) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "内容不能为空" });
+    throw new ValidationError("内容不能为空");
   }
 
   // 验证可打开次数
   if (updateData.max_views !== null && updateData.max_views !== undefined && parseInt(updateData.max_views) < 0) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "可打开次数不能为负数" });
+    throw new ValidationError("可打开次数不能为负数");
   }
 
   // 处理密码更新
@@ -606,11 +607,11 @@ export async function updatePaste(db, slug, updateData, created_by = null) {
   if (updateData.newSlug !== undefined) {
     try {
       // 如果newSlug为空或null，则自动生成随机slug
-      newSlug = await generateUniqueSlug(db, updateData.newSlug || null);
+      newSlug = await generateUniqueSlug(db, updateData.newSlug || null, factory);
     } catch (error) {
       // 如果slug已被占用，返回409冲突错误
       if (error.message.includes("链接后缀已被占用")) {
-        throw new HTTPException(ApiStatus.CONFLICT, { message: error.message });
+        throw new ConflictError(error.message);
       }
       throw error;
     }

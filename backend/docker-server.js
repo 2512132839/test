@@ -3,7 +3,6 @@
 
 // 核心依赖
 import express from "express";
-import cors from "cors";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import path from "path";
@@ -18,7 +17,7 @@ import { checkAndInitDatabase } from "./src/utils/database.js";
 import app from "./src/index.js";
 import { ApiStatus } from "./src/constants/index.js";
 
-import { getWebDAVConfig, getPlatformConfig } from "./src/webdav/auth/index.js";
+import { getWebDAVConfig } from "./src/webdav/auth/config/WebDAVConfig.js";
 
 // ES模块兼容性处理：获取__dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -222,9 +221,6 @@ function createErrorResponse(error, status = ApiStatus.INTERNAL_ERROR, defaultMe
 const server = express();
 const PORT = process.env.PORT || 8787;
 
-// 获取Express平台配置（仅用于代理设置）
-const platformConfig = getPlatformConfig("express");
-
 // 数据目录和数据库设置
 const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
 if (!fs.existsSync(dataDir)) {
@@ -245,28 +241,14 @@ let isDbInitialized = false;
 // 获取WebDAV配置
 const webdavConfig = getWebDAVConfig();
 
-// 应用Express平台配置
-if (platformConfig.TRUST_PROXY) {
-  server.set("trust proxy", true);
-  console.log("Express: 已启用代理信任");
-}
-
-// CORS配置 - 使用统一配置
-const corsOptions = {
-  origin: webdavConfig.CORS.ALLOW_ORIGIN,
-  methods: webdavConfig.SUPPORTED_METHODS.join(","),
-  credentials: true,
-  optionsSuccessStatus: 204,
-  maxAge: 86400,
-  exposedHeaders: webdavConfig.CORS.ALLOW_HEADERS,
-};
+// CORS 由 Hono 层统一处理；此处不再配置 Express 侧 CORS（避免重复）
 
 // ==========================================
 // 中间件和服务器配置
 // ==========================================
 
 // 明确告知Express处理WebDAV方法
-webdavConfig.SUPPORTED_METHODS.forEach((method) => {
+webdavConfig.METHODS.forEach((method) => {
   server[method.toLowerCase()] = function (path, ...handlers) {
     return server.route(path).all(function (req, res, next) {
       if (req.method === method) {
@@ -278,7 +260,7 @@ webdavConfig.SUPPORTED_METHODS.forEach((method) => {
 });
 
 // 为WebDAV方法添加直接路由，确保它们能被正确处理
-webdavConfig.SUPPORTED_METHODS.forEach((method) => {
+webdavConfig.METHODS.forEach((method) => {
   server[method.toLowerCase()]("/dav*", (req, res, next) => {
     logMessage("debug", `直接WebDAV路由处理: ${method} ${req.path}`);
     next();
@@ -289,30 +271,12 @@ webdavConfig.SUPPORTED_METHODS.forEach((method) => {
 // 中间件配置（按功能分组）
 // ==========================================
 
-// 1. 基础中间件 - CORS和HTTP方法处理
+// 1. 基础中间件 - HTTP方法处理（CORS 由 Hono 统一）
 // ==========================================
-server.use(cors(corsOptions));
 server.use(methodOverride("X-HTTP-Method-Override"));
 server.use(methodOverride("X-HTTP-Method"));
 server.use(methodOverride("X-Method-Override"));
 server.disable("x-powered-by");
-
-// WebDAV基础方法支持 - 使用统一配置
-server.use((req, res, next) => {
-  if (req.path.startsWith("/dav")) {
-    res.setHeader("Access-Control-Allow-Methods", webdavConfig.SUPPORTED_METHODS.join(","));
-    res.setHeader("Allow", webdavConfig.SUPPORTED_METHODS.join(","));
-
-    // 对于OPTIONS请求，直接响应以支持预检请求
-    if (req.method === "OPTIONS") {
-      // 添加WebDAV特定的响应头
-      res.setHeader("DAV", webdavConfig.PROTOCOL.RESPONSE_HEADERS.DAV);
-      res.setHeader("MS-Author-Via", webdavConfig.PROTOCOL.RESPONSE_HEADERS["MS-Author-Via"]);
-      return res.status(204).end();
-    }
-  }
-  next();
-});
 
 // 2. 请求体处理中间件
 // ==========================================
@@ -382,7 +346,7 @@ server.use((req, res, next) => {
 server.use(
   express.raw({
     type: ["application/xml", "text/xml", "application/octet-stream"],
-    limit: "5gb", 
+    limit: "5gb",
     verify: (req, res, buf, encoding) => {
       // 对于WebDAV方法，特别是MKCOL，记录详细信息以便调试
       if ((req.method === "MKCOL" || req.method === "PUT") && buf && buf.length > 10 * 1024 * 1024) {
@@ -478,7 +442,7 @@ server.use(
 // WebDAV请求日志记录
 server.use((req, res, next) => {
   // 仅记录关键WebDAV操作，减少不必要的日志
-  if (["MKCOL", "COPY", "MOVE", "DELETE", "PUT"].includes(req.method) && req.path.startsWith("/dav")) {
+  if (["MKCOL", "COPY", "MOVE", "DELETE", "PUT"].includes(req.method) && (req.path === "/dav" || req.path.startsWith("/dav/"))) {
     logMessage("debug", `关键WebDAV请求: ${req.method} ${req.path}`);
   }
 
@@ -488,7 +452,7 @@ server.use((req, res, next) => {
 // WebDAV请求日志记录 - 认证由Hono层处理
 server.use("/dav", (req, res, next) => {
   // 明确设置允许的方法
-  res.setHeader("Allow", webdavConfig.SUPPORTED_METHODS.join(","));
+  res.setHeader("Allow", webdavConfig.METHODS.join(","));
 
   // 记录WebDAV请求信息
   logMessage("info", `WebDAV请求: ${req.method} ${req.path}`, {

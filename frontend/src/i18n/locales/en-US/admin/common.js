@@ -36,7 +36,7 @@ export default {
     dashboard: "Dashboard",
     textManagement: "Text Management",
     fileManagement: "File Management",
-    storageConfig: "S3 Storage Config",
+    storageConfig: "Storage Management",
     mountManagement: "Mount Management",
     keyManagement: "Key Management",
     backup: "Data Backup",
@@ -52,6 +52,9 @@ export default {
     logoutAuth: "Logout Auth",
     openMenu: "Open Menu",
     closeMenu: "Close Menu",
+
+    collapse: "Collapse Sidebar",
+    expand: "Expand Sidebar",
     menuTitle: {
       admin: "Admin Panel",
       user: "User Panel",

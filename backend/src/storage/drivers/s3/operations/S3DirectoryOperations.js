@@ -3,11 +3,12 @@
  * 负责目录相关操作：列出内容、创建目录、删除目录等
  */
 
-import { HTTPException } from "hono/http-exception";
-import { ApiStatus, FILE_TYPES, FILE_TYPE_NAMES } from "../../../../constants/index.js";
+import { FILE_TYPES, FILE_TYPE_NAMES } from "../../../../constants/index.js";
+import { NotFoundError } from "../../../../http/errors.js";
 import { S3Client, ListObjectsV2Command, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { checkDirectoryExists, updateParentDirectoriesModifiedTime } from "../utils/S3DirectoryUtils.js";
-import { directoryCacheManager, clearDirectoryCache } from "../../../../cache/index.js";
+import { isMountRootPath } from "../utils/S3PathUtils.js";
+import { directoryCacheManager } from "../../../../cache/index.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 import { GetFileType, getFileTypeName } from "../../../../utils/fileTypeDetector.js";
 
@@ -100,15 +101,16 @@ export class S3DirectoryOperations {
    * 列出目录内容
    * @param {string} s3SubPath - S3子路径
    * @param {Object} options - 选项参数
+   * @param {boolean} options.refresh - 是否强制刷新，跳过缓存
    * @returns {Promise<Object>} 目录内容
    */
   async listDirectory(s3SubPath, options = {}) {
-    const { mount, subPath, db } = options;
+    const { mount, subPath, db, refresh = false } = options;
 
     return handleFsError(
       async () => {
-        // 检查缓存
-        if (mount.cache_ttl > 0) {
+        // 只有在非强制刷新时才检查缓存
+        if (!refresh && mount.cache_ttl > 0) {
           const cachedResult = directoryCacheManager.get(mount.id, subPath);
           if (cachedResult && cachedResult.items) {
             // 检查缓存是否包含文件夹大小信息（新版本缓存）
@@ -273,20 +275,26 @@ export class S3DirectoryOperations {
    * @returns {Promise<Object>} 创建结果
    */
   async createDirectory(s3SubPath, options = {}) {
-    const { mount, subPath, path } = options;
+    const { mount, subPath, path, db } = options;
 
     return handleFsError(
       async () => {
+        // 特殊处理：如果s3SubPath为挂载点根目录，直接返回成功
+        // 因为挂载点根目录在逻辑上总是存在的，不需要在S3中创建
+        if (isMountRootPath(s3SubPath)) {
+          console.log(`跳过创建挂载点根目录（逻辑上总是存在）: "${s3SubPath}"`);
+          return {
+            success: true,
+            path: path,
+            message: "挂载点根目录总是存在",
+          };
+        }
+
         // nginx风格的递归创建功能：自动创建所有需要的中间目录
         // 参考nginx WebDAV模块的create_full_put_path功能
         console.log(`开始递归创建目录: ${s3SubPath}`);
         await this._ensureParentDirectoriesExist(s3SubPath);
 
-        // 清除缓存，因为目录结构已变更
-        if (mount && mount.id && subPath !== "/") {
-          await clearDirectoryCache({ mountId: mount.id });
-          console.log(`已清理挂载点 ${mount.id} 的缓存`);
-        }
 
         return {
           success: true,
@@ -333,6 +341,16 @@ export class S3DirectoryOperations {
    * @private
    */
   async _createSingleDirectory(s3SubPath) {
+    // 特殊处理：如果s3SubPath为挂载点根目录，直接返回成功
+    // 因为S3中不能创建空Key的对象，而挂载点根目录在逻辑上总是存在的
+    if (isMountRootPath(s3SubPath)) {
+      console.log(`跳过创建挂载点根目录（S3不支持空Key）: "${s3SubPath}"`);
+      return {
+        success: true,
+        message: "挂载点根目录总是存在",
+      };
+    }
+
     // 检查目录是否已存在
     try {
       const headParams = {
@@ -500,6 +518,6 @@ export class S3DirectoryOperations {
       };
     }
 
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "目录不存在" });
+    throw new NotFoundError("目录不存在");
   }
 }

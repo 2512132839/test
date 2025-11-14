@@ -4,11 +4,12 @@
  * 遵循RFC 4918标准，支持exclusive write locks
  */
 
-import { getLockManager } from "../utils/LockManager.js";
+import { lockManager } from "../utils/LockManager.js";
 import { parseLockXML, parseTimeoutHeader, parseDepthHeader, buildLockResponseXML, hasLockConflict } from "../utils/lockUtils.js";
-import { handleWebDAVError, createWebDAVErrorResponse, addCorsHeaders } from "../utils/errorUtils.js";
-import { HTTPException } from "hono/http-exception";
-import { ApiStatus } from "../../constants/index.js";
+import { createWebDAVErrorResponse, withWebDAVErrorHandling } from "../utils/errorUtils.js";
+import { getStandardWebDAVHeaders } from "../utils/headerUtils.js";
+import { UserType } from "../../constants/index.js";
+import { AppError } from "../../http/errors.js";
 
 /**
  * 处理LOCK请求
@@ -20,7 +21,7 @@ import { ApiStatus } from "../../constants/index.js";
  * @returns {Response} HTTP响应
  */
 export async function handleLock(c, path, userId, userType, db) {
-  try {
+  return withWebDAVErrorHandling("LOCK", async () => {
     console.log(`WebDAV LOCK 请求 - 路径: ${path}, 用户类型: ${userType}`);
 
     // 获取请求头
@@ -34,10 +35,10 @@ export async function handleLock(c, path, userId, userType, db) {
 
     // 确定锁定所有者
     let owner = "unknown";
-    if (userType === "admin") {
+    if (userType === UserType.ADMIN) {
       owner = `admin:${userId}`;
-    } else if (userType === "apiKey" && typeof userId === "object") {
-      owner = `apikey:${userId.name || userId.id}`;
+    } else if (userType === UserType.API_KEY && typeof userId === "object") {
+      owner = `apiKey:${userId.name || userId.id}`;
     }
 
     // 获取请求体
@@ -68,11 +69,8 @@ export async function handleLock(c, path, userId, userType, db) {
 
     console.log("解析的LOCK请求:", lockRequest);
 
-    // 获取锁定管理器实例
-    const lockManager = getLockManager();
-
     // 检查现有锁定
-    const existingLock = lockManager.getLock(path);
+    const existingLock = lockManager.getLockByPath(path);
     if (existingLock) {
       // 检查锁定冲突
       if (hasLockConflict(existingLock, lockRequest.scope)) {
@@ -87,8 +85,8 @@ export async function handleLock(c, path, userId, userType, db) {
       lockInfo = lockManager.createLock(path, lockRequest.owner || owner, timeoutSeconds, depth, lockRequest.scope, lockRequest.type);
     } catch (error) {
       console.error("创建锁定失败:", error);
-      if (error instanceof HTTPException) {
-        return createWebDAVErrorResponse(error.message, error.status);
+      if (error instanceof AppError) {
+        return createWebDAVErrorResponse(error.message, error.status ?? 500);
       }
       return createWebDAVErrorResponse("创建锁定失败", 500);
     }
@@ -100,16 +98,15 @@ export async function handleLock(c, path, userId, userType, db) {
 
     return new Response(responseXML, {
       status: 200,
-      headers: addCorsHeaders({
-        "Content-Type": "application/xml; charset=utf-8",
-        "Lock-Token": `<${lockInfo.token}>`,
-        DAV: "1, 2",
+      headers: getStandardWebDAVHeaders({
+        customHeaders: {
+          "Content-Type": "application/xml; charset=utf-8",
+          "Lock-Token": `<${lockInfo.token}>`,
+          DAV: "1, 2",
+        },
       }),
     });
-  } catch (error) {
-    console.error("处理LOCK失败:", error);
-    return handleWebDAVError("LOCK", error);
-  }
+  }, { includeDetails: false });
 }
 
 /**
@@ -130,9 +127,6 @@ async function handleLockRefresh(c, path, ifHeader, timeoutSeconds) {
   }
 
   const token = tokenMatch[1];
-
-  // 获取锁定管理器实例
-  const lockManager = getLockManager();
 
   // 刷新锁定
   const refreshedLock = lockManager.refreshLock(token, timeoutSeconds);

@@ -6,10 +6,17 @@
  */
 
 import { StorageFactory } from "../factory/StorageFactory.js";
-import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../../constants/index.js";
+import { AppError, AuthorizationError, DriverError, NotFoundError, ValidationError } from "../../http/errors.js";
 import { findMountPointByPath } from "../fs/utils/MountResolver.js";
 import { StorageConfigUtils } from "../utils/StorageConfigUtils.js";
+import { getAccessibleMountsForUser } from "../../security/helpers/access.js";
+import { ensureRepositoryFactory } from "../../utils/repositories.js";
+import { UserType } from "../../constants/index.js";
+
+// MountManager 的权限触点只剩 `_validateMountPermissionForApiKey`，
+// 它依赖 security/access 的工具保证 basicPath + S3 公共性一致，
+// 因而这里不再直接引用任何 authGateway 逻辑。
 
 // 全局驱动缓存 - 永不过期策略，配置更新时主动清理
 const globalDriverCache = new Map();
@@ -22,6 +29,21 @@ const cacheStats = {
   errors: 0,
   cleanups: 0,
 };
+
+function toMountAppError(errorInfo) {
+  const status = errorInfo?.status ?? ApiStatus.INTERNAL_ERROR;
+  const message = errorInfo?.message ?? "挂载点解析失败";
+  switch (status) {
+    case ApiStatus.BAD_REQUEST:
+      return new ValidationError(message);
+    case ApiStatus.FORBIDDEN:
+      return new AuthorizationError(message);
+    case ApiStatus.NOT_FOUND:
+      return new NotFoundError(message);
+    default:
+      return new AppError(message, { status, code: "MOUNT_RESOLVE_FAILED", expose: status < 500 });
+  }
+}
 
 /**
  * 清理所有驱动缓存（手动清理用）
@@ -75,9 +97,10 @@ export class MountManager {
    * @param {D1Database} db - 数据库实例
    * @param {string} encryptionSecret - 加密密钥
    */
-  constructor(db, encryptionSecret) {
+  constructor(db, encryptionSecret, repositoryFactory = null) {
     this.db = db;
     this.encryptionSecret = encryptionSecret;
+    this.repositoryFactory = ensureRepositoryFactory(db, repositoryFactory);
 
     // 记录管理器创建时间，用于统计
     this.createdAt = Date.now();
@@ -92,16 +115,16 @@ export class MountManager {
    */
   async getDriverByPath(path, userIdOrInfo, userType) {
     // 查找挂载点
-    const mountResult = await findMountPointByPath(this.db, path, userIdOrInfo, userType);
+    const mountResult = await findMountPointByPath(this.db, path, userIdOrInfo, userType, this.repositoryFactory);
 
     if (mountResult.error) {
-      throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
+      throw toMountAppError(mountResult.error);
     }
 
     const { mount, subPath } = mountResult;
 
     // 对API密钥用户验证挂载点S3配置权限
-    if (userType === "apiKey") {
+    if (userType === UserType.API_KEY) {
       await this._validateMountPermissionForApiKey(mount, userIdOrInfo);
     }
 
@@ -180,8 +203,17 @@ export class MountManager {
         const isLastAttempt = i === maxRetries - 1;
         if (isLastAttempt) {
           cacheStats.errors++;
-          throw new HTTPException(ApiStatus.INTERNAL_ERROR, {
-            message: `存储驱动创建失败: ${error.message}`,
+          if (error instanceof AppError) {
+            throw error;
+          }
+          throw new DriverError("存储驱动创建失败", {
+            status: ApiStatus.INTERNAL_ERROR,
+            expose: false,
+            details: {
+              cause: error?.message,
+              storageType: mount?.storage_type,
+              storageConfigId: mount?.storage_config_id,
+            },
           });
         }
 
@@ -224,35 +256,33 @@ export class MountManager {
    * @private
    * @param {Object} mount - 挂载点对象
    * @param {Object} userIdOrInfo - API密钥用户信息
-   * @throws {HTTPException} 当权限不足时抛出异常
-   */
+   * @throws {AuthorizationError} 当权限不足时抛出异常
+  */
   async _validateMountPermissionForApiKey(mount, userIdOrInfo) {
     try {
       // 获取可访问的挂载点列表（已包含S3配置权限过滤）
-      const { authGateway } = await import("../../middlewares/authGatewayMiddleware.js");
-      const accessibleMounts = await authGateway.utils.getAccessibleMounts(this.db, userIdOrInfo, "apiKey");
+      const accessibleMounts = await getAccessibleMountsForUser(this.db, userIdOrInfo, UserType.API_KEY, this.repositoryFactory);
 
       // 验证目标挂载点是否在可访问列表中
       const isAccessible = accessibleMounts.some((accessibleMount) => accessibleMount.id === mount.id);
 
       if (!isAccessible) {
         console.log(`MountManager权限检查失败: API密钥用户无权限访问挂载点 ${mount.name}`);
-        throw new HTTPException(403, {
-          message: `API密钥用户无权限访问挂载点: ${mount.name}`,
-        });
+        throw new AuthorizationError(`API密钥用户无权限访问挂载点: ${mount.name}`);
       }
 
       console.log(`MountManager权限检查通过: API密钥用户可访问挂载点 ${mount.name}`);
     } catch (error) {
-      // 如果是HTTPException，直接重新抛出
-      if (error instanceof HTTPException) {
+      if (error instanceof AppError) {
         throw error;
       }
 
-      // 其他错误转换为内部服务器错误
       console.error("MountManager权限检查过程发生错误:", error);
-      throw new HTTPException(500, {
-        message: "权限检查过程发生错误",
+      throw new AppError("权限检查过程发生错误", {
+        status: ApiStatus.INTERNAL_ERROR,
+        code: "MOUNT_PERMISSION_CHECK_FAILED",
+        expose: false,
+        details: { cause: error?.message },
       });
     }
   }

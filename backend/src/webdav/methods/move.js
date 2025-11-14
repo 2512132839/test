@@ -7,9 +7,11 @@
 
 import { FileSystem } from "../../storage/fs/FileSystem.js";
 import { MountManager } from "../../storage/managers/MountManager.js";
-import { createWebDAVErrorResponse, addCorsHeaders } from "../utils/errorUtils.js";
-import { clearDirectoryCache } from "../../cache/index.js";
-import { getLockManager } from "../utils/LockManager.js";
+import { getEncryptionSecret } from "../../utils/environmentUtils.js";
+import { createWebDAVErrorResponse, withWebDAVErrorHandling } from "../utils/errorUtils.js";
+import { getStandardWebDAVHeaders } from "../utils/headerUtils.js";
+import { invalidateFsCache } from "../../cache/invalidation.js";
+import { lockManager } from "../utils/LockManager.js";
 import { checkLockPermission } from "../utils/lockUtils.js";
 import { parseDestinationPath } from "../utils/webdavUtils.js";
 
@@ -147,7 +149,7 @@ async function performFileCrossStorageTransfer(fileItem) {
     console.log(`下载文件: ${downloadUrl}`);
     const downloadResponse = await fetch(downloadUrl);
     if (!downloadResponse.ok) {
-      throw new Error(`下载失败: ${downloadResponse.status} ${downloadResponse.statusText}`);
+      throw new DriverError(`下载失败: ${downloadResponse.status} ${downloadResponse.statusText}`);
     }
 
     // 2. 获取文件内容长度
@@ -172,7 +174,7 @@ async function performFileCrossStorageTransfer(fileItem) {
     });
 
     if (!uploadResponse.ok) {
-      throw new Error(`上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      throw new DriverError(`上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`);
     }
 
     console.log(`文件跨存储传输成功: ${fileName}`);
@@ -193,7 +195,7 @@ async function performFileCrossStorageTransfer(fileItem) {
  * @returns {Promise<Response>} HTTP响应
  */
 export async function handleMove(c, path, userId, userType, db) {
-  try {
+  return withWebDAVErrorHandling("MOVE", async () => {
     console.log(`WebDAV MOVE - 开始处理: ${path}`);
 
     // 1. 解析WebDAV头部（与COPY方法完全一致）
@@ -204,8 +206,7 @@ export async function handleMove(c, path, userId, userType, db) {
 
     console.log(`WebDAV MOVE - 请求头部: Destination=${destination}, Overwrite=${overwrite}, Depth=${depth}`);
 
-    // 获取锁定管理器实例
-    const lockManager = getLockManager();
+    // 检查锁定状态
 
     // 检查源路径的锁定状态（MOVE操作会删除源资源）
     const sourceLockConflict = checkLockPermission(lockManager, path, ifHeader, "MOVE");
@@ -226,22 +227,14 @@ export async function handleMove(c, path, userId, userType, db) {
       return createWebDAVErrorResponse("MOVE操作只支持Depth: infinity", 412, false);
     }
 
-    // 4. 解析目标路径（与COPY方法完全一致）
-    let destPath;
-    try {
-      const destUrl = new URL(destination);
-      destPath = decodeURIComponent(destUrl.pathname);
-
-      // 移除WebDAV前缀，获取实际文件路径
-      if (destPath.startsWith("/dav/")) {
-        destPath = destPath.substring(4); // 移除"/dav"前缀
-      }
-
-      console.log(`WebDAV MOVE - 目标路径: ${destPath}`);
-    } catch (error) {
-      console.error(`WebDAV MOVE - 无效的Destination URL: ${destination}`, error);
+    // 4. 解析目标路径
+    const destPath = parseDestinationPath(destination);
+    if (!destPath) {
+      console.error(`WebDAV MOVE - 无效的Destination URL: ${destination}`);
       return createWebDAVErrorResponse("无效的Destination URL", 400, false);
     }
+
+    console.log(`WebDAV MOVE - 目标路径: ${destPath}`);
 
     // 5. 验证源路径和目标路径不能相同（RFC 4918标准）
     if (path === destPath) {
@@ -250,7 +243,8 @@ export async function handleMove(c, path, userId, userType, db) {
     }
 
     // 6. 创建FileSystem实例
-    const mountManager = new MountManager(db, c.env.ENCRYPTION_SECRET);
+    const repositoryFactory = c.get("repos");
+    const mountManager = new MountManager(db, getEncryptionSecret(c), repositoryFactory);
     const fileSystem = new FileSystem(mountManager);
 
     console.log(`WebDAV MOVE - 开始移动: ${path} -> ${destPath}, 用户类型: ${userType}`);
@@ -295,16 +289,13 @@ export async function handleMove(c, path, userId, userType, db) {
             const { mount: destMountResult } = await mountManager.getDriverByPath(destPath, userId, userType);
 
             if (sourceMountResult) {
-              await clearDirectoryCache({ mountId: sourceMountResult.id });
-              console.log(`WebDAV MOVE - 已清理源挂载点 ${sourceMountResult.id} 的缓存`);
+              invalidateFsCache({ mountId: sourceMountResult.id, reason: "webdav-move-cross", db });
             }
 
-            if (destMountResult && destMountResult.id !== sourceMountResult?.id) {
-              await clearDirectoryCache({ mountId: destMountResult.id });
-              console.log(`WebDAV MOVE - 已清理目标挂载点 ${destMountResult.id} 的缓存`);
+            if (destMountResult) {
+              invalidateFsCache({ mountId: destMountResult.id, reason: "webdav-move-cross", db });
             }
           } catch (cacheError) {
-            // 缓存清理失败不应该影响复制操作的成功响应
             console.warn(`WebDAV MOVE - 跨存储复制后缓存清理失败: ${cacheError.message}`);
           }
         } else {
@@ -359,16 +350,13 @@ export async function handleMove(c, path, userId, userType, db) {
         const { mount: destMountResult } = await mountManager.getDriverByPath(destPath, userId, userType);
 
         if (sourceMountResult) {
-          await clearDirectoryCache({ mountId: sourceMountResult.id });
-          console.log(`WebDAV MOVE - 已清理源挂载点 ${sourceMountResult.id} 的缓存`);
+          invalidateFsCache({ mountId: sourceMountResult.id, reason: "webdav-move", db });
         }
 
-        if (destMountResult && destMountResult.id !== sourceMountResult?.id) {
-          await clearDirectoryCache({ mountId: destMountResult.id });
-          console.log(`WebDAV MOVE - 已清理目标挂载点 ${destMountResult.id} 的缓存`);
+        if (destMountResult) {
+          invalidateFsCache({ mountId: destMountResult.id, reason: "webdav-move", db });
         }
       } catch (cacheError) {
-        // 缓存清理失败不应该影响移动操作的成功响应
         console.warn(`WebDAV MOVE - 缓存清理失败: ${cacheError.message}`);
       }
     }
@@ -379,9 +367,11 @@ export async function handleMove(c, path, userId, userType, db) {
       console.log(`WebDAV MOVE - 移动成功（覆盖现有资源）: ${path} -> ${destPath}`);
       return new Response(null, {
         status: 204, // No Content
-        headers: addCorsHeaders({
-          "Content-Type": "text/plain",
-          "Content-Length": "0",
+        headers: getStandardWebDAVHeaders({
+          customHeaders: {
+            "Content-Type": "text/plain",
+            "Content-Length": "0",
+          },
         }),
       });
     } else {
@@ -389,15 +379,15 @@ export async function handleMove(c, path, userId, userType, db) {
       console.log(`WebDAV MOVE - 移动成功（创建新资源）: ${path} -> ${destPath}`);
       return new Response(null, {
         status: 201, // Created
-        headers: addCorsHeaders({
-          "Content-Type": "text/plain",
-          "Content-Length": "0",
-          Location: destination, // RFC 4918建议包含Location头部
+        headers: getStandardWebDAVHeaders({
+          customHeaders: {
+            "Content-Type": "text/plain",
+            "Content-Length": "0",
+            Location: destination,
+          },
         }),
       });
     }
-  } catch (error) {
-    console.error(`WebDAV MOVE - 处理异常: ${error.message}`, error);
-    return createWebDAVErrorResponse(`服务器内部错误: ${error.message}`, 500, false);
-  }
+  }, { includeDetails: false, useXmlResponse: false });
 }
+import { DriverError } from "../../http/errors.js";

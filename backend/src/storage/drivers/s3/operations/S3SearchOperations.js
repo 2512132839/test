@@ -1,12 +1,11 @@
 /**
  * S3搜索操作模块
  * 负责S3存储的搜索相关操作
- * 从searchService.js迁移而来，符合存储驱动架构
  */
 
-import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../../../../constants/index.js";
-import { listS3Directory } from "../../../../utils/s3Utils.js";
+import { ValidationError } from "../../../../http/errors.js";
+import { listS3Directory } from "../utils/s3Utils.js";
 import { normalizeS3SubPath } from "../utils/S3PathUtils.js";
 import { getEffectiveMimeType } from "../../../../utils/fileUtils.js";
 import { GetFileType, getFileTypeName } from "../../../../utils/fileTypeDetector.js";
@@ -42,7 +41,7 @@ export class S3SearchOperations {
         const { mount, searchPath, maxResults = 1000, db } = options;
 
         if (!mount) {
-          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "挂载点信息不能为空" });
+          throw new ValidationError("挂载点信息不能为空");
         }
 
         // 更新挂载点最后使用时间
@@ -59,7 +58,7 @@ export class S3SearchOperations {
 
           if (normalizedSearchPath.startsWith(mountPath)) {
             const subPath = normalizedSearchPath.substring(mountPath.length) || "/";
-            searchPrefix = normalizeS3SubPath(subPath, this.config, true);
+            searchPrefix = normalizeS3SubPath(subPath, true);
           }
         }
 
@@ -178,9 +177,9 @@ export class S3SearchOperations {
       size: item.Size,
       modified: item.LastModified,
       isDirectory: false,
-      mimetype: getEffectiveMimeType(null, fileName), 
-      type: fileType, 
-      typeName: fileTypeName, 
+      mimetype: getEffectiveMimeType(null, fileName),
+      type: fileType,
+      typeName: fileTypeName,
       mount_id: mount.id,
       mount_name: mount.name,
       storage_type: mount.storage_type,

@@ -13,10 +13,10 @@ import {
 } from "@aws-sdk/client-s3";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 import { getMimeTypeFromFilename } from "../../../../utils/fileUtils.js";
-import { buildS3Url } from "../../../../utils/s3Utils.js";
+import { buildS3Url } from "../utils/s3Utils.js";
 import { updateParentDirectoriesModifiedTime, checkDirectoryExists } from "../utils/S3DirectoryUtils.js";
-import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../../../../constants/index.js";
+import { AppError, S3DriverError } from "../../../../http/errors.js";
 import { getRecommendedPartSize } from "../../../../utils/environmentUtils.js";
 
 export class S3BackendMultipartOperations {
@@ -212,14 +212,14 @@ export class S3BackendMultipartOperations {
         const rootPrefix = this.config.root_prefix ? (this.config.root_prefix.endsWith("/") ? this.config.root_prefix : this.config.root_prefix + "/") : "";
         await updateParentDirectoriesModifiedTime(this.s3Client, this.config.bucket_name, s3SubPath, rootPrefix);
 
-        // 构建S3直接访问URL
+        // 构建公共URL
         const s3Url = buildS3Url(this.config, s3SubPath);
 
         return {
           success: true,
           etag: completeResponse.ETag,
           location: completeResponse.Location,
-          s3Url: s3Url,
+          publicUrl: s3Url,
         };
       },
       "完成后端分片上传",
@@ -336,12 +336,12 @@ export class S3BackendMultipartOperations {
         }
       }
 
-      // 如果已经是HTTPException，直接抛出
-      if (error instanceof HTTPException) {
+      // 如果已经是规范化错误，直接抛出
+      if (error instanceof AppError) {
         throw error;
       }
       // 其他错误转换为内部服务器错误
-      throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: error.message || "中止后端分片上传失败，无法清理资源" });
+      throw new S3DriverError("中止后端分片上传失败，无法清理资源", { details: { cause: error?.message } });
     }
   }
 }

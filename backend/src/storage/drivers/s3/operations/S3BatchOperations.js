@@ -3,19 +3,25 @@
  * 负责批量操作：批量删除、批量复制、批量移动等
  */
 
-import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../../../../constants/index.js";
+import { AppError, ValidationError, NotFoundError, ConflictError, AuthenticationError, AuthorizationError, S3DriverError } from "../../../../http/errors.js";
 import { S3Client, DeleteObjectCommand, CopyObjectCommand, ListObjectsV2Command, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { normalizeS3SubPath } from "../utils/S3PathUtils.js";
 import { updateMountLastUsed } from "../../../fs/utils/MountResolver.js";
-import { clearDirectoryCache } from "../../../../cache/index.js";
-import { generatePresignedUrl, generatePresignedPutUrl, createS3Client, getDirectoryPresignedUrls } from "../../../../utils/s3Utils.js";
+import { generatePresignedUrl, generatePresignedPutUrl, createS3Client, getDirectoryPresignedUrls } from "../utils/s3Utils.js";
 import { getMimeTypeFromFilename } from "../../../../utils/fileUtils.js";
 import { findMountPointByPath } from "../../../fs/utils/MountResolver.js";
 import { updateParentDirectoriesModifiedTime } from "../utils/S3DirectoryUtils.js";
 import { handleFsError } from "../../../fs/utils/ErrorHandler.js";
 import { normalizePath } from "../../../fs/utils/PathResolver.js";
 import { shouldUseRandomSuffix, generateShortId } from "../../../../utils/common.js";
+import { StorageConfigUtils } from "../../../utils/StorageConfigUtils.js";
+
+const DEFAULT_STORAGE_TYPE = "S3";
+
+const loadStorageConfigById = async (db, storageConfigId, storageType = DEFAULT_STORAGE_TYPE) => {
+  return await StorageConfigUtils.getStorageConfig(db, storageType || DEFAULT_STORAGE_TYPE, storageConfigId);
+};
 
 export class S3BatchOperations {
   /**
@@ -30,6 +36,23 @@ export class S3BatchOperations {
     this.config = config;
     this.encryptionSecret = encryptionSecret;
     this.db = db;
+  }
+
+  _errorFromStatus(status, message) {
+    switch (status) {
+      case ApiStatus.BAD_REQUEST:
+        return new ValidationError(message);
+      case ApiStatus.UNAUTHORIZED:
+        return new AuthenticationError(message);
+      case ApiStatus.FORBIDDEN:
+        return new AuthorizationError(message);
+      case ApiStatus.NOT_FOUND:
+        return new NotFoundError(message);
+      case ApiStatus.CONFLICT:
+        return new ConflictError(message);
+      default:
+        return new S3DriverError(message);
+    }
   }
 
   /**
@@ -117,11 +140,13 @@ export class S3BatchOperations {
         const { mount: itemMount, subPath } = mountResult;
 
         // 获取S3配置
-        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(itemMount.storage_config_id).first();
-        if (!s3Config) {
+        let s3Config;
+        try {
+          s3Config = await loadStorageConfigById(db, itemMount.storage_config_id, itemMount.storage_type);
+        } catch (error) {
           result.failed.push({
             path: path,
-            error: "存储配置不存在",
+            error: error?.message || "存储配置不存在",
           });
           continue;
         }
@@ -130,7 +155,7 @@ export class S3BatchOperations {
         const isDirectory = path.endsWith("/");
 
         // 规范化S3子路径
-        const s3SubPath = normalizeS3SubPath(subPath, s3Config, isDirectory);
+        const s3SubPath = normalizeS3SubPath(subPath, isDirectory);
 
         if (isDirectory) {
           // 对于目录，需要递归删除所有内容
@@ -207,19 +232,19 @@ export class S3BatchOperations {
 
         // 对于文件复制，确保目标路径也是文件路径格式
         if (!sourceIsDirectory && targetIsDirectory) {
-          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "复制文件时，目标路径不能是目录格式" });
+          throw new ValidationError("复制文件时，目标路径不能是目录格式");
         }
 
         // 查找源路径挂载点
         const sourceMountResult = await findMountPointByPath(db, sourcePath, userIdOrInfo, userType);
         if (sourceMountResult.error) {
-          throw new HTTPException(sourceMountResult.error.status, { message: sourceMountResult.error.message });
+          throw this._errorFromStatus(sourceMountResult.error.status, sourceMountResult.error.message);
         }
 
         // 查找目标路径挂载点
         const targetMountResult = await findMountPointByPath(db, targetPath, userIdOrInfo, userType);
         if (targetMountResult.error) {
-          throw new HTTPException(targetMountResult.error.status, { message: targetMountResult.error.message });
+          throw this._errorFromStatus(targetMountResult.error.status, targetMountResult.error.message);
         }
 
         const { mount: sourceMount, subPath: sourceSubPath } = sourceMountResult;
@@ -320,8 +345,12 @@ export class S3BatchOperations {
         // 同存储复制
         const copyResult = await this._handleSameStorageCopy(db, sourcePath, targetPath, sourceMount, targetMount, sourceSubPath, targetSubPath);
 
-        // 所有复制都被视为成功（包括自动重命名的情况）
-        result.success++;
+        // 根据复制结果更新统计
+        if (copyResult.status === "skipped" || copyResult.skipped === true) {
+          result.skipped++;
+        } else {
+          result.success++;
+        }
         result.details.push(copyResult);
       } catch (error) {
         console.error(`复制失败:`, error);
@@ -342,16 +371,12 @@ export class S3BatchOperations {
    */
   async _handleSameStorageCopy(db, sourcePath, targetPath, sourceMount, targetMount, sourceSubPath, targetSubPath) {
     // 获取源和目标的S3配置
-    const sourceS3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(sourceMount.storage_config_id).first();
-    const targetS3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(targetMount.storage_config_id).first();
-
-    if (!sourceS3Config || !targetS3Config) {
-      throw new Error("S3配置不存在");
-    }
+    const sourceS3Config = await loadStorageConfigById(db, sourceMount.storage_config_id, sourceMount.storage_type);
+    const targetS3Config = await loadStorageConfigById(db, targetMount.storage_config_id, targetMount.storage_type);
 
     const isDirectory = sourcePath.endsWith("/");
-    const s3SourcePath = normalizeS3SubPath(sourceSubPath, sourceS3Config, isDirectory);
-    const s3TargetPath = normalizeS3SubPath(targetSubPath, targetS3Config, isDirectory);
+    const s3SourcePath = normalizeS3SubPath(sourceSubPath, isDirectory);
+    const s3TargetPath = normalizeS3SubPath(targetSubPath, isDirectory);
 
     // 检查源路径是否存在
     try {
@@ -363,17 +388,17 @@ export class S3BatchOperations {
 
           // 如果没有内容，说明目录不存在或为空
           if (!listResponse.Contents || listResponse.Contents.length === 0) {
-            throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源路径不存在或为空目录" });
+            throw new NotFoundError("源路径不存在或为空目录");
           }
         } else {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源文件不存在" });
+          throw new NotFoundError("源文件不存在");
         }
       }
     } catch (error) {
-      if (error instanceof HTTPException) {
+      if (error instanceof AppError) {
         throw error;
       }
-      throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: "检查源路径存在性失败: " + error.message });
+      throw new S3DriverError("检查源路径存在性失败", { details: { cause: error?.message } });
     }
 
     if (isDirectory) {
@@ -390,42 +415,22 @@ export class S3BatchOperations {
    * @private
    */
   async _copyFile(s3Config, s3SourcePath, s3TargetPath, sourcePath, targetPath, db = null) {
-    // 实现自动重命名逻辑
-    let finalS3TargetPath = s3TargetPath;
-    let finalTargetPath = targetPath;
-    let wasRenamed = false;
-
-    // 根据系统设置决定冲突处理策略
-    const database = db || this.db;
-    let useRandomSuffix = false;
-
-    if (database) {
-      try {
-        useRandomSuffix = await shouldUseRandomSuffix(database);
-      } catch (error) {
-        console.warn("获取文件命名策略失败，使用默认覆盖模式:", error);
-        useRandomSuffix = false;
-      }
+    // 检查目标文件是否已存在，如果存在则跳过
+    if (await this._checkItemExists(s3Config.bucket_name, s3TargetPath)) {
+      console.log(`[S3BatchOps] 同存储复制目标文件已存在，跳过: ${sourcePath} -> ${targetPath}`);
+      return {
+        source: sourcePath,
+        target: targetPath,
+        status: "skipped",
+        skipped: true,
+        message: "文件已存在，跳过复制",
+      };
     }
-
-    if (useRandomSuffix) {
-      // 随机后缀模式：检查冲突，如果存在则添加随机后缀
-      if (await this._checkItemExists(s3Config.bucket_name, finalS3TargetPath)) {
-        const { baseName: s3BaseName, extension: s3Ext, directory: s3Dir } = this._parseFileName(s3TargetPath);
-        const { baseName: logicalBaseName, extension: logicalExt, directory: logicalDir } = this._parseFileName(targetPath);
-
-        const shortId = generateShortId();
-        finalS3TargetPath = `${s3Dir}${s3BaseName}-${shortId}${s3Ext}`;
-        finalTargetPath = `${logicalDir}${logicalBaseName}-${shortId}${logicalExt}`;
-        wasRenamed = true;
-      }
-    }
-    // 覆盖模式：不检查冲突，直接使用原始路径覆盖
 
     // 检查目标父目录是否存在（对于文件复制）
-    if (finalS3TargetPath.includes("/")) {
+    if (s3TargetPath.includes("/")) {
       // 对于文件，获取其所在目录
-      const parentPath = finalS3TargetPath.substring(0, finalS3TargetPath.lastIndexOf("/") + 1);
+      const parentPath = s3TargetPath.substring(0, s3TargetPath.lastIndexOf("/") + 1);
 
       // 添加验证：确保parentPath不为空
       if (parentPath && parentPath.trim() !== "") {
@@ -449,7 +454,7 @@ export class S3BatchOperations {
           } catch (dirError) {
             console.error(`复制操作: 创建目标父目录 "${parentPath}" 失败:`, dirError);
             // 如果创建目录失败，才抛出错误
-            throw new HTTPException(ApiStatus.CONFLICT, { message: `无法创建目标父目录: ${dirError.message}` });
+          throw new ConflictError(`无法创建目标父目录: ${dirError.message}`);
           }
         }
       }
@@ -459,7 +464,7 @@ export class S3BatchOperations {
     const copyParams = {
       Bucket: s3Config.bucket_name,
       CopySource: encodeURIComponent(s3Config.bucket_name + "/" + s3SourcePath),
-      Key: finalS3TargetPath,
+      Key: s3TargetPath,
     };
 
     const copyCommand = new CopyObjectCommand(copyParams);
@@ -467,15 +472,13 @@ export class S3BatchOperations {
 
     // 更新父目录的修改时间
     const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
-    await updateParentDirectoriesModifiedTime(this.s3Client, s3Config.bucket_name, finalS3TargetPath, rootPrefix);
+    await updateParentDirectoriesModifiedTime(this.s3Client, s3Config.bucket_name, s3TargetPath, rootPrefix);
 
     return {
       source: sourcePath,
-      target: finalTargetPath,
+      target: targetPath,
       status: "success",
-      message: wasRenamed ? `文件已重命名为 ${finalTargetPath.split("/").pop()} 并复制成功` : "文件复制成功",
-      renamed: wasRenamed,
-      originalTarget: targetPath,
+      message: "文件复制成功",
     };
   }
 
@@ -518,21 +521,24 @@ export class S3BatchOperations {
               // 检查目标文件是否已存在
               if (skipExisting) {
                 try {
-                  const headParams = {
+                  const listParams = {
                     Bucket: bucketName,
-                    Key: targetKey,
+                    Prefix: targetKey,
+                    MaxKeys: 1,
                   };
-                  const headCommand = new HeadObjectCommand(headParams);
-                  await s3Client.send(headCommand);
+                  const listCommand = new ListObjectsV2Command(listParams);
+                  const listResponse = await s3Client.send(listCommand);
 
-                  // 文件已存在，跳过
-                  result.skipped++;
-                  continue;
-                } catch (error) {
-                  if (error.$metadata?.httpStatusCode !== 404) {
-                    throw error;
+                  // 检查是否找到精确匹配的对象
+                  const exactMatch = listResponse.Contents?.find((item) => item.Key === targetKey);
+                  if (exactMatch) {
+                    // 文件已存在，跳过
+                    result.skipped++;
+                    console.log(`[S3BatchOps] 文件已存在，跳过复制: ${sourceKey} -> ${targetKey}`);
+                    continue;
                   }
-                  // 404表示文件不存在，可以继续复制
+                } catch (error) {
+                  // ListObjects失败，继续复制
                 }
               }
 
@@ -700,31 +706,27 @@ export class S3BatchOperations {
 
         // 对于文件复制，确保目标路径也是文件路径格式
         if (!sourceIsDirectory && targetIsDirectory) {
-          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "复制文件时，目标路径不能是目录格式" });
+          throw new ValidationError("复制文件时，目标路径不能是目录格式");
         }
 
         // 查找源路径挂载点
         const sourceMountResult = await findMountPointByPath(db, sourcePath, userIdOrInfo, userType);
         if (sourceMountResult.error) {
-          throw new HTTPException(sourceMountResult.error.status, { message: sourceMountResult.error.message });
+          throw this._errorFromStatus(sourceMountResult.error.status, sourceMountResult.error.message);
         }
 
         // 查找目标路径挂载点
         const targetMountResult = await findMountPointByPath(db, targetPath, userIdOrInfo, userType);
         if (targetMountResult.error) {
-          throw new HTTPException(targetMountResult.error.status, { message: targetMountResult.error.message });
+          throw this._errorFromStatus(targetMountResult.error.status, targetMountResult.error.message);
         }
 
         const { mount: sourceMount, subPath: sourceSubPath } = sourceMountResult;
         const { mount: targetMount, subPath: targetSubPath } = targetMountResult;
 
         // 获取源和目标S3配置
-        const sourceS3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(sourceMount.storage_config_id).first();
-        const targetS3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(targetMount.storage_config_id).first();
-
-        if (!sourceS3Config || !targetS3Config) {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-        }
+        const sourceS3Config = await loadStorageConfigById(db, sourceMount.storage_config_id, sourceMount.storage_type);
+        const targetS3Config = await loadStorageConfigById(db, targetMount.storage_config_id, targetMount.storage_type);
 
         // 创建源S3客户端
         const sourceS3Client = await createS3Client(sourceS3Config, this.encryptionSecret);
@@ -733,8 +735,8 @@ export class S3BatchOperations {
         const isDirectory = sourcePath.endsWith("/");
 
         // 规范化S3子路径
-        const s3SourcePath = normalizeS3SubPath(sourceSubPath, sourceS3Config, isDirectory);
-        const s3TargetPath = normalizeS3SubPath(targetSubPath, targetS3Config, isDirectory);
+        const s3SourcePath = normalizeS3SubPath(sourceSubPath, isDirectory);
+        const s3TargetPath = normalizeS3SubPath(targetSubPath, isDirectory);
 
         // 检查源路径是否存在
         try {
@@ -746,17 +748,17 @@ export class S3BatchOperations {
 
               // 如果没有内容，说明目录不存在或为空
               if (!listResponse.Contents || listResponse.Contents.length === 0) {
-                throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源路径不存在或为空目录" });
+                throw new NotFoundError("源路径不存在或为空目录");
               }
             } else {
-              throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源文件不存在" });
+              throw new NotFoundError("源文件不存在");
             }
           }
         } catch (error) {
-          if (error instanceof HTTPException) {
+          if (error instanceof AppError) {
             throw error;
           }
-          throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: "检查源路径存在性失败: " + error.message });
+          throw new S3DriverError("检查源路径存在性失败", { details: { cause: error?.message } });
         }
 
         if (isDirectory) {
@@ -833,6 +835,28 @@ export class S3BatchOperations {
           // 创建目标存储的S3客户端用于检查文件存在性
           const targetS3Client = await createS3Client(targetS3Config, this.encryptionSecret);
 
+          // 检查目标文件是否已存在（支持skipExisting逻辑）
+          try {
+            const targetExists = await this._checkItemExistsWithClient(targetS3Client, targetS3Config.bucket_name, s3TargetPath);
+            if (targetExists) {
+              console.log(`[S3BatchOps] 跨存储复制目标文件已存在，跳过: ${sourcePath} -> ${targetPath}`);
+              return {
+                crossStorage: true,
+                isDirectory: false,
+                source: sourcePath,
+                target: targetPath,
+                status: "skipped",
+                skipped: true,
+                sourceMount: sourceMount.id,
+                targetMount: targetMount.id,
+                message: "目标文件已存在，跳过跨存储复制",
+              };
+            }
+          } catch (error) {
+            console.warn(`[S3BatchOps] 检查目标文件存在性失败，继续复制: ${error.message}`);
+            // 检查失败时继续复制，避免因为权限问题阻止正常操作
+          }
+
           // 根据系统设置决定冲突处理策略
           const database = db || this.db;
           let useRandomSuffix = false;
@@ -879,7 +903,7 @@ export class S3BatchOperations {
             sourceMount: sourceMount.id,
             targetMount: targetMount.id,
             sourceS3Path: s3SourcePath,
-            targetS3Path: finalS3TargetPath,
+            storagePath: finalS3TargetPath,
             fileName,
             contentType,
             downloadUrl,
@@ -924,13 +948,13 @@ export class S3BatchOperations {
         const newIsDirectory = newPath.endsWith("/");
 
         if (oldIsDirectory !== newIsDirectory) {
-          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "源路径和目标路径类型必须一致（文件或目录）" });
+          throw new ValidationError("源路径和目标路径类型必须一致（文件或目录）");
         }
 
         // 查找挂载点
         const mountResult = await findMountPointByPath(db, oldPath, userIdOrInfo, userType);
         if (mountResult.error) {
-          throw new HTTPException(mountResult.error.status, { message: mountResult.error.message });
+          throw this._errorFromStatus(mountResult.error.status, mountResult.error.message);
         }
 
         const { mount, subPath: oldSubPath } = mountResult;
@@ -938,47 +962,48 @@ export class S3BatchOperations {
         // 检查新路径是否在同一挂载点
         const newMountResult = await findMountPointByPath(db, newPath, userIdOrInfo, userType);
         if (newMountResult.error || newMountResult.mount.id !== mount.id) {
-          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "重命名操作必须在同一挂载点内进行" });
+          throw new ValidationError("重命名操作必须在同一挂载点内进行");
         }
 
         const { subPath: newSubPath } = newMountResult;
-        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        const s3Config = await loadStorageConfigById(db, mount.storage_config_id, mount.storage_type);
 
-        if (!s3Config) {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
-        }
+        const oldS3SubPath = normalizeS3SubPath(oldSubPath, oldIsDirectory);
+        const newS3SubPath = normalizeS3SubPath(newSubPath, newIsDirectory);
 
-        const oldS3SubPath = normalizeS3SubPath(oldSubPath, s3Config, oldIsDirectory);
-        const newS3SubPath = normalizeS3SubPath(newSubPath, s3Config, newIsDirectory);
+        // 处理root_prefix
+        const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+        const fullOldS3Path = rootPrefix + oldS3SubPath;
+        const fullNewS3Path = rootPrefix + newS3SubPath;
 
         // 检查源文件/目录是否存在
         const sourceExists = oldIsDirectory
-          ? await this._checkDirectoryExists(s3Config.bucket_name, oldS3SubPath)
-          : await this._checkItemExists(s3Config.bucket_name, oldS3SubPath);
+          ? await this._checkDirectoryExists(s3Config.bucket_name, fullOldS3Path)
+          : await this._checkItemExists(s3Config.bucket_name, fullOldS3Path);
 
         if (!sourceExists) {
-          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源文件或目录不存在" });
+          throw new NotFoundError("源文件或目录不存在");
         }
 
         // 检查目标是否已存在
         const targetExists = newIsDirectory
-          ? await this._checkDirectoryExists(s3Config.bucket_name, newS3SubPath)
-          : await this._checkItemExists(s3Config.bucket_name, newS3SubPath);
+          ? await this._checkDirectoryExists(s3Config.bucket_name, fullNewS3Path)
+          : await this._checkItemExists(s3Config.bucket_name, fullNewS3Path);
 
         if (targetExists) {
-          throw new HTTPException(ApiStatus.CONFLICT, { message: "目标路径已存在" });
+          throw new ConflictError("目标路径已存在");
         }
 
         if (oldIsDirectory) {
           // 重命名目录：复制所有内容到新位置，然后删除原目录
-          await this.copyDirectoryRecursive(this.s3Client, s3Config.bucket_name, oldS3SubPath, newS3SubPath, false);
-          await this.deleteDirectoryRecursive(this.s3Client, s3Config.bucket_name, oldS3SubPath, mount.storage_config_id);
+          await this.copyDirectoryRecursive(this.s3Client, s3Config.bucket_name, fullOldS3Path, fullNewS3Path, false);
+          await this.deleteDirectoryRecursive(this.s3Client, s3Config.bucket_name, fullOldS3Path, mount.storage_config_id);
         } else {
           // 重命名文件：复制到新位置，然后删除原文件
           const copyParams = {
             Bucket: s3Config.bucket_name,
-            CopySource: encodeURIComponent(s3Config.bucket_name + "/" + oldS3SubPath),
-            Key: newS3SubPath,
+            CopySource: encodeURIComponent(s3Config.bucket_name + "/" + fullOldS3Path),
+            Key: fullNewS3Path,
             MetadataDirective: "COPY",
           };
 
@@ -988,7 +1013,7 @@ export class S3BatchOperations {
           // 删除原文件
           const deleteParams = {
             Bucket: s3Config.bucket_name,
-            Key: oldS3SubPath,
+            Key: fullOldS3Path,
           };
 
           const deleteCommand = new DeleteObjectCommand(deleteParams);
@@ -998,14 +1023,11 @@ export class S3BatchOperations {
         }
 
         // 更新父目录的修改时间
-        const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
-        await updateParentDirectoriesModifiedTime(this.s3Client, s3Config.bucket_name, oldS3SubPath, rootPrefix);
+        await updateParentDirectoriesModifiedTime(this.s3Client, s3Config.bucket_name, fullOldS3Path, rootPrefix);
 
         // 更新挂载点的最后使用时间
         await updateMountLastUsed(db, mount.id);
 
-        // 清除缓存
-        await clearDirectoryCache({ mountId: mount.id });
 
         return {
           success: true,
@@ -1028,18 +1050,20 @@ export class S3BatchOperations {
    */
   async _checkS3ObjectExists(bucketName, key) {
     try {
-      const headParams = {
+      const listParams = {
         Bucket: bucketName,
-        Key: key,
+        Prefix: key,
+        MaxKeys: 1,
       };
-      const headCommand = new HeadObjectCommand(headParams);
-      await this.s3Client.send(headCommand);
-      return true;
+
+      const listCommand = new ListObjectsV2Command(listParams);
+      const listResponse = await this.s3Client.send(listCommand);
+
+      // 检查是否找到精确匹配的对象
+      const exactMatch = listResponse.Contents?.find((item) => item.Key === key);
+      return !!exactMatch;
     } catch (error) {
-      if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-        return false;
-      }
-      throw error;
+      return false;
     }
   }
 
@@ -1070,17 +1094,20 @@ export class S3BatchOperations {
    */
   async _checkItemExists(bucketName, key) {
     try {
-      const headCommand = new HeadObjectCommand({
+      const listParams = {
         Bucket: bucketName,
-        Key: key,
-      });
-      await this.s3Client.send(headCommand);
-      return true;
+        Prefix: key,
+        MaxKeys: 1,
+      };
+
+      const listCommand = new ListObjectsV2Command(listParams);
+      const listResponse = await this.s3Client.send(listCommand);
+
+      // 检查是否找到精确匹配的对象
+      const exactMatch = listResponse.Contents?.find((item) => item.Key === key);
+      return !!exactMatch;
     } catch (error) {
-      if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-        return false;
-      }
-      throw error;
+      return false;
     }
   }
 
@@ -1196,17 +1223,20 @@ export class S3BatchOperations {
    */
   async _checkItemExistsWithClient(s3Client, bucketName, key) {
     try {
-      const headCommand = new HeadObjectCommand({
+      const listParams = {
         Bucket: bucketName,
-        Key: key,
-      });
-      await s3Client.send(headCommand);
-      return true;
+        Prefix: key,
+        MaxKeys: 1,
+      };
+
+      const listCommand = new ListObjectsV2Command(listParams);
+      const listResponse = await s3Client.send(listCommand);
+
+      // 检查是否找到精确匹配的对象
+      const exactMatch = listResponse.Contents?.find((item) => item.Key === key);
+      return !!exactMatch;
     } catch (error) {
-      if (error.$metadata && error.$metadata.httpStatusCode === 404) {
-        return false;
-      }
-      throw error;
+      return false;
     }
   }
 

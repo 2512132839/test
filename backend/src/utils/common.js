@@ -1,6 +1,8 @@
 /**
  * 通用工具函数
  */
+import { UserType, ApiStatus } from "../constants/index.js";
+import { RepositoryError, ValidationError, AuthorizationError, ConflictError } from "../http/errors.js";
 
 /**
  * 生成随机字符串
@@ -22,17 +24,25 @@ export function generateRandomString(length = 8) {
  * @param {string} message - 错误消息
  * @returns {object} 标准错误响应对象
  */
-export function createErrorResponse(statusCode, message) {
+export function createErrorResponse(_statusCode, message, code) {
   return {
-    code: statusCode,
-    message: message,
     success: false,
-    data: null,
+    code,
+    message,
   };
 }
 
-// getLocalTimeString() 函数已被移除
-// 现在所有时间处理都使用 CURRENT_TIMESTAMP 以支持更好的国际化
+export function createSuccessResponse(data, message = "OK", code = "OK") {
+  return {
+    success: true,
+    code,
+    message,
+    data,
+  };
+}
+
+export const jsonOk = (c, data, message = "OK") => c.json(createSuccessResponse(data, message, "OK"), ApiStatus.SUCCESS);
+export const jsonCreated = (c, data, message = "Created") => c.json(createSuccessResponse(data, message, "CREATED"), ApiStatus.CREATED);
 
 /**
  * 格式化文件大小
@@ -95,13 +105,11 @@ export function generateFileId() {
 }
 
 /**
- * 生成唯一的S3配置ID
- * @returns {string} 生成的S3配置ID
+ * 生成统一的存储配置ID
  */
-export function generateS3ConfigId() {
+export function generateStorageConfigId() {
   return crypto.randomUUID();
 }
-
 /**
  * 生成短ID作为文件路径前缀
  * @returns {string} 生成的短ID
@@ -179,31 +187,44 @@ export function getSafeFileName(fileName) {
 }
 
 /**
+ * 验证 slug 格式
+ * @param {string} slug - 要验证的 slug
+ * @returns {boolean} 是否有效
+ */
+export function validateSlugFormat(slug) {
+  if (!slug) return false;
+  const slugRegex = /^[a-zA-Z0-9._-]+$/;
+  return slugRegex.test(slug);
+}
+
+/**
  * 生成唯一的文件slug
  * @param {D1Database} db - D1数据库实例
  * @param {string} customSlug - 自定义slug
  * @param {boolean} override - 是否覆盖已存在的slug
+ * @param {Object} overrideContext - 覆盖操作的上下文信息（当override=true时需要）
  * @returns {Promise<string>} 生成的唯一slug
  */
-export async function generateUniqueFileSlug(db, customSlug = null, override = false) {
+export async function generateUniqueFileSlug(db, customSlug = null, override = false, overrideContext = null) {
   // 动态导入DbTables以避免循环依赖
   const { DbTables } = await import("../constants/index.js");
 
   // 如果提供了自定义slug，验证其格式并检查是否已存在
   if (customSlug) {
-    // 验证slug格式：只允许字母、数字、横杠和下划线
-    const slugFormatRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!slugFormatRegex.test(customSlug)) {
-      throw new Error("链接后缀格式无效，只能使用字母、数字、下划线和横杠");
+    // 验证slug格式：只允许字母、数字、横杠、下划线和点号
+    if (!validateSlugFormat(customSlug)) {
+      throw new ValidationError("链接后缀格式无效，只能使用字母、数字、下划线、横杠和点号");
     }
 
     // 检查slug是否已存在
-    const existingFile = await db.prepare(`SELECT id FROM ${DbTables.FILES} WHERE slug = ?`).bind(customSlug).first();
+    const existingFile = await db.prepare(`SELECT * FROM ${DbTables.FILES} WHERE slug = ?`).bind(customSlug).first();
 
-    // 如果存在并且不覆盖，抛出错误；否则允许使用
+    // 如果存在并且不覆盖，抛出错误
     if (existingFile && !override) {
-      throw new Error("链接后缀已被占用，请使用其他链接后缀");
+      throw new ConflictError("链接后缀已被占用，请使用其他链接后缀");
     } else if (existingFile && override) {
+      // 处理文件覆盖逻辑
+      await handleFileOverride(existingFile, overrideContext);
       console.log(`允许覆盖已存在的链接后缀: ${customSlug}`);
     }
 
@@ -225,5 +246,118 @@ export async function generateUniqueFileSlug(db, customSlug = null, override = f
     attempts++;
   }
 
-  throw new Error("无法生成唯一链接后缀，请稍后再试");
+  throw new RepositoryError("无法生成唯一链接后缀，请稍后再试");
 }
+
+async function handleFileOverride(existingFile, overrideContext) {
+  if (!overrideContext) {
+    throw new ValidationError("覆盖操作需要 overrideContext 信息");
+  }
+
+  const { userIdOrInfo, userType, encryptionSecret, repositoryFactory, db } = overrideContext;
+  if (!repositoryFactory || !db) {
+    throw new ValidationError("覆盖操作缺少 repositoryFactory 或 db 上下文");
+  }
+
+  const apiKeyIdentifier = typeof userIdOrInfo === "object" ? userIdOrInfo?.id : userIdOrInfo;
+  const currentCreator = userType === UserType.ADMIN ? userIdOrInfo : `apikey:${apiKeyIdentifier}`;
+
+  if (!currentCreator || existingFile.created_by !== currentCreator) {
+    throw new AuthorizationError("无权覆盖该链接后缀");
+  }
+
+  const fileRepository = repositoryFactory.getFileRepository();
+
+  if (existingFile.storage_path && existingFile.storage_config_id) {
+    try {
+      const storageConfigRepository = repositoryFactory.getStorageConfigRepository?.();
+      const storageConfig = storageConfigRepository
+        ? (storageConfigRepository.findByIdWithSecrets
+            ? await storageConfigRepository.findByIdWithSecrets(existingFile.storage_config_id)
+            : await storageConfigRepository.findById(existingFile.storage_config_id))
+        : null;
+      if (storageConfig) {
+        const { StorageFactory } = await import("../storage/factory/StorageFactory.js");
+        if (!storageConfig.storage_type) {
+          throw new ValidationError("存储配置缺少 storage_type");
+        }
+        const driver = await StorageFactory.createDriver(storageConfig.storage_type, storageConfig, encryptionSecret);
+        await driver.initialize?.();
+        if (typeof driver.deleteObjectByStoragePath === "function") {
+          await driver.deleteObjectByStoragePath(existingFile.storage_path, { db });
+        } else if (typeof driver.batchRemoveItems === "function") {
+          await driver.batchRemoveItems([existingFile.storage_path], { subPath: existingFile.storage_path, db });
+        }
+      }
+    } catch (error) {
+      console.warn("删除旧存储对象失败", error);
+    }
+  }
+
+  try {
+    await fileRepository.deleteFilePasswordRecord(existingFile.id);
+  } catch (error) {
+    console.warn("删除旧密码记录失败", error);
+  }
+
+  await fileRepository.deleteFile(existingFile.id);
+
+  if (existingFile.storage_config_id) {
+    const { invalidateFsCache } = await import("../cache/invalidation.js");
+    await invalidateFsCache({ storageConfigId: existingFile.storage_config_id, reason: "file-override", db });
+  }
+}
+
+/**
+ * 解析查询参数为整数
+ * @param {import('hono').Context} c
+ * @param {string} key
+ * @param {number} defaultValue
+ * @returns {number}
+ */
+export function getQueryInt(c, key, defaultValue = 0) {
+  const val = c.req.query(key);
+  if (val === undefined || val === null || val === "") return defaultValue;
+  const n = parseInt(val, 10);
+  return Number.isFinite(n) ? n : defaultValue;
+}
+
+/**
+ * 解析查询参数为布尔值（支持 true/1/false/0）
+ * @param {import('hono').Context} c
+ * @param {string} key
+ * @param {boolean} defaultValue
+ * @returns {boolean}
+ */
+export function getQueryBool(c, key, defaultValue = false) {
+  const val = c.req.query(key);
+  if (val === undefined || val === null || val === "") return defaultValue;
+  const lowered = String(val).toLowerCase();
+  if (lowered === "true" || lowered === "1") return true;
+  if (lowered === "false" || lowered === "0") return false;
+  return defaultValue;
+}
+
+/**
+ * 标准化分页解析：优先使用 offset，缺失时按 page 计算
+ * @param {import('hono').Context} c
+ * @param {{limit?:number,page?:number,offset?:number}} defaults
+ * @returns {{limit:number,page:number,offset:number}}
+ */
+export function getPagination(c, defaults = {}) {
+  const limitDefault = defaults.limit ?? 30;
+  const pageDefault = defaults.page ?? 1;
+  const offsetDefault = defaults.offset ?? 0;
+
+  const limit = getQueryInt(c, "limit", limitDefault);
+  const page = getQueryInt(c, "page", pageDefault);
+  const hasOffset = c.req.query("offset") !== undefined;
+  const offset = hasOffset ? getQueryInt(c, "offset", offsetDefault) : Math.max(0, (page - 1) * limit);
+  return { limit, page, offset };
+}
+
+/**
+ * 处理文件覆盖逻辑的辅助函数
+ * @private
+ */
+

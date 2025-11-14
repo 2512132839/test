@@ -1,5 +1,7 @@
 import crypto from "crypto";
 import { DbTables } from "../constants/index.js";
+import { ValidationError, RepositoryError } from "../http/errors.js";
+import { StorageConfigUtils } from "../storage/utils/StorageConfigUtils.js";
 
 /**
  * 数据备份与还原服务
@@ -14,7 +16,7 @@ export class BackupService {
       text_management: ["pastes", "paste_passwords"],
       file_management: ["files", "file_passwords"],
       mount_management: ["storage_mounts"],
-      storage_config: ["s3_configs"],
+      storage_config: ["storage_configs"],
       key_management: ["api_keys"],
       account_management: ["admins", "admin_tokens"],
       system_settings: ["system_settings"],
@@ -26,8 +28,8 @@ export class BackupService {
       paste_passwords: ["pastes"],
       file_passwords: ["files"],
       admin_tokens: ["admins"],
-      s3_configs: ["admins"], // s3_configs.admin_id -> admins.id
-      storage_mounts: ["s3_configs"], // storage_mounts.storage_config_id -> s3_configs.id
+      storage_configs: ["admins"], // storage_configs.admin_id -> admins.id
+      storage_mounts: ["storage_configs"], // storage_mounts.storage_config_id -> storage_configs.id
     };
   }
 
@@ -40,15 +42,24 @@ export class BackupService {
     const { backup_type = "full", selected_modules = [] } = options;
 
     let tables;
+    let finalModules = selected_modules;
+    let dependencies = []; // 在函数作用域定义
 
     if (backup_type === "full") {
       // 完整备份 - 所有表
       tables = Object.values(DbTables);
     } else if (backup_type === "modules") {
+      // 检查并自动包含依赖模块
+      dependencies = this.getModuleDependencies(selected_modules);
+      if (dependencies.length > 0) {
+        finalModules = [...new Set([...selected_modules, ...dependencies])];
+        console.log(`[BackupService] 检测到跨模块依赖，自动包含模块: ${dependencies.join(", ")}`);
+      }
+
       // 模块备份 - 根据选中的模块确定表
-      tables = this.getTablesFromModules(selected_modules);
+      tables = this.getTablesFromModules(finalModules);
     } else {
-      throw new Error("不支持的备份类型");
+      throw new ValidationError("不支持的备份类型");
     }
 
     // 导出数据
@@ -60,6 +71,8 @@ export class BackupService {
       timestamp: new Date().toISOString(),
       backup_type,
       selected_modules: backup_type === "modules" ? selected_modules : null,
+      included_modules: backup_type === "modules" ? finalModules : null, // 记录实际包含的模块
+      auto_included_dependencies: backup_type === "modules" ? dependencies : null, // 记录自动包含的依赖
       tables: Object.keys(data).reduce((acc, table) => {
         acc[table] = data[table].length;
         return acc;
@@ -75,22 +88,74 @@ export class BackupService {
   }
 
   /**
+   * 获取模块的依赖模块
+   * @param {Array} selectedModules - 选中的模块列表
+   * @returns {Array} 依赖的模块列表
+   */
+  getModuleDependencies(selectedModules) {
+    const dependencies = new Set();
+
+    // 定义模块间的依赖关系
+    const moduleDependencies = {
+      mount_management: ["storage_config"], // 挂载管理依赖S3配置管理
+      file_management: ["storage_config"], // 文件管理可能依赖存储配置（通过storage_config_id）
+    };
+
+    for (const module of selectedModules) {
+      if (moduleDependencies[module]) {
+        moduleDependencies[module].forEach((dep) => {
+          // 只有当依赖模块未被选中时才添加
+          if (!selectedModules.includes(dep)) {
+            dependencies.add(dep);
+          }
+        });
+      }
+    }
+
+    return Array.from(dependencies);
+  }
+
+  /**
    * 还原备份
    * @param {Object} backupData - 备份数据
    * @param {Object} options - 还原选项
+   * @param {string} options.mode - 还原模式 ('overwrite' | 'merge')
+   * @param {string} options.currentAdminId - 当前管理员ID（合并模式下用于映射admin_id）
+   * @param {boolean} options.skipIntegrityCheck - 是否跳过数据完整性检查
+   * @param {boolean} options.preserveTimestamps - 是否保留原始时间戳
    * @returns {Object} 还原结果
    */
   async restoreBackup(backupData, options = {}) {
-    const { mode = "overwrite" } = options;
+    const { mode = "overwrite", currentAdminId, skipIntegrityCheck = false, preserveTimestamps = false } = options;
 
     // 验证备份数据
     this.validateBackupData(backupData);
 
-    const { data } = backupData;
+    let { data } = backupData;
+
+    // 进行 admin_id 映射（仅合并模式需要挂接到现有管理员）
+    if (currentAdminId && mode === "merge") {
+      data = this.mapAdminIds(data, currentAdminId);
+    }
+
     const tables = Object.keys(data);
 
     // 验证表是否存在
     await this.validateTablesExist(tables);
+
+    // 数据完整性检查
+    if (!skipIntegrityCheck) {
+      const integrityIssues = await this.validateDataIntegrity(data);
+      if (integrityIssues.length > 0) {
+        console.warn(`[BackupService] 发现 ${integrityIssues.length} 个数据完整性问题:`);
+        integrityIssues.forEach((issue) => console.warn(`  - ${issue.message}`));
+
+        // 在严格模式下可以选择抛出错误
+        // if (options.strictIntegrityCheck) {
+        //   throw new Error(`数据完整性检查失败: ${integrityIssues.map(i => i.message).join('; ')}`);
+        // }
+      }
+    }
 
     // 按依赖关系排序表
     const orderedTables = this.sortTablesByDependency(tables);
@@ -128,8 +193,14 @@ export class BackupService {
         if (tableData && tableData.length > 0) {
           // 准备插入语句
           for (const record of tableData) {
-            const fields = Object.keys(record);
-            const values = Object.values(record);
+            // 处理时间戳字段
+            const processedRecord = this.processTimestampFields(record, tableName, {
+              preserveTimestamps,
+              updateTimestamps: mode === "merge", // 合并模式下更新时间戳
+            });
+
+            const fields = Object.keys(processedRecord);
+            const values = Object.values(processedRecord);
             const placeholders = fields.map(() => "?").join(", ");
 
             let sql;
@@ -169,7 +240,7 @@ export class BackupService {
       };
     } catch (error) {
       console.error("还原备份失败:", error);
-      throw new Error(`还原备份失败: ${error.message}`);
+      throw new RepositoryError(`还原备份失败: ${error.message}`);
     }
   }
 
@@ -221,6 +292,180 @@ export class BackupService {
     }
 
     return results;
+  }
+
+  /**
+   * 验证数据完整性
+   * @param {Object} data - 备份数据
+   * @returns {Array} 完整性问题列表
+   */
+  async validateDataIntegrity(data) {
+    const issues = [];
+
+    // 检查 storage_mounts 的依赖
+    if (data.storage_mounts) {
+      for (const mount of data.storage_mounts) {
+        if (mount.storage_config_id) {
+          // 通用检查：备份数据中是否包含此存储配置记录
+          const hasConfig = data.storage_configs?.some((config) => config.id === mount.storage_config_id);
+          if (!hasConfig) {
+            try {
+              const exists = await StorageConfigUtils.configExists(this.db, mount.storage_type || "S3", mount.storage_config_id);
+              if (!exists) {
+                issues.push({
+                  type: "missing_dependency",
+                  table: "storage_mounts",
+                  record_id: mount.id,
+                  record_name: mount.name,
+                  dependency_table: "storage_configs",
+                  dependency_id: mount.storage_config_id,
+                  message: `挂载点 "${mount.name}" 依赖的存储配置 "${mount.storage_config_id}" 不存在`,
+                });
+              }
+            } catch (error) {
+              console.warn(`[BackupService] 检查存储配置依赖时出错: ${error.message}`);
+            }
+          }
+        }
+      }
+    }
+
+    // 检查 file_passwords 的依赖
+    if (data.file_passwords) {
+      for (const filePassword of data.file_passwords) {
+        const hasFile = data.files?.some((file) => file.id === filePassword.file_id);
+        if (!hasFile) {
+          try {
+            const existingFile = await this.db.prepare(`SELECT id FROM files WHERE id = ?`).bind(filePassword.file_id).first();
+
+            if (!existingFile) {
+              issues.push({
+                type: "missing_dependency",
+                table: "file_passwords",
+                record_id: filePassword.file_id,
+                dependency_table: "files",
+                dependency_id: filePassword.file_id,
+                message: `文件密码记录依赖的文件 "${filePassword.file_id}" 不存在`,
+              });
+            }
+          } catch (error) {
+            console.warn(`[BackupService] 检查文件依赖时出错: ${error.message}`);
+          }
+        }
+      }
+    }
+
+    // 检查 paste_passwords 的依赖
+    if (data.paste_passwords) {
+      for (const pastePassword of data.paste_passwords) {
+        const hasPaste = data.pastes?.some((paste) => paste.id === pastePassword.paste_id);
+        if (!hasPaste) {
+          try {
+            const existingPaste = await this.db.prepare(`SELECT id FROM pastes WHERE id = ?`).bind(pastePassword.paste_id).first();
+
+            if (!existingPaste) {
+              issues.push({
+                type: "missing_dependency",
+                table: "paste_passwords",
+                record_id: pastePassword.paste_id,
+                dependency_table: "pastes",
+                dependency_id: pastePassword.paste_id,
+                message: `文本密码记录依赖的文本 "${pastePassword.paste_id}" 不存在`,
+              });
+            }
+          } catch (error) {
+            console.warn(`[BackupService] 检查文本依赖时出错: ${error.message}`);
+          }
+        }
+      }
+    }
+
+    return issues;
+  }
+
+  /**
+   * 处理时间戳字段
+   * @param {Object} record - 记录对象
+   * @param {string} tableName - 表名
+   * @param {Object} options - 处理选项
+   * @returns {Object} 处理后的记录
+   */
+  processTimestampFields(record, tableName, options = {}) {
+    const { preserveTimestamps = false, updateTimestamps = true } = options;
+    const processedRecord = { ...record };
+
+    if (!preserveTimestamps) {
+      const now = new Date().toISOString();
+
+      // 在合并模式下更新 updated_at 字段
+      if (updateTimestamps && processedRecord.updated_at) {
+        processedRecord.updated_at = now;
+      }
+
+      // 可选：为新插入的记录更新 created_at（通常不建议）
+      // if (processedRecord.created_at && options.updateCreatedAt) {
+      //   processedRecord.created_at = now;
+      // }
+    }
+
+    return processedRecord;
+  }
+
+  /**
+   * 在合并模式下映射 admin_id 到当前管理员
+   * @param {Object} data - 备份数据
+   * @param {string} currentAdminId - 当前管理员ID
+   * @returns {Object} 映射后的数据
+   */
+  mapAdminIds(data, currentAdminId) {
+    const mappedData = { ...data };
+
+    console.log(`[BackupService] 映射 admin_id 到当前管理员 ${currentAdminId}`);
+
+    // 处理 storage_configs 表
+    if (mappedData.storage_configs) {
+      const originalCount = mappedData.storage_configs.length;
+      mappedData.storage_configs = mappedData.storage_configs.map((record) => ({
+        ...record,
+        admin_id: currentAdminId,
+      }));
+      console.log(`[BackupService] 映射 storage_configs 表：${originalCount} 条记录的 admin_id 已更新`);
+    }
+
+    // 处理 storage_mounts 表
+    if (mappedData.storage_mounts) {
+      const originalCount = mappedData.storage_mounts.length;
+      mappedData.storage_mounts = mappedData.storage_mounts.map((record) => ({
+        ...record,
+        created_by: currentAdminId,
+      }));
+      console.log(`[BackupService] 映射 storage_mounts 表：${originalCount} 条记录的 created_by 已更新`);
+    }
+
+    // 处理 files 表
+    if (mappedData.files) {
+      const originalCount = mappedData.files.length;
+      mappedData.files = mappedData.files.map((record) => ({
+        ...record,
+        created_by: currentAdminId,
+      }));
+      console.log(`[BackupService] 映射 files 表：${originalCount} 条记录的 created_by 已更新`);
+    }
+
+    // 处理 pastes 表
+    if (mappedData.pastes) {
+      const originalCount = mappedData.pastes.length;
+      mappedData.pastes = mappedData.pastes.map((record) => ({
+        ...record,
+        created_by: currentAdminId,
+      }));
+      console.log(`[BackupService] 映射 pastes 表：${originalCount} 条记录的 created_by 已更新`);
+    }
+
+    // 注意：不处理 api_keys 表，因为API密钥是独立的用户身份
+    // 注意：不处理 admin_tokens 表，因为令牌应该跟随对应的管理员
+
+    return mappedData;
   }
 
   /**
@@ -338,21 +583,21 @@ export class BackupService {
    */
   validateBackupData(backupData) {
     if (!backupData || typeof backupData !== "object") {
-      throw new Error("无效的备份数据格式");
+      throw new ValidationError("无效的备份数据格式");
     }
 
     if (!backupData.metadata || !backupData.data) {
-      throw new Error("备份数据缺少必要的字段");
+      throw new ValidationError("备份数据缺少必要的字段");
     }
 
     if (!backupData.metadata.version || !backupData.metadata.timestamp) {
-      throw new Error("备份元数据不完整");
+      throw new ValidationError("备份元数据不完整");
     }
 
     // 验证校验和
     const calculatedChecksum = this.generateChecksum(backupData.data);
     if (backupData.metadata.checksum !== calculatedChecksum) {
-      throw new Error("备份数据校验失败，文件可能已损坏");
+      throw new ValidationError("备份数据校验失败，文件可能已损坏");
     }
   }
 
@@ -365,7 +610,7 @@ export class BackupService {
 
     for (const table of tables) {
       if (!validTables.includes(table)) {
-        throw new Error(`不支持的数据表: ${table}`);
+        throw new ValidationError(`不支持的数据表: ${table}`);
       }
     }
   }

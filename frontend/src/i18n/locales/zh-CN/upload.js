@@ -34,8 +34,8 @@ export default {
     usedUp: "已用完",
     unknownSize: "未知大小",
     form: {
-      s3Config: "存储配置",
-      selectS3Config: "选择存储配置",
+      storageConfig: "存储配置",
+      selectStorageConfig: "选择存储配置",
       customSlug: "自定义链接",
       customSlugPlaceholder: "自定义文件访问链接（可选）",
       path: "存储路径",
@@ -160,7 +160,7 @@ export default {
     copyFailed: "复制失败，请手动复制",
     qrCodeDownloaded: "二维码已下载",
     messages: {
-      noS3Config: "请选择存储配置",
+      noStorageConfig: "请选择存储配置",
       noFilesSelected: "请选择要上传的文件",
       fileTooLarge: "文件大小超过限制",
       uploadFailed: "上传失败",
@@ -172,7 +172,7 @@ export default {
       urlAnalysisFailed: "URL分析失败",
       negativeMaxViews: "最大查看次数不能为负数",
       getPresignedUrlFailed: "获取预签名URL失败",
-      slugInvalid: "自定义链接只能包含字母、数字、连字符和下划线",
+      slugInvalid: "自定义链接只能包含字母、数字、连字符、下划线和点号",
       slugTooLong: "自定义链接不能超过50个字符",
       slugReserved: "此链接为系统保留，请使用其他链接",
       slugConflict: "链接后缀已被占用，请更换其他后缀",

@@ -34,8 +34,8 @@ export default {
     usedUp: "Used Up",
     unknownSize: "Unknown Size",
     form: {
-      s3Config: "Storage Config",
-      selectS3Config: "Select Storage Config",
+      storageConfig: "Storage Config",
+      selectStorageConfig: "Select Storage Config",
       customSlug: "Custom Link",
       customSlugPlaceholder: "Custom file access link (optional)",
       path: "Storage Path",
@@ -160,7 +160,7 @@ export default {
     copyFailed: "Copy failed, please copy manually",
     qrCodeDownloaded: "QR code downloaded",
     messages: {
-      noS3Config: "Please select a storage configuration",
+      noStorageConfig: "Please select a storage configuration",
       noFilesSelected: "Please select files to upload",
       fileTooLarge: "File size exceeds limit",
       uploadFailed: "Upload failed",
@@ -172,7 +172,7 @@ export default {
       urlAnalysisFailed: "URL analysis failed",
       negativeMaxViews: "Maximum views cannot be negative",
       getPresignedUrlFailed: "Failed to get presigned URL",
-      slugInvalid: "Custom link can only contain letters, numbers, hyphens and underscores",
+      slugInvalid: "Custom link can only contain letters, numbers, hyphens, underscores and dots",
       slugTooLong: "Custom link cannot exceed 50 characters",
       slugReserved: "This link is reserved by the system, please use another one",
       slugConflict: "Link suffix is already taken, please use another one",

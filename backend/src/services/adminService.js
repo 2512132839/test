@@ -1,8 +1,10 @@
 import { ApiStatus } from "../constants/index.js";
 import { generateRandomString, createErrorResponse } from "../utils/common.js";
 import { hashPassword, verifyPassword } from "../utils/crypto.js";
-import { HTTPException } from "hono/http-exception";
-import { RepositoryFactory } from "../repositories/index.js";
+import { ValidationError, AuthenticationError, NotFoundError, ConflictError } from "../http/errors.js";
+import { ensureRepositoryFactory } from "../utils/repositories.js";
+
+const resolveRepositoryFactory = ensureRepositoryFactory;
 
 /**
  * 验证管理员令牌
@@ -10,13 +12,13 @@ import { RepositoryFactory } from "../repositories/index.js";
  * @param {string} token - JWT令牌
  * @returns {Promise<string|null>} 管理员ID或null
  */
-export async function validateAdminToken(db, token) {
+export async function validateAdminToken(db, token, repositoryFactory) {
   console.log("验证管理员令牌:", token.substring(0, 5) + "..." + token.substring(token.length - 5));
 
   try {
     // 使用 AdminRepository 验证令牌
-    const repositoryFactory = new RepositoryFactory(db);
-    const adminRepository = repositoryFactory.getAdminRepository();
+    const factory = resolveRepositoryFactory(db, repositoryFactory);
+    const adminRepository = factory.getAdminRepository();
 
     const adminId = await adminRepository.validateToken(token);
 
@@ -40,26 +42,26 @@ export async function validateAdminToken(db, token) {
  * @param {string} password - 密码
  * @returns {Promise<Object>} 登录结果，包含token和过期时间
  */
-export async function login(db, username, password) {
+export async function login(db, username, password, repositoryFactory) {
   // 参数验证
   if (!username || !password) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "用户名和密码不能为空" });
+    throw new ValidationError("用户名和密码不能为空");
   }
 
   // 使用 AdminRepository 查询管理员
-  const repositoryFactory = new RepositoryFactory(db);
-  const adminRepository = repositoryFactory.getAdminRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const adminRepository = factory.getAdminRepository();
 
   const admin = await adminRepository.findByUsername(username);
 
   if (!admin) {
-    throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "用户名或密码错误" });
+    throw new AuthenticationError("用户名或密码错误");
   }
 
   // 验证密码
   const isValid = await verifyPassword(password, admin.password);
   if (!isValid) {
-    throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "用户名或密码错误" });
+    throw new AuthenticationError("用户名或密码错误");
   }
 
   // ===== token管理：限制并发session数量 =====
@@ -107,10 +109,10 @@ export async function login(db, username, password) {
  * @param {string} token - 认证令牌
  * @returns {Promise<void>}
  */
-export async function logout(db, token) {
+export async function logout(db, token, repositoryFactory) {
   // 使用 AdminRepository 删除令牌
-  const repositoryFactory = new RepositoryFactory(db);
-  const adminRepository = repositoryFactory.getAdminRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const adminRepository = factory.getAdminRepository();
 
   await adminRepository.deleteToken(token);
 }
@@ -124,24 +126,24 @@ export async function logout(db, token) {
  * @param {string} newUsername - 新用户名，可选
  * @returns {Promise<void>}
  */
-export async function changePassword(db, adminId, currentPassword, newPassword, newUsername) {
+export async function changePassword(db, adminId, currentPassword, newPassword, newUsername, repositoryFactory) {
   // 使用 AdminRepository
-  const repositoryFactory = new RepositoryFactory(db);
-  const adminRepository = repositoryFactory.getAdminRepository();
+  const factory = resolveRepositoryFactory(db, repositoryFactory);
+  const adminRepository = factory.getAdminRepository();
 
   // 验证当前密码
   const admin = await adminRepository.findById(adminId);
   if (!admin) {
-    throw new HTTPException(ApiStatus.NOT_FOUND, { message: "管理员不存在" });
+    throw new NotFoundError("管理员不存在");
   }
 
   if (!(await verifyPassword(currentPassword, admin.password))) {
-    throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "当前密码错误" });
+    throw new AuthenticationError("当前密码错误");
   }
 
   // 检查新密码是否与当前密码相同
   if (newPassword && (await verifyPassword(newPassword, admin.password))) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "新密码不能与当前密码相同" });
+    throw new ValidationError("新密码不能与当前密码相同");
   }
 
   // 如果提供了新用户名，先检查用户名是否已存在
@@ -149,7 +151,7 @@ export async function changePassword(db, adminId, currentPassword, newPassword, 
     const usernameExists = await adminRepository.existsByUsername(newUsername, adminId);
 
     if (usernameExists) {
-      throw new HTTPException(ApiStatus.CONFLICT, { message: "用户名已存在" });
+      throw new ConflictError("用户名已存在");
     }
 
     // 更新用户名和密码
@@ -164,7 +166,7 @@ export async function changePassword(db, adminId, currentPassword, newPassword, 
     const newPasswordHash = await hashPassword(newPassword);
     await adminRepository.updateAdmin(adminId, { password: newPasswordHash });
   } else {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "未提供新密码或新用户名" });
+    throw new ValidationError("未提供新密码或新用户名");
   }
 
   // 成功修改后，删除该管理员的所有认证令牌，强制重新登录
@@ -177,7 +179,7 @@ export async function changePassword(db, adminId, currentPassword, newPassword, 
  * @param {string} token - JWT令牌
  * @returns {Promise<boolean>} 令牌是否有效
  */
-export async function testAdminToken(db, token) {
-  const adminId = await validateAdminToken(db, token);
+export async function testAdminToken(db, token, repositoryFactory) {
+  const adminId = await validateAdminToken(db, token, repositoryFactory);
   return adminId !== null;
 }

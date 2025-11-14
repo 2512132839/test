@@ -19,8 +19,6 @@
       <div class="card mb-6 p-4 sm:p-6">
         <FileUploader
           :dark-mode="darkMode"
-          :s3-configs="s3Configs"
-          :loading="loadingConfigs"
           :is-admin="isAdmin"
           @upload-success="handleUploadSuccess"
           @upload-error="handleUploadError"
@@ -103,17 +101,20 @@
 
 <script setup>
 import { ref, onMounted, computed, onBeforeUnmount } from "vue";
+import { storeToRefs } from "pinia";
 import { api } from "@/api";
 import FileUploader from "../components/file-upload/FileUploader.vue";
 import FileList from "../components/file-upload/FileList.vue";
 import PermissionManager from "../components/common/PermissionManager.vue";
 import { useI18n } from "vue-i18n"; // 导入i18n
 import { useAuthStore } from "@/stores/authStore.js";
+import { useStorageConfigsStore } from "@/stores/storageConfigsStore.js";
 
 const { t } = useI18n(); // 初始化i18n
 
 // 使用认证Store
 const authStore = useAuthStore();
+const { isAdmin, hasFilePermission } = storeToRefs(authStore);
 
 const props = defineProps({
   darkMode: {
@@ -123,14 +124,13 @@ const props = defineProps({
 });
 
 // 数据状态
-const s3Configs = ref([]);
+const storageConfigsStore = useStorageConfigsStore();
 const files = ref([]);
-const loadingConfigs = ref(false);
 const loadingFiles = ref(false);
 const message = ref(null);
 
 // 从Store获取权限状态的计算属性
-const hasPermission = computed(() => authStore.hasFilePermission);
+const hasPermission = computed(() => hasFilePermission.value);
 
 // 计算最近3条记录
 const recentFiles = computed(() => {
@@ -153,11 +153,9 @@ const handlePermissionChange = async (hasPermissionValue) => {
 
   if (hasPermissionValue) {
     console.log("用户获得权限，开始加载配置和文件列表");
-    await Promise.all([loadS3Configs(), loadFiles()]);
+    await Promise.all([loadStorageConfigs({ force: true }), loadFiles()]);
   } else {
     console.log("用户失去权限，清空数据");
-    // 清空相关数据
-    s3Configs.value = [];
     files.value = [];
   }
 };
@@ -167,24 +165,22 @@ const handleAuthStateChange = async (e) => {
   console.log("FileUpload: 接收到认证状态变化事件:", e.detail);
   // 权限状态会自动更新，这里只需要重新加载数据
   if (hasPermission.value) {
-    await Promise.all([loadS3Configs(), loadFiles()]);
+    await Promise.all([loadStorageConfigs({ force: true }), loadFiles()]);
   }
 };
 
-// 加载S3配置
-const loadS3Configs = async () => {
+// 加载存储配置（默认抓取前100个即可覆盖常见场景）
+const loadStorageConfigs = async (options = {}) => {
   if (!hasPermission.value) return;
 
-  loadingConfigs.value = true;
   try {
-    const response = await api.file.getS3Configs();
-    if (response.success && response.data) {
-      s3Configs.value = response.data;
+    if (options.force) {
+      await storageConfigsStore.refreshConfigs();
+    } else {
+      await storageConfigsStore.loadConfigs();
     }
   } catch (error) {
-    console.error("加载S3配置失败:", error);
-  } finally {
-    loadingConfigs.value = false;
+    console.error("加载存储配置失败:", error);
   }
 };
 
@@ -194,15 +190,10 @@ const loadFiles = async () => {
 
   loadingFiles.value = true;
   try {
-    // 使用统一的API，只请求5个文件（显示3个，留2个余量）
+    // { code, message, data: { files: [] }, success }
     const response = await api.file.getFiles(5, 0);
-
-    if (response.success && response.data) {
-      // 确保按时间倒序排序，最新的在前面
-      files.value = (response.data.files || []).sort((a, b) => {
-        return new Date(b.created_at) - new Date(a.created_at);
-      });
-    }
+    const list = response?.data?.files || [];
+    files.value = list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   } catch (error) {
     console.error("加载文件列表失败:", error);
     // 显示错误消息，但不清除权限
@@ -271,7 +262,9 @@ onMounted(async () => {
 
   // 监听认证状态变化事件
   window.addEventListener("auth-state-changed", handleAuthStateChange);
-
+  if (hasPermission.value) {
+    await Promise.all([loadStorageConfigs(), loadFiles()]);
+  }
 });
 
 // 组件卸载时清理
