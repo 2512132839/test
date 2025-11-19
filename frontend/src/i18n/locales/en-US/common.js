@@ -10,6 +10,7 @@ export default {
     noPermission: "No permission for this feature, please contact administrator",
     contactAdmin: "Contact Administrator",
     permissionDenied: "Permission Denied",
+    actions: "Actions",
     pagination: {
       previousPage: "Previous",
       nextPage: "Next",
@@ -71,6 +72,7 @@ export default {
       fileManagement: "File Management",
       storageConfig: "Storage Management",
       mountManagement: "Mount Management",
+      fsMetaManagement: "Meta Management",
       keyManagement: "Key Management",
       settings: "System Settings",
       globalSettings: "Global Settings",

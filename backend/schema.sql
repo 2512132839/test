@@ -17,11 +17,13 @@ CREATE TABLE pastes (
   id TEXT PRIMARY KEY,
   slug TEXT UNIQUE NOT NULL,
   content TEXT NOT NULL,
+  title TEXT,
   remark TEXT,
   password TEXT,
   expires_at DATETIME,
   max_views INTEGER,
   views INTEGER DEFAULT 0,  
+  is_public BOOLEAN NOT NULL DEFAULT 1,
   created_by TEXT,                     -- 创建者标识（管理员ID或API密钥ID）
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -31,6 +33,7 @@ CREATE TABLE pastes (
 CREATE INDEX idx_pastes_slug ON pastes(slug);
 CREATE INDEX idx_pastes_created_at ON pastes(created_at DESC);
 CREATE INDEX idx_pastes_created_by ON pastes(created_by);    -- 添加创建者索引
+CREATE INDEX idx_pastes_is_public ON pastes(is_public);
 
 
 
@@ -60,7 +63,7 @@ CREATE TABLE api_keys (
   permissions INTEGER DEFAULT 0,        -- 位标志权限（替代布尔字段）
   role TEXT DEFAULT 'GENERAL',          -- 用户角色：GUEST/GENERAL/ADMIN
   basic_path TEXT DEFAULT '/',
-  is_guest BOOLEAN DEFAULT 0,           -- 是否为访客（免密访问）
+  is_enable BOOLEAN DEFAULT 0,         -- 启用状态：0=禁用，1=启用（所有密钥默认禁用，需手动开启）
   last_used DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   expires_at DATETIME NOT NULL
@@ -86,6 +89,16 @@ CREATE INDEX idx_storage_admin ON storage_configs(admin_id);
 CREATE INDEX idx_storage_type ON storage_configs(storage_type);
 CREATE INDEX idx_storage_public ON storage_configs(is_public);
 CREATE UNIQUE INDEX idx_default_per_admin ON storage_configs(admin_id) WHERE is_default = 1;
+
+-- 存储 ACL 表：主体 -> 存储配置访问白名单
+CREATE TABLE principal_storage_acl (
+  subject_type TEXT NOT NULL,           -- 主体类型：API_KEY/USER/ROLE 等
+  subject_id TEXT NOT NULL,             -- 主体ID：api_keys.id / users.id 等
+  storage_config_id TEXT NOT NULL,      -- 被允许访问的 storage_configs.id
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (subject_type, subject_id, storage_config_id)
+);
+CREATE INDEX idx_psa_storage_config_id ON principal_storage_acl(storage_config_id);
 
 -- 创建files表 - 存储已上传文件的元数据（支持多存储类型）
 CREATE TABLE files (
@@ -125,6 +138,30 @@ CREATE INDEX idx_files_storage_type ON files(storage_type);
 CREATE INDEX idx_files_file_path ON files(file_path);
 CREATE INDEX idx_files_created_at ON files(created_at);
 CREATE INDEX idx_files_expires_at ON files(expires_at);
+
+CREATE TABLE fs_meta (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  path TEXT NOT NULL,                  -- 虚拟路径，如 "/", "/public", "/private/docs"
+
+  header_markdown TEXT NULL,           -- 顶部 README markdown 内容（inline）
+  header_inherit BOOLEAN NOT NULL DEFAULT 0,
+
+  footer_markdown TEXT NULL,           -- 底部 README markdown 内容（inline）
+  footer_inherit BOOLEAN NOT NULL DEFAULT 0,
+
+  hide_patterns TEXT NULL,             -- JSON 数组字符串，如 ["^README\\.md$", "^top\\.md$"]
+  hide_inherit BOOLEAN NOT NULL DEFAULT 0,
+
+  password TEXT NULL,                  -- 目录访问密码（明文，为空表示未设置）
+  password_inherit BOOLEAN NOT NULL DEFAULT 0,
+
+  extra JSON NULL,                     -- 预留扩展字段
+
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_fs_meta_path ON fs_meta(path);
 
 -- 创建file_passwords表 - 存储文件密码
 CREATE TABLE file_passwords (

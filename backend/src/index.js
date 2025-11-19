@@ -9,6 +9,7 @@ import systemRoutes from "./routes/systemRoutes.js";
 import mountRoutes from "./routes/mountRoutes.js";
 import webdavRoutes from "./routes/webdavRoutes.js";
 import fsRoutes from "./routes/fsRoutes.js";
+import fsMetaRoutes from "./routes/fsMetaRoutes.js";
 import { DbTables, ApiStatus, UserType } from "./constants/index.js";
 import { createErrorResponse, jsonOk } from "./utils/common.js";
 import filesRoutes from "./routes/filesRoutes.js";
@@ -40,7 +41,7 @@ const generateRequestId = () => {
 const getAuthSnapshot = (c) => {
   const authResult = c.get("authResult");
   if (!authResult) {
-    return { userType: UserType.GUEST, userId: null };
+    return { userType: UserType.ANONYMOUS, userId: null };
   }
   if (authResult.isAdmin && authResult.isAdmin()) {
     return { userType: UserType.ADMIN, userId: authResult.getUserId?.() || null };
@@ -48,7 +49,7 @@ const getAuthSnapshot = (c) => {
   if (authResult.keyInfo) {
     return { userType: UserType.API_KEY, userId: authResult.keyInfo.id || authResult.keyInfo.name || null };
   }
-  return { userType: UserType.GUEST, userId: authResult.getUserId?.() || null };
+  return { userType: UserType.ANONYMOUS, userId: authResult.getUserId?.() || null };
 };
 
 const structuredLogger = async (c, next) => {
@@ -126,6 +127,7 @@ app.use("*", async (c, next) => {
         "Content-Type",
         "Authorization",
         "X-API-KEY",
+        "X-FS-Path-Token",
         "Depth",
         "Destination",
         "Overwrite",
@@ -180,6 +182,7 @@ app.route("/", systemRoutes);
 app.route("/", mountRoutes);
 app.route("/", webdavRoutes);
 app.route("/", fsRoutes);
+app.route("/", fsMetaRoutes);
 app.route("/", fsProxyRoutes);
 
 // 健康检查路由

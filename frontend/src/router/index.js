@@ -5,7 +5,8 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { pwaState } from "../pwa/pwaManager.js";
 import OfflineFallback from "../components/OfflineFallback.vue";
-import { showPageUnavailableToast } from "../utils/offlineToast.js";
+import { showPageUnavailableToast } from "../pwa/offlineToast.js";
+import { useAuthStore } from "@/stores/authStore.js";
 import NProgress from "nprogress";
 import "nprogress/nprogress.css";
 
@@ -34,11 +35,11 @@ const createOfflineAwareImport = (importFn, componentName = "页面") => {
     });
 };
 
-const HomeView = createOfflineAwareImport(() => import("../views/MarkdownEditorView.vue"), "首页");
-const UploadView = createOfflineAwareImport(() => import("../views/UploadView.vue"), "文件上传页面");
-const PasteView = createOfflineAwareImport(() => import("../views/PasteView.vue"), "文本分享页面");
-const FileView = createOfflineAwareImport(() => import("../views/FileView.vue"), "文件预览页面");
-const MountExplorerView = createOfflineAwareImport(() => import("../views/MountExplorerView.vue"), "挂载浏览器");
+const HomeView = createOfflineAwareImport(() => import("../modules/paste/editor/MarkdownEditorView.vue"), "首页");
+const UploadView = createOfflineAwareImport(() => import("../modules/upload/public/UploadView.vue"), "文件上传页面");
+const PasteView = createOfflineAwareImport(() => import("../modules/paste/public/PasteView.vue"), "文本分享页面");
+const FileView = createOfflineAwareImport(() => import("../modules/fileshare/public/FileView.vue"), "文件预览页面");
+const MountExplorerView = createOfflineAwareImport(() => import("../modules/fs/MountExplorerView.vue"), "挂载浏览器");
 
 // 路由配置 - 完全对应原有的页面逻辑
 const routes = [
@@ -64,7 +65,7 @@ const routes = [
   {
     path: "/admin/login",
     name: "AdminLogin",
-    component: createOfflineAwareImport(() => import("../views/admin/AdminLoginView.vue"), "管理员登录"),
+    component: createOfflineAwareImport(() => import("../modules/admin/views/AdminLoginView.vue"), "管理员登录"),
     meta: {
       title: "登录 - CloudPaste",
       originalPage: "admin-login",
@@ -73,7 +74,7 @@ const routes = [
   // 管理面板
   {
     path: "/admin",
-    component: createOfflineAwareImport(() => import("../views/admin/AdminLayout.vue"), "管理面板布局"),
+    component: createOfflineAwareImport(() => import("../modules/admin/views/AdminLayout.vue"), "管理面板布局"),
     meta: {
       title: "管理面板 - CloudPaste",
       originalPage: "admin",
@@ -83,7 +84,7 @@ const routes = [
       {
         path: "dashboard",
         name: "AdminDashboard",
-        component: createOfflineAwareImport(() => import("../views/admin/DashboardView.vue"), "仪表板"),
+        component: createOfflineAwareImport(() => import("../modules/admin/views/DashboardView.vue"), "仪表板"),
         meta: {
           title: "仪表板 - CloudPaste",
           adminOnly: true, // 只有管理员可访问
@@ -92,7 +93,7 @@ const routes = [
       {
         path: "text-management",
         name: "AdminTextManagement",
-        component: createOfflineAwareImport(() => import("../views/admin/TextManagementView.vue"), "文本管理"),
+        component: createOfflineAwareImport(() => import("../modules/paste/admin/TextManagementView.vue"), "文本管理"),
         meta: {
           title: "文本管理 - CloudPaste",
           requiredPermissions: ["text"], // 需要文本权限
@@ -101,7 +102,7 @@ const routes = [
       {
         path: "file-management",
         name: "AdminFileManagement",
-        component: createOfflineAwareImport(() => import("../views/admin/FileManagementView.vue"), "文件管理"),
+        component: createOfflineAwareImport(() => import("../modules/fileshare/admin/FileManagementView.vue"), "文件管理"),
         meta: {
           title: "文件管理 - CloudPaste",
           requiredPermissions: ["file"], // 需要文件权限
@@ -110,7 +111,7 @@ const routes = [
       {
         path: "key-management",
         name: "AdminKeyManagement",
-        component: createOfflineAwareImport(() => import("../views/admin/KeyManagementView.vue"), "密钥管理"),
+        component: createOfflineAwareImport(() => import("../modules/admin/views/KeyManagementView.vue"), "密钥管理"),
         meta: {
           title: "密钥管理 - CloudPaste",
           adminOnly: true, // 只有管理员可访问
@@ -119,16 +120,25 @@ const routes = [
       {
         path: "mount-management",
         name: "AdminMountManagement",
-        component: createOfflineAwareImport(() => import("../views/admin/MountManagementView.vue"), "挂载管理"),
+        component: createOfflineAwareImport(() => import("../modules/admin/views/MountManagementView.vue"), "挂载管理"),
         meta: {
           title: "挂载管理 - CloudPaste",
           requiredPermissions: ["mount"], // 需要挂载权限
         },
       },
       {
+        path: "fs-meta-management",
+        name: "AdminFsMetaManagement",
+        component: createOfflineAwareImport(() => import("../modules/admin/views/FsMetaManagementView.vue"), "元信息管理"),
+        meta: {
+          title: "元信息管理 - CloudPaste",
+          adminOnly: true, // 只有管理员可访问
+        },
+      },
+      {
         path: "storage",
         name: "AdminStorage",
-        component: createOfflineAwareImport(() => import("../views/admin/StorageConfigView.vue"), "存储管理"),
+        component: createOfflineAwareImport(() => import("../modules/admin/views/StorageConfigView.vue"), "存储管理"),
         meta: {
           title: "存储管理 - CloudPaste",
           adminOnly: true, // 只有管理员可访问
@@ -144,7 +154,7 @@ const routes = [
       {
         path: "account",
         name: "AdminAccountManagement",
-        component: createOfflineAwareImport(() => import("../views/admin/AccountManagementView.vue"), "账号管理"),
+        component: createOfflineAwareImport(() => import("../modules/admin/views/AccountManagementView.vue"), "账号管理"),
         meta: {
           title: "账号管理 - CloudPaste",
           requiresAuth: true, // 管理员和API密钥用户都可访问
@@ -153,7 +163,7 @@ const routes = [
       {
         path: "backup",
         name: "AdminBackup",
-        component: createOfflineAwareImport(() => import("../views/admin/BackupView.vue"), "数据备份"),
+        component: createOfflineAwareImport(() => import("../modules/admin/views/BackupView.vue"), "数据备份"),
         meta: {
           title: "数据备份 - CloudPaste",
           adminOnly: true, // 只有管理员可访问
@@ -165,7 +175,7 @@ const routes = [
           {
             path: "global",
             name: "AdminGlobalSettings",
-            component: createOfflineAwareImport(() => import("../views/admin/settings/GlobalSettingsView.vue"), "全局设置"),
+            component: createOfflineAwareImport(() => import("../modules/admin/views/settings/GlobalSettingsView.vue"), "全局设置"),
             meta: {
               title: "全局设置 - CloudPaste",
               adminOnly: true, // 只有管理员可访问
@@ -175,7 +185,7 @@ const routes = [
           {
             path: "webdav",
             name: "AdminWebDAVSettings",
-            component: createOfflineAwareImport(() => import("../views/admin/settings/WebDAVSettingsView.vue"), "WebDAV设置"),
+            component: createOfflineAwareImport(() => import("../modules/admin/views/settings/WebDAVSettingsView.vue"), "WebDAV设置"),
             meta: {
               title: "WebDAV设置 - CloudPaste",
               adminOnly: true, // 只有管理员可访问
@@ -184,7 +194,7 @@ const routes = [
           {
             path: "preview",
             name: "AdminPreviewSettings",
-            component: createOfflineAwareImport(() => import("../views/admin/settings/PreviewSettingsView.vue"), "预览设置"),
+            component: createOfflineAwareImport(() => import("../modules/admin/views/settings/PreviewSettingsView.vue"), "预览设置"),
             meta: {
               title: "预览设置 - CloudPaste",
               adminOnly: true, // 只有管理员可访问
@@ -193,7 +203,7 @@ const routes = [
           {
             path: "site",
             name: "AdminSiteSettings",
-            component: createOfflineAwareImport(() => import("../views/admin/settings/SiteSettingsView.vue"), "站点设置"),
+            component: createOfflineAwareImport(() => import("../modules/admin/views/settings/SiteSettingsView.vue"), "站点设置"),
             meta: {
               title: "站点设置 - CloudPaste",
               adminOnly: true, // 只有管理员可访问
@@ -288,9 +298,9 @@ const hasRoutePermission = (route, authStore) => {
     return route.meta.requiredPermissions.some((permission) => {
       switch (permission) {
         case "text":
-          return authStore.hasTextPermission;
+          return authStore.hasTextManagePermission;
         case "file":
-          return authStore.hasFilePermission;
+          return authStore.hasFileManagePermission;
         case "mount":
           return authStore.hasMountPermission;
         default:
@@ -312,11 +322,11 @@ const getDefaultRouteForUser = (authStore) => {
   // API密钥用户：根据权限确定默认页面
   if (authStore.authType === "apikey") {
     // 按优先级检查权限
-    if (authStore.hasTextPermission) {
+    if (authStore.hasTextManagePermission) {
       return "AdminTextManagement";
     }
 
-    if (authStore.hasFilePermission) {
+    if (authStore.hasFileManagePermission) {
       return "AdminFileManagement";
     }
 
@@ -338,9 +348,20 @@ router.beforeEach(async (to, from, next) => {
   NProgress.start();
 
   try {
-    // 动态导入认证Store
-    const { useAuthStore } = await import("@/stores/authStore.js");
     const authStore = useAuthStore();
+
+    // 确保初始化完成，避免刷新时的认证闪烁
+    if (!authStore.initialized) {
+      await authStore.initialize();
+    }
+
+    // 自动游客会话：在首次未认证状态下尝试一次基于 Guest API Key 的登录
+    // 统一在任意路由入口触发一次（包括 /admin 相关路由），由 maybeAutoGuestLogin 自身通过 guestAutoTried 控制只尝试一次
+    if (!authStore.isAuthenticated && authStore.authType === "none") {
+      if (typeof authStore.maybeAutoGuestLogin === "function") {
+        await authStore.maybeAutoGuestLogin();
+      }
+    }
 
     // 如果需要认证且认证状态需要重新验证，则进行验证
     if (to.meta.requiresAuth && authStore.needsRevalidation) {
@@ -392,8 +413,8 @@ router.beforeEach(async (to, from, next) => {
         console.log("路由守卫：用户权限详情", {
           authType: authStore.authType,
           isAdmin: authStore.isAdmin,
-          hasTextPermission: authStore.hasTextPermission,
-          hasFilePermission: authStore.hasFilePermission,
+          hasTextSharePermission: authStore.hasTextSharePermission,
+          hasFileSharePermission: authStore.hasFileSharePermission,
           hasMountPermission: authStore.hasMountPermission,
           apiKeyPermissions: authStore.apiKeyPermissions,
         });
@@ -417,8 +438,8 @@ router.beforeEach(async (to, from, next) => {
             targetRoute: to.name,
             userPermissions: {
               isAdmin: authStore.isAdmin,
-              hasTextPermission: authStore.hasTextPermission,
-              hasFilePermission: authStore.hasFilePermission,
+              hasTextManagePermission: authStore.hasTextManagePermission,
+              hasFileManagePermission: authStore.hasFileManagePermission,
               hasMountPermission: authStore.hasMountPermission,
             },
           });
@@ -451,8 +472,9 @@ router.beforeEach(async (to, from, next) => {
       console.log("路由守卫：管理权限验证通过", {
         isAdmin: authStore.isAdmin,
         authType: authStore.authType,
-        hasTextPermission: authStore.hasTextPermission,
-        hasFilePermission: authStore.hasFilePermission,
+        isGuest: authStore.isGuest,
+        hasTextManagePermission: authStore.hasTextManagePermission,
+        hasFileManagePermission: authStore.hasFileManagePermission,
         hasMountPermission: authStore.hasMountPermission,
       });
     }
@@ -469,7 +491,8 @@ router.beforeEach(async (to, from, next) => {
       });
 
       // 只对有挂载权限的API密钥用户进行路径权限检查
-      if (authStore.authType === "apikey" && authStore.hasMountPermission && to.params.pathMatch) {
+      const isKeyLikeUser = authStore.isKeyUser;
+      if (isKeyLikeUser && authStore.hasMountPermission && to.params.pathMatch) {
         const requestedPath = "/" + (Array.isArray(to.params.pathMatch) ? to.params.pathMatch.join("/") : to.params.pathMatch);
         if (!authStore.hasPathPermission(requestedPath)) {
           console.log("路由守卫：用户无此路径权限，重定向到基本路径");
@@ -553,6 +576,9 @@ router.afterEach(async (to, from) => {
       case "AdminMountManagement":
         title = `${t("pageTitle.adminModules.mountManagement")} - ${siteTitle}`;
         break;
+      case "AdminFsMetaManagement":
+        title = `${t("pageTitle.adminModules.fsMetaManagement")} - ${siteTitle}`;
+        break;
       case "AdminKeyManagement":
         title = `${t("pageTitle.adminModules.keyManagement")} - ${siteTitle}`;
         break;
@@ -601,9 +627,7 @@ router.afterEach(async (to, from) => {
   const toPage = to.meta?.originalPage || "unknown";
   console.log(`页面从 ${fromPage} 切换到 ${toPage}`);
 
-  // 使用认证Store获取权限状态
   try {
-    const { useAuthStore } = await import("@/stores/authStore.js");
     const authStore = useAuthStore();
     console.log(`页面切换后权限状态: 认证类型=${authStore.authType}, 已认证=${authStore.isAuthenticated}, 管理员=${authStore.isAdmin}`);
   } catch (error) {

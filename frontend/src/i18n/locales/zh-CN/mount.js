@@ -109,6 +109,7 @@ export default {
       previewLoadFailed: "预览加载失败",
       fileSaveSuccess: "文件 {name} 保存成功",
       fileSaveFailed: "文件保存失败",
+      linkCopiedSuccess: "文件直链已复制到剪贴板",
     },
     filePreview: {
       downloadFile: "下载文件",
@@ -260,6 +261,19 @@ export default {
       copy: "复制",
       move: "移动",
       properties: "属性",
+    },
+    pathPassword: {
+      title: "需要密码",
+      description: "目录 {path} 需要密码才能访问",
+      label: "请输入密码",
+      placeholder: "输入密码",
+      verify: "验证",
+      cancel: "取消",
+      back: "返回",
+      verifying: "验证中...",
+      incorrectPassword: "密码错误，请重试",
+      verifyFailed: "密码验证失败，请重试",
+      verified: "密码验证成功",
     },
     fileTypes: {
       folder: "文件夹",

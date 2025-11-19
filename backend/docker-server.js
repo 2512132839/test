@@ -479,10 +479,13 @@ server.use(async (req, res, next) => {
       }
     }
 
-    // 注入环境变量
+    if (!process.env.ENCRYPTION_SECRET) {
+      throw new Error("ENCRYPTION_SECRET 未设置，请在Docker环境变量中配置安全密钥");
+    }
+
     req.env = {
       DB: sqliteAdapter,
-      ENCRYPTION_SECRET: process.env.ENCRYPTION_SECRET || "default-encryption-key",
+      ENCRYPTION_SECRET: process.env.ENCRYPTION_SECRET,
     };
 
     next();

@@ -25,6 +25,7 @@ export default {
     createFolder: {
       enterName: "Please enter folder name",
       folderName: "Folder Name",
+      placeholder: "New folder",
       create: "Create",
       cancel: "Cancel",
       creating: "Creating...",
@@ -106,6 +107,7 @@ export default {
       previewLoadFailed: "Preview load failed",
       fileSaveSuccess: "File {name} saved successfully",
       fileSaveFailed: "Failed to save file",
+      linkCopiedSuccess: "File direct link copied to clipboard",
     },
     filePreview: {
       downloadFile: "Download File",
@@ -258,6 +260,19 @@ export default {
       filesCount: "files",
     },
     linkCopied: "File direct link copied to clipboard",
+    pathPassword: {
+      title: "Password Required",
+      description: "Directory {path} requires a password to access",
+      label: "Please enter password",
+      placeholder: "Enter password",
+      verify: "Verify",
+      cancel: "Cancel",
+      back: "Back",
+      verifying: "Verifying...",
+      incorrectPassword: "Incorrect password, please try again",
+      verifyFailed: "Password verification failed, please try again",
+      verified: "Password verified successfully",
+    },
     fileTypes: {
       folder: "Folder",
       file: "File",

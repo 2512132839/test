@@ -11,6 +11,8 @@ export { AdminRepository } from "./AdminRepository.js";
 export { ApiKeyRepository } from "./ApiKeyRepository.js";
 export { PasteRepository } from "./PasteRepository.js";
 export { SystemRepository } from "./SystemRepository.js";
+export { PrincipalStorageAclRepository } from "./PrincipalStorageAclRepository.js";
+export { FsMetaRepository } from "./FsMetaRepository.js";
 
 // 导入所有Repository类用于工厂类
 import { BaseRepository } from "./BaseRepository.js";
@@ -21,6 +23,8 @@ import { AdminRepository } from "./AdminRepository.js";
 import { ApiKeyRepository } from "./ApiKeyRepository.js";
 import { PasteRepository } from "./PasteRepository.js";
 import { SystemRepository } from "./SystemRepository.js";
+import { PrincipalStorageAclRepository } from "./PrincipalStorageAclRepository.js";
+import { FsMetaRepository } from "./FsMetaRepository.js";
 
 /**
  * Repository工厂类
@@ -114,6 +118,17 @@ export class RepositoryFactory {
   }
 
   /**
+   * 获取 PrincipalStorageAclRepository 实例
+   * @returns {PrincipalStorageAclRepository} PrincipalStorageAclRepository 实例
+   */
+  getPrincipalStorageAclRepository() {
+    if (!this._repositories.has("principalStorageAcl")) {
+      this._repositories.set("principalStorageAcl", new PrincipalStorageAclRepository(this.db));
+    }
+    return this._repositories.get("principalStorageAcl");
+  }
+
+  /**
    * 清理所有Repository实例缓存
    */
   clearCache() {
@@ -133,6 +148,19 @@ export class RepositoryFactory {
       apiKey: this.getApiKeyRepository(),
       paste: this.getPasteRepository(),
       system: this.getSystemRepository(),
+      principalStorageAcl: this.getPrincipalStorageAclRepository(),
+      fsMeta: this.getFsMetaRepository(),
     };
+  }
+
+  /**
+   * 获取 FsMetaRepository 实例
+   * @returns {FsMetaRepository}
+   */
+  getFsMetaRepository() {
+    if (!this._repositories.has("fsMeta")) {
+      this._repositories.set("fsMeta", new FsMetaRepository(this.db));
+    }
+    return this._repositories.get("fsMeta");
   }
 }
