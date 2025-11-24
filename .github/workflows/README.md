@@ -42,11 +42,11 @@
 
 ## 📋 可控制的工作流
 
-| 工作流名称 | 配置字段 | 默认状态 | 说明 |
-|-----------|---------|---------|------|
-| Workers SPA一体化部署 | `spa_deploy` | 🔴 关闭 | 前后端一体化部署到单个 Worker |
-| Worker后端分离部署 | `backend_deploy` | 🔴 关闭 | 仅部署后端 API Worker |
-| Pages前端分离部署 | `frontend_deploy` | 🔴 关闭 | 仅部署前端到 Cloudflare Pages |
+| 工作流名称 | 仓库变量名 | 默认状态 | 说明 |
+|-----------|-----------|---------|------|
+| Workers SPA一体化部署 | `SPA_DEPLOY` | 🔴 关闭 | 前后端一体化部署到单个 Worker |
+| Worker后端分离部署 | `BACKEND_DEPLOY` | 🔴 关闭 | 仅部署后端 API Worker |
+| Pages前端分离部署 | `FRONTEND_DEPLOY` | 🔴 关闭 | 仅部署前端到 Cloudflare Pages |
 
 **Docker 构建工作流**（仅手动触发，无需开关）：
 - `Build and Push all Docker Image` - 构建并推送 Docker 镜像
@@ -57,19 +57,15 @@
 
 ## 🛠️ 工作原理
 
-### 配置文件
+### 配置存储
 
-所有开关状态存储在 `.github/deployment-config.json` 文件中：
+所有开关状态现在存储在仓库级 **Actions 变量** 中：
 
-```json
-{
-  "spa_deploy": false,
-  "backend_deploy": false,
-  "frontend_deploy": false,
-  "last_updated": "2025-01-25T12:00:00Z",
-  "updated_by": "github-actions[bot]"
-}
-```
+- `SPA_DEPLOY`: 控制 SPA 一体化自动部署（`true` / `false`）
+- `BACKEND_DEPLOY`: 控制后端分离自动部署（`true` / `false`）
+- `FRONTEND_DEPLOY`: 控制前端分离自动部署（`true` / `false`）
+- `DEPLOY_LAST_UPDATED`: 最后更新时间（ISO 时间字符串）
+- `DEPLOY_UPDATED_BY`: 最后更新者（GitHub 用户名）
 
 ### 开关逻辑
 
@@ -157,37 +153,27 @@
 
 ## 🔍 查看配置历史
 
-所有配置变更都会自动提交到 Git 仓库，可以通过以下方式查看：
+当前方案通过仓库变量和控制面板日志记录配置变更：
 
-### 查看配置文件
-```bash
-cat .github/deployment-config.json
-```
-
-### 查看变更历史
-```bash
-git log -- .github/deployment-config.json
-```
-
-### Web 界面查看
-```
-你的仓库 → .github/deployment-config.json → History
-```
+- 在 Actions → 🎛️ 部署控制面板 中查看最近一次运行日志
+- 日志中会打印：
+  - 当前三种部署方式的开关状态
+  - `DEPLOY_LAST_UPDATED` / `DEPLOY_UPDATED_BY` 字段
 
 ---
 
 ## 🚨 注意事项
 
-1. **配置文件会自动提交**
-   - 每次使用控制面板修改配置，都会产生一个 Git 提交
-   - 提交信息包含变更内容和操作者
+1. **配置变更不再产生 Git 提交**
+   - 控制面板通过 GitHub API 修改仓库变量
+   - 不会影响本地分支 fast-forward 推送
 
-2. **避免手动编辑配置文件**
-   - 虽然可以直接编辑 `.github/deployment-config.json`，但推荐使用控制面板
-   - 手动编辑需要确保 JSON 格式正确
+2. **避免手动修改仓库变量**
+   - 推荐通过 🎛️ 部署控制面板 来修改变量
+   - 手动修改变量可能与控制面板显示不一致
 
 3. **修改后立即生效**
-   - 配置文件提交后，下次推送代码时生效
+   - 仓库变量更新后，下次推送代码立即生效
    - 无需等待或重启
 
 4. **避免同时启用多个部署**
@@ -199,7 +185,7 @@ git log -- .github/deployment-config.json
 ## 📖 常见问题
 
 ### Q: 我推送了代码，但工作流没有运行？
-A: 检查 `.github/deployment-config.json` 中对应的开关是否为 `true`。如果为 `false`，工作流会跳过自动触发。
+A: 检查仓库 Settings → Secrets and variables → Actions → Variables 中对应的开关（`SPA_DEPLOY` / `BACKEND_DEPLOY` / `FRONTEND_DEPLOY`）是否为 `true`。如果为 `false`，工作流会跳过自动触发。
 
 ### Q: 我想临时部署一次，但不想启用自动部署？
 A: 在 Actions 页面找到对应工作流，点击 "Run workflow" 手动触发即可。手动触发不受开关限制。
@@ -212,13 +198,11 @@ A: 技术上可以，但**不推荐**。建议只启用一种部署方式：
 ### Q: Docker 构建工作流为什么没有开关？
 A: Docker 构建工作流已经是手动触发的（`workflow_dispatch`），不会自动运行，因此不需要开关控制。
 
-### Q: 配置文件被意外删除了怎么办？
-A: 不用担心！如果配置文件不存在，工作流会自动跳过部署。你可以：
-1. 从 Git 历史恢复文件
-2. 或者重新运行控制面板创建新的配置文件
+### Q: 仓库变量被误删了怎么办？
+A: 不用担心！重新运行 🎛️ 部署控制面板 并保存一次配置，工作流会自动重新创建对应的变量。
 
 ### Q: 可以在多个分支使用不同的配置吗？
-A: 可以！配置文件是分支级别的，每个分支可以有自己的配置。
+A: 当前方案以仓库级变量为准，所有分支共享同一套开关配置，便于集中控制。
 
 ---
 
@@ -226,13 +210,13 @@ A: 可以！配置文件是分支级别的，每个分支可以有自己的配�
 
 与传统环境变量方式相比：
 
-| 特性 | 配置文件方式 ✅ | 环境变量方式 ❌ |
-|-----|--------------|--------------|
-| 需要配置权限 | 🟢 不需要 | 🔴 需要配置 Actions 写权限 |
-| 需要设置环境变量 | 🟢 不需要 | 🔴 需要在 Settings 手动设置 |
-| 可追溯历史 | 🟢 Git 提交记录 | 🔴 无法追溯 |
-| 支持多分支配置 | 🟢 每个分支独立 | 🔴 全局共享 |
-| 配置即代码 | 🟢 是 | 🔴 否 |
+| 特性 | 仓库变量方式 ✅ | 旧配置文件方式 ❌ |
+|-----|----------------|----------------|
+| 需要配置 Actions 权限 | 🔴 需要配置 Actions 写权限（用于 API 更新变量） | 🟢 不需要 |
+| 会否影响本地 push | 🟢 不会产生额外提交 | 🔴 控制面板每次都会产生 commit |
+| 可追溯性 | 🟡 通过 Actions 日志和变量值查看 | 🟢 Git 提交记录 |
+| 是否支持多分支独立配置 | 🔴 默认共享（仓库级） | 🟢 每个分支可以有不同 JSON |
+| 配置即代码 | 🔴 否（变量） | 🟢 是（文件） |
 
 ---
 

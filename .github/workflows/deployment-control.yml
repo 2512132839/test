@@ -37,31 +37,34 @@ jobs:
   control-deployments:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 只需要写文件权限（默认就有）
+      contents: read
+      actions: write
 
     steps:
       - name: 📥 检出代码
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: true
 
       - name: 📋 读取当前配置状态
         id: read_config
         run: |
-          if [ -f .github/deployment-config.json ]; then
-            SPA_STATUS=$(jq -r '.spa_deploy' .github/deployment-config.json)
-            BACKEND_STATUS=$(jq -r '.backend_deploy' .github/deployment-config.json)
-            FRONTEND_STATUS=$(jq -r '.frontend_deploy' .github/deployment-config.json)
-          else
-            SPA_STATUS="false"
-            BACKEND_STATUS="false"
-            FRONTEND_STATUS="false"
-          fi
+          SPA_STATUS="${{ vars.SPA_DEPLOY }}"
+          BACKEND_STATUS="${{ vars.BACKEND_DEPLOY }}"
+          FRONTEND_STATUS="${{ vars.FRONTEND_DEPLOY }}"
+          LAST_UPDATED="${{ vars.DEPLOY_LAST_UPDATED }}"
+          UPDATED_BY="${{ vars.DEPLOY_UPDATED_BY }}"
+
+          # 变量未设置时使用默认值
+          [ -z "$SPA_STATUS" ] && SPA_STATUS="false"
+          [ -z "$BACKEND_STATUS" ] && BACKEND_STATUS="false"
+          [ -z "$FRONTEND_STATUS" ] && FRONTEND_STATUS="false"
+          [ -z "$LAST_UPDATED" ] && LAST_UPDATED="N/A"
+          [ -z "$UPDATED_BY" ] && UPDATED_BY="N/A"
 
           echo "spa_status=$SPA_STATUS" >> $GITHUB_OUTPUT
           echo "backend_status=$BACKEND_STATUS" >> $GITHUB_OUTPUT
           echo "frontend_status=$FRONTEND_STATUS" >> $GITHUB_OUTPUT
+          echo "last_updated=$LAST_UPDATED" >> $GITHUB_OUTPUT
+          echo "updated_by=$UPDATED_BY" >> $GITHUB_OUTPUT
 
           echo "======================================"
           echo "📊 当前自动部署状态"
@@ -70,6 +73,9 @@ jobs:
           echo "🔄 SPA一体化部署: $([ "$SPA_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
           echo "⚙️ 后端分离部署: $([ "$BACKEND_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
           echo "🎨 前端分离部署: $([ "$FRONTEND_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
+          echo ""
+          echo "📅 最后更新: $LAST_UPDATED"
+          echo "👤 更新者: $UPDATED_BY"
           echo ""
           echo "======================================"
 
@@ -81,19 +87,55 @@ jobs:
 
           if [[ "${{ github.event.inputs.spa_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启 SPA 一体化自动部署..."
-            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
-              '.spa_deploy = true | .last_updated = $time | .updated_by = $user' \
-              .github/deployment-config.json > .github/deployment-config.json.tmp
-            mv .github/deployment-config.json.tmp .github/deployment-config.json
+            NEW_VALUE="true"
             echo "🎉 SPA 一体化自动部署已开启！"
           else
             echo "⏸️ 正在关闭 SPA 一体化自动部署..."
-            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
-              '.spa_deploy = false | .last_updated = $time | .updated_by = $user' \
-              .github/deployment-config.json > .github/deployment-config.json.tmp
-            mv .github/deployment-config.json.tmp .github/deployment-config.json
+            NEW_VALUE="false"
             echo "✅ SPA 一体化自动部署已关闭！"
           fi
+
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+
+          # 更新仓库级 Actions 变量（不存在时自动创建）
+          for VAR_NAME in SPA_DEPLOY DEPLOY_LAST_UPDATED DEPLOY_UPDATED_BY; do
+            case "$VAR_NAME" in
+              SPA_DEPLOY)
+                VAR_VALUE="$NEW_VALUE"
+                ;;
+              DEPLOY_LAST_UPDATED)
+                VAR_VALUE="$TIMESTAMP"
+                ;;
+              DEPLOY_UPDATED_BY)
+                VAR_VALUE="$ACTOR"
+                ;;
+            esac
+
+            HTTP_CODE=$(curl -sS -o /tmp/var_resp.json -w "%{http_code}" \
+              -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.ACTIONS_VAR_TOKEN }}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$OWNER/$REPO/actions/variables/$VAR_NAME" \
+              -d "{\"name\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\"}")
+
+            if [ "$HTTP_CODE" = "404" ]; then
+              HTTP_CODE=$(curl -sS -o /tmp/var_resp.json -w "%{http_code}" \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.ACTIONS_VAR_TOKEN }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$OWNER/$REPO/actions/variables" \
+                -d "{\"name\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\"}")
+            fi
+
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "❌ 更新变量 $VAR_NAME 失败，HTTP 状态码: $HTTP_CODE"
+              cat /tmp/var_resp.json || true
+              exit 1
+            fi
+          done
 
       - name: ⚙️ 更新后端分离部署配置
         if: github.event.inputs.backend_deploy != '📊 查看当前状态'
@@ -103,19 +145,54 @@ jobs:
 
           if [[ "${{ github.event.inputs.backend_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启后端分离自动部署..."
-            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
-              '.backend_deploy = true | .last_updated = $time | .updated_by = $user' \
-              .github/deployment-config.json > .github/deployment-config.json.tmp
-            mv .github/deployment-config.json.tmp .github/deployment-config.json
+            NEW_VALUE="true"
             echo "🎉 后端分离自动部署已开启！"
           else
             echo "⏸️ 正在关闭后端分离自动部署..."
-            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
-              '.backend_deploy = false | .last_updated = $time | .updated_by = $user' \
-              .github/deployment-config.json > .github/deployment-config.json.tmp
-            mv .github/deployment-config.json.tmp .github/deployment-config.json
+            NEW_VALUE="false"
             echo "✅ 后端分离自动部署已关闭！"
           fi
+
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+
+          for VAR_NAME in BACKEND_DEPLOY DEPLOY_LAST_UPDATED DEPLOY_UPDATED_BY; do
+            case "$VAR_NAME" in
+              BACKEND_DEPLOY)
+                VAR_VALUE="$NEW_VALUE"
+                ;;
+              DEPLOY_LAST_UPDATED)
+                VAR_VALUE="$TIMESTAMP"
+                ;;
+              DEPLOY_UPDATED_BY)
+                VAR_VALUE="$ACTOR"
+                ;;
+            esac
+
+            HTTP_CODE=$(curl -sS -o /tmp/var_resp.json -w "%{http_code}" \
+              -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.ACTIONS_VAR_TOKEN }}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$OWNER/$REPO/actions/variables/$VAR_NAME" \
+              -d "{\"name\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\"}")
+
+            if [ "$HTTP_CODE" = "404" ]; then
+              HTTP_CODE=$(curl -sS -o /tmp/var_resp.json -w "%{http_code}" \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.ACTIONS_VAR_TOKEN }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$OWNER/$REPO/actions/variables" \
+                -d "{\"name\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\"}")
+            fi
+
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "❌ 更新变量 $VAR_NAME 失败，HTTP 状态码: $HTTP_CODE"
+              cat /tmp/var_resp.json || true
+              exit 1
+            fi
+          done
 
       - name: 🎨 更新前端分离部署配置
         if: github.event.inputs.frontend_deploy != '📊 查看当前状态'
@@ -125,27 +202,81 @@ jobs:
 
           if [[ "${{ github.event.inputs.frontend_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启前端分离自动部署..."
-            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
-              '.frontend_deploy = true | .last_updated = $time | .updated_by = $user' \
-              .github/deployment-config.json > .github/deployment-config.json.tmp
-            mv .github/deployment-config.json.tmp .github/deployment-config.json
+            NEW_VALUE="true"
             echo "🎉 前端分离自动部署已开启！"
           else
             echo "⏸️ 正在关闭前端分离自动部署..."
-            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
-              '.frontend_deploy = false | .last_updated = $time | .updated_by = $user' \
-              .github/deployment-config.json > .github/deployment-config.json.tmp
-            mv .github/deployment-config.json.tmp .github/deployment-config.json
+            NEW_VALUE="false"
             echo "✅ 前端分离自动部署已关闭！"
           fi
 
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+
+          for VAR_NAME in FRONTEND_DEPLOY DEPLOY_LAST_UPDATED DEPLOY_UPDATED_BY; do
+            case "$VAR_NAME" in
+              FRONTEND_DEPLOY)
+                VAR_VALUE="$NEW_VALUE"
+                ;;
+              DEPLOY_LAST_UPDATED)
+                VAR_VALUE="$TIMESTAMP"
+                ;;
+              DEPLOY_UPDATED_BY)
+                VAR_VALUE="$ACTOR"
+                ;;
+            esac
+
+            HTTP_CODE=$(curl -sS -o /tmp/var_resp.json -w "%{http_code}" \
+              -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.ACTIONS_VAR_TOKEN }}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$OWNER/$REPO/actions/variables/$VAR_NAME" \
+              -d "{\"name\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\"}")
+
+            if [ "$HTTP_CODE" = "404" ]; then
+              HTTP_CODE=$(curl -sS -o /tmp/var_resp.json -w "%{http_code}" \
+                -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.ACTIONS_VAR_TOKEN }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$OWNER/$REPO/actions/variables" \
+                -d "{\"name\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\"}")
+            fi
+
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "❌ 更新变量 $VAR_NAME 失败，HTTP 状态码: $HTTP_CODE"
+              cat /tmp/var_resp.json || true
+              exit 1
+            fi
+          done
+
       - name: 📊 显示更新后的状态
         run: |
-          NEW_SPA_STATUS=$(jq -r '.spa_deploy' .github/deployment-config.json)
-          NEW_BACKEND_STATUS=$(jq -r '.backend_deploy' .github/deployment-config.json)
-          NEW_FRONTEND_STATUS=$(jq -r '.frontend_deploy' .github/deployment-config.json)
-          LAST_UPDATED=$(jq -r '.last_updated' .github/deployment-config.json)
-          UPDATED_BY=$(jq -r '.updated_by' .github/deployment-config.json)
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+
+          fetch_var() {
+            local name="$1"
+            curl -sS \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.ACTIONS_VAR_TOKEN }}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$OWNER/$REPO/actions/variables/$name" \
+              | jq -r '.value // empty'
+          }
+
+          NEW_SPA_STATUS=$(fetch_var "SPA_DEPLOY")
+          NEW_BACKEND_STATUS=$(fetch_var "BACKEND_DEPLOY")
+          NEW_FRONTEND_STATUS=$(fetch_var "FRONTEND_DEPLOY")
+          LAST_UPDATED=$(fetch_var "DEPLOY_LAST_UPDATED")
+          UPDATED_BY=$(fetch_var "DEPLOY_UPDATED_BY")
+
+          [ -z "$NEW_SPA_STATUS" ] && NEW_SPA_STATUS="false"
+          [ -z "$NEW_BACKEND_STATUS" ] && NEW_BACKEND_STATUS="false"
+          [ -z "$NEW_FRONTEND_STATUS" ] && NEW_FRONTEND_STATUS="false"
+          [ -z "$LAST_UPDATED" ] && LAST_UPDATED="N/A"
+          [ -z "$UPDATED_BY" ] && UPDATED_BY="N/A"
 
           echo ""
           echo "======================================"
@@ -172,49 +303,4 @@ jobs:
             echo "⚠️ 警告：检测到多个部署方式同时启用！"
             echo "建议只启用一种部署方式以避免重复部署。"
             echo ""
-          fi
-
-      - name: 💾 提交配置变更
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # 检查是否有变更
-          if git diff --quiet .github/deployment-config.json; then
-            echo "📝 配置未变更，无需提交"
-          else
-            echo "📝 检测到配置变更，准备提交..."
-
-            # 读取当前配置用于提交信息
-            SPA_STATUS=$(jq -r '.spa_deploy' .github/deployment-config.json)
-            BACKEND_STATUS=$(jq -r '.backend_deploy' .github/deployment-config.json)
-            FRONTEND_STATUS=$(jq -r '.frontend_deploy' .github/deployment-config.json)
-
-            git add .github/deployment-config.json
-
-            # 创建提交信息
-            COMMIT_MSG="chore: update deployment configuration via control panel"$'\n\n'
-            COMMIT_MSG+="🔄 SPA Deploy: $SPA_STATUS"$'\n'
-            COMMIT_MSG+="⚙️ Backend Deploy: $BACKEND_STATUS"$'\n'
-            COMMIT_MSG+="🎨 Frontend Deploy: $FRONTEND_STATUS"$'\n\n'
-            COMMIT_MSG+="Updated by: ${{ github.actor }}"
-
-            git commit -m "$COMMIT_MSG"
-
-            echo "📤 推送到远程仓库..."
-            if git push origin HEAD:${{ github.ref_name }}; then
-              echo "✅ 配置已提交并推送到仓库"
-            else
-              echo "❌ 推送失败！"
-              echo ""
-              echo "可能的原因："
-              echo "1. 仓库权限未配置："
-              echo "   Settings → Actions → General → Workflow permissions"
-              echo "   → 选择 'Read and write permissions'"
-              echo "   → 点击 Save"
-              echo ""
-              echo "2. 分支有保护规则，禁止直接推送"
-              echo ""
-              exit 1
-            fi
           fi

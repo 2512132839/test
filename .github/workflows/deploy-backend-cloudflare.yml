@@ -5,7 +5,6 @@ on:
     branches: [main, master]
     paths:
       - "backend/**"
-      - ".github/deployment-config.json"  # 配置文件变更也触发检查
   workflow_dispatch:
   repository_dispatch:
     types: [deploy-button]
@@ -29,19 +28,16 @@ jobs:
             exit 0
           fi
 
-          # 自动触发时，检查配置文件
-          if [ -f .github/deployment-config.json ]; then
-            BACKEND_ENABLED=$(jq -r '.backend_deploy' .github/deployment-config.json)
-            if [ "$BACKEND_ENABLED" = "true" ]; then
-              echo "should_deploy=true" >> $GITHUB_OUTPUT
-              echo "✅ 后端自动部署已开启，允许部署"
-            else
-              echo "should_deploy=false" >> $GITHUB_OUTPUT
-              echo "⏸️ 后端自动部署已关闭，跳过部署"
-            fi
+          # 自动触发时，读取仓库级 Actions 变量
+          BACKEND_ENABLED="${{ vars.BACKEND_DEPLOY }}"
+          [ -z "$BACKEND_ENABLED" ] && BACKEND_ENABLED="false"
+
+          if [ "$BACKEND_ENABLED" = "true" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "✅ 后端自动部署已开启，允许部署"
           else
             echo "should_deploy=false" >> $GITHUB_OUTPUT
-            echo "⚠️ 配置文件不存在，跳过部署"
+            echo "⏸️ 后端自动部署已关闭，跳过部署"
           fi
 
   deploy-backend:
