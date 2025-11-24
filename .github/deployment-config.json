@@ -1,7 +1,7 @@
 {
-  "spa_deploy": false,
+  "spa_deploy": true,
   "backend_deploy": false,
   "frontend_deploy": false,
-  "last_updated": "2025-11-25T00:00:00Z",
-  "updated_by": "system"
+  "last_updated": "2025-11-24T21:33:17Z",
+  "updated_by": "2512132839"
 }
