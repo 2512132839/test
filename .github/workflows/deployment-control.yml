@@ -191,13 +191,18 @@ jobs:
             FRONTEND_STATUS=$(jq -r '.frontend_deploy' .github/deployment-config.json)
 
             git add .github/deployment-config.json
-            git commit -m "chore: update deployment configuration via control panel
+
+            # 使用 heredoc 方式创建多行提交信息
+            git commit -m "$(cat <<EOF
+chore: update deployment configuration via control panel
 
 🔄 SPA Deploy: $SPA_STATUS
 ⚙️ Backend Deploy: $BACKEND_STATUS
 🎨 Frontend Deploy: $FRONTEND_STATUS
 
-Updated by: ${{ github.actor }}"
+Updated by: ${{ github.actor }}
+EOF
+)"
 
             echo "📤 推送到远程仓库..."
             git push origin HEAD:${{ github.ref_name }}
