@@ -1,0 +1,171 @@
+name: 🎛️ 部署控制面板
+
+on:
+  workflow_dispatch:
+    inputs:
+      spa_deploy:
+        description: '🔄 SPA一体化自动部署'
+        required: true
+        type: choice
+        options:
+          - '🟢 开启'
+          - '🔴 关闭'
+          - '📊 查看当前状态'
+        default: '📊 查看当前状态'
+
+      backend_deploy:
+        description: '⚙️ 后端分离自动部署'
+        required: true
+        type: choice
+        options:
+          - '🟢 开启'
+          - '🔴 关闭'
+          - '📊 查看当前状态'
+        default: '📊 查看当前状态'
+
+      frontend_deploy:
+        description: '🎨 前端分离自动部署'
+        required: true
+        type: choice
+        options:
+          - '🟢 开启'
+          - '🔴 关闭'
+          - '📊 查看当前状态'
+        default: '📊 查看当前状态'
+
+jobs:
+  control-deployments:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: 📋 显示当前配置状态
+        run: |
+          echo "======================================"
+          echo "📊 当前自动部署状态"
+          echo "======================================"
+          echo ""
+          echo "🔄 SPA一体化部署: ${{ vars.ENABLE_SPA_DEPLOY == 'true' && '🟢 已开启' || '🔴 已关闭' }}"
+          echo "⚙️ 后端分离部署: ${{ vars.ENABLE_BACKEND_DEPLOY == 'true' && '🟢 已开启' || '🔴 已关闭' }}"
+          echo "🎨 前端分离部署: ${{ vars.ENABLE_FRONTEND_DEPLOY == 'true' && '🟢 已开启' || '🔴 已关闭' }}"
+          echo ""
+          echo "======================================"
+          echo "🎯 本次操作选择"
+          echo "======================================"
+          echo "🔄 SPA一体化部署: ${{ github.event.inputs.spa_deploy }}"
+          echo "⚙️ 后端分离部署: ${{ github.event.inputs.backend_deploy }}"
+          echo "🎨 前端分离部署: ${{ github.event.inputs.frontend_deploy }}"
+          echo ""
+
+      - name: 🔄 配置 SPA 一体化部署
+        if: github.event.inputs.spa_deploy != '📊 查看当前状态'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event.inputs.spa_deploy }}" == "🟢 开启" ]]; then
+            echo "✅ 正在开启 SPA 一体化自动部署..."
+            gh variable set ENABLE_SPA_DEPLOY --body "true" --repo ${{ github.repository }}
+            echo "🎉 SPA 一体化自动部署已开启！"
+          else
+            echo "⏸️ 正在关闭 SPA 一体化自动部署..."
+            gh variable set ENABLE_SPA_DEPLOY --body "false" --repo ${{ github.repository }}
+            echo "✅ SPA 一体化自动部署已关闭！"
+          fi
+
+      - name: ⚙️ 配置后端分离部署
+        if: github.event.inputs.backend_deploy != '📊 查看当前状态'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event.inputs.backend_deploy }}" == "🟢 开启" ]]; then
+            echo "✅ 正在开启后端分离自动部署..."
+            gh variable set ENABLE_BACKEND_DEPLOY --body "true" --repo ${{ github.repository }}
+            echo "🎉 后端分离自动部署已开启！"
+          else
+            echo "⏸️ 正在关闭后端分离自动部署..."
+            gh variable set ENABLE_BACKEND_DEPLOY --body "false" --repo ${{ github.repository }}
+            echo "✅ 后端分离自动部署已关闭！"
+          fi
+
+      - name: 🎨 配置前端分离部署
+        if: github.event.inputs.frontend_deploy != '📊 查看当前状态'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event.inputs.frontend_deploy }}" == "🟢 开启" ]]; then
+            echo "✅ 正在开启前端分离自动部署..."
+            gh variable set ENABLE_FRONTEND_DEPLOY --body "true" --repo ${{ github.repository }}
+            echo "🎉 前端分离自动部署已开启！"
+          else
+            echo "⏸️ 正在关闭前端分离自动部署..."
+            gh variable set ENABLE_FRONTEND_DEPLOY --body "false" --repo ${{ github.repository }}
+            echo "✅前端分离自动部署已关闭！"
+          fi
+
+      - name: 📊 显示更新后的状态
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo ""
+          echo "======================================"
+          echo "✅ 配置更新完成！"
+          echo "======================================"
+          echo ""
+          echo "📊 最新自动部署状态："
+          echo ""
+
+          # 读取最新的变量值
+          SPA_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_SPA_DEPLOY | awk '{print $2}')
+          BACKEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_BACKEND_DEPLOY | awk '{print $2}')
+          FRONTEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_FRONTEND_DEPLOY | awk '{print $2}')
+
+          echo "🔄 SPA一体化部署: $([ "$SPA_STATUS" = "true" ] && echo '🟢 已开启 - 推送代码将自动部署' || echo '🔴 已关闭 - 仅手动触发')"
+          echo "⚙️ 后端分离部署: $([ "$BACKEND_STATUS" = "true" ] && echo '🟢 已开启 - 推送代码将自动部署' || echo '🔴 已关闭 - 仅手动触发')"
+          echo "🎨 前端分离部署: $([ "$FRONTEND_STATUS" = "true" ] && echo '🟢 已开启 - 推送代码将自动部署' || echo '🔴 已关闭 - 仅手动触发')"
+          echo ""
+          echo "======================================"
+          echo "💡 提示"
+          echo "======================================"
+          echo "• 开启后，推送代码到 main/master 分支将自动触发部署"
+          echo "• 关闭后，只能通过手动触发进行部署"
+          echo "• 推荐只开启一种部署方式（避免重复部署）"
+          echo "• 配置立即生效，无需重启或重新推送代码"
+          echo ""
+
+      - name: ⚠️ 多重部署警告检查
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 检查是否同时开启多个部署
+          SPA_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_SPA_DEPLOY | awk '{print $2}')
+          BACKEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_BACKEND_DEPLOY | awk '{print $2}')
+          FRONTEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_FRONTEND_DEPLOY | awk '{print $2}')
+
+          ENABLED_COUNT=0
+          [ "$SPA_STATUS" = "true" ] && ((ENABLED_COUNT++))
+          [ "$BACKEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
+          [ "$FRONTEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
+
+          if [ $ENABLED_COUNT -gt 1 ]; then
+            echo ""
+            echo "⚠️⚠️⚠️ 警告 ⚠️⚠️⚠️"
+            echo ""
+            echo "检测到同时开启了 $ENABLED_COUNT 种自动部署方式！"
+            echo ""
+            echo "这可能导致："
+            echo "• 重复部署相同的代码"
+            echo "• 浪费 GitHub Actions 配额"
+            echo "• 增加 Cloudflare 资源消耗"
+            echo ""
+            echo "📌 推荐配置："
+            echo "✅ 仅开启 SPA 一体化部署（最优性能和成本）"
+            echo "或"
+            echo "✅ 仅开启前端 + 后端分离部署"
+            echo ""
+          else
+            echo ""
+            echo "✅ 配置合理：仅开启了 $ENABLED_COUNT 种部署方式"
+            echo ""
+          fi

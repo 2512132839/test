@@ -1,4 +1,4 @@
-name: Deploy Backend to Cloudflare Workers[Worker后端分离部署]
+name: Deploy Backend CF Workers[Worker后端分离部署]
 
 on:
   push:
@@ -12,6 +12,9 @@ on:
 jobs:
   deploy-backend:
     runs-on: ubuntu-latest
+    # 🔑 开关控制：只有当开关启用或手动触发时才执行
+    # 在 GitHub Settings → Secrets and variables → Actions → Variables 中设置 ENABLE_BACKEND_DEPLOY=true 开启自动部署
+    if: vars.ENABLE_BACKEND_DEPLOY == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
     defaults:
       run:
         working-directory: ./backend

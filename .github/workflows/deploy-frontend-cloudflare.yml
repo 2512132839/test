@@ -1,4 +1,4 @@
-name: Deploy Frontend to Cloudflare Pages[Pages前端分离部署]
+name: Deploy Frontend CF Pages[Pages前端分离部署]
 
 on:
   push:
@@ -13,6 +13,9 @@ on:
 jobs:
   deploy-frontend-cloudflare:
     runs-on: ubuntu-latest
+    # 🔑 开关控制：只有当开关启用或手动触发时才执行
+    # 在 GitHub Settings → Secrets and variables → Actions → Variables 中设置 ENABLE_FRONTEND_DEPLOY=true 开启自动部署
+    if: vars.ENABLE_FRONTEND_DEPLOY == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
     defaults:
       run:
         working-directory: ./frontend

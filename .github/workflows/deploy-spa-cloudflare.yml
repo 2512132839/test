@@ -1,4 +1,4 @@
-name: Deploy SPA to Cloudflare Workers[Worker SPA一体化部署⭐推荐]
+name: Deploy SPA CF Workers[一体化部署⭐推荐]
 
 on:
   push:
@@ -14,6 +14,9 @@ on:
 jobs:
   deploy-spa:
     runs-on: ubuntu-latest
+    # 🔑 开关控制：只有当开关启用或手动触发时才执行
+    # 在 GitHub Settings → Secrets and variables → Actions → Variables 中设置 ENABLE_SPA_DEPLOY=true 开启自动部署
+    if: vars.ENABLE_SPA_DEPLOY == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
 
     steps:
       - name: Checkout repository
