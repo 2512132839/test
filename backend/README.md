@@ -11,7 +11,7 @@
 
 - **HTTP 方法**: `PUT`
 
-## URL 格式
+## URL 格式 
 
 ```
 https://{域名}/api/upload-direct/example.txt?path=images
