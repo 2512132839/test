@@ -5,16 +5,49 @@ on:
     branches: [main, master]
     paths:
       - "backend/**"
+      - ".github/deployment-config.json"  # 配置文件变更也触发检查
   workflow_dispatch:
   repository_dispatch:
     types: [deploy-button]
 
 jobs:
-  deploy-backend:
+  check-config:
     runs-on: ubuntu-latest
-    # 🔑 开关控制：只有当开关启用或手动触发时才执行
-    # 在 GitHub Settings → Secrets and variables → Actions → Variables 中设置 ENABLE_BACKEND_DEPLOY=true 开启自动部署
-    if: vars.ENABLE_BACKEND_DEPLOY == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🔍 检查部署配置
+        id: check
+        run: |
+          # 手动触发或外部触发时，总是部署
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "✅ 手动触发，允许部署"
+            exit 0
+          fi
+
+          # 自动触发时，检查配置文件
+          if [ -f .github/deployment-config.json ]; then
+            BACKEND_ENABLED=$(jq -r '.backend_deploy' .github/deployment-config.json)
+            if [ "$BACKEND_ENABLED" = "true" ]; then
+              echo "should_deploy=true" >> $GITHUB_OUTPUT
+              echo "✅ 后端自动部署已开启，允许部署"
+            else
+              echo "should_deploy=false" >> $GITHUB_OUTPUT
+              echo "⏸️ 后端自动部署已关闭，跳过部署"
+            fi
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "⚠️ 配置文件不存在，跳过部署"
+          fi
+
+  deploy-backend:
+    needs: check-config
+    if: needs.check-config.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend

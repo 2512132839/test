@@ -37,135 +37,135 @@ jobs:
   control-deployments:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      actions: write
+      contents: write  # 只需要写文件权限（默认就有）
 
     steps:
-      - name: 📋 显示当前配置状态
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 📋 读取当前配置状态
+        id: read_config
         run: |
+          if [ -f .github/deployment-config.json ]; then
+            SPA_STATUS=$(jq -r '.spa_deploy' .github/deployment-config.json)
+            BACKEND_STATUS=$(jq -r '.backend_deploy' .github/deployment-config.json)
+            FRONTEND_STATUS=$(jq -r '.frontend_deploy' .github/deployment-config.json)
+          else
+            SPA_STATUS="false"
+            BACKEND_STATUS="false"
+            FRONTEND_STATUS="false"
+          fi
+
+          echo "spa_status=$SPA_STATUS" >> $GITHUB_OUTPUT
+          echo "backend_status=$BACKEND_STATUS" >> $GITHUB_OUTPUT
+          echo "frontend_status=$FRONTEND_STATUS" >> $GITHUB_OUTPUT
+
           echo "======================================"
           echo "📊 当前自动部署状态"
           echo "======================================"
           echo ""
-          echo "🔄 SPA一体化部署: ${{ vars.ENABLE_SPA_DEPLOY == 'true' && '🟢 已开启' || '🔴 已关闭' }}"
-          echo "⚙️ 后端分离部署: ${{ vars.ENABLE_BACKEND_DEPLOY == 'true' && '🟢 已开启' || '🔴 已关闭' }}"
-          echo "🎨 前端分离部署: ${{ vars.ENABLE_FRONTEND_DEPLOY == 'true' && '🟢 已开启' || '🔴 已关闭' }}"
+          echo "🔄 SPA一体化部署: $([ "$SPA_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
+          echo "⚙️ 后端分离部署: $([ "$BACKEND_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
+          echo "🎨 前端分离部署: $([ "$FRONTEND_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
           echo ""
           echo "======================================"
-          echo "🎯 本次操作选择"
-          echo "======================================"
-          echo "🔄 SPA一体化部署: ${{ github.event.inputs.spa_deploy }}"
-          echo "⚙️ 后端分离部署: ${{ github.event.inputs.backend_deploy }}"
-          echo "🎨 前端分离部署: ${{ github.event.inputs.frontend_deploy }}"
-          echo ""
 
-      - name: 🔄 配置 SPA 一体化部署
+      - name: 🔄 更新 SPA 一体化部署配置
         if: github.event.inputs.spa_deploy != '📊 查看当前状态'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [[ "${{ github.event.inputs.spa_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启 SPA 一体化自动部署..."
-            gh variable set ENABLE_SPA_DEPLOY --body "true" --repo ${{ github.repository }}
+            jq '.spa_deploy = true | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "🎉 SPA 一体化自动部署已开启！"
           else
             echo "⏸️ 正在关闭 SPA 一体化自动部署..."
-            gh variable set ENABLE_SPA_DEPLOY --body "false" --repo ${{ github.repository }}
+            jq '.spa_deploy = false | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "✅ SPA 一体化自动部署已关闭！"
           fi
 
-      - name: ⚙️ 配置后端分离部署
+      - name: ⚙️ 更新后端分离部署配置
         if: github.event.inputs.backend_deploy != '📊 查看当前状态'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [[ "${{ github.event.inputs.backend_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启后端分离自动部署..."
-            gh variable set ENABLE_BACKEND_DEPLOY --body "true" --repo ${{ github.repository }}
+            jq '.backend_deploy = true | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "🎉 后端分离自动部署已开启！"
           else
             echo "⏸️ 正在关闭后端分离自动部署..."
-            gh variable set ENABLE_BACKEND_DEPLOY --body "false" --repo ${{ github.repository }}
+            jq '.backend_deploy = false | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "✅ 后端分离自动部署已关闭！"
           fi
 
-      - name: 🎨 配置前端分离部署
+      - name: 🎨 更新前端分离部署配置
         if: github.event.inputs.frontend_deploy != '📊 查看当前状态'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [[ "${{ github.event.inputs.frontend_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启前端分离自动部署..."
-            gh variable set ENABLE_FRONTEND_DEPLOY --body "true" --repo ${{ github.repository }}
+            jq '.frontend_deploy = true | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "🎉 前端分离自动部署已开启！"
           else
             echo "⏸️ 正在关闭前端分离自动部署..."
-            gh variable set ENABLE_FRONTEND_DEPLOY --body "false" --repo ${{ github.repository }}
-            echo "✅前端分离自动部署已关闭！"
+            jq '.frontend_deploy = false | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            mv .github/deployment-config.json.tmp .github/deployment-config.json
+            echo "✅ 前端分离自动部署已关闭！"
           fi
 
       - name: 📊 显示更新后的状态
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          NEW_SPA_STATUS=$(jq -r '.spa_deploy' .github/deployment-config.json)
+          NEW_BACKEND_STATUS=$(jq -r '.backend_deploy' .github/deployment-config.json)
+          NEW_FRONTEND_STATUS=$(jq -r '.frontend_deploy' .github/deployment-config.json)
+          LAST_UPDATED=$(jq -r '.last_updated' .github/deployment-config.json)
+          UPDATED_BY=$(jq -r '.updated_by' .github/deployment-config.json)
+
           echo ""
           echo "======================================"
-          echo "✅ 配置更新完成！"
+          echo "✅ 配置更新完成"
           echo "======================================"
           echo ""
-          echo "📊 最新自动部署状态："
+          echo "🔄 SPA一体化部署: $([ "$NEW_SPA_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
+          echo "⚙️ 后端分离部署: $([ "$NEW_BACKEND_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
+          echo "🎨 前端分离部署: $([ "$NEW_FRONTEND_STATUS" = "true" ] && echo '🟢 已开启' || echo '🔴 已关闭')"
           echo ""
-
-          # 读取最新的变量值
-          SPA_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_SPA_DEPLOY | awk '{print $2}')
-          BACKEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_BACKEND_DEPLOY | awk '{print $2}')
-          FRONTEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_FRONTEND_DEPLOY | awk '{print $2}')
-
-          echo "🔄 SPA一体化部署: $([ "$SPA_STATUS" = "true" ] && echo '🟢 已开启 - 推送代码将自动部署' || echo '🔴 已关闭 - 仅手动触发')"
-          echo "⚙️ 后端分离部署: $([ "$BACKEND_STATUS" = "true" ] && echo '🟢 已开启 - 推送代码将自动部署' || echo '🔴 已关闭 - 仅手动触发')"
-          echo "🎨 前端分离部署: $([ "$FRONTEND_STATUS" = "true" ] && echo '🟢 已开启 - 推送代码将自动部署' || echo '🔴 已关闭 - 仅手动触发')"
+          echo "📅 最后更新: $LAST_UPDATED"
+          echo "👤 更新者: $UPDATED_BY"
           echo ""
           echo "======================================"
-          echo "💡 提示"
-          echo "======================================"
-          echo "• 开启后，推送代码到 main/master 分支将自动触发部署"
-          echo "• 关闭后，只能通过手动触发进行部署"
-          echo "• 推荐只开启一种部署方式（避免重复部署）"
-          echo "• 配置立即生效，无需重启或重新推送代码"
-          echo ""
 
-      - name: ⚠️ 多重部署警告检查
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 检查是否同时开启多个部署
-          SPA_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_SPA_DEPLOY | awk '{print $2}')
-          BACKEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_BACKEND_DEPLOY | awk '{print $2}')
-          FRONTEND_STATUS=$(gh variable list --repo ${{ github.repository }} | grep ENABLE_FRONTEND_DEPLOY | awk '{print $2}')
-
+          # 检测多重部署警告
           ENABLED_COUNT=0
-          [ "$SPA_STATUS" = "true" ] && ((ENABLED_COUNT++))
-          [ "$BACKEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
-          [ "$FRONTEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
+          [ "$NEW_SPA_STATUS" = "true" ] && ((ENABLED_COUNT++))
+          [ "$NEW_BACKEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
+          [ "$NEW_FRONTEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
 
           if [ $ENABLED_COUNT -gt 1 ]; then
             echo ""
-            echo "⚠️⚠️⚠️ 警告 ⚠️⚠️⚠️"
+            echo "⚠️ 警告：检测到多个部署方式同时启用！"
+            echo "建议只启用一种部署方式以避免重复部署。"
             echo ""
-            echo "检测到同时开启了 $ENABLED_COUNT 种自动部署方式！"
-            echo ""
-            echo "这可能导致："
-            echo "• 重复部署相同的代码"
-            echo "• 浪费 GitHub Actions 配额"
-            echo "• 增加 Cloudflare 资源消耗"
-            echo ""
-            echo "📌 推荐配置："
-            echo "✅ 仅开启 SPA 一体化部署（最优性能和成本）"
-            echo "或"
-            echo "✅ 仅开启前端 + 后端分离部署"
-            echo ""
+          fi
+
+      - name: 💾 提交配置变更
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet .github/deployment-config.json; then
+            echo "📝 配置未变更，无需提交"
           else
-            echo ""
-            echo "✅ 配置合理：仅开启了 $ENABLED_COUNT 种部署方式"
-            echo ""
+            git add .github/deployment-config.json
+            git commit -m "chore: update deployment configuration via control panel
+
+🔄 SPA Deploy: $(jq -r '.spa_deploy' .github/deployment-config.json)
+⚙️ Backend Deploy: $(jq -r '.backend_deploy' .github/deployment-config.json)
+🎨 Frontend Deploy: $(jq -r '.frontend_deploy' .github/deployment-config.json)
+
+Updated by: ${{ github.actor }}"
+            git push
+            echo "✅ 配置已提交并推送到仓库"
           fi

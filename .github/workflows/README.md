@@ -1,8 +1,12 @@
 # GitHub Actions 工作流开关控制说明
 
-## 🎛️ 可视化控制面板（推荐）
+## 🎉 无需任何配置！开箱即用！
 
-**最简单的方式！** 通过可视化界面一键开启/关闭自动部署。
+使用**配置文件**方式管理部署开关，**无需设置环境变量**，**无需配置权限**，真正的零配置使用！
+
+---
+
+## 🎛️ 可视化控制面板
 
 ### 📱 如何使用
 
@@ -23,24 +27,26 @@
 5. **查看执行日志**
    - 会显示操作前后的状态对比
    - 自动检测是否开启了多个部署（并给出警告）
+   - 配置会自动提交到仓库
 
 ### ✨ 特性
 
+- ✅ **零配置**：无需设置环境变量或权限
 - ✅ **直观的界面**：下拉菜单选择，无需记忆命令
 - ✅ **实时生效**：配置立即生效，无需重启
 - ✅ **状态查看**：可以只查看当前状态，不做修改
 - ✅ **智能警告**：自动检测冲突配置并提醒
-- ✅ **操作日志**：详细显示每一步操作结果
+- ✅ **版本控制**：配置变更自动提交，可追溯历史
 
 ---
 
 ## 📋 可控制的工作流
 
-| 工作流名称 | 开关变量 | 默认状态 | 说明 |
+| 工作流名称 | 配置字段 | 默认状态 | 说明 |
 |-----------|---------|---------|------|
-| Workers SPA一体化部署 | `ENABLE_SPA_DEPLOY` | ❌ 关闭 | 前后端一体化部署到单个 Worker |
-| Worker后端分离部署 | `ENABLE_BACKEND_DEPLOY` | ❌ 关闭 | 仅部署后端 API Worker |
-| Pages前端分离部署 | `ENABLE_FRONTEND_DEPLOY` | ❌ 关闭 | 仅部署前端到 Cloudflare Pages |
+| Workers SPA一体化部署 | `spa_deploy` | 🔴 关闭 | 前后端一体化部署到单个 Worker |
+| Worker后端分离部署 | `backend_deploy` | 🔴 关闭 | 仅部署后端 API Worker |
+| Pages前端分离部署 | `frontend_deploy` | 🔴 关闭 | 仅部署前端到 Cloudflare Pages |
 
 **Docker 构建工作流**（仅手动触发，无需开关）：
 - `Build and Push all Docker Image` - 构建并推送 Docker 镜像
@@ -49,73 +55,33 @@
 
 ---
 
-## ⚙️ 高级方式：手动设置变量
+## 🛠️ 工作原理
 
-如果你更喜欢使用命令行或需要批量配置，也可以手动设置 Repository Variables。
+### 配置文件
 
-### 方法 1：通过 GitHub Web 界面设置
+所有开关状态存储在 `.github/deployment-config.json` 文件中：
 
-1. **进入仓库设置**
-   ```
-   你的仓库 → Settings → Secrets and variables → Actions → Variables 标签页
-   ```
-
-2. **点击 "New repository variable"**
-
-3. **添加变量**
-
-   根据需要启用的工作流，添加对应的变量：
-
-   **启用 SPA 一体化部署：**
-   - Name: `ENABLE_SPA_DEPLOY`
-   - Value: `true`
-
-   **启用后端分离部署：**
-   - Name: `ENABLE_BACKEND_DEPLOY`
-   - Value: `true`
-
-   **启用前端分离部署：**
-   - Name: `ENABLE_FRONTEND_DEPLOY`
-   - Value: `true`
-
-4. **保存后立即生效**
-
----
-
-### 方法 2：使用 GitHub CLI 设置
-
-```bash
-# 安装 GitHub CLI: https://cli.github.com/
-
-# 启用 SPA 一体化部署
-gh variable set ENABLE_SPA_DEPLOY --body "true"
-
-# 启用后端分离部署
-gh variable set ENABLE_BACKEND_DEPLOY --body "true"
-
-# 启用前端分离部署
-gh variable set ENABLE_FRONTEND_DEPLOY --body "true"
+```json
+{
+  "spa_deploy": false,
+  "backend_deploy": false,
+  "frontend_deploy": false,
+  "last_updated": "2025-01-25T12:00:00Z",
+  "updated_by": "github-actions[bot]"
+}
 ```
 
----
+### 开关逻辑
 
-## 🔄 工作流行为说明
-
-### 开关 = `true`（启用）
-- ✅ **自动触发**：推送代码到 `main/master` 分支时自动部署
-- ✅ **手动触发**：可在 Actions 页面手动运行
-- ✅ **按钮触发**：支持通过 repository_dispatch 触发
-
-### 开关 = `false` 或未设置（禁用）
-- ❌ **自动触发**：推送代码时**跳过此工作流**
-- ✅ **手动触发**：仍可在 Actions 页面手动运行
-- ✅ **按钮触发**：仍支持通过 repository_dispatch 触发
+- **开关开启** (`true`): 推送代码自动触发部署
+- **开关关闭** (`false`): 推送代码不触发，但仍可手动触发
+- **手动触发**: 无论开关状态，始终可用
 
 ---
 
 ## 💡 推荐配置场景
 
-### 场景 1：SPA 一体化部署（⭐ 强烈推荐）
+### 场景 1：SPA 一体化部署（推荐⭐）
 
 **使用控制面板：**
 1. 进入 Actions → 🎛️ 部署控制面板
@@ -126,10 +92,14 @@ gh variable set ENABLE_FRONTEND_DEPLOY --body "true"
 3. 点击 "Run workflow"
 
 **效果：**
-- ✅ 推送代码后自动部署 SPA Worker
-- ❌ 不会触发前后端分离部署
-- 💰 成本最低（导航请求不计费）
-- 🚀 性能最佳（同源请求）
+- ✅ 推送代码自动部署 SPA
+- ❌ 不会触发其他部署
+- 🚀 前后端一体，无跨域问题
+
+**优点：**
+- 成本更低（导航请求不计费）
+- 无跨域问题
+- 部署更简单
 
 ---
 
@@ -148,6 +118,10 @@ gh variable set ENABLE_FRONTEND_DEPLOY --body "true"
 - ✅ 推送前端代码自动部署 Pages
 - 🔧 前后端独立扩展
 
+**优点：**
+- 前后端独立部署
+- 更灵活的扩展性
+
 ---
 
 ### 场景 3：仅手动部署（开发/测试）
@@ -162,16 +136,16 @@ gh variable set ENABLE_FRONTEND_DEPLOY --body "true"
 
 **效果：**
 - ❌ 推送代码不会触发任何自动部署
-- ✅ 需要时在 Actions 页面手动触发
-- 🧪 适合开发和测试环境
+- ✅ 可在 Actions 页面手动触发部署
+- 🧪 适合开发测试环境
 
 ---
 
-### 场景 4：查看当前状态（不修改配置）
+### 场景 4：查看当前状态（查看模式）
 
 **使用控制面板：**
 1. 进入 Actions → 🎛️ 部署控制面板
-2. 所有选项保持：`📊 查看当前状态`
+2. 三个选项都保持默认：`📊 查看当前状态`
 3. 点击 "Run workflow"
 4. 查看执行日志查看当前所有开关状态
 
@@ -181,85 +155,51 @@ gh variable set ENABLE_FRONTEND_DEPLOY --body "true"
 
 ---
 
-## 💡 推荐配置
+## 🔍 查看配置历史
 
-### 场景 1：使用 SPA 一体化部署（推荐）
+所有配置变更都会自动提交到 Git 仓库，可以通过以下方式查看：
 
+### 查看配置文件
 ```bash
-gh variable set ENABLE_SPA_DEPLOY --body "true"
-# 其他两个保持关闭（不设置或设为 false）
+cat .github/deployment-config.json
 ```
 
-**优点**：
-- 前后端部署在同一个 Worker
-- 无跨域问题
-- 成本更低（导航请求不计费）
-
----
-
-### 场景 2：使用前后端分离部署
-
+### 查看变更历史
 ```bash
-gh variable set ENABLE_BACKEND_DEPLOY --body "true"
-gh variable set ENABLE_FRONTEND_DEPLOY --body "true"
-# SPA 部署保持关闭
+git log -- .github/deployment-config.json
 ```
-
-**优点**：
-- 前后端独立扩展
-- 更灵活的 CDN 配置
-
----
-
-### 场景 3：仅测试，不自动部署
-
-```bash
-# 不设置任何变量，或全部设为 false
-```
-
-**效果**：
-- 推送代码不会触发任何自动部署
-- 需要时在 Actions 页面手动运行
-
----
-
-## 🔍 查看当前开关状态
 
 ### Web 界面查看
 ```
-Settings → Secrets and variables → Actions → Variables 标签页
-```
-
-### CLI 查看
-```bash
-gh variable list
+你的仓库 → .github/deployment-config.json → History
 ```
 
 ---
 
 ## 🚨 注意事项
 
-1. **变量名必须完全匹配**（区分大小写）
-   - ✅ 正确：`ENABLE_SPA_DEPLOY`
-   - ❌ 错误：`enable_spa_deploy` 或 `ENABLE_SPA`
+1. **配置文件会自动提交**
+   - 每次使用控制面板修改配置，都会产生一个 Git 提交
+   - 提交信息包含变更内容和操作者
 
-2. **变量值必须是字符串 `"true"`**
-   - ✅ 正确：`true`
-   - ❌ 错误：`True`、`TRUE`、`1`
+2. **避免手动编辑配置文件**
+   - 虽然可以直接编辑 `.github/deployment-config.json`，但推荐使用控制面板
+   - 手动编辑需要确保 JSON 格式正确
 
-3. **修改后立即生效**，无需重启或重新推送代码
+3. **修改后立即生效**
+   - 配置文件提交后，下次推送代码时生效
+   - 无需等待或重启
 
-4. **删除变量 = 禁用自动部署**
-   ```bash
-   gh variable delete ENABLE_SPA_DEPLOY
-   ```
+4. **避免同时启用多个部署**
+   - 建议只启用一种部署方式
+   - 同时启用会导致重复部署，浪费资源
 
 ---
 
 ## 📖 常见问题
 
 ### Q: 我推送了代码，但工作流没有运行？
-A: 检查对应的开关变量是否设置为 `true`。如果未设置或为 `false`，工作流会跳过自动触发。
+A: 检查 `.github/deployment-config.json` 中对应的开关是否为 `true`。如果为 `false`，工作流会跳过自动触发。
 
 ### Q: 我想临时部署一次，但不想启用自动部署？
 A: 在 Actions 页面找到对应工作流，点击 "Run workflow" 手动触发即可。手动触发不受开关限制。
@@ -270,12 +210,34 @@ A: 技术上可以，但**不推荐**。建议只启用一种部署方式：
 - ⚠️ 不推荐：同时启用 SPA 和前后端分离部署（会重复部署）
 
 ### Q: Docker 构建工作流为什么没有开关？
-A: Docker 构建工作流仅支持手动触发（`workflow_dispatch`），不会自动运行，因此无需开关控制。
+A: Docker 构建工作流已经是手动触发的（`workflow_dispatch`），不会自动运行，因此不需要开关控制。
+
+### Q: 配置文件被意外删除了怎么办？
+A: 不用担心！如果配置文件不存在，工作流会自动跳过部署。你可以：
+1. 从 Git 历史恢复文件
+2. 或者重新运行控制面板创建新的配置文件
+
+### Q: 可以在多个分支使用不同的配置吗？
+A: 可以！配置文件是分支级别的，每个分支可以有自己的配置。
+
+---
+
+## 🎯 核心优势
+
+与传统环境变量方式相比：
+
+| 特性 | 配置文件方式 ✅ | 环境变量方式 ❌ |
+|-----|--------------|--------------|
+| 需要配置权限 | 🟢 不需要 | 🔴 需要配置 Actions 写权限 |
+| 需要设置环境变量 | 🟢 不需要 | 🔴 需要在 Settings 手动设置 |
+| 可追溯历史 | 🟢 Git 提交记录 | 🔴 无法追溯 |
+| 支持多分支配置 | 🟢 每个分支独立 | 🔴 全局共享 |
+| 配置即代码 | 🟢 是 | 🔴 否 |
 
 ---
 
 ## 📚 相关文档
 
-- [GitHub Actions Variables 官方文档](https://docs.github.com/en/actions/learn-github-actions/variables)
-- [GitHub CLI 官方文档](https://cli.github.com/manual/)
-- [CloudPaste 部署指南](../../README.md)
+- [Cloudflare Workers 文档](https://developers.cloudflare.com/workers/)
+- [GitHub Actions 文档](https://docs.github.com/en/actions)
+- [Wrangler CLI 文档](https://developers.cloudflare.com/workers/wrangler/)
