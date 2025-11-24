@@ -163,9 +163,9 @@ jobs:
 
           # 检测多重部署警告
           ENABLED_COUNT=0
-          [ "$NEW_SPA_STATUS" = "true" ] && ((ENABLED_COUNT++))
-          [ "$NEW_BACKEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
-          [ "$NEW_FRONTEND_STATUS" = "true" ] && ((ENABLED_COUNT++))
+          [ "$NEW_SPA_STATUS" = "true" ] && ((ENABLED_COUNT++)) || true
+          [ "$NEW_BACKEND_STATUS" = "true" ] && ((ENABLED_COUNT++)) || true
+          [ "$NEW_FRONTEND_STATUS" = "true" ] && ((ENABLED_COUNT++)) || true
 
           if [ $ENABLED_COUNT -gt 1 ]; then
             echo ""
