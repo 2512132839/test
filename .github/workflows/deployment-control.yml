@@ -42,6 +42,9 @@ jobs:
     steps:
       - name: 📥 检出代码
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: 📋 读取当前配置状态
         id: read_config
@@ -73,14 +76,21 @@ jobs:
       - name: 🔄 更新 SPA 一体化部署配置
         if: github.event.inputs.spa_deploy != '📊 查看当前状态'
         run: |
+          ACTOR="${{ github.actor }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
           if [[ "${{ github.event.inputs.spa_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启 SPA 一体化自动部署..."
-            jq '.spa_deploy = true | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
+              '.spa_deploy = true | .last_updated = $time | .updated_by = $user' \
+              .github/deployment-config.json > .github/deployment-config.json.tmp
             mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "🎉 SPA 一体化自动部署已开启！"
           else
             echo "⏸️ 正在关闭 SPA 一体化自动部署..."
-            jq '.spa_deploy = false | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
+              '.spa_deploy = false | .last_updated = $time | .updated_by = $user' \
+              .github/deployment-config.json > .github/deployment-config.json.tmp
             mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "✅ SPA 一体化自动部署已关闭！"
           fi
@@ -88,14 +98,21 @@ jobs:
       - name: ⚙️ 更新后端分离部署配置
         if: github.event.inputs.backend_deploy != '📊 查看当前状态'
         run: |
+          ACTOR="${{ github.actor }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
           if [[ "${{ github.event.inputs.backend_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启后端分离自动部署..."
-            jq '.backend_deploy = true | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
+              '.backend_deploy = true | .last_updated = $time | .updated_by = $user' \
+              .github/deployment-config.json > .github/deployment-config.json.tmp
             mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "🎉 后端分离自动部署已开启！"
           else
             echo "⏸️ 正在关闭后端分离自动部署..."
-            jq '.backend_deploy = false | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
+              '.backend_deploy = false | .last_updated = $time | .updated_by = $user' \
+              .github/deployment-config.json > .github/deployment-config.json.tmp
             mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "✅ 后端分离自动部署已关闭！"
           fi
@@ -103,14 +120,21 @@ jobs:
       - name: 🎨 更新前端分离部署配置
         if: github.event.inputs.frontend_deploy != '📊 查看当前状态'
         run: |
+          ACTOR="${{ github.actor }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
           if [[ "${{ github.event.inputs.frontend_deploy }}" == "🟢 开启" ]]; then
             echo "✅ 正在开启前端分离自动部署..."
-            jq '.frontend_deploy = true | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
+              '.frontend_deploy = true | .last_updated = $time | .updated_by = $user' \
+              .github/deployment-config.json > .github/deployment-config.json.tmp
             mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "🎉 前端分离自动部署已开启！"
           else
             echo "⏸️ 正在关闭前端分离自动部署..."
-            jq '.frontend_deploy = false | .last_updated = (now | todate) | .updated_by = "${{ github.actor }}"' .github/deployment-config.json > .github/deployment-config.json.tmp
+            jq --arg user "$ACTOR" --arg time "$TIMESTAMP" \
+              '.frontend_deploy = false | .last_updated = $time | .updated_by = $user' \
+              .github/deployment-config.json > .github/deployment-config.json.tmp
             mv .github/deployment-config.json.tmp .github/deployment-config.json
             echo "✅ 前端分离自动部署已关闭！"
           fi
@@ -155,17 +179,27 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # 检查是否有变更
           if git diff --quiet .github/deployment-config.json; then
             echo "📝 配置未变更，无需提交"
           else
+            echo "📝 检测到配置变更，准备提交..."
+
+            # 读取当前配置用于提交信息
+            SPA_STATUS=$(jq -r '.spa_deploy' .github/deployment-config.json)
+            BACKEND_STATUS=$(jq -r '.backend_deploy' .github/deployment-config.json)
+            FRONTEND_STATUS=$(jq -r '.frontend_deploy' .github/deployment-config.json)
+
             git add .github/deployment-config.json
             git commit -m "chore: update deployment configuration via control panel
 
-🔄 SPA Deploy: $(jq -r '.spa_deploy' .github/deployment-config.json)
-⚙️ Backend Deploy: $(jq -r '.backend_deploy' .github/deployment-config.json)
-🎨 Frontend Deploy: $(jq -r '.frontend_deploy' .github/deployment-config.json)
+🔄 SPA Deploy: $SPA_STATUS
+⚙️ Backend Deploy: $BACKEND_STATUS
+🎨 Frontend Deploy: $FRONTEND_STATUS
 
 Updated by: ${{ github.actor }}"
-            git push
+
+            echo "📤 推送到远程仓库..."
+            git push origin HEAD:${{ github.ref_name }}
             echo "✅ 配置已提交并推送到仓库"
           fi
