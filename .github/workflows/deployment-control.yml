@@ -192,17 +192,14 @@ jobs:
 
             git add .github/deployment-config.json
 
-            # 使用 heredoc 方式创建多行提交信息
-            git commit -m "$(cat <<EOF
-chore: update deployment configuration via control panel
+            # 创建提交信息
+            COMMIT_MSG="chore: update deployment configuration via control panel"$'\n\n'
+            COMMIT_MSG+="🔄 SPA Deploy: $SPA_STATUS"$'\n'
+            COMMIT_MSG+="⚙️ Backend Deploy: $BACKEND_STATUS"$'\n'
+            COMMIT_MSG+="🎨 Frontend Deploy: $FRONTEND_STATUS"$'\n\n'
+            COMMIT_MSG+="Updated by: ${{ github.actor }}"
 
-🔄 SPA Deploy: $SPA_STATUS
-⚙️ Backend Deploy: $BACKEND_STATUS
-🎨 Frontend Deploy: $FRONTEND_STATUS
-
-Updated by: ${{ github.actor }}
-EOF
-)"
+            git commit -m "$COMMIT_MSG"
 
             echo "📤 推送到远程仓库..."
             git push origin HEAD:${{ github.ref_name }}
