@@ -33,25 +33,28 @@ Authorization: Bearer <admin_token>
 Authorization: ApiKey <api_key>
 ```
 
-API 密钥由管理员在后台创建，支持以下权限类型：
+API 密钥由管理员在后台创建，使用位标志权限系统，支持以下权限类型：
 
-**基础权限：**
+**权限位标志值：**
 
-- **TEXT**: 文本分享权限 - 允许创建、查看、修改和删除文本分享
-- **FILE_SHARE**: 文件分享权限 - 允许创建和管理文件分享链接
+- **1 (TEXT_SHARE)**: 文本分享权限 - 允许创建/分享文本
+- **2 (FILE_SHARE)**: 文件分享权限 - 允许创建/分享文件
+- **4 (TEXT_MANAGE)**: 文本管理权限 - 允许列出/修改/删除自己的文本分享
+- **8 (FILE_MANAGE)**: 文件管理权限 - 允许列出/修改/删除自己的文件分享
+- **256 (MOUNT_VIEW)**: 挂载页查看权限 - 允许浏览挂载页
+- **512 (MOUNT_UPLOAD)**: 上传权限 - 允许上传文件和创建目录
+- **1024 (MOUNT_COPY)**: 复制权限 - 允许复制文件/目录
+- **2048 (MOUNT_RENAME)**: 重命名权限 - 允许重命名文件/目录
+- **4096 (MOUNT_DELETE)**: 删除权限 - 允许删除文件/目录
+- **65536 (WEBDAV_READ)**: WebDAV 读取权限 - 允许通过 WebDAV 读取文件（GET/PROPFIND 等）
+- **131072 (WEBDAV_MANAGE)**: WebDAV 管理权限 - 允许通过 WebDAV 管理文件（PUT/DELETE/MKCOL 等）
 
-**挂载页权限：**
+**权限组合示例：**
 
-- **MOUNT_VIEW**: 挂载页查看权限 - 允许浏览挂载页内容
-- **MOUNT_UPLOAD**: 上传权限 - 允许上传文件和创建目录
-- **MOUNT_COPY**: 复制权限 - 允许复制文件和目录
-- **MOUNT_RENAME**: 重命名权限 - 允许重命名文件和目录
-- **MOUNT_DELETE**: 删除权限 - 允许删除文件和目录
-
-**WebDAV 权限：**
-
-- **WEBDAV_READ**: WebDAV 读取权限 - 允许通过 WebDAV 读取文件（GET、PROPFIND 等）
-- **WEBDAV_MANAGE**: WebDAV 管理权限 - 允许通过 WebDAV 管理文件（PUT、DELETE、MKCOL 等）
+- `15` = TEXT_SHARE + TEXT_MANAGE + FILE_SHARE + FILE_MANAGE (1+2+4+8) - 拥有完整的文本/文件分享与管理权限
+- `771` = 基础权限 + MOUNT_UPLOAD (1+2+256+512) - 包含上传权限
+- `7939` = 除 WebDAV 外的所有权限 (1+2+256+512+1024+2048+4096) - 挂载页完整权限
+- `204559` = ALL_PERMISSIONS (1+2+4+8+256+512+1024+2048+4096+65536+131072) - 拥有所有权限
 
 **路径限制：**
 
@@ -129,7 +132,7 @@ X-Custom-Auth-Key: <api_key>
       "code": 200,
       "message": "获取版本信息成功",
       "data": {
-        "version": "0.6.5",
+        "version": "0.8.1",
         "name": "cloudpaste-api",
         "environment": "Docker",
         "storage": "SQLite",
@@ -142,36 +145,143 @@ X-Custom-Auth-Key: <api_key>
 
 #### 系统设置 API
 
-- `GET /api/admin/system-settings`
+**注意：系统设置 API 已重构为分组管理架构，支持更灵活的设置管理**
 
-  - 描述：获取系统设置信息
+- `GET /api/admin/settings`
+
+  - 描述：获取系统设置（支持按分组查询或获取所有分组）
+  - 授权：无需授权（公开访问）
+  - 查询参数：
+    - `group` - 分组 ID（可选）：1=全局设置，3=WebDAV 设置
+    - `metadata` - 是否包含元数据（可选，默认 true）
+    - `includeSystem` - 是否包含系统内部分组（可选，默认 false，仅在不指定 group 时有效）
+  - 响应：
+    - **按分组查询时**：
+      ```json
+      {
+        "code": 200,
+        "message": "获取分组设置成功",
+        "data": [
+          {
+            "key": "max_upload_size",
+            "value": "100",
+            "description": "最大上传文件大小限制（MB）",
+            "type": "number",
+            "group_id": 1,
+            "options": null,
+            "sort_order": 1
+          }
+        ],
+        "success": true
+      }
+      ```
+    - **获取所有分组时**：
+      ```json
+      {
+        "code": 200,
+        "message": "获取所有分组设置成功",
+        "data": {
+          "1": {
+            "groupName": "全局设置",
+            "settings": [...]
+          },
+          "3": {
+            "groupName": "WebDAV设置",
+            "settings": [...]
+          }
+        },
+        "success": true
+      }
+      ```
+
+- `GET /api/admin/settings/groups`
+
+  - 描述：获取分组列表和统计信息
   - 授权：需要管理员令牌
-  - 响应：包含系统设置的对象
+  - 响应：分组信息列表
     ```json
     {
       "code": 200,
-      "message": "获取系统设置成功",
+      "message": "获取分组信息成功",
       "data": {
-        "max_upload_size": 100,
-        "default_paste_expiry": 7,
-        "default_file_expiry": 7
+        "groups": [
+          {
+            "id": 1,
+            "name": "全局设置",
+            "description": "系统全局配置项",
+            "settingCount": 5
+          },
+          {
+            "id": 3,
+            "name": "WebDAV设置",
+            "description": "WebDAV协议相关配置",
+            "settingCount": 2
+          }
+        ]
       },
       "success": true
     }
     ```
 
-- `PUT /api/admin/system-settings`
-  - 描述：更新系统设置
+- `GET /api/admin/settings/metadata`
+
+  - 描述：获取设置项元数据
   - 授权：需要管理员令牌
-  - 请求体：
+  - 查询参数：
+    - `key` - 设置键名（必填）
+  - 响应：设置项的详细元数据
     ```json
     {
-      "max_upload_size": 100, // 可选，最大上传大小（MB）
-      "default_paste_expiry": 7, // 可选，默认文本过期天数
-      "default_file_expiry": 7 // 可选，默认文件过期天数
+      "code": 200,
+      "message": "获取设置元数据成功",
+      "data": {
+        "key": "max_upload_size",
+        "description": "最大上传文件大小限制（MB）",
+        "type": "number",
+        "group_id": 1,
+        "options": null,
+        "sort_order": 1,
+        "flags": 0
+      },
+      "success": true
     }
     ```
-  - 响应：更新后的系统设置
+
+- `PUT /api/admin/settings/group/:groupId`
+  - 描述：按分组批量更新设置
+  - 授权：需要管理员令牌
+  - 参数：groupId - 分组 ID（1=全局设置，3=WebDAV 设置）
+  - 查询参数：
+    - `validate` - 是否进行类型验证（可选，默认 true）
+  - 请求体：设置键值对
+    ```json
+    {
+      "max_upload_size": 200,
+      "default_paste_expiry": 14,
+      "default_file_expiry": 30
+    }
+    ```
+  - 响应：批量更新结果
+    ```json
+    {
+      "code": 200,
+      "message": "批量更新设置成功，共更新3项",
+      "data": {
+        "success": true,
+        "updated": 3,
+        "failed": 0,
+        "results": [
+          {
+            "key": "max_upload_size",
+            "success": true,
+            "oldValue": "100",
+            "newValue": "200"
+          }
+        ]
+      },
+      "success": true
+    }
+    ```
 
 ### 文本分享 API
 
@@ -185,20 +295,86 @@ X-Custom-Auth-Key: <api_key>
     ```json
     {
       "content": "要分享的文本内容", // 必填
-      "remark": "备注信息", // 可选
-      "expiresAt": "2023-12-31T23:59:59Z", // 可选，过期时间
-      "maxViews": 100, // 可选，最大查看次数
+      "title": "文本标题", // 可选，用于在列表和前台展示中区分不同文本
+      "remark": "备注信息", // 可选，用于管理和搜索
+      "expires_at": "2023-12-31T23:59:59Z", // 可选，过期时间
+      "max_views": 100, // 可选，最大查看次数
       "password": "访问密码", // 可选
-      "slug": "custom-slug" // 可选，自定义短链接
+      "slug": "custom-slug", // 可选，自定义短链接
+      "is_public": true // 可选，是否公开访问，默认 true；false 时仅管理员和创建者可访问
     }
     ```
   - 响应：创建的文本分享信息，包含访问链接
+    ```json
+    {
+      "code": 200,
+      "message": "文本分享创建成功",
+      "data": {
+        "id": "123",
+        "slug": "abc123",
+        "title": "文本标题",
+        "remark": "备注信息",
+        "expires_at": "2023-12-31T23:59:59Z",
+        "max_views": 100,
+        "is_public": true,
+        "hasPassword": true,
+        "created_at": "2023-05-01T12:00:00Z"
+      },
+      "success": true
+    }
+    ```
 
 - `GET /api/paste/:slug`
 
   - 描述：获取文本分享内容
   - 参数：slug - 文本短链接
-  - 响应：文本分享内容，如果需要密码则返回密码提示
+  - 访问控制：
+    - 当 `is_public = true` 时，任何持有链接的用户都可以访问（仍受过期时间、最大查看次数和密码保护限制）。
+    - 当 `is_public = false` 时，仅管理员和创建者可以访问；其他用户（包括匿名和其他 API 密钥）将收到“不存在或已被删除”的响应（HTTP 404）。
+  - 响应：
+    - 如果文本未设置密码且可访问，将直接返回内容：
+      ```json
+      {
+        "code": 200,
+        "message": "获取文本内容成功",
+        "data": {
+          "slug": "abc123",
+          "title": "文本标题",
+          "content": "要分享的文本内容",
+          "remark": "备注信息",
+          "expires_at": "2023-12-31T23:59:59Z",
+          "max_views": 100,
+          "views": 1,
+          "created_at": "2023-05-01T12:00:00Z",
+          "created_by": "admin",
+          "is_public": true,
+          "hasPassword": false,
+          "isLastView": false
+        },
+        "success": true
+      }
+      ```
+    - 如果文本已设置密码，则只返回元信息并提示需要密码：
+      ```json
+      {
+        "code": 200,
+        "message": "获取文本信息成功",
+        "data": {
+          "slug": "abc123",
+          "title": "文本标题",
+          "remark": "备注信息",
+          "expires_at": "2023-12-31T23:59:59Z",
+          "max_views": 100,
+          "views": 0,
+          "created_at": "2023-05-01T12:00:00Z",
+          "created_by": "admin",
+          "is_public": true,
+          "hasPassword": true,
+          "requiresPassword": true
+        },
+        "success": true
+      }
+      ```
 
 - `POST /api/paste/:slug`
 
@@ -210,7 +386,7 @@ X-Custom-Auth-Key: <api_key>
       "password": "访问密码" // 必填
     }
     ```
-  - 响应：验证成功后返回文本分享内容
+  - 响应：验证成功后返回文本分享内容，字段与未加密的 `GET /api/paste/:slug` 响应相同，另外会包含 `plain_password`（仅在需要时返回）
 
 - `GET /api/raw/:slug`
 
@@ -218,6 +394,7 @@ X-Custom-Auth-Key: <api_key>
   - 参数：slug - 文本短链接
   - 查询参数：
     - `password` - 如果文本受密码保护，需提供密码
+  - 访问控制：与 `GET /api/paste/:slug` 相同，受 `is_public`、过期时间、最大查看次数及密码保护限制
   - 响应：纯文本格式的内容，Content-Type 为 text/plain
 
 #### 统一文本管理接口
@@ -235,13 +412,51 @@ X-Custom-Auth-Key: <api_key>
       - `limit` - 每页数量，默认为 30
       - `offset` - 偏移量，默认为 0
   - 响应：文本分享列表和分页信息，API 密钥用户只能看到自己创建的文本
+    ```json
+    {
+      "code": 200,
+      "message": "获取成功",
+      "data": {
+        "results": [
+          {
+            "id": "123",
+            "slug": "abc123",
+            "title": "文本标题",
+            "remark": "备注信息",
+            "expires_at": "2023-12-31T23:59:59Z",
+            "max_views": 100,
+            "view_count": 5,
+            "is_public": true,
+            "created_by": "admin",
+            "created_at": "2023-05-01T12:00:00Z",
+            "updated_at": "2023-05-02T08:00:00Z",
+            "has_password": false,
+            "content": "完整内容..."
+          }
+        ],
+        "pagination": {
+          "total": 1,
+          "limit": 10,
+          "offset": 0,
+          "hasMore": false,
+          "page": 1,
+          "totalPages": 1
+        }
+      },
+      "success": true
+    }
+    ```
 
 - `GET /api/pastes/:id`
 
   - 描述：获取单个文本详情（统一接口）
   - 授权：需要管理员令牌或有文本权限的 API 密钥
   - 参数：id - 文本 ID
-  - 响应：文本分享详细信息，API 密钥用户只能访问自己创建的文本
+  - 响应：文本分享详细信息，API 密钥用户只能访问自己创建的文本。返回字段包含：
+    - `id`, `slug`, `title`, `content`, `remark`
+    - `expires_at`, `max_views`, `views`, `is_public`
+    - `created_by`, `created_at`, `updated_at`
+    - `has_password`, `plain_password`（仅在有密码时，并且当前调用者有权限查看明文密码）
 
 - `DELETE /api/pastes/batch-delete`
 
@@ -259,7 +474,20 @@ X-Custom-Auth-Key: <api_key>
   - 描述：更新文本信息（统一接口）
   - 授权：需要管理员令牌或有文本权限的 API 密钥
   - 参数：slug - 文本短链接
-  - 请求体：可包含 remark, expiresAt, maxViews, password 等字段
+  - 请求体：可包含以下字段（至少需要 content）：
+    ```json
+    {
+      "content": "更新后的文本内容", // 必填
+      "title": "更新后的标题", // 可选
+      "remark": "更新后的备注信息", // 可选
+      "expires_at": "2024-01-31T23:59:59Z", // 可选
+      "max_views": 50, // 可选
+      "password": "新密码", // 可选
+      "clearPassword": true, // 可选，true 时清除密码
+      "newSlug": "new-slug", // 可选，更新短链接
+      "is_public": false // 可选，是否公开访问，false 表示仅管理员和创建者可访问
+    }
+    ```
   - 响应：更新后的文本信息，API 密钥用户只能更新自己创建的文本
 
 #### 管理员专用接口
@@ -288,12 +516,18 @@ X-Custom-Auth-Key: <api_key>
   - 请求体：
     ```json
     {
-      "s3_config_id": "S3配置ID", // 必填
+      "storage_config_id": "存储配置ID", // 必填
       "filename": "文件名.jpg", // 必填
       "size": 1024, // 可选，文件大小（字节）
       "mimetype": "image/jpeg", // 可选，MIME类型
       "path": "custom/path/", // 可选，自定义路径
-      "slug": "custom-slug" // 可选，自定义短链接
+      "slug": "custom-slug", // 可选，自定义短链接
+      "override": true, // 可选，是否覆盖已存在文件
+      "remark": "文件备注", // 可选，文件备注信息
+      "password": "访问密码", // 可选，文件访问密码
+      "expires_in": 168, // 可选，过期时间（小时）
+      "max_views": 100, // 可选，最大查看次数
+      "use_proxy": false // 可选，是否使用代理访问
     }
     ```
   - 响应：包含上传 URL 和文件信息
@@ -306,15 +540,12 @@ X-Custom-Auth-Key: <api_key>
     ```json
     {
       "file_id": "文件ID", // 必填
-      "etag": "文件ETag", // 必填，S3返回的ETag
-      "size": 1024, // 必填，文件实际大小（字节）
-      "remark": "文件说明", // 可选
-      "password": "文件密码", // 可选
-      "expiresAt": "2023-12-31T23:59:59Z", // 可选，过期时间
-      "maxDownloads": 10 // 可选，最大下载次数
+      "etag": "文件ETag", // 可选，S3返回的ETag（某些S3兼容服务可能无法提供）
+      "size": 1024 // 可选，文件实际大小（字节）
     }
     ```
   - 响应：文件提交结果
+  - **重要说明**：业务参数（remark、password、expires_in、max_views 等）应该在 presign 阶段传递，commit 阶段只负责确认上传完成
 
 - `GET /api/file-download/:slug`
 
@@ -497,6 +728,17 @@ X-Custom-Auth-Key: <api_key>
     }
     ```
   - 响应：登录令牌和管理员信息
+    ```json
+    {
+      "code": 200,
+      "message": "登录成功",
+      "data": {
+        "username": "admin",
+        "token": "abc123def456...",
+        "expiresAt": "2025-01-28T10:30:45.123Z"
+      }
+    }
+    ```
 
 - `POST /api/admin/logout`
 
@@ -526,11 +768,7 @@ X-Custom-Auth-Key: <api_key>
     ```json
     {
       "code": 200,
-      "message": "管理员令牌验证成功",
-      "data": {
-        "valid": true,
-        "adminId": "管理员ID"
-      },
+      "message": "令牌有效",
       "success": true
     }
     ```
@@ -539,26 +777,48 @@ X-Custom-Auth-Key: <api_key>
 
   - 描述：测试 API 密钥有效性
   - 授权：需要有效的 API 密钥
-  - 响应：API 密钥验证状态和权限信息
+  - 响应：API 密钥验证状态和权限信息（详见下方完整示例）
+
+
+- `GET /api/public/guest-config`
+
+  - 描述：用于前端获取Guest API 密钥配置，支持"游客模式"登录
+  - 权限要求：无需身份验证
+  - 响应会返回以下字段：
+    - `enabled`: 是否有效（已启用 + 未禁用 + 未过期）
+    - `key`: 仅在有效时才返回 API 密钥的值，无效时为 null
+    - `name`: Guest 密钥名称（默认 GUEST）
+    - `permissions`: 位标志权限值
+    - `permissions_detail`: ▲text/file/mount/webdav 权限详细信息
+    - `basic_path`: 密钥用户的基础路径
+    - `expires_at`: 过期时间（ISO 8601 字符串）
+  - 响应示例：
     ```json
     {
       "code": 200,
-      "message": "API密钥验证成功",
+      "message": "游客配置获取成功",
+      "success": true,
       "data": {
-        "name": "密钥名称",
-        "basic_path": "/",
-        "permissions": {
-          "text": true,
-          "file": false,
-          "mount": true
+        "enabled": true,
+        "key": "guest",
+        "name": "guest",
+        "permissions": 768,
+        "permissions_detail": {
+          "text_share": true,
+          "text_manage": false,
+          "file_share": true,
+          "file_manage": false,
+          "mount_view": true,
+          "mount_upload": false,
+          "mount_copy": false,
+          "mount_rename": false,
+          "mount_delete": false,
+          "webdav_read": false,
+          "webdav_manage": false
         },
-        "key_info": {
-          "id": "密钥ID",
-          "name": "密钥名称",
-          "basic_path": "/"
-        }
-      },
-      "success": true
+        "basic_path": "/public",
+        "expires_at": "9999-12-31T23:59:59Z"
+      }
     }
     ```
 
@@ -614,14 +874,27 @@ X-Custom-Auth-Key: <api_key>
     ```json
     {
       "name": "密钥名称", // 必填
-      "text_permission": true, // 是否有文本权限，默认false
-      "file_permission": true, // 是否有文件权限，默认false
-      "mount_permission": true, // 是否有挂载权限，默认false
+      "permissions": 7, // 必填，位标志权限值（数字）
+      "role": "GENERAL", // 可选，用户角色：GUEST/GENERAL/ADMIN，默认GENERAL
+      "basic_path": "/", // 可选，基本路径权限，默认为根路径"/"
+      "is_guest": false, // 可选，是否为访客（免密访问），默认false
       "expires_at": "2023-12-31T23:59:59Z", // 可选，过期时间
-      "custom_key": "custom-api-key-123", // 可选，自定义密钥值（仅限字母、数字、横杠和下划线）
-      "basic_path": "/" // 可选，基本路径权限，默认为根路径"/"
+      "custom_key": "custom-api-key-123" // 可选，自定义密钥值（仅限字母、数字、横杠和下划线）
     }
     ```
+  - 权限位标志说明：
+    - `1` (TEXT) - 文本分享权限
+    - `2` (FILE_SHARE) - 文件分享权限
+    - `256` (MOUNT_VIEW) - 挂载页查看权限
+    - `512` (MOUNT_UPLOAD) - 上传权限
+    - `1024` (MOUNT_COPY) - 复制权限
+    - `2048` (MOUNT_RENAME) - 重命名权限
+    - `4096` (MOUNT_DELETE) - 删除权限
+    - `65536` (WEBDAV_READ) - WebDAV 读取权限
+    - `131072` (WEBDAV_MANAGE) - WebDAV 管理权限
+  - 示例权限组合：
+    - `259` = TEXT + FILE_SHARE + MOUNT_VIEW (1+2+256)
+    - `198915` = 所有权限 (1+2+256+512+1024+2048+4096+65536+131072)
   - 响应：新创建的 API 密钥信息，包含完整的密钥值（仅在创建时返回）
 
 - `PUT /api/admin/api-keys/:id`
@@ -633,11 +906,11 @@ X-Custom-Auth-Key: <api_key>
     ```json
     {
       "name": "新密钥名称", // 可选
-      "text_permission": true, // 可选
-      "file_permission": false, // 可选
-      "mount_permission": true, // 可选
-      "expires_at": "2023-12-31T23:59:59Z", // 可选
-      "basic_path": "/restricted/path/" // 可选，基本路径权限
+      "permissions": 15, // 可选，位标志权限值（数字）
+      "role": "GENERAL", // 可选，用户角色：GUEST/GENERAL/ADMIN
+      "basic_path": "/restricted/path/", // 可选，基本路径权限
+      "is_guest": false, // 可选，是否为访客（免密访问）
+      "expires_at": "2023-12-31T23:59:59Z" // 可选，过期时间
     }
     ```
   - 响应：更新后的密钥信息
@@ -662,18 +935,76 @@ X-Custom-Auth-Key: <api_key>
         "basic_path": "/",
         "permissions": {
           "text": true,
-          "file": true,
-          "mount": false
+          "file_share": true,
+          "mount_view": true,
+          "mount_upload": false,
+          "mount_copy": false,
+          "mount_rename": false,
+          "mount_delete": false,
+          "webdav_read": false,
+          "webdav_manage": false
         },
         "key_info": {
           "id": "密钥ID",
           "name": "密钥名称",
-          "basic_path": "/"
+          "basic_path": "/",
+          "permissions": 259,
+          "role": "GENERAL",
+          "is_guest": false
         }
       },
       "success": true
     }
     ```
+- `GET /api/admin/api-keys/:id/storage-acl`
+
+  - 用于获取指定 API 密钥的存储 ACL 白名单
+  - 权限：需要管理员权限
+  - 参数：id - 密钥 ID
+  - 响应：返回该密钥允许使用的 `storage_config_id` 列表
+    ```json
+    {
+      "code": 200,
+      "message": "获取存储 ACL 成功",
+      "data": {
+        "subject_type": "API_KEY",
+        "subject_id": "密钥ID",
+        "storage_config_ids": ["config-id-a", "config-id-b"]
+      },
+      "success": true
+    }
+    ```
+  - 说明：
+    - 当 `storage_config_ids` 为空数组时，表示未为该密钥配置存储 ACL 白名单，此时该密钥可以使用所有公开存储配置（仍受 `basic_path` 和权限位限制）。
+
+- `PUT /api/admin/api-keys/:id/storage-acl`
+
+  - 用于整体更新指定 API 密钥的存储 ACL 白名单
+  - 权限：需要管理员权限
+  - 参数：id - 密钥 ID
+  - 请求体：
+    ```json
+    {
+      "storage_config_ids": ["config-id-a", "config-id-b"]
+    }
+    ```
+  - 响应：
+    ```json
+    {
+      "code": 200,
+      "message": "存储 ACL 已更新",
+      "data": {
+        "subject_type": "API_KEY",
+        "subject_id": "密钥ID",
+        "storage_config_ids": ["config-id-a", "config-id-b"]
+      },
+      "success": true
+    }
+    ```
+  - 说明：
+    - `storage_config_ids` 为非空数组：该密钥只能使用这些存储配置（并且必须是公开的 `is_public = 1`）。
+    - `storage_config_ids` 为空数组：清空白名单，恢复为“可以使用所有公开存储配置”的默认模式。
+
 
 ### 系统设置 API
 
@@ -692,39 +1023,6 @@ X-Custom-Auth-Key: <api_key>
       "success": true
     }
     ```
-
-- `GET /api/admin/system-settings`
-
-  - 描述：获取系统设置
-  - 授权：需要管理员令牌
-  - 响应：系统设置信息，包含最大上传大小等系统参数
-    ```json
-    {
-      "code": 200,
-      "message": "获取系统设置成功",
-      "data": {
-        "max_upload_size": 100,
-        "default_paste_expiry": 7,
-        "default_file_expiry": 7,
-        "webdav_upload_mode": "direct"
-      },
-      "success": true
-    }
-    ```
-
-- `PUT /api/admin/system-settings`
-  - 描述：更新系统设置
-  - 授权：需要管理员令牌
-  - 请求体：
-    ```json
-    {
-      "max_upload_size": 100, // 可选，最大上传大小（MB）
-      "default_paste_expiry": 7, // 可选，默认文本过期天数
-      "default_file_expiry": 7, // 可选，默认文件过期天数
-      "webdav_upload_mode": "direct" // 可选，WebDAV上传模式：multipart/direct
-    }
-    ```
-  - 响应：更新后的系统设置
 
 ### 缓存管理 API
 
@@ -746,10 +1044,17 @@ X-Custom-Auth-Key: <api_key>
             "hitRate": 0.85,
             "missRate": 0.15
           },
-          "s3Url": {
+          "url": {
             "totalEntries": 50,
             "hitRate": 0.9,
             "missRate": 0.1
+          },
+          "search": {
+            "totalEntries": 25,
+            "hitRate": 0.75,
+            "missRate": 0.25,
+            "cacheSize": "2.5MB",
+            "maxAge": 300
           }
         },
         "system": {
@@ -768,22 +1073,23 @@ X-Custom-Auth-Key: <api_key>
 
 - `POST /api/admin/cache/clear`
 
-  - 描述：清理目录缓存
+  - 描述：清理系统缓存（支持目录缓存、URL 缓存和搜索缓存）
   - 授权：需要管理员令牌
   - 请求体：
     ```json
     {
       "mountId": "挂载点ID", // 可选，清理特定挂载点的缓存
-      "s3ConfigId": "S3配置ID" // 可选，清理特定S3配置相关的缓存
+      "storageConfigId": "存储配置ID" // 可选，清理特定存储配置相关的缓存
+      // 注意：如果两个参数都不提供，将清理所有缓存（目录、URL、搜索）
     }
     ```
   - 响应：清理结果
     ```json
     {
       "code": 200,
-      "message": "缓存清理成功，共清理 50 项",
+      "message": "缓存清理成功，共清理 75 项",
       "data": {
-        "clearedCount": 50,
+        "clearedCount": 75,
         "timestamp": "2023-05-01T12:00:00Z"
       },
       "success": true
@@ -793,81 +1099,74 @@ X-Custom-Auth-Key: <api_key>
 #### API 密钥用户缓存管理
 
 - `POST /api/user/cache/clear`
-  - 描述：API 密钥用户清理缓存
+  - 描述：API 密钥用户清理缓存（仅限其权限范围内的缓存）
   - 授权：需要有挂载权限的 API 密钥
-  - 请求体：格式同管理员版本
-  - 响应：清理结果
+  - 请求体：格式同管理员版本，但会自动限制在用户的 basic_path 权限范围内
+    ```json
+    {
+      "mountId": "挂载点ID", // 可选，仅能清理用户有权限访问的挂载点
+      "cacheType": "all" // 可选，缓存类型：all（默认）、directory、search
+    }
+    ```
+  - 响应：清理结果（仅包含用户权限范围内的缓存清理统计）
+  - 注意：API 密钥用户只能清理其 basic_path 权限范围内的缓存
 
 ### 挂载管理 API
 
-#### 管理员挂载点管理
+#### 统一挂载点管理接口
 
-- `GET /api/admin/mounts`
+- `GET /api/mount/list`
 
-  - 描述：管理员获取所有挂载点列表
-  - 授权：需要管理员令牌
+  - 描述：获取挂载点列表（统一接口，支持管理员和 API 密钥用户）
+  - 授权：需要管理员令牌或有挂载权限的 API 密钥
   - 参数：无
   - 响应：挂载点列表和详细信息
+  - 权限说明：
+    - **管理员用户**：返回所有挂载点（包括禁用的），用于管理界面
+    - **API 密钥用户**：只返回 basic_path 权限范围内的活跃挂载点
 
-- `GET /api/admin/mounts/:id`
+- `POST /api/mount/create`
 
-  - 描述：管理员获取单个挂载点详情
-  - 授权：需要管理员令牌
-  - 参数：id - 挂载点 ID
-  - 响应：挂载点详细信息
-
-- `POST /api/admin/mounts`
-
-  - 描述：管理员创建新的挂载点
+  - 描述：创建新的挂载点（仅管理员）
   - 授权：需要管理员令牌
   - 请求体：
     ```json
     {
       "name": "挂载点名称", // 必填
-      "type": "s3", // 必填，挂载类型，如s3,webdav等
-      "s3_config_id": "S3配置ID", // 当type=s3时必填
-      "config": {
-        // 其他配置信息，根据挂载类型不同而变化
-        "path": "基础路径",
-        "read_only": false
-      }
+      "storage_type": "S3", // 必填，存储类型：S3、WebDAV等
+      "storage_config_id": "S3配置ID", // 当storage_type=S3时必填
+      "mount_path": "/mount-path", // 必填，挂载路径
+      "remark": "挂载点备注", // 可选
+      "is_active": true, // 可选，是否启用，默认true
+      "sort_order": 0, // 可选，排序顺序，默认0
+      "cache_ttl": 300, // 可选，缓存TTL（秒），默认300
+      "web_proxy": false, // 可选，是否启用Web代理，默认false
+      "webdav_policy": "302_redirect", // 可选，WebDAV策略，默认302_redirect
+      "enable_sign": false, // 可选，是否启用签名，默认false
+      "sign_expires": null // 可选，签名过期时间
     }
     ```
   - 响应：新创建的挂载点信息
 
-- `PUT /api/admin/mounts/:id`
+- `PUT /api/mount/:id`
 
-  - 描述：管理员更新挂载点信息
+  - 描述：更新挂载点信息（仅管理员）
   - 授权：需要管理员令牌
   - 参数：id - 挂载点 ID
   - 请求体：包含需要更新的字段，格式同创建
   - 响应：更新结果
 
-- `DELETE /api/admin/mounts/:id`
-  - 描述：管理员删除挂载点
+- `DELETE /api/mount/:id`
+  - 描述：删除挂载点（仅管理员）
   - 授权：需要管理员令牌
   - 参数：id - 挂载点 ID
   - 响应：删除结果
 
-#### API 密钥用户挂载点访问
+**注意**：
 
-- `GET /api/user/mounts`
-
-  - 描述：API 密钥用户获取可访问的挂载点列表（基于 basic_path 权限）
-  - 授权：需要有挂载权限的 API 密钥
-  - 参数：无
-  - 响应：挂载点列表和详细信息
-  - 注意：只返回 API 密钥 basic_path 权限范围内的挂载点
-
-- `GET /api/user/mounts/:id`
-
-  - 描述：API 密钥用户获取单个挂载点详情（基于 basic_path 权限）
-  - 授权：需要有挂载权限的 API 密钥
-  - 参数：id - 挂载点 ID
-  - 响应：挂载点详细信息
-  - 注意：只能访问 API 密钥 basic_path 权限范围内的挂载点
-
-**注意**：API 密钥用户无法创建、更新或删除挂载点。挂载点的管理完全由管理员在后台进行，API 密钥用户只能查看管理员分配给其 basic_path 权限范围内的挂载点。
+- 挂载点的创建、更新和删除操作仅限管理员执行
+- API 密钥用户只能通过 `/api/mount/list` 查看其 basic_path 权限范围内的挂载点
+- 统一接口根据用户权限自动返回相应的数据范围，无需区分不同的 API 端点
 
 ### 文件系统 API
 
@@ -883,6 +1182,22 @@ X-Custom-Auth-Key: <api_key>
     - `path` - 要列出内容的目录路径，默认为根目录("/")
   - 响应：目录内容列表，包含文件和子目录信息
   - 权限：API 密钥用户只能访问其 basic_path 权限范围内的目录
+  - 路径密码行为（如启用目录密码）：
+    - 额外请求头（可选）：
+      ```http
+      X-FS-Path-Token: encrypted:...
+      ```
+      - 该 token 由 `POST /api/fs/meta/password/verify` 接口返回；
+      - 用于访问设置了路径密码的目录及其子目录。
+    - 当目标路径未配置路径密码时：
+      - 与原行为完全一致，不需要该头。
+    - 当目标路径配置了路径密码时：
+      - 管理员用户：
+        - 不检查路径密码，直接放行（只要管理员登录有效）。
+      - 非管理员用户（API Key 等）：
+        - 未提供 token 或 token 无效 / 过期时：
+          - 返回 `403`，`code = "FS_PATH_PASSWORD_REQUIRED"`；
+          - 前端应据此弹出路径密码输入框，重新验证密码。
 
 - `GET /api/fs/get`
 
@@ -998,10 +1313,10 @@ X-Custom-Auth-Key: <api_key>
   - 请求体：
     ```json
     {
-      "path": "上传目标路径", // 必填，包含文件名
+      "path": "上传目标路径", // 必填，目标目录路径
+      "fileName": "文件名.jpg", // 必填，文件名
       "contentType": "文件MIME类型", // 可选，默认为application/octet-stream
-      "fileSize": 1024000, // 可选，文件大小（字节）
-      "mountId": "挂载点ID" // 可选，不指定则使用默认挂载点
+      "fileSize": 1024000 // 可选，文件大小（字节）
     }
     ```
   - 响应：包含预签名 URL 和上传配置的对象
@@ -1014,11 +1329,9 @@ X-Custom-Auth-Key: <api_key>
   - 请求体：
     ```json
     {
-      "path": "上传目标路径", // 必填
-      "uploadId": "上传ID", // 可选，分片上传时需要
-      "etag": "文件ETag", // 可选，服务器返回的ETag
-      "size": 1024000, // 可选，文件大小（字节）
-      "mountId": "挂载点ID" // 可选，不指定则使用默认挂载点
+      "targetPath": "上传目标路径", // 必填，完整的文件路径
+      "mountId": "挂载点ID", // 必填，挂载点ID
+      "fileSize": 1024000 // 可选，文件大小（字节）
     }
     ```
   - 响应：文件上传完成状态和文件信息
@@ -1063,14 +1376,14 @@ X-Custom-Auth-Key: <api_key>
         // 必填，已复制文件列表
         {
           "targetPath": "目标路径1", // 必填
-          "s3Path": "S3存储路径1", // 必填
+          "storagePath": "存储路径1", // 必填
           "contentType": "文件MIME类型", // 可选
           "fileSize": 1024000, // 可选，文件大小（字节）
           "etag": "文件ETag" // 可选
         },
         {
           "targetPath": "目标路径2",
-          "s3Path": "S3存储路径2"
+          "storagePath": "存储路径2"
         }
       ]
     }
@@ -1250,46 +1563,57 @@ X-Custom-Auth-Key: <api_key>
 
 #### URL 上传准备与提交
 
-- `POST /api/url/presign`
+- `POST /api/share/url/presign`
 
-  - 描述：为 URL 上传准备预签名 URL 和文件记录
+  - 描述：根据 URL 元信息生成上传预签名（客户端 PUT 到对象存储），并返回提交建议
   - 授权：需要管理员令牌或有文件权限的 API 密钥
   - 请求体：
     ```json
     {
-      "url": "https://example.com/image.jpg", // 必填，源文件URL
-      "s3_config_id": "S3配置ID", // 必填，上传目标S3配置
-      "metadata": {
-        // 可选，自定义元数据
-        "filename": "自定义文件名.jpg",
-        "contentType": "image/jpeg"
+      "url": "https://example.com/image.jpg",           // 必填，源URL
+      "storage_config_id": "配置ID",                     // 可选，不提供则选择默认（API Key 仅公开）
+      "filename": "自定义文件名.jpg",                    // 可选，覆盖元信息文件名
+      "contentType": "image/jpeg",                      // 可选
+      "fileSize": 102400,                                // 可选
+      "path": "custom/path"                             // 可选，存储目录（与 default_folder 组合）
+    }
+    ```
+  - 响应：
+    ```json
+    {
+      "presign": {
+        "uploadUrl": "...",            // 预签名上传URL（PUT）
+        "key": "images/a.jpg",         // 对象Key（用于提交）
+        "storage_config_id": "...",     // 提交所需配置ID
+        "expiresIn": 3600,
+        "filename": "a.jpg"
       },
-      "filename": "自定义文件名.jpg", // 可选，覆盖元数据中的文件名
-      "slug": "custom-slug", // 可选，自定义短链接
-      "remark": "文件备注", // 可选，文件说明
-      "path": "custom/path/" // 可选，自定义存储路径
+      "metadata": { "filename": "a.jpg", "contentType": "image/jpeg", "size": 102400 },
+      "commit_suggestion": { "key": "images/a.jpg", "storage_config_id": "...", "filename": "a.jpg", "size": 102400 }
     }
     ```
-  - 响应：包含上传信息和预签名 URL 的对象
 
-- `POST /api/url/commit`
+- `POST /api/share/commit`
 
-  - 描述：URL 上传完成后的提交确认
+  - 描述：确认预签名上传完成，创建或更新分享记录（覆盖策略由系统 `file_naming_strategy` 决定）
   - 授权：需要管理员令牌或有文件权限的 API 密钥
   - 请求体：
     ```json
     {
-      "file_id": "文件ID", // 必填
-      "etag": "文件ETag", // 必填，S3返回的ETag
-      "size": 1024000, // 可选，文件大小（字节）
-      "remark": "文件备注", // 可选
-      "password": "访问密码", // 可选
-      "expires_in": 168, // 可选，过期时间（小时）
-      "max_views": 10, // 可选，最大查看次数
-      "slug": "custom-slug" // 可选，自定义短链接
+      "key": "images/a.jpg",                 // 必填，对象Key
+      "storage_config_id": "...",            // 必填，目标存储配置ID
+      "filename": "a.jpg",                   // 必填，用于展示与MIME推断
+      "size": 102400,                         // 建议提供，便于配额校验
+      "etag": "...",                         // 建议提供
+      "remark": "备注",                      // 可选
+      "password": "...",                     // 可选
+      "expires_in": 24,                       // 可选（小时）
+      "max_views": 0,                         // 可选（0=不限）
+      "slug": "custom-slug",                 // 可选，支持覆盖（需同一创建者）
+      "use_proxy": true                        // 可选；不提供时使用系统 default_use_proxy
     }
     ```
-  - 响应：文件提交结果和访问信息
+  - 响应：包含 slug、代理/直链 URL、直链签名等访问信息
 
 #### URL 分片上传
 
@@ -1301,7 +1625,7 @@ X-Custom-Auth-Key: <api_key>
     ```json
     {
       "url": "https://example.com/largefile.zip", // 必填，源文件URL
-      "s3_config_id": "S3配置ID", // 必填，上传目标S3配置
+      "storage_config_id": "存储配置ID", // 必填，上传目标存储配置
       "metadata": {
         // 可选，自定义元数据
         "filename": "自定义文件名.zip",
@@ -1406,7 +1730,7 @@ X-Custom-Auth-Key: <api_key>
 
 ### 文件上传限制
 
-- 最大文件大小由系统设置决定，可通过 `/api/system/max-upload-size`（公共 API）或 `/api/admin/system-settings`（管理员 API）查询
+- 最大文件大小由系统设置决定，可通过 `/api/system/max-upload-size`（公共 API）或 `/api/admin/settings?group=1`（管理员 API）查询
 - 大文件建议使用分片上传或预签名 URL 上传
 - API 密钥用户受 basic_path 路径限制
 
@@ -1423,3 +1747,96 @@ X-Custom-Auth-Key: <api_key>
 - 文件操作（上传、删除、重命名等）会自动清理相关的搜索缓存
 - 搜索缓存支持按挂载点和用户维度进行清理
 - 管理员可以通过 `/api/admin/cache/stats` 查看搜索缓存统计信息
+
+---
+
+## 目录 Meta 管理 API（FS Meta）
+
+> 用于在管理后台配置目录级元信息：顶部/底部 README、隐藏文件规则、路径密码等。  
+> 所有接口均 **仅限管理员** 使用。
+
+- `GET /api/fs-meta/list`
+
+  - 描述：获取所有目录元信息配置列表
+  - 授权：需要管理员令牌
+  - 查询参数：无
+  - 响应：
+    ```json
+    {
+      "code": 200,
+      "message": "获取元信息列表成功",
+      "success": true,
+      "data": [
+        {
+          "id": 1,
+          "path": "/claw",
+          "headerMarkdown": "# 说明",
+          "headerInherit": true,
+          "footerMarkdown": null,
+          "footerInherit": false,
+          "hidePatterns": ["^README\\.md$"],
+          "hideInherit": true,
+          "password": "1234",
+          "hasPassword": true,
+          "passwordInherit": true,
+          "createdAt": "2025-11-19T10:00:00.000Z",
+          "updatedAt": "2025-11-19T10:10:00.000Z"
+        }
+      ]
+    }
+    ```
+
+- `GET /api/fs-meta/:id`
+
+  - 描述：获取单条目录元信息配置
+  - 授权：需要管理员令牌
+  - 路径参数：
+    - `id` - 元信息记录 ID
+  - 响应：结构与列表中的单条记录相同
+
+- `POST /api/fs-meta/create`
+
+  - 描述：为指定路径创建新的目录元信息配置
+  - 授权：需要管理员令牌
+  - 请求体示例：
+    ```json
+    {
+      "path": "/claw",
+      "headerMarkdown": "# 目录说明",
+      "headerInherit": true,
+      "footerMarkdown": "",
+      "footerInherit": false,
+      "hidePatterns": ["^README\\.md$", "^top\\.md$"],
+      "hideInherit": true,
+      "password": "1234",
+      "passwordInherit": true
+    }
+    ```
+
+- `PUT /api/fs-meta/:id`
+
+  - 描述：更新指定 ID 的目录元信息配置
+  - 授权：需要管理员令牌
+  - 路径参数：
+    - `id` - 元信息记录 ID
+  - 请求体：与 `create` 基本一致，所有字段均为可选，未提供的字段保持不变
+    ```json
+    {
+      "path": "/claw/image",
+      "headerMarkdown": "子目录说明",
+      "headerInherit": false,
+      "footerMarkdown": null,
+      "footerInherit": false,
+      "hidePatterns": [],
+      "hideInherit": false,
+      "password": "9999",
+      "passwordInherit": true
+    }
+    ```
+
+- `DELETE /api/fs-meta/:id`
+
+  - 描述：删除指定 ID 的目录元信息记录
+  - 授权：需要管理员令牌
+  - 路径参数：
+    - `id` - 元信息记录 ID

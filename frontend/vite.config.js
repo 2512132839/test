@@ -9,7 +9,7 @@ export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   // 统一版本管理
-  const APP_VERSION = "0.9.0";
+  const APP_VERSION = "1.0.0";
   const isDev = command === "serve";
 
   // 打印环境变量，帮助调试
@@ -50,7 +50,7 @@ export default defineConfig(({ command, mode }) => {
           // 集成自定义Service Worker代码以支持Background Sync API
           importScripts: ["/sw-background-sync.js"],
 
-          // 基于主流PWA最佳实践的正确缓存策略
+          // PWA缓存策略
           runtimeCaching: [
             // 应用静态资源 - StaleWhileRevalidate
             {
@@ -359,11 +359,11 @@ export default defineConfig(({ command, mode }) => {
           theme_color: "#0ea5e9",
           background_color: "#ffffff",
           display: "standalone",
-          orientation: "portrait-primary", // 与manifest.json保持一致
+          orientation: "portrait-primary",
           scope: "/",
           start_url: "/",
-          lang: "zh-CN", // 添加语言设置
-          categories: ["productivity", "utilities"], // 添加应用分类
+          lang: "zh-CN",
+          categories: ["productivity", "utilities"],
           icons: [
             {
               src: "icons/icons-32.png",
@@ -458,7 +458,7 @@ export default defineConfig(({ command, mode }) => {
             // 将大型库分离到单独的 chunk
             "vendor-vue": ["vue", "vue-router", "vue-i18n"],
             "vendor-charts": ["chart.js", "vue-chartjs"],
-            "vendor-utils": ["axios", "qrcode", "file-saver", "docx", "html-to-image"],
+            "vendor-utils": ["qrcode", "file-saver", "docx", "html-to-image"],
           },
         },
       },
